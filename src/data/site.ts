@@ -142,7 +142,7 @@ export const PROFILES: { title: T; text: T }[] = [
 
 export const EXPECTED: { when: T; level: T }[] = [
   { when: { ko: '유치원 GS 말 (CP 진입)', fr: 'Fin de grande section' }, level: { ko: '말하기 A2 수준', fr: 'Niveau A2 à l’oral' } },
-  { when: { ko: '초등 CM2 말 2월 경 (중학교 진입)', fr: 'Fin de CM2' }, level: { ko: '말하기 B1, 쓰기 A2 수준', fr: 'B1 à l’oral, A2 à l’écrit' } },
+  { when: { ko: '초등 CM2 말 (중학교 진입)', fr: 'Fin de CM2' }, level: { ko: '말하기 B1, 쓰기 A2 수준', fr: 'B1 à l’oral, A2 à l’écrit' } },
 ];
 
 /*side 유치원 초등학교 1차 모집 절차. 매년 비슷한 시기에 진행됩니다. */
