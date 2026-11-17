@@ -145,7 +145,7 @@ export const EXPECTED: { when: T; level: T }[] = [
   { when: { ko: '초등 CM2 말 2월 경 (중학교 진입)', fr: 'Fin de CM2' }, level: { ko: '말하기 B1, 쓰기 A2 수준', fr: 'B1 à l’oral, A2 à l’écrit' } },
 ];
 
-side 유치원 초등학교 1차 모집 절차. 매년 비슷한 시기에 진행됩니다. */
+/*side 유치원 초등학교 1차 모집 절차. 매년 비슷한 시기에 진행됩니다. */
 export const CAMPAIGN: { when: T; what: T; detail: T }[] = [
   { when: { ko: '11월 ~ 12월 중순', fr: 'Novembre à mi-décembre' }, what: { ko: '입학 지원서 접수', fr: 'Dépôt des dossiers' },
     detail: { ko: '교육청 누리집에서 지원서를 내려받아 제출합니다. 2027-2028 유치원/초등학교 서류 마감: 12월 18.', fr: 'Dossier à télécharger sur le site de l’académie. L’an dernier : clôture le 19 décembre à 17 h.' } },
