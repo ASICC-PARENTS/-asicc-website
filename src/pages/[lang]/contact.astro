@@ -28,9 +28,11 @@ const TYPES = [
 
         
       </div>
-      <p class="tiny">{L(lang, { ko: '현재 온라인 문의 양식은 개통 전입니다. 문의 사항은 위 공식 이메일로 보내 주세요.', fr: 'Le formulaire en ligne n’est pas encore activé. Merci de nous écrire par e-mail.' })}</p>
+      
     </div>
-    <form class="main card card-pad form" data-public-form="messages" novalidate>
+  
+<form class="main card card-pad form" action="https://formspree.io/f/xdeggdyr" method="POST">
+  
       <label class="field">{L(lang, { ko: '이름', fr: 'Nom' })}<input name="name" autocomplete="name" required></label>
       <label class="field">{L(lang, { ko: '이메일', fr: 'E-mail' })}<input name="email" type="email" autocomplete="email" required></label>
       <label class="field">{L(lang, { ko: '문의 유형', fr: 'Objet' })}
