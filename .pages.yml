@@ -1,0 +1,105 @@
+# ASICC 편집용 CMS (https://app.pagescms.org/)
+# 1) 협회 GitHub 저장소에 올림 → 2) Pages CMS에 GitHub 로그인 → 3) 저장소를 선택
+# .pages.yml은 저장소 루트에 위치해야 합니다.
+# 한국어/프랑스어 공지글은 같은 영문 파일명으로 작성하면 언어 전환이 연결됩니다.
+# 파일명 변경(기존 게시물)은 주소가 바뀔 수 있으므로 피하세요.
+media:
+  input: public/uploads
+  output: /uploads
+  rename: safe
+  categories: [image, document]
+content:
+  - name: homepage
+    label: '01 | 첫 화면·협회 소개 문구 (한/불)'
+    type: file
+    path: src/data/site-copy.json
+    format: json
+    fields:
+      - { name: contact_email, label: '협회 공식 이메일 / E-mail', type: string, required: true }
+      - { name: home_headline_ko, label: '첫 화면 제목 - 한국어', type: string, required: true }
+      - { name: home_headline_fr, label: '첫 화면 제목 - 프랑스어', type: string, required: true }
+      - { name: home_intro_ko, label: '첫 화면 설명 - 한국어', type: text, required: true }
+      - { name: home_intro_fr, label: '첫 화면 설명 - 프랑스어', type: text, required: true }
+      - { name: about_title_ko, label: '협회 소개 제목 - 한국어', type: string, required: true }
+      - { name: about_title_fr, label: '협회 소개 제목 - 프랑스어', type: string, required: true }
+      - { name: about_intro_ko, label: '협회 소개 설명 - 한국어', type: text, required: true }
+      - { name: about_intro_fr, label: '협회 소개 설명 - 프랑스어', type: text, required: true }
+
+  - name: events
+    label: '02 | 행사 일정 (한/불 함께)'
+    type: file
+    path: src/data/events.json
+    format: json
+    list: true
+    fields:
+      - { name: date, label: '행사 날짜', type: date, required: true, options: { format: 'yyyy-MM-dd' } }
+      - { name: title_ko, label: '행사 제목 - 한국어', type: string, required: true }
+      - { name: title_fr, label: '행사 제목 - 프랑스어', type: string, required: true }
+      - name: kind
+        label: '분류'
+        type: select
+        required: true
+        options:
+          values:
+            - { name: info, label: '입학 관련' }
+            - { name: school, label: '학교 행사' }
+            - { name: asso, label: '협회 행사' }
+      - { name: tentative, label: '미확정 일정(예정 표기)', type: boolean }
+      - { name: place_ko, label: '장소 - 한국어', type: string, required: true }
+      - { name: place_fr, label: '장소 - 프랑스어', type: string, required: true }
+      - { name: time_ko, label: '시간 - 한국어 (선택)', type: string }
+      - { name: time_fr, label: '시간 - 프랑스어 (선택)', type: string }
+      - { name: desc_ko, label: '안내 - 한국어 (선택)', type: text }
+      - { name: desc_fr, label: '안내 - 프랑스어 (선택)', type: text }
+
+  - name: news_ko
+    label: '03 | 공지사항·소식 - 한국어'
+    type: collection
+    path: src/content/news/ko
+    format: yaml-frontmatter
+    filename:
+      template: '{year}-{month}-{day}-{primary}.md'
+      field: create
+    view: { primary: title, sort: date, order: desc }
+    fields:
+      - { name: title, label: '제목', type: string, required: true }
+      - { name: date, label: '게시 날짜', type: date, required: true, options: { format: 'yyyy-MM-dd' } }
+      - name: category
+        label: '분류'
+        type: select
+        required: true
+        options:
+          values:
+            - { name: notice, label: '공지' }
+            - { name: event, label: '행사' }
+            - { name: relations, label: '대외협력' }
+            - { name: press, label: '언론·기고' }
+      - { name: summary, label: '목록용 요약', type: text, required: true }
+      - { name: draft, label: '임시 저장(공개하지 않음)', type: boolean }
+      - { name: body, label: '본문', type: rich-text, options: { format: markdown, switcher: true } }
+
+  - name: news_fr
+    label: '04 | Actualités - français'
+    type: collection
+    path: src/content/news/fr
+    format: yaml-frontmatter
+    filename:
+      template: '{year}-{month}-{day}-{primary}.md'
+      field: create
+    view: { primary: title, sort: date, order: desc }
+    fields:
+      - { name: title, label: 'Titre', type: string, required: true }
+      - { name: date, label: 'Date', type: date, required: true, options: { format: 'yyyy-MM-dd' } }
+      - name: category
+        label: 'Catégorie'
+        type: select
+        required: true
+        options:
+          values:
+            - { name: notice, label: 'Annonce' }
+            - { name: event, label: 'Événement' }
+            - { name: relations, label: 'Relations institutionnelles' }
+            - { name: press, label: 'Presse' }
+      - { name: summary, label: 'Résumé', type: text, required: true }
+      - { name: draft, label: 'Brouillon (non publié)', type: boolean }
+      - { name: body, label: 'Texte', type: rich-text, options: { format: markdown, switcher: true } }
