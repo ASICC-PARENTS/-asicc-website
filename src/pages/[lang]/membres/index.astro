@@ -1,13 +1,32 @@
 ---
 import Base from '../../../layouts/Base.astro';
-import { langPaths, L, type Lang } from '../../../i18n/ui';
+import { langPaths, href, L, type Lang } from '../../../i18n/ui';
 export const getStaticPaths = langPaths;
 const lang = Astro.params.lang as Lang;
 ---
-<Base lang={lang} rest="membres/" title={L(lang, { ko: '회원 영역', fr: 'Espace membres' })} noindex>
-  <div class="wrap m-shell">
-    <div id="app" aria-live="polite"></div>
-    <noscript><p class="notice notice-warn">{L(lang, { ko: '회원 영역은 자바스크립트가 필요합니다.', fr: 'L’espace membres nécessite JavaScript.' })}</p></noscript>
-  </div>
-  <script>import '../../../scripts/members/dashboard';</script>
+<Base lang={lang} rest="membres/admin/" title={L(lang, { ko: '회원 서비스 준비 중', fr: 'Espace membres bientôt disponible' })} noindex>
+  <section class="wrap m-shell">
+    <div class="card auth-card stack gap-24" style="max-width:680px;text-align:center">
+      <div class="stack gap-12">
+        <span class="m-badge" style="align-self:center">{L(lang, { ko: '서비스 준비 안내', fr: 'Information' })}</span>
+        <h1 class="h2">{L(lang, { ko: '회원 서비스 준비 중', fr: 'Espace membres bientôt disponible' })}</h1>
+        <p class="muted">{L(lang, {
+          ko: 'ASICC 학부모협회 회원 전용 서비스는 현재 준비 중이며, 곧 이용하실 수 있습니다.',
+          fr: 'L’espace membres de l’ASICC est en cours de préparation et sera bientôt disponible.'
+        })}</p>
+        <p class="small muted">{L(lang, {
+          ko: '회원가입, 로그인 및 회원 전용 자료 열람 기능은 추후 개통될 예정입니다. 그동안 협회 소식과 행사 정보는 홈페이지에서 확인해 주세요.',
+          fr: 'L’inscription, la connexion et l’accès aux documents réservés aux membres seront activés prochainement. En attendant, retrouvez les actualités et les événements sur notre site.'
+        })}</p>
+        <p class="small muted">
+          {L(lang, { ko: '문의사항은', fr: 'Pour toute question, contactez-nous à' })}
+          <a href="mailto:contact@asicc-parents.fr">contact@asicc-parents.fr</a>.
+        </p>
+      </div>
+      <div class="row gap-16" style="justify-content:center;flex-wrap:wrap">
+        <a class="btn btn-dark" href={href(lang)}>{L(lang, { ko: '홈페이지로 돌아가기', fr: 'Retour à l’accueil' })}</a>
+        <a class="btn btn-ghost" href={href(lang, 'contact/')}>{L(lang, { ko: '문의하기', fr: 'Nous contacter' })}</a>
+      </div>
+    </div>
+  </section>
 </Base>
