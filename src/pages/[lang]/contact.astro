@@ -1,0 +1,72 @@
+---
+import cmsCopy from '../../data/site-copy.json';
+import Base from '../../layouts/Base.astro';
+import PageHero from '../../components/PageHero.astro';
+import { langPaths, L, type Lang } from '../../i18n/ui';
+
+export const getStaticPaths = langPaths;
+const lang = Astro.params.lang as Lang;
+const TYPES = [
+  ['admission', { ko: '입학 문의', fr: 'Admissions' }],
+  ['asso', { ko: '협회 활동', fr: 'Vie de l’association' }],
+  ['volunteer', { ko: '실무진 참여', fr: 'Bénévolat' }],
+  ['partner', { ko: '협력·후원 제안', fr: 'Partenariat' }],
+  ['press', { ko: '언론·기관', fr: 'Presse, institutions' }],
+  ['other', { ko: '기타', fr: 'Autre' }],
+] as const;
+---
+<Base lang={lang} rest="contact/" title={L(lang, { ko: '문의', fr: 'Contact' })}>
+  <PageHero lang={lang} eyebrow={L(lang, { ko: '문의', fr: 'Contact' })}
+    title={L(lang, { ko: '협회 문의와 소식지 구독', fr: 'Contact et lettre d’information' })}
+    intro={L(lang, { ko: '한국어와 프랑스어로 문의하실 수 있으며, 국제섹션 입학 및 학교생활에 관한 궁금한 사항은 해당 학교별 학부모 대표가 안내해 드립니다. 단, 입학 지원서 접수 및 선발 결과에 관한 공식 문의는 관할 교육청으로 해주시기 바랍니다.', fr: 'Nous répondons en coréen et en français. Les représentants des parents de chaque établissement peuvent vous renseigner sur la vie de la section. Pour les candidatures officielles et les décisions de sélection, contactez l’académie de Versailles.' })} />
+  <section class="wrap sec split">
+    <div class="side">
+      <h2 class="h3">{L(lang, { ko: '다른 연락 방법', fr: 'Autres moyens' })}</h2>
+      <div class="card card-pad stack gap-8 small">
+        <div class="kv"><span class="muted">E-mail</span><a href={`mailto:${cmsCopy.contact_email}`}>{cmsCopy.contact_email}</a></div>
+        <a class="btn btn-accent" href={`mailto:${cmsCopy.contact_email}`} style="align-self:flex-start">{L(lang, { ko: '이메일 보내기', fr: 'Envoyer un e-mail' })}</a>
+
+        
+      </div>
+      <p class="tiny">{L(lang, { ko: '현재 온라인 문의 양식은 개통 전입니다. 문의 사항은 위 공식 이메일로 보내 주세요.', fr: 'Le formulaire en ligne n’est pas encore activé. Merci de nous écrire par e-mail.' })}</p>
+    </div>
+    <form class="main card card-pad form" data-public-form="messages" novalidate>
+      <label class="field">{L(lang, { ko: '이름', fr: 'Nom' })}<input name="name" autocomplete="name" required></label>
+      <label class="field">{L(lang, { ko: '이메일', fr: 'E-mail' })}<input name="email" type="email" autocomplete="email" required></label>
+      <label class="field">{L(lang, { ko: '문의 유형', fr: 'Objet' })}
+        <select name="type" id="ctype">{TYPES.map(([v, l]) => <option value={v}>{L(lang, l)}</option>)}</select>
+      </label>
+      <label class="field">{L(lang, { ko: '관련 학교', fr: 'Niveau concerné' })}
+        <select name="level"><option value="">{L(lang, { ko: '해당 없음', fr: 'Sans objet' })}</option><option value="mat">{L(lang, { ko: '유치원', fr: 'Maternelle' })}</option><option value="elem">{L(lang, { ko: '초등학교', fr: 'Élémentaire' })}</option><option value="col">{L(lang, { ko: '중학교', fr: 'Collège' })}</option></select>
+      </label>
+      <label class="field full">{L(lang, { ko: '내용', fr: 'Message' })}<textarea name="message" rows="6" required></textarea></label>
+      <label class="check full"><input type="checkbox" name="consent" required>{L(lang, { ko: '답변을 위한 개인정보 수집에 동의합니다.', fr: 'J’accepte que mes données soient utilisées pour me répondre.' })}</label>
+      <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+      <div class="full row gap-16"><button class="btn btn-dark" type="submit">{L(lang, { ko: '보내기', fr: 'Envoyer' })}</button><span class="err" data-form-msg role="status"></span></div>
+    </form>
+  </section>
+  <section id="newsletter" class="wrap sec" style="scroll-margin-top:96px;padding-top:0">
+    <div class="card card-pad split" style="align-items:start;gap:32px">
+      <div class="side stack gap-8">
+        <span class="eyebrow">{L(lang, { ko: '소식지', fr: 'Lettre d’information' })}</span>
+        <h2 class="h2">{L(lang, { ko: '협회 소식지 구독', fr: 'Recevoir la lettre de l’ASICC' })}</h2>
+        <p class="muted">{L(lang, { ko: '총회 결과, 입학 일정, 협회 공지를 학기마다 이메일로 보내 드립니다. 재학생 가정이 아니어도 구독할 수 있으며, 언제든 해지할 수 있습니다.', fr: 'Comptes rendus d’assemblée, calendrier des admissions et annonces de l’association, chaque trimestre. Ouvert à tous, désinscription à tout moment.' })}</p>
+      </div>
+      <form class="main form" data-public-form="subscribers" novalidate>
+        <label class="field full">{L(lang, { ko: '이메일', fr: 'E-mail' })}<input name="email" type="email" autocomplete="email" required></label>
+        <label class="field full">{L(lang, { ko: '받을 언어', fr: 'Langue' })}
+          <select name="lang"><option value="ko" selected={lang === 'ko'}>한국어</option><option value="fr" selected={lang === 'fr'}>Français</option><option value="both">{L(lang, { ko: '한국어·프랑스어', fr: 'Coréen et français' })}</option></select>
+        </label>
+        <label class="check full"><input type="checkbox" name="consent" required>{L(lang, { ko: '소식지 발송을 위한 이메일 수집에 동의합니다.', fr: 'J’accepte que mon adresse soit utilisée pour l’envoi de la lettre.' })}</label>
+        <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+        <div class="full row gap-16"><button class="btn btn-accent" type="submit">{L(lang, { ko: '구독하기', fr: 'S’abonner' })}</button><span class="err" data-form-msg role="status"></span></div>
+      </form>
+    </div>
+  </section>
+  <script>
+    import '../../scripts/public-forms';
+    const t = new URLSearchParams(location.search).get('type');
+    const s = document.getElementById('ctype') as HTMLSelectElement;
+    if (t && [...s.options].some((o) => o.value === t)) s.value = t;
+  </script>
+</Base>

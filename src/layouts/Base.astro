@@ -1,0 +1,168 @@
+---
+import cmsCopy from '../data/site-copy.json';
+// 폰트는 사이트 안에 포함 (외부 Google Fonts 호출 없음, 개인정보 보호)
+import '@fontsource/gowun-batang/400.css';
+import '@fontsource/gowun-batang/700.css';
+import '@fontsource/gowun-dodum/400.css';
+import '@fontsource/ibm-plex-sans-kr/400.css';
+import '@fontsource/ibm-plex-sans-kr/500.css';
+import '@fontsource/ibm-plex-sans-kr/600.css';
+import '@fontsource/ibm-plex-sans-kr/700.css';
+import '../styles/global.css';
+import { t, altPath, href, NAV, type Lang } from '../i18n/ui';
+import { SEARCH_INDEXING, BASE } from '../config';
+
+interface Props {
+  lang: Lang;
+  rest: string;            // 언어 접두사 뒤의 경로, 예: 'about/'
+  title?: string;
+  description?: string;
+  noindex?: boolean;
+  altRest?: string;        // 다른 언어판 경로가 다를 때 (번역 없는 게시물 등)
+}
+const { lang, rest, title, description, noindex = false, altRest } = Astro.props;
+const altR = altRest ?? rest;
+const other: Lang = lang === 'ko' ? 'fr' : 'ko';
+const fullTitle = title ? `${title} · ASICC` : `ASICC · ${t(lang, 'site.short')}`;
+const desc = description ?? (lang === 'ko'
+  ? '쿠르브부아 한국어 국제섹션(유치원·초등학교·중학교) 학부모협회 ASICC 공식 웹사이트'
+  : 'Site officiel de l’ASICC, association des parents de la section internationale coréenne de Courbevoie (maternelle, élémentaire, collège).');
+const site = Astro.site?.toString().replace(/\/$/, '') ?? '';
+const hideFromSearch = noindex || !SEARCH_INDEXING;
+const current = (p: string) => rest.startsWith(p);
+---
+<!doctype html>
+<html lang={lang}>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{fullTitle}</title>
+  <meta name="description" content={desc}>
+  {hideFromSearch && <meta name="robots" content="noindex, nofollow, noarchive">}
+  {!hideFromSearch && <>
+    <link rel="canonical" href={`${site}${href(lang, rest)}`}>
+    <link rel="alternate" hreflang={lang} href={`${site}${href(lang, rest)}`}>
+    <link rel="alternate" hreflang={other} href={`${site}${altPath(lang, altR)}`}>
+    <link rel="alternate" hreflang="x-default" href={`${site}${BASE}`}>
+  </>}
+  <meta property="og:title" content={fullTitle}>
+  <meta property="og:description" content={desc}>
+  <meta property="og:locale" content={lang === 'ko' ? 'ko_KR' : 'fr_FR'}>
+  <link rel="icon" href={`${BASE}favicon.svg`} type="image/svg+xml">
+  <slot name="head" />
+</head>
+<body>
+  <a class="skip" href="#content">{t(lang, 'nav.skip')}</a>
+  <slot name="top" />
+  <header class="site-header">
+    <div class="wrap hdr">
+      <a class="brand" href={href(lang)}>
+        <span class="logo" aria-hidden="true">한</span>
+        <span class="brand-txt"><b>ASICC</b><small>{t(lang, 'site.short')}</small></span>
+      </a>
+      <nav class="nav" id="nav" aria-label={lang === 'ko' ? '주 메뉴' : 'Menu principal'}>
+        {NAV.map((n) => n.children ? (
+          <div class="nav-item has-sub">
+            <a href={href(lang, n.path)} aria-current={current(n.path) ? 'page' : undefined} aria-haspopup="true">{t(lang, n.key)}
+              <svg class="caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+            </a>
+            <button type="button" class="sub-toggle" aria-expanded="false" aria-label={lang === 'ko' ? '하위 메뉴 펼치기' : 'Afficher le sous-menu'}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="sub">
+              {n.children.map((c) => <a href={href(lang, c.path)}>{c.label[lang]}</a>)}
+            </div>
+          </div>
+        ) : (
+          <a href={href(lang, n.path)} aria-current={current(n.path) ? 'page' : undefined}>{t(lang, n.key)}</a>
+        ))}
+      </nav>
+      <div class="tools">
+        <a class="lang-link" href={altPath(lang, altR)} hreflang={other} lang={other} data-lang-switch={other}><span class="full">{t(lang, 'lang.switch')}</span><span class="abbr" aria-hidden="true">{other === 'fr' ? 'FR' : 'KO'}</span></a>
+        <a class="btn btn-dark btn-sm members-btn" href={href(lang, 'membres/')}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          <span class="lbl">{t(lang, 'nav.members')}</span>
+        </a>
+        <button type="button" class="menu-btn" id="menuBtn" aria-controls="nav" aria-expanded="false" aria-label={t(lang, 'nav.menu')}>
+          <svg class="ic-open" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+          <svg class="ic-close" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="content">
+    <slot />
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap ftr">
+      <div class="stack gap-8">
+        <h2>ASICC</h2>
+        <span>Association de la Section Internationale Coréenne à Courbevoie</span>
+        <span>Association loi 1901 · {t(lang, 'footer.declared')}</span>
+      </div>
+      <nav aria-label="Site">
+        <h2>{lang === 'ko' ? '사이트' : 'Le site'}</h2>
+        <ul>
+          {NAV.map((n) => <li><a href={href(lang, n.path)}>{t(lang, n.key)}</a></li>)}
+          <li><a href={href(lang, 'section/guide/')}>{lang === 'ko' ? '학교생활 가이드' : 'Guide de la vie scolaire'}</a></li>
+        </ul>
+      </nav>
+      <div>
+        <h2>{lang === 'ko' ? '회원' : 'Membres'}</h2>
+        <ul>
+          <li><a href={href(lang, 'membres/')}>{t(lang, 'nav.members')}</a></li>
+          <li><a href={href(lang, 'membres/signup/')}>{lang === 'ko' ? '회원 가입' : 'Créer un compte'}</a></li>
+          <li><a href={href(lang, 'contact/#newsletter')}>{t(lang, 'footer.subscribe')}</a></li>
+          <li><a href={href(lang, 'about/#statuts')}>{t(lang, 'footer.statuts')}</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>{t(lang, 'nav.contact')}</h2>
+        <ul>
+          <li><a href={href(lang, 'contact/')}>{lang === 'ko' ? '문의 양식' : 'Formulaire de contact'}</a></li>
+          <li><a href={`mailto:${cmsCopy.contact_email}`}>{cmsCopy.contact_email}</a></li>
+
+        </ul>
+      </div>
+    </div>
+    <div class="wrap ftr-bottom">
+      <span>© {new Date().getFullYear()} ASICC</span>
+      <span class="row gap-16">
+        <a href={href(lang, 'legal/')}>{t(lang, 'footer.legal')}</a>
+        <a href={href(lang, 'legal/#privacy')}>{t(lang, 'footer.privacy')}</a>
+      </span>
+    </div>
+  </footer>
+
+  <script>
+    const btn = document.getElementById('menuBtn');
+    const nav = document.getElementById('nav');
+    const setMenu = (open: boolean) => {
+      nav!.classList.toggle('open', open);
+      document.documentElement.classList.toggle('menu-open', open);
+      btn!.setAttribute('aria-expanded', String(open));
+    };
+    btn?.addEventListener('click', () => setMenu(!nav!.classList.contains('open')));
+    nav?.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => setMenu(false)));
+    window.addEventListener('resize', () => { if (window.innerWidth > 980) setMenu(false); });
+    document.querySelectorAll<HTMLButtonElement>('.sub-toggle').forEach((b) => b.addEventListener('click', () => {
+      const item = b.closest('.nav-item')!;
+      const open = item.classList.toggle('sub-open');
+      b.setAttribute('aria-expanded', String(open));
+    }));
+    // 모바일에서 표를 카드로 보여 주기 위해 각 칸에 열 제목을 붙임
+    document.querySelectorAll<HTMLTableElement>('main .table-wrap table').forEach((tb) => {
+      const heads = [...tb.querySelectorAll('thead th')].map((th) => th.textContent?.trim() ?? '');
+      if (!heads.length) return;
+      tb.classList.add('rtable'); if (heads.length < 3) tb.classList.add('rtable-2');
+      tb.querySelectorAll('tbody tr').forEach((tr) => [...tr.children].forEach((td, i) => td.setAttribute('data-label', heads[i] ?? '')));
+    });
+    // 사용자가 직접 고른 언어를 기억해 첫 화면 자동 안내에 사용
+    document.querySelectorAll<HTMLAnchorElement>('[data-lang-switch]').forEach((a) =>
+      a.addEventListener('click', () => { try { localStorage.setItem('asicc-lang', a.dataset.langSwitch!); } catch {} })
+    );
+  </script>
+</body>
+</html>

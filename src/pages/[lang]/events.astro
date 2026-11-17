@@ -1,0 +1,56 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHero from '../../components/PageHero.astro';
+import { langPaths, L, type Lang } from '../../i18n/ui';
+import { EVENTS, ANNUAL } from '../../data/site';
+
+export const getStaticPaths = langPaths;
+const lang = Astro.params.lang as Lang;
+const loc = lang === 'ko' ? 'ko-KR' : 'fr-FR';
+const KIND = {
+  info: { ko: '입학', fr: 'Admissions', pill: 'pill-accent' },
+  asso: { ko: '협회', fr: 'Association', pill: 'pill-navy' },
+  school: { ko: '학교 행사', fr: 'École', pill: 'pill-olive' },
+} as const;
+const byMonth = new Map<string, typeof EVENTS>();
+for (const e of [...EVENTS].sort((a, b) => a.date.localeCompare(b.date))) {
+  const k = new Date(e.date).toLocaleDateString(loc, { year: 'numeric', month: 'long' });
+  byMonth.set(k, [...(byMonth.get(k) ?? []), e]);
+}
+---
+<Base lang={lang} rest="events/" title={L(lang, { ko: '행사 일정', fr: 'Agenda' })}>
+  <PageHero lang={lang} eyebrow={L(lang, { ko: '행사', fr: 'Agenda' })}
+    title={L(lang, { ko: '국제섹션 및 협회 주요 일정', fr: 'Calendrier de l’année' })}
+    intro={L(lang, { ko: '입학 전형, 학교 행사 및 협회의 주요 일정을 한눈에 확인할 수 있습니다. ‘예정’으로 표시된 일정은 이전 학년도 자료를 참고한 것으로, 공식 발표에 따라 변경될 수 있습니다.', fr: 'Événements des écoles, de l’association et des admissions. Les dates provisoires restent à confirmer.' })}>
+    <p class="small muted" style="margin-top:12px">{L(lang, { ko: '캘린더 구독 기능은 준비 중입니다. 일정은 아래 목록을 확인해 주세요.', fr: 'L’abonnement au calendrier est en préparation. Retrouvez les dates ci-dessous.' })}</p>
+  </PageHero>
+  <section class="wrap sec" style="max-width:880px">
+    {[...byMonth.entries()].map(([month, list]) => (
+      <>
+        <h2 class="month">{month}</h2>
+        {list.map((e) => {
+          const d = new Date(e.date);
+          return (
+            <article class="card event">
+              <div class="datebox"><b>{d.getDate()}</b><span>{d.toLocaleDateString(loc, { weekday: 'short' })}</span></div>
+              <div class="info">
+                <div class="row gap-8"><span class={`pill ${KIND[e.kind].pill}`}>{KIND[e.kind][lang]}</span>{e.tentative && <span class="pill pill-warn">{L(lang, { ko: '예정', fr: 'À confirmer' })}</span>}</div>
+                <h3 class="h3" style="font-size:17px">{L(lang, e.title)}</h3>
+                <span class="tiny"><span>{L(lang, e.place)}</span>{e.time && <span>{L(lang, e.time)}</span>}</span>
+                {e.desc && <p class="small muted">{L(lang, e.desc)}</p>}
+              </div>
+            </article>
+          );
+        })}
+      </>
+    ))}
+    <h2 class="h2" style="margin-top:56px">{L(lang, { ko: '연간 일정', fr: 'L’année en un coup d’œil' })}</h2>
+    <p class="muted" style="margin:8px 0 20px">{L(lang, { ko: '해마다 비슷한 시기에 반복되는 학교와 협회의 주요 일정입니다.', fr: 'Rendez-vous qui reviennent chaque année à des périodes proches.' })}</p>
+    <div class="table-wrap" id="events-annual">
+      <table>
+        <thead><tr><th style="width:28%">{L(lang, { ko: '시기', fr: 'Période' })}</th><th>{L(lang, { ko: '일정', fr: 'Rendez-vous' })}</th></tr></thead>
+        <tbody>{ANNUAL.map((a) => <tr><td><b>{L(lang, a.when)}</b></td><td>{a.items.map((i) => <div>{L(lang, i)}</div>)}</td></tr>)}</tbody>
+      </table>
+    </div>
+  </section>
+</Base>
