@@ -86,8 +86,8 @@ export const AXES: { tag: T; title: T; text: T; items: T[]; result: T; color: st
     ],
     result: { ko: '기관과의 신뢰에 바탕을 둔 지속적 협력 관계', fr: 'Partenariats durables' } },
   { tag: { ko: '입학 안내 및 홍보 · DÉVELOPPEMENT', fr: 'DÉVELOPPEMENT' }, color: 'var(--gam-d)',
-    title: { ko: '안정적인 학생 수 유지', fr: 'Des effectifs stables' },
-    text: { ko: '섹션이 안정적으로 운영되려면 각 학교에 꾸준한 입학 지원자가 필요합니다. 협회는 입학을 고민하는 가정이 정확한 정보를 얻을 수 있도록 안내하고, 지원 과정 전반을 돕습니다.', fr: 'La pérennité de la section dépend de candidatures régulières à chaque niveau ; l’association informe et accompagne les familles intéressées.' },
+    title: { ko: '국제섹션 입학 안내 및 홍보', fr: 'Des effectifs stables' },
+    text: { ko: '국제섹션에 관심 있는 가정에 입학 정보를 제공합니다. 협회는 입학을 고민하는 가정이 정확한 정보를 얻을 수 있도록 안내하고, 지원 과정 전반을 돕습니다.', fr: 'La pérennité de la section dépend de candidatures régulières à chaque niveau ; l’association informe et accompagne les familles intéressées.' },
     items: [
       { ko: '한인 온라인 커뮤니티와 지역 한인 사회에 국제섹션 소개', fr: 'Présentation de la section auprès de la communauté coréenne' },
       { ko: '입학 관심 가정에 절차와 일정 안내, 재학생 가정 경험 공유', fr: 'Information des familles sur la procédure et le calendrier' },
