@@ -4,7 +4,7 @@ import { langPaths, href, L, type Lang } from '../../../i18n/ui';
 export const getStaticPaths = langPaths;
 const lang = Astro.params.lang as Lang;
 ---
-<Base lang={lang} rest="membres/admin/" title={L(lang, { ko: '회원 서비스 준비 중', fr: 'Espace membres bientôt disponible' })} noindex>
+<Base lang={lang} rest="membres/" title={L(lang, { ko: '회원 서비스 준비 중', fr: 'Espace membres bientôt disponible' })} noindex>
   <section class="wrap m-shell">
     <div class="card auth-card stack gap-24" style="max-width:680px;text-align:center">
       <div class="stack gap-12">
