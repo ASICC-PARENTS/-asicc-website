@@ -145,10 +145,10 @@ export const EXPECTED: { when: T; level: T }[] = [
   { when: { ko: '초등 CM2 말 (중학교 진입)', fr: 'Fin de CM2' }, level: { ko: '말하기 B1, 쓰기 A2 수준', fr: 'B1 à l’oral, A2 à l’écrit' } },
 ];
 
-/** 1차 모집 절차. 날짜는 2026–2027학년도 공고 기준이며 매년 비슷한 시기에 진행됩니다. */
+/** 1차 모집 절차. 매년 비슷한 시기에 진행됩니다. */
 export const CAMPAIGN: { when: T; what: T; detail: T }[] = [
   { when: { ko: '11월 ~ 12월 중순', fr: 'Novembre à mi-décembre' }, what: { ko: '입학 지원서 접수', fr: 'Dépôt des dossiers' },
-    detail: { ko: '교육청 누리집에서 지원서를 내려받아 제출합니다. 지난해 마감: 12월 19일 17시.', fr: 'Dossier à télécharger sur le site de l’académie. L’an dernier : clôture le 19 décembre à 17 h.' } },
+    detail: { ko: '교육청 누리집에서 지원서를 내려받아 제출합니다. 2027-2028 유치원/초등학교 서류 마감: 12월 18.', fr: 'Dossier à télécharger sur le site de l’académie. L’an dernier : clôture le 19 décembre à 17 h.' } },
   { when: { ko: '1월', fr: 'Janvier' }, what: { ko: '서류 심사 및 면접 일정 안내', fr: 'Étude des dossiers et convocations' },
     detail: { ko: '서류를 검토한 뒤 면접 일정을 알려 줍니다.', fr: 'Les familles retenues sont convoquées à un entretien.' } },
   { when: { ko: '2월 초 ~ 4월 초', fr: 'Février à début avril' }, what: { ko: '학부모 및 학생 면접', fr: 'Entretiens' },
@@ -160,7 +160,7 @@ export const CAMPAIGN: { when: T; what: T; detail: T }[] = [
 ];
 
 export const WAVE2: T = {
-  ko: '12월 15일 이후에 프랑스 귀국이나 파리 지역 이주가 정해진 해외 거주 가정과 일드프랑스 밖 가정을 위한 모집입니다. 지난해에는 4월 30일 17시까지 접수했고 5월 26일에 결과를 알렸습니다.',
+  ko: '12월 15일 이후에 프랑스 귀국이나 일드프랑스 지역 이주가 정해진 해외 거주 가정과 일드프랑스 밖 가정을 위한 모집입니다. 지난해에는 4월 30일 17시까지 접수했고 5월 26일에 결과를 알렸습니다.',
   fr: 'Réservée aux familles expatriées ou non franciliennes informées de leur arrivée après le 15 décembre. L’an dernier : dépôt jusqu’au 30 avril à 17 h, décisions le 26 mai.',
 };
 
