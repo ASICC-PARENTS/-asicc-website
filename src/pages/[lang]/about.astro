@@ -7,6 +7,8 @@ import cmsCopy from '../../data/site-copy.json';
 
 export const getStaticPaths = langPaths;
 const lang = Astro.params.lang as Lang;
+// 공개 여부 전환: true로 바꾸면 세 섹션과 목차가 다시 나타납니다.
+const SHOW_EXTENDED_ABOUT = false;
 const toc = [
   ['greeting', { ko: '인사말', fr: 'Mot d’accueil' }],
   ['mission', { ko: '설립 목적', fr: 'Notre mission' }],
@@ -24,7 +26,7 @@ const name = (b: (typeof BUREAU)[number]) => (lang === 'fr' && b.latin ? b.latin
     intro={lang === 'ko' ? cmsCopy.about_intro_ko : cmsCopy.about_intro_fr} />
 
   <div class="wrap sec with-aside">
-    <aside><nav class="toc" aria-label={L(lang, { ko: '목차', fr: 'Sommaire' })}>{toc.map(([id, l]) => <a href={`#${id}`}>{L(lang, l)}</a>)}</nav></aside>
+    <aside><nav class="toc" aria-label={L(lang, { ko: '목차', fr: 'Sommaire' })}>{toc.slice(0, SHOW_EXTENDED_ABOUT ? 7 : 4).map(([id, l]) => <a href={`#${id}`}>{L(lang, l)}</a>)}</nav></aside>
     <div class="content stack" style="gap:72px">
 
       <section id="greeting" class="doc-section">
@@ -83,6 +85,7 @@ const name = (b: (typeof BUREAU)[number]) => (lang === 'fr' && b.latin ? b.latin
         </ol>
       </section>
 
+      {SHOW_EXTENDED_ABOUT && (
       <section id="bureau" class="doc-section">
         <h2 class="h2">{L(lang, toc[4][1])}</h2>
         <p>{L(lang, { ko: '2026–2027 운영진은 제1회 정기총회에서 재신임되었으며, 정관에 따라 2년 동안 활동합니다. 학교별 대표는 각 학교의 소식을 협회에 전하고, 입학 문의에 답변합니다.', fr: 'Le bureau 2026–2027 a été confirmé lors de la première assemblée générale pour un mandat de deux ans. Les représentants de niveau relaient l’information de chaque établissement et répondent aux familles.' })}</p>
@@ -95,7 +98,9 @@ const name = (b: (typeof BUREAU)[number]) => (lang === 'fr' && b.latin ? b.latin
           {BUREAU.slice(4).map((b) => <div class="card card-pad stack gap-8"><span class="tiny">{L(lang, b.role)}</span><b style="font-size:18px">{name(b)}</b></div>)}
         </div>
       </section>
+      )}
 
+      {SHOW_EXTENDED_ABOUT && (
       <section id="structure" class="doc-section">
         <h2 class="h2">{L(lang, toc[5][1])}</h2>
         <p>{L(lang, { ko: '한국어 국제섹션은 양국 교육부의 협약에 바탕을 두고, 한국과 프랑스 기관이 역할을 나누어 운영합니다. 한국 측은 교사 인건비 예산과 교사 채용·급여를, 프랑스 측은 학교 운영과 수업 관리·감독, 입학 결정을 맡습니다. 기관 이름을 누르면 공식 누리집으로 이동합니다.', fr: 'La section repose sur un accord entre les deux ministères : la partie coréenne finance et rémunère les enseignants, la partie française assure le fonctionnement des établissements, le pilotage pédagogique et les admissions. Cliquez sur une institution pour accéder à son site officiel.' })}</p>
@@ -110,7 +115,9 @@ const name = (b: (typeof BUREAU)[number]) => (lang === 'fr' && b.latin ? b.latin
           </div>
         </div>
       </section>
+      )}
 
+      {SHOW_EXTENDED_ABOUT && (
       <section id="statuts" class="doc-section">
         <h2 class="h2">{L(lang, toc[6][1])}</h2>
         <ul class="bullets">
@@ -125,6 +132,7 @@ const name = (b: (typeof BUREAU)[number]) => (lang === 'fr' && b.latin ? b.latin
           <a class="btn btn-ghost" href={href(lang, 'membres/')}>{L(lang, { ko: '정관과 회의록 보기 (회원 영역)', fr: 'Statuts et procès-verbaux (espace membres)' })}</a>
         </div>
       </section>
+      )}
     </div>
   </div>
 </Base>
