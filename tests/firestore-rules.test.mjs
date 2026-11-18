@@ -253,17 +253,27 @@ test('new user may create only approved general member profile', async () => {
   const newuid = 'new-signup';
   const db = context(newuid);
 
-  await assertSucceeds(
-    setDoc(doc(db, 'members', newuid), {
+  
+const batch = writeBatch(db);
+
+batch.set(doc(db, 'members', newuid), {
   name: 'New user',
   nickname: 'NewTester',
+  nicknameKey: 'newtester',
   email: EMAIL(newuid),
   role: 'general',
-      status: 'approved',
-      consent: true,
-      createdAt: serverTimestamp()
-    })
-  );
+  status: 'approved',
+  consent: true,
+  createdAt: serverTimestamp()
+});
+
+batch.set(doc(db, 'nicknames', 'newtester'), {
+  uid: newuid,
+  nickname: 'NewTester',
+  createdAt: serverTimestamp()
+});
+
+await assertSucceeds(batch.commit());
 
   const evil = 'evil-signup';
 
