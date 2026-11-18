@@ -26,6 +26,6 @@ jobs:
       - name: Install project dependencies
         run: npm ci
       - name: Install rules testing library
-        run: npm install --no-save @firebase/rules-unit-testing@^5
+        run: npm install --no-save @firebase/rules-unit-testing@4.0.1
       - name: Run Firestore rules tests with emulator (NO PRODUCTION ACCESS)
         run: npx --yes firebase-tools@latest emulators:exec --only firestore --project demo-asicc-security --config firebase.test.json 'node --test tests/firestore-rules.test.mjs'
