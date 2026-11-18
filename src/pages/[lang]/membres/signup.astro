@@ -22,10 +22,27 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
 
       {!live && <p class="card small" role="status">{L(lang,{ko:"회원가입 시스템은 보안 점검 중입니다. 이 테스트 화면에서는 가입을 접수하지 않습니다.",fr:"Les inscriptions sont désactivées pendant les vérifications de sécurité."})}</p>}
       <form hidden={!live} id="asicc-signup" class="stack gap-16" data-lang={lang}>
-        <div class="stack gap-8">
-          <label for="signup-name">{L(lang, { ko: '이름', fr: 'Nom et prénom' })}</label>
-          <input id="signup-name" name="name" type="text" autocomplete="name" maxlength="80" required />
-        </div>
+        
+<div class="stack gap-8">
+  <label for="signup-name">
+    {L(lang, { ko: '성명 (실명)', fr: 'Nom et prénom (identité réelle)' })}
+  </label>
+  <input id="signup-name" name="name" type="text" autocomplete="name" maxlength="80" required />
+  <p class="small muted">
+    {L(lang, { ko: '회원 자격 확인 및 협회 관리에 사용하며 다른 회원에게 공개하지 않습니다.', fr: 'Utilisé pour la gestion des membres, sans affichage aux autres membres.' })}
+  </p>
+</div>
+
+<div class="stack gap-8">
+  <label for="signup-nickname">
+    {L(lang, { ko: '닉네임 (게시판 표시 이름)', fr: 'Pseudo (affiché sur le forum)' })}
+  </label>
+  <input id="signup-nickname" name="nickname" type="text" minlength="2" maxlength="24" required />
+  <p class="small muted">
+    {L(lang, { ko: '2~24자. 게시글과 댓글에 표시되는 이름입니다.', fr: 'De 2 à 24 caractères. Ce nom sera affiché sur les messages et commentaires.' })}
+  </p>
+</div>
+
         <div class="stack gap-8">
           <label for="signup-email">{L(lang, { ko: '이메일', fr: 'Adresse e-mail' })}</label>
           <input id="signup-email" name="email" type="email" autocomplete="email" maxlength="200" required />
@@ -75,7 +92,9 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
 <script>
   import { getApps, initializeApp } from 'firebase/app';
   import { getAuth, createUserWithEmailAndPassword, sendEmailVerification, signOut } from 'firebase/auth';
-  import { getFirestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+  
+import { getFirestore, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
+
   import { firebaseConfig } from '../../../firebase-config';
 
   const form = document.querySelector<HTMLFormElement>('#asicc-signup');
@@ -96,11 +115,55 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       event.preventDefault();
       const data = new FormData(form);
       const name = String(data.get('name') ?? '').trim();
+      
+const nickname = String(data.get('nickname') ?? '').trim().normalize('NFKC');
+
       const email = String(data.get('email') ?? '').trim().toLowerCase();
       const password = String(data.get('password') ?? '');
       const confirm = String(data.get('confirm') ?? '');
 
-      if (name.length < 1 || name.length > 80 || !email || password.length < 8) {
+const nicknameLength = Array.from(nickname).length;
+
+const allowedNickname =
+  /^[\p{Script=Hangul}\p{Script=Latin}0-9][\p{Script=Hangul}\p{Script=Latin}\p{M}0-9]*$/u.test(nickname);
+
+const nicknameForCheck = nickname
+  .toLowerCase()
+  .normalize('NFD')
+  .replace(/\p{M}/gu, '');
+
+const reservedNames = [
+  'asicc',
+  'admin',
+  'administrator',
+  'administrateur',
+  'administratrice',
+  'moderateur',
+  'moderatrice',
+  'official',
+  'officiel',
+  'staff',
+  '관리자',
+  '운영진',
+  '협회',
+  '공식'
+];
+
+if (
+  nicknameLength < 2 ||
+  nicknameLength > 24 ||
+  !allowedNickname ||
+  reservedNames.some(word => nicknameForCheck.includes(word))
+) {
+  show(label(
+    '닉네임은 한글·영문·숫자 2~24자로 입력해주세요. 특수문자와 운영진을 사칭하는 이름은 사용할 수 없습니다.',
+    'Le pseudo doit comporter 2 à 24 caractères : lettres coréennes, latines ou chiffres. Les caractères spéciaux et les noms réservés sont interdits.'
+  ), true);
+  return;
+}
+
+
+      if (name.length < 1 || name.length > 80 || nickname.length < 2 || nickname.length > 24 || !email || password.length < 8) {
         show(label('입력 내용을 확인해주세요.', 'Vérifiez les informations saisies.'), true);
         return;
       }
@@ -123,17 +186,32 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
           ?? initializeApp(firebaseConfig, 'asicc-website');
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const credential = await createUserWithEmailAndPassword(auth, email, password);
-
+        const credential = await createUserWithEmailAndPassword(auth, email, passwor
         try {
-          await setDoc(doc(db, 'members', credential.user.uid), {
-            name,
-            email,
-            role: 'general',
-            status: 'approved',
-            consent: true,
-            createdAt: serverTimestamp()
-          });
+          
+const nicknameKey = nickname.toLowerCase();
+
+const batch = writeBatch(db);
+
+batch.set(doc(db, 'members', credential.user.uid), {
+  name,
+  nickname,
+  nicknameKey,
+  email,
+  role: 'general',
+  status: 'approved',
+  consent: true,
+  createdAt: serverTimestamp()
+});
+
+batch.set(doc(db, 'nicknames', nicknameKey), {
+  uid: credential.user.uid,
+  nickname,
+  createdAt: serverTimestamp()
+});
+
+await batch.commit();
+
         } catch (profileError) {
           console.error('ASICC profile creation failed:', profileError);
           show(label(
