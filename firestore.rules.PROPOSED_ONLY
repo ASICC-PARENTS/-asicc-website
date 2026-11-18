@@ -23,13 +23,20 @@ service cloud.firestore {
     }
     function validRole(role) { return role in ['general','member','special','admin']; }
     
+
+function nicknamePath(key) {
+  return /databases/$(database)/documents/nicknames/$(key);
+}
+
 function validRegistration(uid) {
   return signedIn() && request.auth.uid == uid
     && request.resource.data.keys().hasOnly([
-      'name','nickname','email','role','status','consent','createdAt'
+      'name','nickname','nicknameKey','email',
+      'role','status','consent','createdAt'
     ])
     && request.resource.data.keys().hasAll([
-      'name','nickname','email','role','status','consent','createdAt'
+      'name','nickname','nicknameKey','email',
+      'role','status','consent','createdAt'
     ])
     && request.resource.data.name is string
     && request.resource.data.name.size() > 0
@@ -37,12 +44,22 @@ function validRegistration(uid) {
     && request.resource.data.nickname is string
     && request.resource.data.nickname.size() >= 2
     && request.resource.data.nickname.size() <= 24
+    && request.resource.data.nicknameKey is string
+    && request.resource.data.nicknameKey ==
+       request.resource.data.nickname.lower()
     && request.resource.data.email == request.auth.token.email
     && request.resource.data.role == 'general'
     && request.resource.data.status == 'approved'
     && request.resource.data.consent == true
-    && request.resource.data.createdAt == request.time;
+    && request.resource.data.createdAt == request.time
+    && getAfter(
+         nicknamePath(request.resource.data.nicknameKey)
+       ).data.uid == uid
+    && getAfter(
+         nicknamePath(request.resource.data.nicknameKey)
+       ).data.nickname == request.resource.data.nickname;
 }
+
 
     match /members/{uid} {
       // Profiles are not a public or member-wide directory.
