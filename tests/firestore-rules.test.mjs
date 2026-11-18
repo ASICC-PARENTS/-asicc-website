@@ -702,3 +702,28 @@ test('author may delete own comment with log; other member cannot', async () => 
   await assertSucceeds(b.commit());
 });
 
+
+test('duplicate nickname registration is denied', async () => {
+  const newuid = 'duplicate-nickname-user';
+  const db = context(newuid);
+  const batch = writeBatch(db);
+
+  batch.set(doc(db, 'members', newuid), {
+    name: 'Second user',
+    nickname: 'NewTester',
+    nicknameKey: 'newtester',
+    email: EMAIL(newuid),
+    role: 'general',
+    status: 'approved',
+    consent: true,
+    createdAt: serverTimestamp()
+  });
+
+  batch.set(doc(db, 'nicknames', 'newtester'), {
+    uid: newuid,
+    nickname: 'NewTester',
+    createdAt: serverTimestamp()
+  });
+
+  await assertFails(batch.commit());
+});
