@@ -1,0 +1,80 @@
+---
+import Base from '../../../layouts/Base.astro';
+import { href, L, type Lang } from '../../../i18n/ui';
+export const getStaticPaths=()=>['ko','fr'].flatMap(lang=>['learning','gallery','office'].map(area=>({params:{lang,area}})));
+const lang=Astro.params.lang as Lang;
+const area=Astro.params.area as 'learning'|'gallery'|'office';
+const titles={learning:{ko:'학습자료실',fr:'Ressources pédagogiques'},gallery:{ko:'갤러리',fr:'Galerie'},office:{ko:'온라인 협회사무실',fr:'Bureau de l’association'}};
+const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
+---
+<Base lang={lang} rest={`membres/${area}/`} title={L(lang,titles[area])} noindex>
+  <section class="wrap m-shell">
+    <div class="stack gap-16" id="files-root" data-lang={lang} data-area={area} data-login-url={href(lang,'membres/login/')}>
+      <a href={href(lang,'membres/')} class="small">← {L(lang,{ko:'회원공간',fr:'Espace membres'})}</a>
+      <h1 class="h2">{L(lang,titles[area])}</h1>
+      <p class="muted">{area==='learning'
+        ? L(lang,{ko:'회원들이 이용하는 학습자료실입니다.',fr:'Espace de consultation des ressources pédagogiques pour les membres.'})
+        : area==='gallery'
+          ? L(lang,{ko:'협회회원·특별회원·운영진만 열람할 수 있습니다.',fr:'Consultation réservée aux membres de l’association, aux membres spéciaux et aux administrateurs.'})
+          : L(lang,{ko:'운영진만 접근 가능한 비공개 문서 공간입니다.',fr:'Espace documentaire confidentiel, réservé aux administrateurs.'})}</p>
+      {!live && <div class="card auth-card" role="status">{L(lang,{ko:'비공개 자료실은 접근권한과 Storage 보안 검증 전까지 비활성화되어 있습니다.',fr:'Cet espace reste désactivé jusqu’à validation des autorisations et des règles de stockage.'})}</div>}
+      <div id="file-app" hidden={!live} class="card auth-card stack gap-12">
+        <p id="files-status" class="small muted" aria-live="polite" role="status">{L(lang,{ko:'권한 확인 중…',fr:'Vérification des autorisations…'})}</p>
+        <div id="files-list" class="stack gap-12"></div>
+        <p class="small muted">{L(lang,{ko:'파일은 협회의 Storage 서비스가 활성화되고 서버 보안 규칙이 검증된 후 등록됩니다.',fr:'Les fichiers seront disponibles après activation du stockage et validation des règles de sécurité.'})}</p>
+      </div>
+    </div>
+  </section>
+</Base>
+<script>
+  import { getApps,initializeApp } from 'firebase/app';
+  import { getAuth,onAuthStateChanged,getIdToken } from 'firebase/auth';
+  import { getFirestore,doc,getDoc,collection,query,orderBy,limit,getDocs } from 'firebase/firestore';
+  import { getStorage,ref,getBytes } from 'firebase/storage';
+  import { firebaseConfig } from '../../../firebase-config';
+  const root=document.getElementById('files-root') as HTMLElement|null;
+  const list=document.getElementById('files-list') as HTMLElement|null;
+  const status=document.getElementById('files-status') as HTMLElement|null;
+  const fr=root?.dataset.lang==='fr',area=root?.dataset.area;
+  const tr=(ko:string,french:string)=>fr?french:ko;
+  const setStatus=(text:string,bad=false)=>{if(status){status.textContent=text;status.style.color=bad?'#b42318':'';}};
+  if(import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true'){
+    const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
+    const auth=getAuth(app),db=getFirestore(app),storage=getStorage(app);
+    onAuthStateChanged(auth,async user=>{
+      if(!user){location.replace(root?.dataset.loginUrl||'/');return;}
+      try{
+        await user.reload();await getIdToken(user,true);
+        if(!user.emailVerified)throw Error('verify');
+        const snap=await getDoc(doc(db,'members',user.uid));
+        if(!snap.exists()||snap.data().status!=='approved')throw Error('profile');
+        const role=snap.data().role;
+        const allowed=area==='learning'||(area==='gallery'&&['member','special','admin'].includes(role))||(area==='office'&&role==='admin');
+        if(!allowed)throw Error('role');
+        const col=area==='learning'?'learningResources':area==='gallery'?'galleryItems':'officeDocs';
+        const docs=await getDocs(query(collection(db,col),orderBy('createdAt','desc'),limit(100)));
+        list?.replaceChildren();
+        if(docs.empty){setStatus(tr('아직 등록된 자료가 없습니다.','Aucun document pour le moment.'));return;}
+        setStatus(tr('자료를 선택할 수 있습니다.','Vous pouvez consulter les documents.'));
+        docs.docs.forEach(snapshot=>{
+          const item=snapshot.data();const row=document.createElement('div');row.className='row gap-16';row.style.cssText='align-items:center;justify-content:space-between;flex-wrap:wrap;padding:12px;border:1px solid #e2e8f0;border-radius:10px;';
+          const desc=document.createElement('div');desc.className='stack gap-8';
+          const title=document.createElement('strong');title.textContent=String(item.title||tr('제목 없음','Sans titre'));
+          const filename=document.createElement('span');filename.className='small muted';filename.textContent=String(item.filename||'');
+          desc.append(title,filename);const btn=document.createElement('button');btn.type='button';btn.className='btn btn-ghost';btn.textContent=tr('다운로드','Télécharger');
+          btn.addEventListener('click',async()=>{
+            if(typeof item.storagePath!=='string')return setStatus(tr('파일 경로 오류','Chemin de fichier invalide.'),true);
+            btn.disabled=true;
+            try{
+              // getBytes checks Firebase Storage rules on each request; avoid shareable getDownloadURL links.
+              const bytes=await getBytes(ref(storage,item.storagePath),20*1024*1024);
+              const blob=new Blob([bytes],{type:item.mime||'application/octet-stream'});
+              const link=document.createElement('a'),url=URL.createObjectURL(blob);link.href=url;link.download=String(item.filename||'asicc-document');document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+            }catch(error){console.error(error);setStatus(tr('다운로드할 수 없습니다. Storage 설정을 확인하세요.','Téléchargement impossible. Vérifiez le stockage.'),true);}
+            finally{btn.disabled=false;}
+          });row.append(desc,btn);list?.append(row);
+        });
+      }catch(error){console.error(error);setStatus(tr('접근할 수 없습니다. 계정 등급과 서버 보안 규칙을 확인하세요.','Accès refusé. Vérifiez le statut et les règles de sécurité.'),true);}
+    });
+  }
+</script>

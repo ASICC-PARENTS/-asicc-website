@@ -3,30 +3,179 @@ import Base from '../../../layouts/Base.astro';
 import { langPaths, href, L, type Lang } from '../../../i18n/ui';
 export const getStaticPaths = langPaths;
 const lang = Astro.params.lang as Lang;
+const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
 ---
-<Base lang={lang} rest="membres/signup/" title={L(lang, { ko: '회원 서비스 준비 중', fr: 'Espace membres bientôt disponible' })} noindex>
+
+<Base lang={lang} rest="membres/signup/" title={L(lang, { ko: '회원가입', fr: 'Inscription' })} noindex>
   <section class="wrap m-shell">
-    <div class="card auth-card stack gap-24" style="max-width:680px;text-align:center">
+    <div class="card auth-card stack gap-24" style="max-width:680px">
       <div class="stack gap-12">
-        <span class="m-badge" style="align-self:center">{L(lang, { ko: '서비스 준비 안내', fr: 'Information' })}</span>
-        <h1 class="h2">{L(lang, { ko: '회원 서비스 준비 중', fr: 'Espace membres bientôt disponible' })}</h1>
+        <span class="m-badge" style="align-self:flex-start">
+          {L(lang, { ko: 'ASICC 회원공간', fr: 'Espace membres ASICC' })}
+        </span>
+        <h1 class="h2">{L(lang, { ko: '회원가입', fr: 'Créer un compte' })}</h1>
         <p class="muted">{L(lang, {
-          ko: 'ASICC 학부모협회 회원 전용 서비스는 현재 준비 중이며, 곧 이용하실 수 있습니다.',
-          fr: 'L’espace membres de l’ASICC est en cours de préparation et sera bientôt disponible.'
+          ko: '먼저 일반회원으로 무료 가입합니다. 이메일 인증 후 학습자료실과 게시판 열람이 가능하며, 협회회원 또는 특별회원 승급을 신청할 수 있습니다.',
+          fr: 'Inscrivez-vous d’abord comme membre général. Après validation de votre adresse e-mail, vous pourrez consulter les ressources pédagogiques et le forum, puis demander un statut de membre de l’association ou de membre spécial.'
         })}</p>
+      </div>
+
+      {!live && <p class="card small" role="status">{L(lang,{ko:"회원가입 시스템은 보안 점검 중입니다. 이 테스트 화면에서는 가입을 접수하지 않습니다.",fr:"Les inscriptions sont désactivées pendant les vérifications de sécurité."})}</p>}
+      <form hidden={!live} id="asicc-signup" class="stack gap-16" data-lang={lang}>
+        <div class="stack gap-8">
+          <label for="signup-name">{L(lang, { ko: '이름', fr: 'Nom et prénom' })}</label>
+          <input id="signup-name" name="name" type="text" autocomplete="name" maxlength="80" required />
+        </div>
+        <div class="stack gap-8">
+          <label for="signup-email">{L(lang, { ko: '이메일', fr: 'Adresse e-mail' })}</label>
+          <input id="signup-email" name="email" type="email" autocomplete="email" maxlength="200" required />
+        </div>
+        <div class="stack gap-8">
+          <label for="signup-password">{L(lang, { ko: '비밀번호 (8자 이상)', fr: 'Mot de passe (8 caractères minimum)' })}</label>
+          <input id="signup-password" name="password" type="password" autocomplete="new-password" minlength="8" required />
+        </div>
+        <div class="stack gap-8">
+          <label for="signup-confirm">{L(lang, { ko: '비밀번호 확인', fr: 'Confirmer le mot de passe' })}</label>
+          <input id="signup-confirm" name="confirm" type="password" autocomplete="new-password" minlength="8" required />
+        </div>
+
+        <div class="card" style="padding:16px;background:var(--surface, #f7f8fa)">
+          <p style="margin:0"><strong>{L(lang, { ko: '가입 등급: 일반회원', fr: 'Statut initial : membre général' })}</strong></p>
+          <p class="small muted" style="margin:8px 0 0">{L(lang, {
+            ko: '협회회원·특별회원은 가입 후 운영진에게 승급을 신청합니다. 운영진 권한은 운영진만 부여할 수 있습니다.',
+            fr: 'Après l’inscription, vous pourrez demander une promotion au statut de membre de l’association ou de membre spécial. Le statut d’administrateur est accordé uniquement par un administrateur.'
+          })}</p>
+        </div>
+
+        <label class="row gap-12" for="signup-consent" style="align-items:flex-start">
+          <input id="signup-consent" name="consent" type="checkbox" required style="margin-top:4px" />
+          <span>{L(lang, {
+            ko: '회원 계정 운영을 위한 이름·이메일 수집 및 이용에 동의합니다. (필수)',
+            fr: 'J’accepte la collecte et l’utilisation de mon nom et de mon adresse e-mail pour la gestion de mon compte. (Obligatoire)'
+          })}</span>
+        </label>
         <p class="small muted">{L(lang, {
-          ko: '회원가입, 로그인 및 회원 전용 자료 열람 기능은 추후 개통될 예정입니다. 그동안 협회 소식과 행사 정보는 홈페이지에서 확인해 주세요.',
-          fr: 'L’inscription, la connexion et l’accès aux documents réservés aux membres seront activés prochainement. En attendant, retrouvez les actualités et les événements sur notre site.'
+          ko: '개인정보 이용 목적·보관 기간·삭제 및 문의 방법은 개인정보 처리방침을 확인해 주세요.',
+          fr: 'Consultez la politique de confidentialité pour les finalités, la conservation, la suppression et les contacts.'
         })}</p>
-        <p class="small muted">
-          {L(lang, { ko: '문의사항은', fr: 'Pour toute question, contactez-nous à' })}
-          <a href="mailto:contact@asicc-parents.fr">contact@asicc-parents.fr</a>.
-        </p>
-      </div>
-      <div class="row gap-16" style="justify-content:center;flex-wrap:wrap">
-        <a class="btn btn-dark" href={href(lang)}>{L(lang, { ko: '홈페이지로 돌아가기', fr: 'Retour à l’accueil' })}</a>
-        <a class="btn btn-ghost" href={href(lang, 'contact/')}>{L(lang, { ko: '문의하기', fr: 'Nous contacter' })}</a>
-      </div>
+
+        <p id="signup-message" aria-live="polite" role="status" class="small" hidden></p>
+        <button id="signup-submit" class="btn btn-dark" type="submit">
+          {L(lang, { ko: '회원가입 및 인증메일 받기', fr: 'Créer le compte et recevoir le courriel de vérification' })}
+        </button>
+        <div class="row gap-16" style="flex-wrap:wrap">
+          <a href={href(lang, 'membres/login/')}>{L(lang, { ko: '이미 계정이 있나요? 로그인', fr: 'Déjà inscrit ? Se connecter' })}</a>
+          <a href={href(lang, 'contact/')}>{L(lang, { ko: '문의하기', fr: 'Nous contacter' })}</a>
+        </div>
+      </form>
     </div>
   </section>
 </Base>
+
+<script>
+  import { getApps, initializeApp } from 'firebase/app';
+  import { getAuth, createUserWithEmailAndPassword, sendEmailVerification, signOut } from 'firebase/auth';
+  import { getFirestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+  import { firebaseConfig } from '../../../firebase-config';
+
+  const form = document.querySelector<HTMLFormElement>('#asicc-signup');
+  const message = document.querySelector<HTMLElement>('#signup-message');
+  const submit = document.querySelector<HTMLButtonElement>('#signup-submit');
+
+  const isFr = form?.dataset.lang === 'fr';
+  const label = (ko: string, fr: string) => isFr ? fr : ko;
+  const show = (text: string, error = false) => {
+    if (!message) return;
+    message.hidden = false;
+    message.textContent = text;
+    message.style.color = error ? '#b42318' : '#067647';
+  };
+
+  if (import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true" && form && submit) {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const name = String(data.get('name') ?? '').trim();
+      const email = String(data.get('email') ?? '').trim().toLowerCase();
+      const password = String(data.get('password') ?? '');
+      const confirm = String(data.get('confirm') ?? '');
+
+      if (name.length < 1 || name.length > 80 || !email || password.length < 8) {
+        show(label('입력 내용을 확인해주세요.', 'Vérifiez les informations saisies.'), true);
+        return;
+      }
+      if (password !== confirm) {
+        show(label('비밀번호가 일치하지 않습니다.', 'Les mots de passe ne correspondent pas.'), true);
+        return;
+      }
+      if (data.get('consent') !== 'on') {
+        show(label('개인정보 수집에 동의해야 합니다.', 'Votre consentement est nécessaire.'), true);
+        return;
+      }
+
+      submit.disabled = true;
+      show(label('계정을 만들고 있습니다…', 'Création du compte en cours…'));
+
+      try {
+        // This profile shape matches ASICC's staged 4-role Firestore rule draft.
+        // All users register as general members; higher roles are admin-approved later.
+        const app = getApps().find((entry) => entry.name === 'asicc-website')
+          ?? initializeApp(firebaseConfig, 'asicc-website');
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const credential = await createUserWithEmailAndPassword(auth, email, password);
+
+        try {
+          await setDoc(doc(db, 'members', credential.user.uid), {
+            name,
+            email,
+            role: 'general',
+            status: 'approved',
+            consent: true,
+            createdAt: serverTimestamp()
+          });
+        } catch (profileError) {
+          console.error('ASICC profile creation failed:', profileError);
+          show(label(
+            '인증 계정은 만들어졌지만 회원정보 저장이 실패했습니다. 다시 가입하지 말고 협회로 문의해주세요. Firebase 보안 규칙을 확인해야 합니다.',
+            'Le compte a été créé mais le profil n’a pas pu être enregistré. Ne recommencez pas l’inscription ; contactez l’association.'
+          ), true);
+          try { await signOut(auth); } catch { /* best effort */ }
+          return;
+        }
+
+        try {
+          await sendEmailVerification(credential.user);
+          show(label(
+            '가입이 접수되었습니다! 이메일로 보낸 인증 링크를 눌러주세요. 인증 후 로그인하면 일반회원으로 이용할 수 있습니다.',
+            'Inscription enregistrée ! Vérifiez votre adresse e-mail via le lien reçu, puis connectez-vous comme membre général.'
+          ));
+        } catch (emailError) {
+          console.error('ASICC verification email failed:', emailError);
+          show(label(
+            '회원정보는 저장됐지만 인증메일 발송에 문제가 생겼습니다. 다시 가입하지 말고 협회에 문의해주세요.',
+            'Le profil a été enregistré, mais l’envoi du courriel de vérification a échoué. Contactez l’association sans recréer le compte.'
+          ), true);
+        }
+        form.reset();
+        try { await signOut(auth); } catch { /* best effort */ }
+      } catch (error: unknown) {
+        const code = (error as { code?: string })?.code;
+        const messages: Record<string, [string, string]> = {
+          'auth/email-already-in-use': ['이미 가입된 이메일입니다. 로그인하거나 비밀번호 찾기를 이용해주세요.', 'Cette adresse e-mail est déjà utilisée. Connectez-vous ou réinitialisez votre mot de passe.'],
+          'auth/invalid-email': ['이메일 주소를 확인해주세요.', 'Vérifiez votre adresse e-mail.'],
+          'auth/weak-password': ['더 강력한 비밀번호를 사용해주세요.', 'Choisissez un mot de passe plus fort.'],
+          'auth/too-many-requests': ['요청이 많습니다. 잠시 후 다시 시도해주세요.', 'Trop de tentatives. Réessayez plus tard.']
+        };
+        const pair = code && messages[code];
+        show(pair ? label(pair[0], pair[1]) : label(
+          '회원가입을 완료하지 못했습니다. 인터넷 연결과 Firebase 설정을 확인해주세요.',
+          'Impossible de terminer l’inscription. Vérifiez la connexion Internet et la configuration Firebase.'
+        ), true);
+        console.error('ASICC signup error:', error);
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  }
+</script>

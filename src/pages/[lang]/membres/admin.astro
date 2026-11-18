@@ -3,30 +3,332 @@ import Base from '../../../layouts/Base.astro';
 import { langPaths, href, L, type Lang } from '../../../i18n/ui';
 export const getStaticPaths = langPaths;
 const lang = Astro.params.lang as Lang;
+const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
 ---
-<Base lang={lang} rest="membres/admin/" title={L(lang, { ko: '회원 서비스 준비 중', fr: 'Espace membres bientôt disponible' })} noindex>
+<Base lang={lang} rest="membres/admin/" title={L(lang, { ko: 'ASICC 운영진 관리', fr: 'Administration ASICC' })} noindex>
   <section class="wrap m-shell">
-    <div class="card auth-card stack gap-24" style="max-width:680px;text-align:center">
+    <div id="asicc-admin" class="stack gap-24"
+      data-lang={lang}
+      data-login-url={href(lang, 'membres/login/')}
+      data-member-url={href(lang, 'membres/')}>
       <div class="stack gap-12">
-        <span class="m-badge" style="align-self:center">{L(lang, { ko: '서비스 준비 안내', fr: 'Information' })}</span>
-        <h1 class="h2">{L(lang, { ko: '회원 서비스 준비 중', fr: 'Espace membres bientôt disponible' })}</h1>
+        <span class="m-badge" style="align-self:flex-start">{L(lang, { ko: '운영진 전용', fr: 'Accès administrateur' })}</span>
+        <h1 class="h2">{L(lang, { ko: 'ASICC 회원관리', fr: 'Gestion des membres ASICC' })}</h1>
         <p class="muted">{L(lang, {
-          ko: 'ASICC 학부모협회 회원 전용 서비스는 현재 준비 중이며, 곧 이용하실 수 있습니다.',
-          fr: 'L’espace membres de l’ASICC est en cours de préparation et sera bientôt disponible.'
+          ko: '승급 신청 심사 및 회원 등급 관리를 위한 운영진 전용 화면입니다.',
+          fr: 'Examinez les demandes de statut et gérez les accès des membres.'
         })}</p>
-        <p class="small muted">{L(lang, {
-          ko: '회원가입, 로그인 및 회원 전용 자료 열람 기능은 추후 개통될 예정입니다. 그동안 협회 소식과 행사 정보는 홈페이지에서 확인해 주세요.',
-          fr: 'L’inscription, la connexion et l’accès aux documents réservés aux membres seront activés prochainement. En attendant, retrouvez les actualités et les événements sur notre site.'
-        })}</p>
-        <p class="small muted">
-          {L(lang, { ko: '문의사항은', fr: 'Pour toute question, contactez-nous à' })}
-          <a href="mailto:contact@asicc-parents.fr">contact@asicc-parents.fr</a>.
-        </p>
       </div>
-      <div class="row gap-16" style="justify-content:center;flex-wrap:wrap">
-        <a class="btn btn-dark" href={href(lang)}>{L(lang, { ko: '홈페이지로 돌아가기', fr: 'Retour à l’accueil' })}</a>
-        <a class="btn btn-ghost" href={href(lang, 'contact/')}>{L(lang, { ko: '문의하기', fr: 'Nous contacter' })}</a>
+
+      {!live && <div class="card auth-card" role="status">{L(lang,{ko:"관리자 기능은 Firebase 권한 검증 전까지 비활성화됩니다.",fr:"L’administration reste désactivée jusqu’à la validation des règles Firebase."})}</div>}
+      <div hidden={!live} id="admin-loading" class="card auth-card" role="status">
+        {L(lang, { ko: '운영진 권한을 확인하고 있습니다…', fr: 'Vérification des droits administrateur…' })}
+      </div>
+      <div id="admin-denied" class="card auth-card stack gap-12" hidden>
+        <p id="admin-denied-message" role="alert"></p>
+        <a class="btn btn-dark" href={href(lang, 'membres/')}>{L(lang, { ko: '회원공간으로', fr: 'Retour à l’espace membres' })}</a>
+      </div>
+
+      <div id="admin-content" class="stack gap-24" hidden>
+        <div class="card auth-card stack gap-12">
+          <div class="row gap-16" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
+            <div class="stack gap-8">
+              <strong id="admin-who"></strong>
+              <span class="small muted">{L(lang, { ko: '운영진 인증 완료', fr: 'Accès administrateur confirmé' })}</span>
+            </div>
+            <div class="row gap-12" style="flex-wrap:wrap">
+              <a class="btn btn-ghost" href={href(lang, 'membres/')}>{L(lang, { ko: '회원공간', fr: 'Espace membres' })}</a>
+              <button type="button" class="btn btn-ghost" id="admin-refresh">{L(lang, { ko: '새로고침', fr: 'Actualiser' })}</button>
+            </div>
+          </div>
+        </div>
+
+        <p id="admin-action-message" class="small" role="status" aria-live="polite" hidden></p>
+
+        <section class="card auth-card stack gap-16" aria-labelledby="requests-heading">
+          <div class="row gap-16" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
+            <h2 id="requests-heading" class="h3">{L(lang, { ko: '승급 승인 대기', fr: 'Demandes à examiner' })}</h2>
+            <span id="admin-pending-count" class="m-badge"></span>
+          </div>
+          <p class="small muted">{L(lang, {
+            ko: '승인 시 신청 결과와 회원 등급을 하나의 트랜잭션으로 저장합니다.',
+            fr: 'Chaque approbation met à jour la demande et le statut dans une seule transaction.'
+          })}</p>
+          <div id="admin-requests" class="stack gap-12"></div>
+        </section>
+
+        <section class="card auth-card stack gap-16" aria-labelledby="members-heading">
+          <div class="row gap-16" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
+            <h2 id="members-heading" class="h3">{L(lang, { ko: '회원 등급 및 계정 관리', fr: 'Comptes et statuts des membres' })}</h2>
+            <span id="admin-member-count" class="m-badge"></span>
+          </div>
+          <p class="small muted">{L(lang, {
+            ko: '정식 협회회원과 특별회원은 동일한 접근권한을 갖습니다. 다른 운영진을 지정할 때는 신중하게 확인하세요.',
+            fr: 'Membres et membres spéciaux ont le même accès. Vérifiez soigneusement toute nomination d’administrateur.'
+          })}</p>
+          <input id="admin-member-search" type="search"
+            placeholder={L(lang, { ko: '이름 또는 이메일 검색', fr: 'Chercher par nom ou e-mail' })}
+            aria-label={L(lang, { ko: '회원 검색', fr: 'Rechercher un membre' })}/>
+          <div id="admin-members" class="stack gap-12"></div>
+          <button id="admin-more" class="btn btn-ghost" type="button" hidden>
+            {L(lang, { ko: '회원 더 불러오기', fr: 'Charger plus de membres' })}
+          </button>
+        </section>
+
+        <div class="card auth-card stack gap-8">
+          <h2 class="h3">{L(lang, { ko: '콘텐츠 관리 안내', fr: 'Gestion du contenu' })}</h2>
+          <p class="small muted">{L(lang, {
+            ko: '공지·입학안내 등 공개 홈페이지 편집은 기존 CMS에서 계속합니다. 학습자료·갤러리·협회사무실의 파일 관리자 화면은 이후 연결합니다.',
+            fr: 'Les pages publiques restent gérées dans le CMS existant. La gestion des fichiers privés sera ajoutée séparément.'
+          })}</p>
+          <a class="btn btn-ghost" href="https://app.pagescms.org/" target="_blank" rel="noopener noreferrer">{L(lang,{ko:'홈페이지 CMS 열기',fr:'Ouvrir le CMS du site'})}</a>
+          <p class="small muted">{L(lang, {
+            ko: '주의: 화면을 숨기는 것만으로 자료가 보호되지 않습니다. Firestore·Storage 서버 보안 규칙이 반드시 적용되어야 합니다.',
+            fr: 'Attention : masquer une page ne protège pas les données. Les règles de sécurité serveur restent indispensables.'
+          })}</p>
+        </div>
       </div>
     </div>
   </section>
 </Base>
+
+<style>
+  .asicc-admin-record { border: 1px solid #dce0e7; border-radius: 12px; padding:16px; }
+  .asicc-admin-fields { display:grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,175px),1fr)); gap:12px; align-items:end; }
+  .asicc-admin-actions { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:10px; }
+  .asicc-admin-muted { font-size:.88rem; color:var(--muted,#64748b); overflow-wrap:anywhere; }
+</style>
+
+<script>
+  import { getApps, initializeApp } from 'firebase/app';
+  import { getAuth, onAuthStateChanged, getIdToken } from 'firebase/auth';
+  import {
+    getFirestore, doc, getDoc, getDocs, query, collection, where,
+    limit, startAfter, updateDoc, runTransaction, serverTimestamp,
+    type DocumentData, type QueryDocumentSnapshot
+  } from 'firebase/firestore';
+  import { firebaseConfig } from '../../../firebase-config';
+
+  type Member = { id: string; name: string; email: string; role: string; status: string };
+  type Upgrade = { uid: string; applicantName: string; applicantEmail: string;
+    requestedRole: 'member' | 'special'; kind: string; schoolYear?: number | null;
+    note?: string; status: string; };
+
+  const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T | null;
+  const root = el<HTMLElement>('asicc-admin');
+  const fr = root?.dataset.lang === 'fr';
+  const tr = (ko: string, french: string) => fr ? french : ko;
+  const app = getApps().find(a => a.name === 'asicc-website')
+    ?? initializeApp(firebaseConfig, 'asicc-website');
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  let meUid = '';
+  let members: Member[] = [];
+  let lastMember: QueryDocumentSnapshot<DocumentData> | null = null;
+  let busy = false;
+
+  const text = (id: string, value: string) => { const node = el<HTMLElement>(id); if (node) node.textContent = value; };
+  const showMessage = (message: string, error = false) => {
+    const node = el<HTMLElement>('admin-action-message'); if (!node) return;
+    node.hidden = false; node.textContent = message;
+    node.style.color = error ? '#b42318' : '#067647';
+  };
+  const deny = (message: string) => {
+    const loading = el<HTMLElement>('admin-loading'); if (loading) loading.hidden = true;
+    const denied = el<HTMLElement>('admin-denied'); if (denied) denied.hidden = false;
+    text('admin-denied-message', message);
+    const content = el<HTMLElement>('admin-content'); if (content) content.hidden = true;
+  };
+  const panel = (className: string, content: string) => {
+    const node = document.createElement('div'); node.className = className;
+    node.textContent = content; return node;
+  };
+  const actionButton = (label: string, handler: () => void): HTMLButtonElement => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-ghost';
+    b.textContent = label; b.addEventListener('click', handler); return b;
+  };
+  const roleLabel = (role: string) => ({
+    general: tr('일반회원', 'Membre général'),
+    member: tr('협회회원', 'Membre de l’association'),
+    special: tr('특별회원', 'Membre spécial'),
+    admin: tr('운영진', 'Administrateur')
+  } as Record<string,string>)[role] || role;
+  const kindLabel = (kind: string) => ({
+    parent: tr('학부모','Parent'), alumnus: tr('졸업생','Ancien élève'),
+    'alumni-parent': tr('졸업생 학부모','Parent d’ancien élève')
+  } as Record<string,string>)[kind] || kind;
+  const roleOptions = ['general','member','special','admin'];
+
+  async function loadRequests() {
+    const container = el<HTMLElement>('admin-requests'); if (!container) return;
+    container.replaceChildren(panel('small muted', tr('불러오는 중…','Chargement…')));
+    const snaps = await getDocs(query(collection(db,'upgradeRequests'), where('status','==','pending')));
+    const requests = snaps.docs.map(s => s.data() as Upgrade);
+    text('admin-pending-count', String(requests.length));
+    container.replaceChildren();
+    if (!requests.length) {
+      container.append(panel('small muted',tr('대기 중인 신청이 없습니다.','Aucune demande en attente.')));
+      return;
+    }
+    for (const item of requests) {
+      const card = document.createElement('article'); card.className = 'asicc-admin-record stack gap-8';
+      const name = panel('',item.applicantName || tr('이름 없음','Sans nom'));
+      name.style.fontWeight = '700'; card.append(name);
+      card.append(panel('asicc-admin-muted', item.applicantEmail || ''));
+      card.append(panel('small', tr('신청 등급: ','Statut demandé : ') + roleLabel(item.requestedRole)
+        + ' · ' + kindLabel(item.kind) + (item.schoolYear ? ` · ${item.schoolYear}` : '')));
+      if (item.note) card.append(panel('asicc-admin-muted',item.note));
+      const buttons = document.createElement('div'); buttons.className = 'asicc-admin-actions';
+      buttons.append(
+        actionButton(tr('승인','Approuver'),()=>void review(item,true)),
+        actionButton(tr('거절','Refuser'),()=>void review(item,false))
+      );
+      card.append(buttons); container.append(card);
+    }
+  }
+
+  async function review(item: Upgrade, approve: boolean) {
+    if (busy) return;
+    if (!['member','special'].includes(item.requestedRole)) return;
+    const question = approve
+      ? tr(`${item.applicantName}님의 ${roleLabel(item.requestedRole)} 승급을 승인할까요?`,
+           `Approuver le statut ${roleLabel(item.requestedRole)} pour ${item.applicantName} ?`)
+      : tr(`${item.applicantName}님의 신청을 거절할까요?`, `Refuser la demande de ${item.applicantName} ?`);
+    if (!window.confirm(question)) return;
+    busy = true;
+    try {
+      const requestRef = doc(db,'upgradeRequests',item.uid);
+      const memberRef = doc(db,'members',item.uid);
+      await runTransaction(db, async tx => {
+        const requestSnap = await tx.get(requestRef);
+        if (!requestSnap.exists() || requestSnap.data().status !== 'pending') throw Error('request-changed');
+        const freshRole = requestSnap.data().requestedRole;
+        if (!['member','special'].includes(freshRole)) throw Error('role-invalid');
+        if (approve) {
+          const memberSnap = await tx.get(memberRef);
+          if (!memberSnap.exists() || memberSnap.data().role !== 'general'
+              || memberSnap.data().status !== 'approved') throw Error('profile-changed');
+          tx.update(memberRef, { role: freshRole });
+        }
+        tx.update(requestRef, {
+          status: approve ? 'approved' : 'rejected',
+          reviewedBy: meUid, reviewedAt: serverTimestamp()
+        });
+      });
+      showMessage(approve ? tr('승급을 승인했습니다.','Demande approuvée.')
+        : tr('신청을 거절했습니다.','Demande refusée.'));
+      await Promise.all([loadRequests(),loadMembers(true)]);
+    } catch (error) {
+      console.error('ASICC admin review:',error);
+      showMessage(tr('처리하지 못했습니다. 신청 상태와 Firebase 규칙을 확인해 주세요.',
+        'Opération impossible. Vérifiez la demande et les règles Firebase.'), true);
+    } finally { busy = false; }
+  }
+
+  function renderMembers() {
+    const container = el<HTMLElement>('admin-members'); if (!container) return;
+    const term = el<HTMLInputElement>('admin-member-search')?.value.trim().toLowerCase() || '';
+    const filtered = members.filter(m => `${m.name} ${m.email}`.toLowerCase().includes(term));
+    container.replaceChildren();
+    if (!filtered.length) { container.append(panel('small muted', tr('일치하는 회원이 없습니다.','Aucun membre trouvé.'))); return; }
+    for (const member of filtered) {
+      const card = document.createElement('article'); card.className = 'asicc-admin-record stack gap-8';
+      const heading = panel('', member.name || tr('이름 없음','Sans nom'));
+      heading.style.fontWeight = '700'; card.append(heading);
+      card.append(panel('asicc-admin-muted', member.email || ''));
+      const fields = document.createElement('div'); fields.className='asicc-admin-fields';
+      const roleWrap = document.createElement('label'); roleWrap.className='stack gap-8';
+      roleWrap.append(panel('small',tr('회원 등급','Statut')));
+      const roleSelect = document.createElement('select');
+      for (const role of roleOptions) {
+        const option = document.createElement('option'); option.value=role; option.textContent=roleLabel(role);
+        roleSelect.append(option);
+      }
+      roleSelect.value=member.role; roleSelect.disabled=member.id===meUid; roleWrap.append(roleSelect);
+      const statusWrap = document.createElement('label'); statusWrap.className='stack gap-8';
+      statusWrap.append(panel('small',tr('계정 상태','État du compte')));
+      const statusSelect = document.createElement('select');
+      for (const [key,label] of [
+        ['approved',tr('활성','Actif')], ['suspended',tr('정지','Suspendu')]
+      ]) { const opt=document.createElement('option');opt.value=key;opt.textContent=label;statusSelect.append(opt); }
+      statusSelect.value=member.status; statusSelect.disabled=member.id===meUid; statusWrap.append(statusSelect);
+      fields.append(roleWrap,statusWrap); card.append(fields);
+      const actions = document.createElement('div'); actions.className='asicc-admin-actions';
+      const save = actionButton(tr('변경 저장','Enregistrer'), () => void saveMember(member,roleSelect,statusSelect));
+      save.disabled=member.id===meUid; actions.append(save); card.append(actions); container.append(card);
+    }
+  }
+
+  async function saveMember(member: Member, roleSelect: HTMLSelectElement, statusSelect: HTMLSelectElement) {
+    if (busy || member.id===meUid) return;
+    const role=roleSelect.value, status=statusSelect.value;
+    if (!roleOptions.includes(role) || !['approved','suspended'].includes(status)) return;
+    if (role === member.role && status === member.status) return;
+    const message = role==='admin' && member.role!=='admin'
+      ? tr(`주의: ${member.name}님에게 전체 관리자 권한을 부여합니다. 정말 진행할까요?`,
+           `Attention : vous accordez tous les droits d’administrateur à ${member.name}. Confirmer ?`)
+      : tr(`${member.name}님의 회원 등급/상태를 변경할까요?`,
+           `Modifier le statut/compte de ${member.name} ?`);
+    if (!window.confirm(message)) return;
+    busy=true;
+    try {
+      await updateDoc(doc(db,'members',member.id), {role,status});
+      showMessage(tr('회원 정보를 변경했습니다.','Profil modifié.'));
+      await loadMembers(true);
+    } catch(error) {
+      console.error('ASICC member update:',error);
+      showMessage(tr('변경하지 못했습니다. Firebase 보안 규칙을 확인해 주세요.',
+        'Modification impossible. Vérifiez les règles Firebase.'), true);
+    } finally {busy=false;}
+  }
+
+  async function loadMembers(reset=false) {
+    const container=el<HTMLElement>('admin-members'); if (!container) return;
+    if (reset) {members=[];lastMember=null;}
+    const batch=query(collection(db,'members'),
+      ...(lastMember ? [startAfter(lastMember)] : []), limit(100));
+    const snap=await getDocs(batch);
+    lastMember=snap.docs.length ? snap.docs[snap.docs.length-1] : null;
+    members.push(...snap.docs.map(s=>({id:s.id,...s.data()} as Member)));
+    members.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+    text('admin-member-count',String(members.length));
+    const more=el<HTMLButtonElement>('admin-more'); if(more) more.hidden=snap.docs.length<100;
+    renderMembers();
+  }
+
+  if (import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true") onAuthStateChanged(auth, async user => {
+    if(!user) {window.location.replace(root?.dataset.loginUrl || '/');return;}
+    try {
+      await user.reload(); await getIdToken(user,true);
+      if(!user.emailVerified) {deny(tr('이메일 인증 후 로그인해 주세요.','Vérifiez votre e-mail avant de vous connecter.'));return;}
+      const me=await getDoc(doc(db,'members',user.uid));
+      if(!me.exists() || me.data().status!=='approved' || me.data().role!=='admin') {
+        deny(tr('운영진만 접근할 수 있는 공간입니다.','Cet espace est réservé aux administrateurs.'));return;
+      }
+      meUid=user.uid;
+      text('admin-who',me.data().name || user.email || 'Admin');
+      const loading=el<HTMLElement>('admin-loading');if(loading)loading.hidden=true;
+      const content=el<HTMLElement>('admin-content');if(content)content.hidden=false;
+      await Promise.all([loadRequests(),loadMembers(true)]);
+    } catch(error) {
+      console.error('ASICC admin access:',error);
+      deny(tr('관리자 화면을 불러올 수 없습니다. Firebase 규칙을 확인해 주세요.',
+        'Impossible de charger l’administration. Vérifiez les règles Firebase.'));
+    }
+  });
+
+  el<HTMLButtonElement>('admin-refresh')?.addEventListener('click',()=>{
+    if(busy)return;
+    void Promise.all([loadRequests(),loadMembers(true)]).catch(error=>{
+      console.error('ASICC refresh:',error);
+      showMessage(tr('새로고침 중 오류가 발생했습니다.','Erreur pendant l’actualisation.'),true);
+    });
+  });
+  el<HTMLInputElement>('admin-member-search')?.addEventListener('input',renderMembers);
+  el<HTMLButtonElement>('admin-more')?.addEventListener('click',()=>{
+    void loadMembers().catch(error=>{
+      console.error('ASICC pagination:',error);
+      showMessage(tr('회원 목록을 더 불러올 수 없습니다.','Impossible de charger d’autres membres.'),true);
+    });
+  });
+</script>

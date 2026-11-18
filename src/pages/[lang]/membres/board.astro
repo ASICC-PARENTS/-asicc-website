@@ -1,0 +1,171 @@
+---
+import Base from '../../../layouts/Base.astro';
+import { langPaths, href, L, type Lang } from '../../../i18n/ui';
+export const getStaticPaths = langPaths;
+const lang = Astro.params.lang as Lang;
+const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
+---
+<Base lang={lang} rest="membres/board/" title={L(lang,{ko:'회원 소통 게시판',fr:'Forum des membres'})} noindex>
+  <section class="wrap m-shell">
+    <div class="stack gap-16" id="board-root" data-lang={lang} data-login-url={href(lang,'membres/login/')}>
+      <a href={href(lang,'membres/')} class="small">← {L(lang,{ko:'회원공간',fr:'Espace membres'})}</a>
+      <h1 class="h2">{L(lang,{ko:'회원 소통 게시판',fr:'Forum des membres'})}</h1>
+      <p class="muted">{L(lang,{ko:'일반회원은 읽기, 협회회원·특별회원·운영진은 글쓰기와 댓글이 가능합니다.',fr:'Les membres généraux peuvent consulter les messages. La publication et les commentaires sont réservés aux membres de l’association, aux membres spéciaux et aux administrateurs.'})}</p>
+      {!live && <div class="card auth-card" role="status">{L(lang,{ko:'게시판은 보안 점검 중으로 아직 공개되지 않았습니다.',fr:'Le forum est désactivé pendant les vérifications de sécurité.'})}</div>}
+      <div id="board-app" hidden={!live} class="stack gap-16">
+        <p id="board-status" role="status" aria-live="polite" class="small muted">{L(lang,{ko:'회원 권한 확인 중…',fr:'Vérification des autorisations…'})}</p>
+        <div id="board-content" hidden class="stack gap-16">
+          <form id="post-form" class="card auth-card stack gap-12" hidden>
+            <h2 class="h3">{L(lang,{ko:'글쓰기',fr:'Publier un message'})}</h2>
+            <label for="post-title">{L(lang,{ko:'제목',fr:'Titre'})}</label>
+            <input id="post-title" name="title" maxlength="120" required />
+            <label for="post-body">{L(lang,{ko:'내용',fr:'Message'})}</label>
+            <textarea id="post-body" name="body" maxlength="5000" rows="5" required></textarea>
+            <button class="btn btn-dark" type="submit">{L(lang,{ko:'등록하기',fr:'Publier'})}</button>
+          </form>
+          <div class="card auth-card stack gap-12">
+            <label for="board-search">{L(lang,{ko:'게시글 검색',fr:'Rechercher dans les messages'})}</label>
+            <input id="board-search" type="search" maxlength="120" />
+            <div id="board-list" class="stack gap-12"></div>
+          </div>
+          <article id="post-detail" class="card auth-card stack gap-16" hidden>
+            <button type="button" class="btn btn-ghost" id="post-back">← {L(lang,{ko:'목록으로',fr:'Retour à la liste'})}</button>
+            <h2 id="detail-title" class="h3"></h2>
+            <p id="detail-meta" class="small muted"></p>
+            <p id="detail-body" class="board-text"></p>
+            <div id="detail-actions" class="row gap-12" style="flex-wrap:wrap"></div>
+            <h3 class="h3">{L(lang,{ko:'댓글',fr:'Commentaires'})}</h3>
+            <div id="comment-list" class="stack gap-8"></div>
+            <form id="comment-form" class="stack gap-12" hidden>
+              <label for="comment-body">{L(lang,{ko:'댓글 작성',fr:'Ajouter un commentaire'})}</label>
+              <textarea id="comment-body" maxlength="2000" rows="3" required></textarea>
+              <button type="submit" class="btn btn-dark">{L(lang,{ko:'댓글 등록',fr:'Publier le commentaire'})}</button>
+            </form>
+          </article>
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>
+<style>
+.board-text { white-space:pre-wrap;overflow-wrap:anywhere; }
+.board-post { width:100%;background:transparent;border:0;text-align:left;cursor:pointer;padding:12px;display:flex;flex-direction:column;gap:5px;color:inherit; }
+.board-post:hover { background:var(--tint-accent,#f1f5f9); }
+.board-row { border:1px solid #e2e8f0;border-radius:10px;min-width:0; }
+.board-actions { display:flex;flex-wrap:wrap;gap:10px; }
+</style>
+<script>
+  import { getApps, initializeApp } from 'firebase/app';
+  import { getAuth, onAuthStateChanged, getIdToken } from 'firebase/auth';
+  import { getFirestore, doc, collection, getDoc, getDocs, query, orderBy, limit, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+  import { firebaseConfig } from '../../../firebase-config';
+  type BoardData = { id:string;title:string;body:string;authorUid:string;authorName:string;deleted:boolean;createdAt?:{toDate?:()=>Date};updatedAt?:unknown };
+  type CommentData = { id:string;body:string;authorUid:string;authorName:string;deleted:boolean;createdAt?:{toDate?:()=>Date} };
+  const root=document.getElementById('board-root') as HTMLElement|null;
+  const by=<T extends HTMLElement>(id:string)=>document.getElementById(id) as T|null;
+  const fr=root?.dataset.lang==='fr';
+  const tr=(ko:string,french:string)=>fr?french:ko;
+  const status=by<HTMLElement>('board-status');
+  const notify=(v:string,bad=false)=>{if(status){status.textContent=v;status.style.color=bad?'#b42318':'';}};
+  const el=(tag:string,text?:string)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;return node;};
+  const stamp=(v?:{toDate?:()=>Date})=>{try{return v?.toDate?.().toLocaleDateString(fr?'fr-FR':'ko-KR')||'';}catch{return '';}};
+  const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
+  const auth=getAuth(app), db=getFirestore(app);
+  let uid='',name='',role='',posts:BoardData[]=[],selected:BoardData|null=null;
+  const canWrite=()=>['member','special','admin'].includes(role);
+  const canEdit=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
+  const show=(id:string,on:boolean)=>{const v=by<HTMLElement>(id);if(v)v.hidden=!on;};
+  async function refreshPosts(){
+    const list=by<HTMLElement>('board-list');if(!list)return;
+    list.replaceChildren(el('p',tr('불러오는 중…','Chargement…')));
+    const snap=await getDocs(query(collection(db,'boardPosts'),orderBy('createdAt','desc'),limit(100)));
+    posts=snap.docs.map(d=>({id:d.id,...d.data()} as BoardData));renderPosts();
+  }
+  function renderPosts(){
+    const list=by<HTMLElement>('board-list');if(!list)return;list.replaceChildren();
+    const search=by<HTMLInputElement>('board-search')?.value.trim().toLocaleLowerCase()||'';
+    const filtered=posts.filter(p=>!p.deleted&&(!search||`${p.title} ${p.body}`.toLocaleLowerCase().includes(search)));
+    if(!filtered.length){list.append(el('p',tr('게시글이 없습니다.','Aucun message.')));return;}
+    for(const post of filtered){
+      const row=el('div');row.className='board-row';const b=el('button') as HTMLButtonElement;b.className='board-post';b.type='button';
+      const title=el('strong',post.title),meta=el('span',`${post.authorName||''} · ${stamp(post.createdAt)}`);meta.className='small muted';
+      b.append(title,meta);b.addEventListener('click',()=>void openPost(post));row.append(b);list.append(row);
+    }
+  }
+  async function openPost(post:BoardData){
+    selected=post;show('post-detail',true);show('post-form',false);show('board-list',false);show('board-search',false);
+    const title=by<HTMLElement>('detail-title'),body=by<HTMLElement>('detail-body'),meta=by<HTMLElement>('detail-meta'),actions=by<HTMLElement>('detail-actions');
+    if(title)title.textContent=post.title;if(body)body.textContent=post.body;if(meta)meta.textContent=`${post.authorName} · ${stamp(post.createdAt)}`;
+    actions?.replaceChildren();
+    if(canEdit(post.authorUid)&&!post.deleted){
+      const edit=el('button',tr('수정','Modifier')) as HTMLButtonElement;edit.type='button';edit.className='btn btn-ghost';edit.addEventListener('click',()=>void editPost(post));
+      const hide=el('button',tr('숨기기','Masquer')) as HTMLButtonElement;hide.type='button';hide.className='btn btn-ghost';hide.addEventListener('click',()=>void hidePost(post));actions?.append(edit,hide);
+    }
+    show('comment-form',canWrite()&&!post.deleted);await refreshComments(post.id);
+  }
+  function back(){selected=null;show('post-detail',false);show('post-form',canWrite());show('board-list',true);show('board-search',true);}
+  async function editPost(post:BoardData){
+    if(!canEdit(post.authorUid)||post.deleted)return;
+    const title=prompt(tr('제목 수정','Modifier le titre'),post.title);if(title===null)return;
+    const body=prompt(tr('내용 수정','Modifier le message'),post.body);if(body===null)return;
+    if(!title.trim()||title.length>120||!body.trim()||body.length>5000){notify(tr('길이를 확인하세요.','Vérifiez la longueur.'),true);return;}
+    try{await updateDoc(doc(db,'boardPosts',post.id),{title:title.trim(),body:body.trim(),updatedAt:serverTimestamp()});await refreshPosts();const found=posts.find(x=>x.id===post.id);if(found)await openPost(found);}
+    catch(e){console.error(e);notify(tr('수정 실패','Échec de la modification'),true);}
+  }
+  async function hidePost(post:BoardData){
+    if(!canEdit(post.authorUid)||post.deleted||!confirm(tr('게시글을 숨길까요?','Masquer ce message ?')))return;
+    try{await updateDoc(doc(db,'boardPosts',post.id),{deleted:true,title:'[숨김 처리된 게시글]',body:'[숨김 처리된 게시글]',updatedAt:serverTimestamp()});back();await refreshPosts();}
+    catch(e){console.error(e);notify(tr('숨김 처리 실패','Impossible de masquer.'),true);}
+  }
+  async function refreshComments(postId:string){
+    const list=by<HTMLElement>('comment-list');if(!list)return;list.replaceChildren();
+    try{
+      const snap=await getDocs(query(collection(db,'boardPosts',postId,'comments'),orderBy('createdAt','asc'),limit(100)));
+      if(snap.empty){list.append(el('p',tr('등록된 댓글이 없습니다.','Aucun commentaire.')));return;}
+      for(const d of snap.docs){const c={id:d.id,...d.data()} as CommentData;
+        const wrap=el('div');wrap.className='board-row stack gap-8';wrap.style.padding='12px';
+        const meta=el('p',`${c.authorName||''} · ${stamp(c.createdAt)}`);meta.className='small muted';
+        const body=el('p',c.body);body.className='board-text';wrap.append(meta,body);
+        if(!c.deleted&&canEdit(c.authorUid)){
+          const btns=el('div');btns.className='board-actions';
+          const edit=el('button',tr('수정','Modifier')) as HTMLButtonElement;edit.type='button';edit.className='btn btn-ghost';
+          edit.addEventListener('click',async()=>{
+            const updated=prompt(tr('댓글 수정','Modifier le commentaire'),c.body);
+            if(updated===null)return;if(!updated.trim()||updated.length>2000)return notify(tr('댓글 길이를 확인하세요.','Commentaire trop long.'),true);
+            try{await updateDoc(doc(db,'boardPosts',postId,'comments',c.id),{body:updated.trim(),updatedAt:serverTimestamp()});await refreshComments(postId);}catch(e){console.error(e);notify(tr('댓글 수정 실패','Échec de la modification.'),true);}
+          });
+          const hide=el('button',tr('숨기기','Masquer')) as HTMLButtonElement;hide.type='button';hide.className='btn btn-ghost';hide.addEventListener('click',async()=>{
+            if(!confirm(tr('댓글을 숨길까요?','Masquer ce commentaire ?')))return;
+            try{await updateDoc(doc(db,'boardPosts',postId,'comments',c.id),{body:'[숨김 처리된 댓글]',deleted:true,updatedAt:serverTimestamp()});await refreshComments(postId);}catch(e){console.error(e);notify(tr('숨김 실패','Impossible de masquer.'),true);}
+          });btns.append(edit,hide);wrap.append(btns);
+        }list.append(wrap);
+      }
+    }catch(e){console.error(e);notify(tr('댓글을 불러오지 못했습니다.','Impossible de charger les commentaires.'),true);}
+  }
+  if(import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true') onAuthStateChanged(auth,async user=>{
+    if(!user){location.replace(root?.dataset.loginUrl||'/');return;}
+    try{
+      await user.reload();await getIdToken(user,true);
+      if(!user.emailVerified)throw Error('verify');
+      const snap=await getDoc(doc(db,'members',user.uid));
+      if(!snap.exists()||snap.data().status!=='approved')throw Error('profile');
+      uid=user.uid;role=snap.data().role;name=snap.data().name;
+      show('board-content',true);show('post-form',canWrite());notify(tr('게시판을 열었습니다.','Forum ouvert.'));
+      await refreshPosts();
+    }catch(e){console.error(e);notify(tr('접근 권한이 없습니다. 인증 후 로그인해 주세요.','Accès refusé. Vérifiez votre compte.'),true);}
+  });
+  by<HTMLInputElement>('board-search')?.addEventListener('input',renderPosts);
+  by<HTMLButtonElement>('post-back')?.addEventListener('click',back);
+  by<HTMLFormElement>('post-form')?.addEventListener('submit',async e=>{
+    e.preventDefault();if(!canWrite())return;const title=by<HTMLInputElement>('post-title')?.value.trim()||'',body=by<HTMLTextAreaElement>('post-body')?.value.trim()||'';
+    if(!title||title.length>120||!body||body.length>5000)return notify(tr('제목과 내용을 확인하세요.','Vérifiez le titre et le message.'),true);
+    try{await setDoc(doc(collection(db,'boardPosts')),{title,body,authorUid:uid,authorName:name,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),deleted:false});by<HTMLFormElement>('post-form')?.reset();await refreshPosts();notify(tr('게시했습니다.','Message publié.'));}
+    catch(e){console.error(e);notify(tr('등록하지 못했습니다.','Impossible de publier.'),true);}
+  });
+  by<HTMLFormElement>('comment-form')?.addEventListener('submit',async e=>{
+    e.preventDefault();if(!canWrite()||!selected)return;const body=by<HTMLTextAreaElement>('comment-body')?.value.trim()||'';
+    if(!body||body.length>2000)return notify(tr('댓글을 확인하세요.','Vérifiez le commentaire.'),true);
+    try{await setDoc(doc(collection(db,'boardPosts',selected.id,'comments')),{body,authorUid:uid,authorName:name,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),deleted:false});by<HTMLFormElement>('comment-form')?.reset();await refreshComments(selected.id);}
+    catch(e){console.error(e);notify(tr('댓글 등록 실패','Impossible de publier le commentaire.'),true);}
+  });
+</script>
