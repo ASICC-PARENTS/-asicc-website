@@ -73,7 +73,10 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
   const auth=getAuth(app), db=getFirestore(app);
   let uid='',name='',role='',posts:BoardData[]=[],selected:BoardData|null=null;
   const canWrite=()=>['member','special','admin'].includes(role);
-  const canEdit=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
+  // Content edits are restricted to the original author, including when the viewer is an admin.
+  const canEdit=(owner:string)=>canWrite()&&owner===uid;
+  // Administrators may moderate other members' posts and comments; authors may withdraw theirs.
+  const canModerate=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
   const show=(id:string,on:boolean)=>{const v=by<HTMLElement>(id);if(v)v.hidden=!on;};
   async function refreshPosts(){
     const list=by<HTMLElement>('board-list');if(!list)return;
@@ -97,9 +100,14 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
     const title=by<HTMLElement>('detail-title'),body=by<HTMLElement>('detail-body'),meta=by<HTMLElement>('detail-meta'),actions=by<HTMLElement>('detail-actions');
     if(title)title.textContent=post.title;if(body)body.textContent=post.body;if(meta)meta.textContent=`${post.authorName} · ${stamp(post.createdAt)}`;
     actions?.replaceChildren();
-    if(canEdit(post.authorUid)&&!post.deleted){
-      const edit=el('button',tr('수정','Modifier')) as HTMLButtonElement;edit.type='button';edit.className='btn btn-ghost';edit.addEventListener('click',()=>void editPost(post));
-      const hide=el('button',tr('숨기기','Masquer')) as HTMLButtonElement;hide.type='button';hide.className='btn btn-ghost';hide.addEventListener('click',()=>void hidePost(post));actions?.append(edit,hide);
+    if(!post.deleted){
+      if(canEdit(post.authorUid)){
+        const edit=el('button',tr('수정','Modifier')) as HTMLButtonElement;edit.type='button';edit.className='btn btn-ghost';edit.addEventListener('click',()=>void editPost(post));actions?.append(edit);
+      }
+      if(canModerate(post.authorUid)){
+        const hide=el('button',tr('숨기기','Masquer')) as HTMLButtonElement;
+        hide.type='button';hide.className='btn btn-ghost';hide.addEventListener('click',()=>void hidePost(post));actions?.append(hide);
+      }
     }
     show('comment-form',canWrite()&&!post.deleted);await refreshComments(post.id);
   }
@@ -113,7 +121,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
     catch(e){console.error(e);notify(tr('수정 실패','Échec de la modification'),true);}
   }
   async function hidePost(post:BoardData){
-    if(!canEdit(post.authorUid)||post.deleted||!confirm(tr('게시글을 숨길까요?','Masquer ce message ?')))return;
+    if(!canModerate(post.authorUid)||post.deleted||!confirm(tr('게시글을 숨길까요?','Masquer ce message ?')))return;
     try{await updateDoc(doc(db,'boardPosts',post.id),{deleted:true,title:'[숨김 처리된 게시글]',body:'[숨김 처리된 게시글]',updatedAt:serverTimestamp()});back();await refreshPosts();}
     catch(e){console.error(e);notify(tr('숨김 처리 실패','Impossible de masquer.'),true);}
   }
@@ -126,18 +134,25 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
         const wrap=el('div');wrap.className='board-row stack gap-8';wrap.style.padding='12px';
         const meta=el('p',`${c.authorName||''} · ${stamp(c.createdAt)}`);meta.className='small muted';
         const body=el('p',c.body);body.className='board-text';wrap.append(meta,body);
-        if(!c.deleted&&canEdit(c.authorUid)){
+        if(!c.deleted&&(canEdit(c.authorUid)||canModerate(c.authorUid))){
           const btns=el('div');btns.className='board-actions';
-          const edit=el('button',tr('수정','Modifier')) as HTMLButtonElement;edit.type='button';edit.className='btn btn-ghost';
-          edit.addEventListener('click',async()=>{
-            const updated=prompt(tr('댓글 수정','Modifier le commentaire'),c.body);
-            if(updated===null)return;if(!updated.trim()||updated.length>2000)return notify(tr('댓글 길이를 확인하세요.','Commentaire trop long.'),true);
-            try{await updateDoc(doc(db,'boardPosts',postId,'comments',c.id),{body:updated.trim(),updatedAt:serverTimestamp()});await refreshComments(postId);}catch(e){console.error(e);notify(tr('댓글 수정 실패','Échec de la modification.'),true);}
-          });
-          const hide=el('button',tr('숨기기','Masquer')) as HTMLButtonElement;hide.type='button';hide.className='btn btn-ghost';hide.addEventListener('click',async()=>{
-            if(!confirm(tr('댓글을 숨길까요?','Masquer ce commentaire ?')))return;
-            try{await updateDoc(doc(db,'boardPosts',postId,'comments',c.id),{body:'[숨김 처리된 댓글]',deleted:true,updatedAt:serverTimestamp()});await refreshComments(postId);}catch(e){console.error(e);notify(tr('숨김 실패','Impossible de masquer.'),true);}
-          });btns.append(edit,hide);wrap.append(btns);
+          if(canEdit(c.authorUid)){
+            const edit=el('button',tr('수정','Modifier')) as HTMLButtonElement;edit.type='button';edit.className='btn btn-ghost';
+            edit.addEventListener('click',async()=>{
+              if(!canEdit(c.authorUid))return;
+              const updated=prompt(tr('댓글 수정','Modifier le commentaire'),c.body);
+              if(updated===null)return;if(!updated.trim()||updated.length>2000)return notify(tr('댓글 길이를 확인하세요.','Commentaire trop long.'),true);
+              try{await updateDoc(doc(db,'boardPosts',postId,'comments',c.id),{body:updated.trim(),updatedAt:serverTimestamp()});await refreshComments(postId);}catch(e){console.error(e);notify(tr('댓글 수정 실패','Échec de la modification.'),true);}
+            });btns.append(edit);
+          }
+          if(canModerate(c.authorUid)){
+            const hide=el('button',tr('숨기기','Masquer')) as HTMLButtonElement;hide.type='button';hide.className='btn btn-ghost';hide.addEventListener('click',async()=>{
+              if(!canModerate(c.authorUid))return;
+              if(!confirm(tr('댓글을 숨길까요?','Masquer ce commentaire ?')))return;
+              try{await updateDoc(doc(db,'boardPosts',postId,'comments',c.id),{body:'[숨김 처리된 댓글]',deleted:true,updatedAt:serverTimestamp()});await refreshComments(postId);}catch(e){console.error(e);notify(tr('숨김 실패','Impossible de masquer.'),true);}
+            });btns.append(hide);
+          }
+          wrap.append(btns);
         }list.append(wrap);
       }
     }catch(e){console.error(e);notify(tr('댓글을 불러오지 못했습니다.','Impossible de charger les commentaires.'),true);}
