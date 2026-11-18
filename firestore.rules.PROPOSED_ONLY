@@ -22,18 +22,28 @@ service cloud.firestore {
       return isActive() && me().role in ['member','special','admin'];
     }
     function validRole(role) { return role in ['general','member','special','admin']; }
-    function validRegistration(uid) {
-      return signedIn() && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['name','email','role','status','consent','createdAt'])
-        && request.resource.data.keys().hasAll(['name','email','role','status','consent','createdAt'])
-        && request.resource.data.name is string && request.resource.data.name.size() > 0
-        && request.resource.data.name.size() <= 80
-        && request.resource.data.email == request.auth.token.email
-        && request.resource.data.role == 'general'
-        && request.resource.data.status == 'approved'
-        && request.resource.data.consent == true
-        && request.resource.data.createdAt == request.time;
-    }
+    
+function validRegistration(uid) {
+  return signedIn() && request.auth.uid == uid
+    && request.resource.data.keys().hasOnly([
+      'name','nickname','email','role','status','consent','createdAt'
+    ])
+    && request.resource.data.keys().hasAll([
+      'name','nickname','email','role','status','consent','createdAt'
+    ])
+    && request.resource.data.name is string
+    && request.resource.data.name.size() > 0
+    && request.resource.data.name.size() <= 80
+    && request.resource.data.nickname is string
+    && request.resource.data.nickname.size() >= 2
+    && request.resource.data.nickname.size() <= 24
+    && request.resource.data.email == request.auth.token.email
+    && request.resource.data.role == 'general'
+    && request.resource.data.status == 'approved'
+    && request.resource.data.consent == true
+    && request.resource.data.createdAt == request.time;
+}
+
     match /members/{uid} {
       // Profiles are not a public or member-wide directory.
       allow get: if signedIn() && request.auth.uid == uid || isAdmin();
