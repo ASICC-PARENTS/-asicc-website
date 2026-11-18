@@ -18,6 +18,8 @@ import {
   runTransaction
 } from 'firebase/firestore';
 
+import { deleteDoc, writeBatch } from 'firebase/firestore';
+
 let env;
 
 const EMAIL = uid => `${uid}@example.test`;
@@ -573,3 +575,119 @@ test('comment owner may edit; admin cannot rewrite but may hide', async () => {
     )
   );
 });
+
+
+// Additional tests 21–24: permanent deletion and audit logs
+
+const seedPostForDeletion = async (postId, owner = uid.member, withComment = true) => {
+  await env.withSecurityRulesDisabled(async ctx => {
+    const db = ctx.firestore();
+
+    await setDoc(doc(db, 'boardPosts', postId), {
+      title: 'to delete',
+      body: 'to delete',
+      authorUid: owner,
+      authorName: owner,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      deleted: false
+    });
+
+    if (withComment) {
+      await setDoc(doc(db, 'boardPosts', postId, 'comments', 'comment-a'), {
+        body: 'reply',
+        authorUid: uid.special,
+        authorName: uid.special,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        deleted: false
+      });
+    }
+  });
+};
+
+const audit = (postId, authorUid, actorUid, reason, type = 'post', commentId = '') => ({
+  targetType: type,
+  postId,
+  commentId,
+  authorUid,
+  actorUid,
+  reason,
+  deletedAt: serverTimestamp()
+});
+
+test('author may permanently delete own post with comments and audit log', async () => {
+  const postId = 'delete-own-post';
+  await seedPostForDeletion(postId);
+
+  const db = context(uid.member);
+  const b = writeBatch(db);
+
+  b.delete(doc(db, 'boardPosts', postId, 'comments', 'comment-a'));
+  b.delete(doc(db, 'boardPosts', postId));
+  b.set(doc(db, 'boardDeletionLogs', `post_${postId}`),
+    audit(postId, uid.member, uid.member, 'author_request'));
+
+  await assertSucceeds(b.commit());
+
+  const found = await assertSucceeds(getDoc(doc(db, 'boardPosts', postId)));
+  assert.equal(found.exists(), false);
+
+  await assertFails(getDoc(doc(db, 'boardDeletionLogs', `post_${postId}`)));
+  await assertSucceeds(getDoc(doc(context(uid.admin), 'boardDeletionLogs', `post_${postId}`)));
+});
+
+test('delete without audit record denied; unrelated member denied', async () => {
+  const postId = 'delete-no-log';
+  await seedPostForDeletion(postId, uid.member, false);
+
+  await assertFails(deleteDoc(doc(context(uid.member), 'boardPosts', postId)));
+
+  const db = context(uid.special);
+  const b = writeBatch(db);
+
+  b.delete(doc(db, 'boardPosts', postId));
+  b.set(doc(db, 'boardDeletionLogs', `post_${postId}`),
+    audit(postId, uid.member, uid.special, 'author_request'));
+
+  await assertFails(b.commit());
+});
+
+test('admin may delete other author post with logged spam reason', async () => {
+  const postId = 'delete-admin-post';
+  await seedPostForDeletion(postId);
+
+  const db = context(uid.admin);
+  const b = writeBatch(db);
+
+  b.delete(doc(db, 'boardPosts', postId, 'comments', 'comment-a'));
+  b.delete(doc(db, 'boardPosts', postId));
+  b.set(doc(db, 'boardDeletionLogs', `post_${postId}`),
+    audit(postId, uid.member, uid.admin, 'spam'));
+
+  await assertSucceeds(b.commit());
+});
+
+test('author may delete own comment with log; other member cannot', async () => {
+  const postId = 'delete-comment-only';
+  await seedPostForDeletion(postId);
+
+  const wrong = context(uid.member);
+  const b1 = writeBatch(wrong);
+
+  b1.delete(doc(wrong, 'boardPosts', postId, 'comments', 'comment-a'));
+  b1.set(doc(wrong, 'boardDeletionLogs', `comment_${postId}_comment-a`),
+    audit(postId, uid.special, uid.member, 'author_request', 'comment', 'comment-a'));
+
+  await assertFails(b1.commit());
+
+  const db = context(uid.special);
+  const b = writeBatch(db);
+
+  b.delete(doc(db, 'boardPosts', postId, 'comments', 'comment-a'));
+  b.set(doc(db, 'boardDeletionLogs', `comment_${postId}_comment-a`),
+    audit(postId, uid.special, uid.special, 'author_request', 'comment', 'comment-a'));
+
+  await assertSucceeds(b.commit());
+});
+
