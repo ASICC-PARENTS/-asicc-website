@@ -121,3 +121,26 @@ test('admin may approve member upgrade using transaction', async () => {
 test('all unspecified collections are denied', async () => {
   await assertFails(getDoc(doc(context(uid.admin),'studentDirectory','student1')));
 });
+
+// Staging safety: public intake is not launched yet. These requests must fail.
+test('anonymous newsletter subscription is disabled in staging', async () => {
+  const db = env.unauthenticatedContext().firestore();
+  await assertFails(setDoc(doc(db,'subscribers','untrusted1'), {
+    email:'test@example.test', lang:'ko', pageLang:'ko', consent:true,
+    date:'2026-11-18', createdAt:serverTimestamp()
+  }));
+});
+test('anonymous contact messages are disabled in staging', async () => {
+  const db = env.unauthenticatedContext().firestore();
+  await assertFails(setDoc(doc(db,'messages','untrusted1'), {
+    name:'Test', email:'test@example.test', message:'Test', consent:true,
+    createdAt:serverTimestamp()
+  }));
+});
+test('anonymous registrations are disabled in staging', async () => {
+  const db = env.unauthenticatedContext().firestore();
+  await assertFails(setDoc(doc(db,'registrations','untrusted1'), {
+    name:'Test', email:'test@example.test', message:'Test', consent:true,
+    createdAt:serverTimestamp()
+  }));
+});

@@ -258,25 +258,15 @@ service cloud.firestore {
     }
     function str(v, max) { return v is string && v.size() <= max; }
     match /messages/{id} {
-      allow create: if isEmail(request.resource.data.email)
-        && str(request.resource.data.name, 100)
-        && str(request.resource.data.message, 5000)
-        && request.resource.data.consent == true;
+      allow create: if false; // Staging: public submissions remain disabled
       allow get, list, delete: if isAdmin();
     }
     match /registrations/{id} {
-      allow create: if isEmail(request.resource.data.email)
-        && str(request.resource.data.name, 100)
-        && str(request.resource.data.get('message', ''), 3000)
-        && request.resource.data.consent == true;
+      allow create: if false; // Staging: public submissions remain disabled
       allow get, list, delete: if isAdmin();
     }
     match /subscribers/{id} {
-      allow create: if isEmail(request.resource.data.email)
-        && request.resource.data.consent == true
-        && request.resource.data.keys().hasOnly([
-          'email','lang','consent','pageLang','date','createdAt'
-        ]);
+      allow create: if false; // Staging: public submissions remain disabled
       allow get, list, delete: if isAdmin();
     }
 
