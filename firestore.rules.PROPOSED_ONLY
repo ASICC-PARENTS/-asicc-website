@@ -129,6 +129,17 @@ service cloud.firestore {
     function postDoc(postId) {
       return /databases/$(database)/documents/boardPosts/$(postId);
     }
+    function commentDoc(postId,commentId) {
+      return /databases/$(database)/documents/boardPosts/$(postId)/comments/$(commentId);
+    }
+    function postDeletionLog(postId) {
+      let logId = 'post_' + postId;
+      return /databases/$(database)/documents/boardDeletionLogs/$(logId);
+    }
+    function commentDeletionLog(postId,commentId) {
+      let logId = 'comment_' + postId + '_' + commentId;
+      return /databases/$(database)/documents/boardDeletionLogs/$(logId);
+    }
     function validPostCreate() {
       return request.resource.data.keys().hasOnly([
           'title','body','authorUid','authorName','createdAt','updatedAt','deleted'
@@ -158,9 +169,8 @@ service cloud.firestore {
         && request.resource.data.body is string && request.resource.data.body.size() > 0
         && request.resource.data.body.size() <= 5000;
     }
-    // Authors may withdraw their posts, while admins can hide others' posts.
-    // The current board client redacts content in place; this is NOT recoverable.
-    // A reversible moderation archive must be built separately with admin-only storage.
+    // Only admins may hide posts. Current staging hide redacts content irreversibly.
+    // Separate permanent deletion uses a batched audit record below.
     function validPostHide() {
       return resource.data.deleted == false
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -209,10 +219,13 @@ service cloud.firestore {
       allow create: if canWriteBoard() && validPostCreate();
       allow update: if canWriteBoard() && (
           (resource.data.authorUid == request.auth.uid && validPostEdit())
-          || ((resource.data.authorUid == request.auth.uid || isAdmin()) && validPostHide())
+          || (isAdmin() && validPostHide())
         );
-      // Soft deletion avoids orphaning comment subcollections. No physical deletion.
-      allow delete: if false;
+      // Hard delete requires a same-batch moderation log; the client also deletes comments.
+      allow delete: if canWriteBoard()
+        && (resource.data.authorUid == request.auth.uid || isAdmin())
+        && existsAfter(postDeletionLog(postId))
+        && getAfter(postDeletionLog(postId)).data.actorUid == request.auth.uid;
       match /comments/{commentId} {
         // Comments under hidden posts are not readable even through direct SDK queries.
         allow get, list: if isActive() && exists(postDoc(postId))
@@ -223,10 +236,56 @@ service cloud.firestore {
           && exists(postDoc(postId)) && get(postDoc(postId)).data.deleted == false
           && (
             (resource.data.authorUid == request.auth.uid && validCommentEdit())
-            || ((resource.data.authorUid == request.auth.uid || isAdmin()) && validCommentHide())
+            || (isAdmin() && validCommentHide())
           );
-        allow delete: if false;
+        // A member can delete their own comment. Admins can delete inappropriate comments.
+        // The post author may delete comments as part of deleting the entire post.
+        allow delete: if canWriteBoard() && exists(postDoc(postId))
+          && (resource.data.authorUid == request.auth.uid
+              || get(postDoc(postId)).data.authorUid == request.auth.uid
+              || isAdmin())
+          && (
+             (existsAfter(commentDeletionLog(postId, commentId))
+               && getAfter(commentDeletionLog(postId, commentId)).data.actorUid == request.auth.uid)
+             || (!existsAfter(postDoc(postId))
+               && existsAfter(postDeletionLog(postId))
+               && getAfter(postDeletionLog(postId)).data.actorUid == request.auth.uid)
+          );
       }
+    }
+    // Minimal admin-only deletion audit. Never stores post or comment text.
+    match /boardDeletionLogs/{logId} {
+      allow get, list: if isAdmin();
+      allow create: if canWriteBoard()
+        && request.resource.data.keys().hasOnly([
+          'targetType','postId','commentId','authorUid','actorUid','reason','deletedAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'targetType','postId','commentId','authorUid','actorUid','reason','deletedAt'
+        ])
+        && request.resource.data.postId is string
+        && request.resource.data.commentId is string
+        && request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.deletedAt == request.time
+        && ((request.resource.data.reason == 'author_request'
+             && request.resource.data.authorUid == request.auth.uid)
+            || (isAdmin() && request.resource.data.reason in ['spam','rules_violation']))
+        && ((request.resource.data.targetType == 'post'
+              && logId == 'post_' + request.resource.data.postId
+              && request.resource.data.commentId == ''
+              && exists(postDoc(request.resource.data.postId))
+              && !existsAfter(postDoc(request.resource.data.postId))
+              && request.resource.data.authorUid == get(postDoc(request.resource.data.postId)).data.authorUid
+              && (request.resource.data.authorUid == request.auth.uid || isAdmin()))
+          || (request.resource.data.targetType == 'comment'
+              && logId == 'comment_' + request.resource.data.postId + '_' + request.resource.data.commentId
+              && exists(postDoc(request.resource.data.postId))
+              && existsAfter(postDoc(request.resource.data.postId))
+              && exists(commentDoc(request.resource.data.postId,request.resource.data.commentId))
+              && !existsAfter(commentDoc(request.resource.data.postId,request.resource.data.commentId))
+              && request.resource.data.authorUid == get(commentDoc(request.resource.data.postId,request.resource.data.commentId)).data.authorUid
+              && (request.resource.data.authorUid == request.auth.uid || isAdmin())));
+      allow update, delete: if false;
     }
     // Legacy Astro collections retained to avoid losing the original forms.
     // Notice reading is for all active members; administrators publish.
