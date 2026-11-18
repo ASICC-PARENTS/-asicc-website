@@ -1,0 +1,31 @@
+name: ASICC Firestore Rules Security Test
+on:
+  push:
+    branches: [test-cms-fr]
+    paths:
+      - 'tests/firestore-rules.test.mjs'
+      - 'firestore.rules.PROPOSED_ONLY'
+      - 'firebase.test.json'
+      - '.github/workflows/security-test.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install project dependencies
+        run: npm ci
+      - name: Install rules testing library
+        run: npm install --no-save @firebase/rules-unit-testing@^5
+      - name: Run Firestore rules tests with emulator (NO PRODUCTION ACCESS)
+        run: npx --yes firebase-tools@latest emulators:exec --only firestore --project demo-asicc-security --config firebase.test.json 'node --test tests/firestore-rules.test.mjs'
