@@ -1,70 +1,48 @@
 ---
 import Base from '../../layouts/Base.astro';
+import cmsToc from '../../data/cms/toc-about.json';
+import pageCopy from '../../data/cms/pages/about.json';
 import PageHero from '../../components/PageHero.astro';
 import { langPaths, href, L, type Lang } from '../../i18n/ui';
 import { BUREAU, HISTORY, PARTNERS, AXES } from '../../data/site';
 import cmsCopy from '../../data/site-copy.json';
+import cmsLetter from '../../data/cms/about-letter.json';
 
 export const getStaticPaths = langPaths;
 const lang = Astro.params.lang as Lang;
 // 공개 여부 전환: true로 바꾸면 세 섹션과 목차가 다시 나타납니다.
-const SHOW_EXTENDED_ABOUT = false;
-const toc = [
-  ['greeting', { ko: '인사말', fr: 'Mot d’accueil' }],
-  ['mission', { ko: '설립 목적', fr: 'Notre mission' }],
-  ['axes', { ko: '협회의 4대 주요 활동', fr: 'Nos quatre axes' }],
-  ['history', { ko: '연혁', fr: 'Historique' }],
-  ['bureau', { ko: '운영진', fr: 'Le bureau' }],
-  ['structure', { ko: '국제섹션 운영 기관', fr: 'Les institutions' }],
-  ['statuts', { ko: '정관과 운영 원칙', fr: 'Statuts et fonctionnement' }],
-] as const;
+const SHOW_EXTENDED_ABOUT = cmsCopy.show_extended_about;
+const toc = cmsToc.map((x) => [x.id, { ko:x.ko, fr:x.fr }] as const);
 const name = (b: (typeof BUREAU)[number]) => (lang === 'fr' && b.latin ? b.latin : b.name);
+const pageText = (lang: 'ko' | 'fr', key: keyof typeof pageCopy) => pageCopy[key][lang];
+
 ---
-<Base lang={lang} rest="about/" title={L(lang, { ko: '협회 소개', fr: 'L’association' })}>
-  <PageHero lang={lang} eyebrow={L(lang, { ko: '협회 소개', fr: 'L’association' })}
+<Base lang={lang} rest="about/" title={pageText(lang, 'item_001')}>
+  <PageHero lang={lang} eyebrow={pageText(lang, 'item_002')}
     title={lang === 'ko' ? cmsCopy.about_title_ko : cmsCopy.about_title_fr}
     intro={lang === 'ko' ? cmsCopy.about_intro_ko : cmsCopy.about_intro_fr} />
 
   <div class="wrap sec with-aside">
-    <aside><nav class="toc" aria-label={L(lang, { ko: '목차', fr: 'Sommaire' })}>{toc.slice(0, SHOW_EXTENDED_ABOUT ? 7 : 4).map(([id, l]) => <a href={`#${id}`}>{L(lang, l)}</a>)}</nav></aside>
+    <aside><nav class="toc" aria-label={pageText(lang, 'item_003')}>{toc.slice(0, SHOW_EXTENDED_ABOUT ? 7 : 4).map(([id, l]) => <a href={`#${id}`}>{L(lang, l)}</a>)}</nav></aside>
     <div class="content stack" style="gap:72px">
 
       <section id="greeting" class="doc-section">
         <h2 class="h2">{L(lang, toc[0][1])}</h2>
-        {lang === 'ko' ? (
-          <div class="letter">
-            <p>쿠르브부아 한국어 국제섹션 학부모협회 홈페이지를 방문해 주셔서 감사합니다.</p>
-            <p>2017년 9월, 한국과 프랑스 양국 교육부의 협약을 바탕으로 쿠르브부아 공립학교에 한국어 국제섹션이 개설되었습니다. 이후 학생들은 프랑스 정규 교육과정과 함께 한국어와 한국 문화를 배우며, 두 나라의 언어와 문화를 이해하는 인재로 성장하고 있습니다.</p>
-            <p>그동안 학부모들은 학교 행사와 문화 활동을 지원하고, 새로 입학하는 가정에 정보를 제공하며, 관계 기관과 꾸준히 소통해 왔습니다. 국제섹션이 발전하면서 이러한 활동을 체계적으로 이어가고 학부모들의 의견을 함께 전달할 수 있는 공식적인 조직의 필요성이 커졌습니다. 이에 뜻을 모아 2026년 봄 학부모협회를 설립하게 되었습니다.</p>
-            <p>우리 협회는 한국어 국제섹션의 안정적인 운영과 지속적인 발전을 지원하고자 합니다. 학교와 교사, 한국과 프랑스의 교육 관계 기관과 긴밀히 협력하며, 학부모들의 다양한 의견에 귀 기울이겠습니다.</p>
-            <p>앞으로도 아이들이 두 나라의 언어와 문화를 배우며 성장할 수 있도록 학부모 여러분의 지속적인 관심과 참여를 부탁드립니다.</p>
-            <p class="sign">2026.10 ASICC 회장 안정아</p>
-          </div>
-        ) : (
-          <div class="letter">
-            <p>Bienvenue sur le site de l’Association des parents de la Section Internationale Coréenne de Courbevoie.</p>
-            <p>En septembre 2017, une section internationale coréenne a été ouverte dans les établissements publics de Courbevoie à la suite d’un accord entre les ministères de l’Éducation français et coréen. Depuis, les élèves suivent le programme scolaire français tout en apprenant la langue et la culture coréennes. Environ 51 élèves, de la maternelle au collège, participent aujourd’hui à ce parcours.</p>
-            <p>Les parents ont soutenu les événements scolaires et culturels, informé les nouvelles familles et entretenu le dialogue avec les institutions. Avec le développement de la section, le besoin d’une organisation officielle pour pérenniser ces activités et représenter collectivement les familles s’est fait sentir. L’association a ainsi été créée au printemps 2026.</p>
-            <p>Notre association souhaite contribuer à la stabilité et au développement durable de la section. Nous travaillerons étroitement avec les établissements, les enseignants et les institutions éducatives coréennes et françaises, en restant à l’écoute des familles.</p>
-            <p>Nous vous remercions pour votre intérêt et votre participation afin que les enfants continuent de grandir au contact des langues et cultures de nos deux pays.</p>
-            <p class="sign">ASICC 회장 안정아 · Présidente de l’ASICC</p>
-          </div>
-        )}
+        <div class="letter">
+          {cmsLetter[lang].paragraphs.map((paragraph) => <p>{paragraph}</p>)}
+          <p class="sign">{cmsLetter[lang].signature}</p>
+        </div>
       </section>
 
       <section id="mission" class="doc-section">
         <h2 class="h2">{L(lang, toc[1][1])}</h2>
-        <p>{L(lang, {
-          ko: '협회는 정관에 따라 다음 세 가지를 목적으로 활동합니다. 첫째, 쿠르브부아 한국어 국제섹션에 재학 중인 학생과 가정을 대표해 학교와 관계 기관에 학부모의 의견을 공식적으로 전달합니다. 둘째, 국제섹션의 교육 활동을 지원하고 섹션이 안정적으로 유지·발전하도록 돕습니다. 셋째, 학부모 사이의 정보 공유와 협력을 넓히고, 섹션의 활동과 기록을 다음 세대 학부모에게 이어 줍니다.',
-          fr: 'Conformément à ses statuts, l’association poursuit trois objectifs : représenter officiellement les élèves et les familles de la section auprès des écoles et des institutions ; soutenir les activités éducatives de la section et sa pérennité ; développer l’information et la coopération entre parents, et transmettre l’histoire et les archives de la section aux familles qui suivront.' })}</p>
-        <div class="callout">{L(lang, {
-          ko: '국제섹션에 자녀를 둔 학부모는 정관에 따라 모두 협회 회원입니다. 협회 참여와 연회비에 대한 자세한 사항은 회원 안내를 확인해 주세요.',
-          fr: 'Tous les parents d’élèves de la section sont membres de droit. Les modalités de participation et de cotisation sont présentées dans les informations destinées aux membres.' })}</div>
+        <p>{pageText(lang, 'item_004')}</p>
+        <div class="callout">{pageText(lang, 'item_005')}</div>
       </section>
 
       <section id="axes" class="doc-section">
         <h2 class="h2">{L(lang, toc[2][1])}</h2>
-        <p>{L(lang, { ko: '협회는 지원, 대외협력, 입학 안내 및 홍보, 공동체의 4대 주요 활동을 중심으로 국제섹션의 안정적인 운영과 발전을 돕습니다. 2026년 10월 제1회 정기총회에서 보고·확인된 활동 방향입니다.', fr: 'L’association agit selon quatre axes, présentés et confirmés lors de la première assemblée générale d’octobre 2026.' })}</p>
+        <p>{pageText(lang, 'item_006')}</p>
         <div class="grid g-2">
           {AXES.map((x) => (
             <article class="card axis" style={`border-top:3px solid ${x.color}`}>
@@ -72,7 +50,7 @@ const name = (b: (typeof BUREAU)[number]) => (lang === 'fr' && b.latin ? b.latin
               <h3>{L(lang, x.title)}</h3>
               <p>{L(lang, x.text)}</p>
               <ul>{x.items.map((i) => <li>{L(lang, i)}</li>)}</ul>
-              <p class="tiny" style="margin-top:4px"><b style="color:var(--ink-2)">{L(lang, { ko: '기대 효과', fr: 'Résultat' })}</b> · {L(lang, x.result)}</p>
+              <p class="tiny" style="margin-top:4px"><b style="color:var(--ink-2)">{pageText(lang, 'item_007')}</b> · {L(lang, x.result)}</p>
             </article>
           ))}
         </div>
@@ -88,12 +66,12 @@ const name = (b: (typeof BUREAU)[number]) => (lang === 'fr' && b.latin ? b.latin
       {SHOW_EXTENDED_ABOUT && (
       <section id="bureau" class="doc-section">
         <h2 class="h2">{L(lang, toc[4][1])}</h2>
-        <p>{L(lang, { ko: '2026–2027 운영진은 제1회 정기총회에서 재신임되었으며, 정관에 따라 2년 동안 활동합니다. 학교별 대표는 각 학교의 소식을 협회에 전하고, 입학 문의에 답변합니다.', fr: 'Le bureau 2026–2027 a été confirmé lors de la première assemblée générale pour un mandat de deux ans. Les représentants de niveau relaient l’information de chaque établissement et répondent aux familles.' })}</p>
-        <h3>{L(lang, { ko: '임원', fr: 'Bureau' })}</h3>
+        <p>{pageText(lang, 'item_008')}</p>
+        <h3>{pageText(lang, 'item_009')}</h3>
         <div class="grid g-4">
           {BUREAU.slice(0, 4).map((b) => <div class="card card-pad stack gap-8"><span class="tiny">{L(lang, b.role)}</span><b style="font-size:18px">{name(b)}</b></div>)}
         </div>
-        <h3>{L(lang, { ko: '학교별 대표', fr: 'Représentants de niveau' })}</h3>
+        <h3>{pageText(lang, 'item_010')}</h3>
         <div class="grid g-3">
           {BUREAU.slice(4).map((b) => <div class="card card-pad stack gap-8"><span class="tiny">{L(lang, b.role)}</span><b style="font-size:18px">{name(b)}</b></div>)}
         </div>
@@ -103,14 +81,14 @@ const name = (b: (typeof BUREAU)[number]) => (lang === 'fr' && b.latin ? b.latin
       {SHOW_EXTENDED_ABOUT && (
       <section id="structure" class="doc-section">
         <h2 class="h2">{L(lang, toc[5][1])}</h2>
-        <p>{L(lang, { ko: '한국어 국제섹션은 양국 교육부의 협약에 바탕을 두고, 한국과 프랑스 기관이 역할을 나누어 운영합니다. 한국 측은 교사 인건비 예산과 교사 채용·급여를, 프랑스 측은 학교 운영과 수업 관리·감독, 입학 결정을 맡습니다. 기관 이름을 누르면 공식 누리집으로 이동합니다.', fr: 'La section repose sur un accord entre les deux ministères : la partie coréenne finance et rémunère les enseignants, la partie française assure le fonctionnement des établissements, le pilotage pédagogique et les admissions. Cliquez sur une institution pour accéder à son site officiel.' })}</p>
+        <p>{pageText(lang, 'item_011')}</p>
         <div class="grid g-2">
           <div class="stack gap-12">
-            <h3>{L(lang, { ko: '한국 측', fr: 'Côté coréen' })}</h3>
+            <h3>{pageText(lang, 'item_012')}</h3>
             {PARTNERS.filter((p) => p.side === 'kr').map((p) => <a class="card card-link card-pad stack gap-8" href={p.href} rel="noopener" target="_blank"><b style="font-size:16.5px">{L(lang, p.name)} ↗</b><span class="tiny">{L(lang, p.role)}</span></a>)}
           </div>
           <div class="stack gap-12">
-            <h3>{L(lang, { ko: '프랑스 측', fr: 'Côté français' })}</h3>
+            <h3>{pageText(lang, 'item_013')}</h3>
             {PARTNERS.filter((p) => p.side === 'fr').map((p) => <a class="card card-link card-pad stack gap-8" href={p.href} rel="noopener" target="_blank"><b style="font-size:16.5px">{L(lang, p.name)} ↗</b><span class="tiny">{L(lang, p.role)}</span></a>)}
           </div>
         </div>
@@ -121,15 +99,15 @@ const name = (b: (typeof BUREAU)[number]) => (lang === 'fr' && b.latin ? b.latin
       <section id="statuts" class="doc-section">
         <h2 class="h2">{L(lang, toc[6][1])}</h2>
         <ul class="bullets">
-          <li>{L(lang, { ko: '정기총회: 해마다 1~2회 열어 운영진 선출, 연회비, 주요 활동 방향을 의결합니다. 참석이 어려운 회원은 다른 회원에게 의결권을 위임할 수 있습니다.', fr: 'Assemblée générale : une à deux fois par an (élection du bureau, cotisation, orientations) ; vote par procuration possible.' })}</li>
-          <li>{L(lang, { ko: '운영진 선출: 다음 선거부터는 일정 공고, 후보 모집, 후보 명단 공개, 사전 안내를 거쳐 공식 투표로 진행합니다.', fr: 'Élections : appel à candidatures, publication des candidats, information préalable et vote formel.' })}</li>
-          <li>{L(lang, { ko: '공식 입장: 협회의 공식 입장은 운영진 논의와 총회 의결로 정하며, 회원 개인의 활동과 구분합니다.', fr: 'Positions officielles : arrêtées par le bureau et l’assemblée générale, distinctes des initiatives individuelles.' })}</li>
-          <li>{L(lang, { ko: '실무진: 직책과 관계없이 회의록 정리, 홍보, 행정, 관계 기관 연락을 함께할 학부모가 참여합니다.', fr: 'Équipe de bénévoles : ouverte à tous les parents, sans mandat.' })}</li>
-          <li>{L(lang, { ko: '기록 보존: 회의록과 대외협력 기록은 회원 영역에 보관하며, 외부 전달은 협회장을 거칩니다.', fr: 'Archives : procès-verbaux et suivi institutionnel conservés dans l’espace membres ; diffusion externe via la présidente.' })}</li>
-          <li>{L(lang, { ko: '재정: 연회비는 책임보험, 협회 이메일·도메인·웹사이트, 인쇄·우편 등 최소 행정비에 쓰며, 지출은 발생 시 회원에게 보고합니다.', fr: 'Finances : la cotisation couvre l’assurance, la messagerie, le site et les frais administratifs ; les dépenses sont communiquées aux membres.' })}</li>
+          <li>{pageText(lang, 'item_014')}</li>
+          <li>{pageText(lang, 'item_015')}</li>
+          <li>{pageText(lang, 'item_016')}</li>
+          <li>{pageText(lang, 'item_017')}</li>
+          <li>{pageText(lang, 'item_018')}</li>
+          <li>{pageText(lang, 'item_019')}</li>
         </ul>
         <div class="row gap-12">
-          <a class="btn btn-ghost" href={href(lang, 'membres/')}>{L(lang, { ko: '정관과 회의록 보기 (회원 영역)', fr: 'Statuts et procès-verbaux (espace membres)' })}</a>
+          <a class="btn btn-ghost" href={href(lang, 'membres/')}>{pageText(lang, 'item_020')}</a>
         </div>
       </section>
       )}

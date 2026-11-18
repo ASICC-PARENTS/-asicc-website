@@ -1,0 +1,108 @@
+{
+  "ANNUAL": [
+    {
+      "when": {
+        "ko": "9월",
+        "fr": "Septembre"
+      },
+      "items": [
+        {
+          "ko": "신학기 시작, 학교별 신학기 행사",
+          "fr": "Rentrée et fêtes de rentrée"
+        }
+      ]
+    },
+    {
+      "when": {
+        "ko": "10월",
+        "fr": "Octobre"
+      },
+      "items": [
+        {
+          "ko": "학교운영협의회 학부모 대표 선거",
+          "fr": "Élections des représentants de parents"
+        },
+        {
+          "ko": "협회 정기총회 (연 1~2회)",
+          "fr": "Assemblée générale de l’association"
+        }
+      ]
+    },
+    {
+      "when": {
+        "ko": "11월 ~ 12월",
+        "fr": "Novembre – décembre"
+      },
+      "items": [
+        {
+          "ko": "주프랑스 한국교육원 입학설명회",
+          "fr": "Réunion d’information du Centre éducatif coréen"
+        },
+        {
+          "ko": "정기 모집(1차) 입학 지원서 접수",
+          "fr": "Dépôt des candidatures (1re vague)"
+        },
+        {
+          "ko": "주프랑스 한국교육원 정기 면담",
+          "fr": "Rencontre avec le Centre éducatif coréen"
+        }
+      ]
+    },
+    {
+      "when": {
+        "ko": "1월 ~ 2월",
+        "fr": "Janvier – février"
+      },
+      "items": [
+        {
+          "ko": "입학 서류 심사와 면접 안내",
+          "fr": "Étude des dossiers, convocations"
+        }
+      ]
+    },
+    {
+      "when": {
+        "ko": "2월 ~ 4월",
+        "fr": "Février – avril"
+      },
+      "items": [
+        {
+          "ko": "입학 면접",
+          "fr": "Entretiens d’admission"
+        },
+        {
+          "ko": "4월 중순 도 위원회 심사, 2차 모집 접수",
+          "fr": "Commission mi-avril, 2e vague"
+        }
+      ]
+    },
+    {
+      "when": {
+        "ko": "봄 학기",
+        "fr": "Printemps"
+      },
+      "items": [
+        {
+          "ko": "한국의 날(Journée de la Corée), 학교별 일정",
+          "fr": "Journée de la Corée (selon les écoles)"
+        }
+      ]
+    },
+    {
+      "when": {
+        "ko": "6월",
+        "fr": "Juin"
+      },
+      "items": [
+        {
+          "ko": "입학 전형 결과 발표",
+          "fr": "Résultats des admissions"
+        },
+        {
+          "ko": "학년 말 학교 축제",
+          "fr": "Fêtes de fin d’année"
+        }
+      ]
+    }
+  ]
+}

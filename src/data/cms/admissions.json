@@ -1,0 +1,300 @@
+{
+  "PROFILES": [
+    {
+      "title": {
+        "ko": "외국 국적 가정",
+        "fr": "Familles étrangères"
+      },
+      "text": {
+        "ko": "초등학교에 지원하는 경우, 자녀가 같은 나이 학급을 따라갈 수 있는 프랑스어 실력을 갖춰야 합니다.",
+        "fr": "En élémentaire, l’enfant doit avoir un niveau de français lui permettant de suivre sa classe d’âge."
+      }
+    },
+    {
+      "title": {
+        "ko": "이중국적 가정",
+        "fr": "Familles binationales"
+      },
+      "text": {
+        "ko": "부모 중 한 명이 한국 국적이어야 합니다.",
+        "fr": "L’un des deux parents doit être ressortissant coréen."
+      }
+    },
+    {
+      "title": {
+        "ko": "해외에서 돌아온 프랑스 가정",
+        "fr": "Familles françaises de retour d’expatriation"
+      },
+      "text": {
+        "ko": "자녀가 학년에 맞는 한국어 역량을 갖춰야 하며, 면접에서 이를 확인합니다.",
+        "fr": "L’enfant doit avoir en coréen un niveau adapté à sa classe, vérifié lors de l’entretien."
+      }
+    }
+  ],
+  "EXPECTED": [
+    {
+      "when": {
+        "ko": "유치원 GS 말 (CP 진입)",
+        "fr": "Fin de grande section"
+      },
+      "level": {
+        "ko": "말하기 A2 수준",
+        "fr": "Niveau A2 à l’oral"
+      }
+    },
+    {
+      "when": {
+        "ko": "초등 CM2 말 (중학교 진입)",
+        "fr": "Fin de CM2"
+      },
+      "level": {
+        "ko": "말하기 B1, 쓰기 A2 수준",
+        "fr": "B1 à l’oral, A2 à l’écrit"
+      }
+    }
+  ],
+  "CAMPAIGN": [
+    {
+      "when": {
+        "ko": "11월 ~ 12월 중순",
+        "fr": "Novembre à mi-décembre"
+      },
+      "what": {
+        "ko": "입학 지원서 접수",
+        "fr": "Dépôt des candidatures"
+      },
+      "detail": {
+        "ko": "교육청 누리집에서 지원서를 내려받아 제출합니다. 2027-2028 유치원/초등학교 서류 마감: 12월 18.",
+        "fr": "Dossier à télécharger sur le site de l’académie. Pour la rentrée 2027–2028, une date limite au 18 décembre est indiquée ; à vérifier dans l’avis officiel."
+      }
+    },
+    {
+      "when": {
+        "ko": "1월",
+        "fr": "Janvier"
+      },
+      "what": {
+        "ko": "서류 심사 및 면접 일정 안내",
+        "fr": "Étude des dossiers et convocations"
+      },
+      "detail": {
+        "ko": "서류를 검토한 뒤 면접 일정을 알려 줍니다.",
+        "fr": "Les familles retenues sont convoquées à un entretien."
+      }
+    },
+    {
+      "when": {
+        "ko": "2월 초 ~ 4월 초",
+        "fr": "Février à début avril"
+      },
+      "what": {
+        "ko": "학부모 및 학생 면접",
+        "fr": "Entretiens"
+      },
+      "detail": {
+        "ko": "지원 동기와 자녀의 언어 수준을 평가합니다.",
+        "fr": "Évaluation de la motivation et du niveau de langue."
+      }
+    },
+    {
+      "when": {
+        "ko": "4월 중순",
+        "fr": "Mi-avril"
+      },
+      "what": {
+        "ko": "교육청 입학 심사위원회 심의",
+        "fr": "Commission départementale"
+      },
+      "detail": {
+        "ko": "교육청 국장이 주재하는 위원회가 입학을 결정합니다.",
+        "fr": "Présidée par le directeur académique, elle décide des admissions."
+      }
+    },
+    {
+      "when": {
+        "ko": "6월 초",
+        "fr": "Début juin"
+      },
+      "what": {
+        "ko": "입학 전형 결과 발표",
+        "fr": "Communication des décisions"
+      },
+      "detail": {
+        "ko": "지난해 통보일: 6월 4일.",
+        "fr": "L’an dernier : le 4 juin."
+      }
+    }
+  ],
+  "WAVE2": {
+    "ko": "12월 15일 이후에 프랑스 귀국이나 일드프랑스 지역 이주가 정해진 해외 거주 가정과 일드프랑스 밖 가정을 위한 모집입니다. 지난해에는 4월 30일 17시까지 접수했고 5월 26일에 결과를 알렸습니다.",
+    "fr": "Cette campagne concerne les familles résidant à l’étranger ou hors Île-de-France dont le retour ou l’installation a été confirmé après le 15 décembre. L’an dernier, les candidatures étaient recevables jusqu’au 30 avril à 17 h, et les décisions ont été annoncées le 26 mai."
+  },
+  "ADMISSION_NOTES": [
+    {
+      "ko": "진학 시 지원 절차: 유치원에서 초등학교(CP), 초등학교에서 중학교(6e)로 진학할 때에는 각 교육 단계에 따른 별도의 입학 지원 및 평가 절차를 거칩니다.",
+      "fr": "Un recrutement a lieu à chaque changement de cycle : fin de GS (entrée au CP), fin de CM2 (entrée au collège)."
+    },
+    {
+      "ko": "기존 재학생의 진학: 국제섹션에서의 학습 경험은 상급학교 진학에 긍정적으로 작용할 수 있으며, 최종 입학 여부는 정해진 선발 절차에 따라 결정됩니다.",
+      "fr": "Être scolarisé en SI en maternelle ne garantit pas l’admission en élémentaire ; de même pour le collège."
+    },
+    {
+      "ko": "학교 배정 및 통학: 국제섹션 학생들은 해당 학교의 일반 학급에 소속되어 정규 교육과정과 국제섹션 수업에 참여합니다. 쿠르브부아 외 지역에 거주하는 경우에는 학구 예외 허가(dérogation) 등 필요한 행정 절차를 확인해야 합니다.",
+      "fr": "Les élèves sont scolarisés à temps plein dans l’école et répartis dans les classes ; une dérogation de la mairie de résidence est nécessaire."
+    },
+    {
+      "ko": "CP 진학 시 프랑스어 능력에 대한 추가적인 지원이나 학습 조정이 필요한 경우, 학교 및 교육 당국과 개별적으로 협의합니다.",
+      "fr": "En cas de besoin particulier en français lors de l’entrée au CP, les familles peuvent échanger avec l’école et les autorités éducatives sur un accompagnement adapté."
+    },
+    {
+      "ko": "국제섹션 과정 중단: 과정의 중단을 희망하는 경우, 학부모와 학교 관계자가 협의하고 관할 장학관의 검토를 거쳐 관련 절차에 따라 결정됩니다.",
+      "fr": "L’arrêt du parcours relève de l’inspectrice de l’Éducation nationale, après examen du dossier."
+    }
+  ],
+  "ADMISSION_CONTACTS": [
+    {
+      "label": {
+        "ko": "입학 지원서 및 공식 모집 안내",
+        "fr": "Dossiers et informations (académie)"
+      },
+      "value": "ac-versailles.fr/si92",
+      "href": "https://www.ac-versailles.fr/si92"
+    },
+    {
+      "label": {
+        "ko": "유치원·초등학교 입학 문의 (이메일 전용)",
+        "fr": "1er degré (par e-mail uniquement)"
+      },
+      "value": "sidesecolesdu92@ac-versailles.fr",
+      "href": "mailto:sidesecolesdu92@ac-versailles.fr"
+    },
+    {
+      "label": {
+        "ko": "중학교 문의",
+        "fr": "Collège"
+      },
+      "value": "Collège Les Bruyères",
+      "href": "https://clg-bruyeres-courbevoie.ac-versailles.fr/"
+    },
+    {
+      "label": {
+        "ko": "쿠르브부아 시청 안내",
+        "fr": "Mairie de Courbevoie"
+      },
+      "value": "ville-courbevoie.fr",
+      "href": "https://www.ville-courbevoie.fr/10-7591/toutes-les-actualites/fiche/campagne-d-inscription-en-section-internationale.htm"
+    }
+  ],
+  "FAQ": [
+    {
+      "q": {
+        "ko": "국제섹션은 별도의 수업료가 있나요?",
+        "fr": "La section est-elle payante ?"
+      },
+      "a": {
+        "ko": "국제섹션은 프랑스 공립학교의 정규 과정이라 수업료가 없습니다. 학부모협회 연회비는 자율 납부이며, 행사비는 행사별로 따로 나눕니다.",
+        "fr": "Non, la section fait partie de l’enseignement public. La cotisation annuelle à l’association est facultative ; les événements sont financés à part."
+      }
+    },
+    {
+      "q": {
+        "ko": "지원 자격은 어떻게 되나요?",
+        "fr": "Qui peut candidater ?"
+      },
+      "a": {
+        "ko": "외국 국적 가정, 부모 중 한 명이 한국 국적인 이중국적 가정, 해외에서 돌아온 프랑스 가정이 지원할 수 있습니다. 자녀의 한국어 수준은 유치원 GS 말 말하기 A2, 초등 CM2 말 말하기 B1·쓰기 A2가 기준입니다.",
+        "fr": "Les familles étrangères, binationales (un parent coréen) et françaises de retour d’expatriation. Niveaux attendus : A2 oral en fin de GS ; B1 oral et A2 écrit en fin de CM2."
+      }
+    },
+    {
+      "q": {
+        "ko": "입학 전형은 어떻게 진행되나요?",
+        "fr": "Comment se passe la sélection ?"
+      },
+      "a": {
+        "ko": "서류 심사 뒤 2월부터 4월 사이에 부모와 자녀가 함께 면접을 봅니다. 지원 동기와 언어 수준을 보고, 4월 중순 도 단위 위원회가 입학을 결정합니다.",
+        "fr": "Après étude du dossier, un entretien parents-enfant a lieu entre février et avril (motivation, niveau de langue). La commission départementale décide mi-avril."
+      }
+    },
+    {
+      "q": {
+        "ko": "쿠르브부아 외 지역에 거주해도 지원할 수 있나요?",
+        "fr": "Faut-il habiter Courbevoie ?"
+      },
+      "a": {
+        "ko": "지원할 수 있습니다. 다만 국제섹션 학교에 전일제로 다니므로 거주지 시청의 학구 예외 허가(dérogation)가 필요합니다.",
+        "fr": "Oui. Il faut toutefois vérifier auprès des communes concernées les démarches de dérogation scolaire nécessaires pour fréquenter l’établissement de la section."
+      }
+    },
+    {
+      "q": {
+        "ko": "유치원 국제섹션에서 초등학교 국제섹션으로 진학하려면 어떻게 해야 하나요?",
+        "fr": "Le passage maternelle → élémentaire est-il automatique ?"
+      },
+      "a": {
+        "ko": "아닙니다. 교육 단계가 바뀔 때마다(CP, 중학교 진입) 다시 지원하고 평가를 받습니다.",
+        "fr": "Non. Une nouvelle candidature est requise à chaque changement de cycle (CP, collège)."
+      }
+    },
+    {
+      "q": {
+        "ko": "국제섹션 수업은 주 몇 시간인가요?",
+        "fr": "Combien d’heures en coréen ?"
+      },
+      "a": {
+        "ko": "유치원과 초등학교는 주 24시간 수업 중 3시간을 한국어로 합니다. 중학교는 한국어, 한국 문학·문화, 한국어 수학을 합쳐 주 6~7시간으로 보도된 바 있습니다(2019년 기준).",
+        "fr": "3 h sur les 24 h hebdomadaires en maternelle et élémentaire ; au collège, 6 à 7 h (langue, littérature et culture, mathématiques), selon la presse en 2019."
+      }
+    },
+    {
+      "q": {
+        "ko": "해외에서 늦게 귀국하거나 이주하는 경우에도 지원할 수 있나요?",
+        "fr": "Peut-on candidater en cas d’arrivée tardive en France ?"
+      },
+      "a": {
+        "ko": "12월 15일 이후 귀국이나 이주가 정해진 가정을 위한 2차 모집이 있습니다. 지난해에는 4월 30일까지 접수했습니다.",
+        "fr": "Une seconde campagne peut être proposée aux familles dont le retour ou l’installation a été confirmé après le 15 décembre. L’an dernier, les dossiers étaient recevables jusqu’au 30 avril."
+      }
+    },
+    {
+      "q": {
+        "ko": "가정에서의 한국어 학습은 얼마나 중요한가요?",
+        "fr": "Quelle place pour le coréen à la maison ?"
+      },
+      "a": {
+        "ko": "쿠르브부아 국제섹션 안내 책자는 학교 수업과 더불어 가정에서의 지속적인 한국어 사용이 중요하다고 밝히고 있습니다. 가정에서 한국어를 정기적으로 쓰고 한국 문화를 함께 나누는 것이 지원의 전제이며, 만화 시청이나 동요 몇 곡 정도로는 섹션 수업을 따라가기 어렵다고 안내합니다.",
+        "fr": "La plaquette des SI de Courbevoie rappelle que l’enfant doit être exposé régulièrement et authentiquement à la langue hors des 3 heures ; les familles s’engagent à la parler à la maison. Regarder des dessins animés ou connaître quelques comptines ne suffit pas."
+      }
+    },
+    {
+      "q": {
+        "ko": "섹션을 중간에 그만둘 수 있나요?",
+        "fr": "Peut-on quitter la section en cours de parcours ?"
+      },
+      "a": {
+        "ko": "가정의 요청만으로 중단할 수는 없습니다. 학부모, 학교장, 섹션 교사와 담임 교사가 함께 준비한 자료를 장학관이 검토해 결정합니다. 초등 CE2 말에는 평가 자료를 바탕으로 다음 단계(cycle 3) 진행 여부를 판단합니다.",
+        "fr": "L’interruption est prononcée par l’inspectrice de l’Éducation nationale après étude d’un dossier constitué avec l’école. En fin de CE2, les grilles d’évaluation sont étudiées pour la poursuite en cycle 3."
+      }
+    },
+    {
+      "q": {
+        "ko": "국제섹션 수업은 일반 수업과 어떻게 함께 진행되나요?",
+        "fr": "Comment les cours de section s’intègrent-ils à l’emploi du temps ?"
+      },
+      "a": {
+        "ko": "섹션 학생은 학교의 여러 반에 나뉘어 일반 학생과 같은 프랑스 정규 수업을 듣고, 정해진 시간에 한국어 수업에 참여합니다. 섹션 교사와 담임 교사가 수업 내용을 협의하며, 학습 결과는 학교의 공식 기록부에 함께 남습니다.",
+        "fr": "Les élèves suivent le programme de leur classe et rejoignent les cours de section aux horaires prévus ; enseignants de SI et de classe se concertent, et les progrès figurent dans les documents officiels de suivi."
+      }
+    },
+    {
+      "q": {
+        "ko": "입학 문의는 어디로 하나요?",
+        "fr": "À qui poser mes questions ?"
+      },
+      "a": {
+        "ko": "공식 절차는 교육청(유치원·초등은 sidesecolesdu92@ac-versailles.fr, 중학교는 학교)에 문의합니다. 국제섹션 생활과 학교생활에 관한 일반적인 문의는 협회 공식 이메일 {{contact_email}}로 보내 주세요.",
+        "fr": "Pour la procédure : l’académie (1er degré : sidesecolesdu92@ac-versailles.fr) ou le collège. Pour la vie scolaire et les informations pratiques, écrivez à {{contact_email}}."
+      }
+    }
+  ]
+}

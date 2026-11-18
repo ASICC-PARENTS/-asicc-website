@@ -1,0 +1,37 @@
+[
+  {
+    "id": "overview",
+    "ko": "한국어 국제섹션 개요",
+    "fr": "Présentation"
+  },
+  {
+    "id": "system",
+    "ko": "프랑스 학제와 국제섹션",
+    "fr": "Système scolaire et SI"
+  },
+  {
+    "id": "integration",
+    "ko": "정규 교육과정과 국제섹션 수업",
+    "fr": "Intégration au cursus"
+  },
+  {
+    "id": "schools",
+    "ko": "유치원·초등학교·중학교",
+    "fr": "Les trois établissements"
+  },
+  {
+    "id": "diplomas",
+    "ko": "평가와 학위",
+    "fr": "Évaluation et diplômes"
+  },
+  {
+    "id": "organisation",
+    "ko": "교사와 운영 체계",
+    "fr": "Enseignants et pilotage"
+  },
+  {
+    "id": "guide",
+    "ko": "학교생활 가이드",
+    "fr": "Guide de la vie scolaire"
+  }
+]

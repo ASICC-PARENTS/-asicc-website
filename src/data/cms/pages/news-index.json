@@ -1,0 +1,38 @@
+{
+  "item_001": {
+    "ko": "소식",
+    "fr": "Actualités"
+  },
+  "item_002": {
+    "ko": "소식·활동",
+    "fr": "Actualités"
+  },
+  "item_003": {
+    "ko": "협회 소식",
+    "fr": "La vie de l’association"
+  },
+  "item_004": {
+    "ko": "공지, 행사, 대외활동, 언론 보도와 기고문을 모았습니다.",
+    "fr": "Annonces, événements, relations institutionnelles, presse et tribunes."
+  },
+  "item_005": {
+    "ko": "분류",
+    "fr": "Catégories"
+  },
+  "item_006": {
+    "ko": "전체",
+    "fr": "Tout"
+  },
+  "item_007": {
+    "ko": "검색",
+    "fr": "Rechercher"
+  },
+  "item_008": {
+    "ko": "소식 검색",
+    "fr": "Rechercher"
+  },
+  "item_009": {
+    "ko": "조건에 맞는 소식이 없습니다.",
+    "fr": "Aucun résultat."
+  }
+}

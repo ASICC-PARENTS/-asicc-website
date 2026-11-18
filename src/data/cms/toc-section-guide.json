@@ -1,0 +1,52 @@
+[
+  {
+    "id": "grades",
+    "ko": "프랑스·한국 학년 비교표",
+    "fr": "Correspondance des classes"
+  },
+  {
+    "id": "enrolment",
+    "ko": "학교 등록 및 학구 배정",
+    "fr": "Inscription et secteur"
+  },
+  {
+    "id": "calendar",
+    "ko": "학사 일정 및 방학",
+    "fr": "Calendrier et vacances"
+  },
+  {
+    "id": "day",
+    "ko": "학교 일과 및 출결 안내",
+    "fr": "Journée type et assiduité"
+  },
+  {
+    "id": "services",
+    "ko": "급식, 방과후, 보험",
+    "fr": "Cantine, périscolaire, assurance"
+  },
+  {
+    "id": "evaluation",
+    "ko": "평가와 학습 기록",
+    "fr": "Évaluation et suivi"
+  },
+  {
+    "id": "college",
+    "ko": "중학교 진학과 생활",
+    "fr": "Entrée et vie au collège"
+  },
+  {
+    "id": "communication",
+    "ko": "학교와의 소통",
+    "fr": "Communication avec l’école"
+  },
+  {
+    "id": "parents",
+    "ko": "학부모 대표 제도",
+    "fr": "Représentants de parents"
+  },
+  {
+    "id": "glossary",
+    "ko": "자주 쓰는 용어",
+    "fr": "Lexique"
+  }
+]

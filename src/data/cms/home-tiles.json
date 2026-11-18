@@ -1,0 +1,50 @@
+[
+  {
+    "k": "admission",
+    "path": "admission/",
+    "title_ko": "입학 안내",
+    "title_fr": "Admissions",
+    "desc_ko": "지원 자격 · 절차 · 일정 · FAQ",
+    "desc_fr": "Conditions, démarches, calendrier et FAQ"
+  },
+  {
+    "k": "guide",
+    "path": "section/guide/",
+    "title_ko": "학교생활 가이드",
+    "title_fr": "Vie scolaire",
+    "desc_ko": "학제 · 학사 일정 · 급식 · 방과후",
+    "desc_fr": "Classes, calendrier, cantine et périscolaire"
+  },
+  {
+    "k": "events",
+    "path": "events/",
+    "title_ko": "행사 일정",
+    "title_fr": "Agenda",
+    "desc_ko": "입학 · 학교 · 협회",
+    "desc_fr": "Admissions, écoles et association"
+  },
+  {
+    "k": "about",
+    "path": "about/",
+    "title_ko": "협회 소개",
+    "title_fr": "L’association",
+    "desc_ko": "인사말 · 활동 · 운영진",
+    "desc_fr": "Mot de bienvenue, activités et bureau"
+  },
+  {
+    "k": "members",
+    "path": "membres/",
+    "title_ko": "회원 영역",
+    "title_fr": "Espace membres",
+    "desc_ko": "회원 전용 공간 준비 중",
+    "desc_fr": "Un espace réservé aux membres, en cours de préparation"
+  },
+  {
+    "k": "contact",
+    "path": "contact/",
+    "title_ko": "문의 · 소식지",
+    "title_fr": "Contact et lettre d’information",
+    "desc_ko": "공식 이메일 문의 · 소식지 준비 중",
+    "desc_fr": "Nous contacter et recevoir les nouvelles de l’association"
+  }
+]

@@ -1,0 +1,250 @@
+{
+  "NEXT_YEAR": {
+    "ko": "2027–2028학년도",
+    "fr": "année scolaire 2027–2028"
+  },
+  "STATS": [
+    {
+      "value": {
+        "ko": "약 51명",
+        "fr": "≈ 51"
+      },
+      "label": {
+        "ko": "유치원~중학교 재학생",
+        "fr": "élèves, de la maternelle au collège"
+      }
+    },
+    {
+      "value": {
+        "ko": "2017",
+        "fr": "2017"
+      },
+      "label": {
+        "ko": "한국어 국제섹션 개설",
+        "fr": "ouverture de la section"
+      }
+    },
+    {
+      "value": {
+        "ko": "3개",
+        "fr": "3"
+      },
+      "label": {
+        "ko": "유치원·초등학교·중학교",
+        "fr": "établissements, de la maternelle au collège"
+      }
+    },
+    {
+      "value": {
+        "ko": "11~12월",
+        "fr": "nov.–déc."
+      },
+      "label": {
+        "ko": "입학 지원서 접수",
+        "fr": "dépôt des candidatures"
+      }
+    }
+  ],
+  "LEVELS": [
+    {
+      "id": "mat",
+      "code": "MATERNELLE",
+      "name": {
+        "ko": "유치원",
+        "fr": "Maternelle"
+      },
+      "school": "École maternelle Théophile Gautier",
+      "address": "182 boulevard Saint-Denis, 92400 Courbevoie",
+      "hours": {
+        "ko": "주 4회 (정규 수업 시간에 포함)",
+        "fr": "Quatre séances par semaine, intégrées au temps scolaire"
+      },
+      "desc": {
+        "ko": "놀이와 그림책, 노래로 한국어를 듣고 말하는 환경을 만듭니다.",
+        "fr": "Découvrir et pratiquer le coréen à travers le jeu, les albums illustrés et les chansons."
+      },
+      "subjects": [
+        {
+          "ko": "모든 영역에서 언어 활용하기",
+          "fr": "Mobiliser le langage dans toutes ses dimensions"
+        }
+      ],
+      "tint": "#DCE6E9",
+      "ink": "#4B6670"
+    },
+    {
+      "id": "elem",
+      "code": "ÉLÉMENTAIRE",
+      "name": {
+        "ko": "초등학교",
+        "fr": "École élémentaire"
+      },
+      "school": "École élémentaire Armand Silvestre",
+      "address": "186 rue Armand Silvestre, 92400 Courbevoie",
+      "hours": {
+        "ko": "주 4회 (정규 수업 시간에 포함)",
+        "fr": "Quatre séances par semaine, intégrées au temps scolaire"
+      },
+      "desc": {
+        "ko": "프랑스 정규 교과 일부를 한국어로 배웁니다.",
+        "fr": "Découvrir des disciplines du programme français à travers des enseignements en coréen."
+      },
+      "subjects": [
+        {
+          "ko": "CP~CE2 (cycle 2): 문학, 음악, 세계 탐구",
+          "fr": "Cycle 2 : littérature, musique, questionner le monde"
+        },
+        {
+          "ko": "CM1~CM2 (cycle 3): 문학, 음악, 역사·지리",
+          "fr": "Cycle 3 : littérature, musique, histoire-géographie"
+        }
+      ],
+      "tint": "#E8DED5",
+      "ink": "#7A5A48"
+    },
+    {
+      "id": "col",
+      "code": "COLLÈGE",
+      "name": {
+        "ko": "중학교",
+        "fr": "Collège"
+      },
+      "school": "Collège Les Bruyères",
+      "address": "6 rue Volta, 92400 Courbevoie",
+      "hours": {
+        "ko": "언어·문학·수학 과목을 한국어와 프랑스어로 수업",
+        "fr": "Langue, littérature et mathématiques enseignées en coréen et en français"
+      },
+      "desc": {
+        "ko": "한국 문학과 문화를 깊이 배우고, 일부 교과를 한국어로 학습합니다.",
+        "fr": "Approfondir la langue et la culture coréennes et aborder certaines disciplines en coréen."
+      },
+      "subjects": [
+        {
+          "ko": "한국어 및 한국 문학",
+          "fr": "Langue et littérature coréennes (programme de 2017)"
+        },
+        {
+          "ko": "한국어로 배우는 수학 등 교과 수업",
+          "fr": "Discipline non linguistique partiellement en coréen"
+        },
+        {
+          "ko": "졸업 시 DNB 국제 옵션 응시",
+          "fr": "DNB, option internationale"
+        }
+      ],
+      "tint": "#E1E3DA",
+      "ink": "#5A6250"
+    }
+  ],
+  "GRADES": [
+    {
+      "age": "3",
+      "fr": "PS (petite section)",
+      "ko": "유치원 1년차 (만 3세)",
+      "level": {
+        "ko": "유치원",
+        "fr": "Maternelle"
+      }
+    },
+    {
+      "age": "4",
+      "fr": "MS (moyenne section)",
+      "ko": "유치원 2년차 (만 4세)",
+      "level": {
+        "ko": "유치원",
+        "fr": "Maternelle"
+      }
+    },
+    {
+      "age": "5",
+      "fr": "GS (grande section)",
+      "ko": "유치원 3년차 (만 5세)",
+      "level": {
+        "ko": "유치원",
+        "fr": "Maternelle"
+      }
+    },
+    {
+      "age": "6",
+      "fr": "CP",
+      "ko": "초등 1학년",
+      "level": {
+        "ko": "초등학교",
+        "fr": "Élémentaire"
+      }
+    },
+    {
+      "age": "7",
+      "fr": "CE1",
+      "ko": "초등 2학년",
+      "level": {
+        "ko": "초등학교",
+        "fr": "Élémentaire"
+      }
+    },
+    {
+      "age": "8",
+      "fr": "CE2",
+      "ko": "초등 3학년",
+      "level": {
+        "ko": "초등학교",
+        "fr": "Élémentaire"
+      }
+    },
+    {
+      "age": "9",
+      "fr": "CM1",
+      "ko": "초등 4학년",
+      "level": {
+        "ko": "초등학교",
+        "fr": "Élémentaire"
+      }
+    },
+    {
+      "age": "10",
+      "fr": "CM2",
+      "ko": "초등 5학년",
+      "level": {
+        "ko": "초등학교",
+        "fr": "Élémentaire"
+      }
+    },
+    {
+      "age": "11",
+      "fr": "6e",
+      "ko": "초등 6학년",
+      "level": {
+        "ko": "중학교",
+        "fr": "Collège"
+      }
+    },
+    {
+      "age": "12",
+      "fr": "5e",
+      "ko": "중학 1학년",
+      "level": {
+        "ko": "중학교",
+        "fr": "Collège"
+      }
+    },
+    {
+      "age": "13",
+      "fr": "4e",
+      "ko": "중학 2학년",
+      "level": {
+        "ko": "중학교",
+        "fr": "Collège"
+      }
+    },
+    {
+      "age": "14",
+      "fr": "3e",
+      "ko": "중학 3학년",
+      "level": {
+        "ko": "중학교",
+        "fr": "Collège"
+      }
+    }
+  ]
+}

@@ -821,3 +821,47 @@ svg { max-width: 100%; }
   .ftr { grid-template-columns: minmax(0, 1fr) !important; }
   .ftr > :first-child { grid-column: auto; }
 }
+
+
+/* ASICC v7 — typographie française et sécurité des grilles longues */
+html[lang="fr"] body { word-break: normal; hyphens: auto; }
+html[lang="fr"] :is(h1,h2,h3,h4,p,li,span,small,b,strong,dt,dd) {
+  overflow-wrap: break-word; word-break: normal; hyphens: auto;
+}
+html[lang="fr"] :is(.nav a,.btn,.lang-link,.tile b,.school-card h3) {
+  letter-spacing: 0; overflow-wrap: break-word;
+}
+html[lang="fr"] :is(.eyebrow,.hero-kicker) { letter-spacing: .10em; }
+html[lang="fr"] .tile .stack,
+html[lang="fr"] .intro-school > *,
+html[lang="fr"] .school-card .head > *,
+html[lang="fr"] .feature,
+html[lang="fr"] .panel-head > * { min-width: 0; }
+html[lang="fr"] .intro-school { grid-template-columns: minmax(92px, 30%) minmax(0,1fr); }
+html[lang="fr"] .intro-school .lv { padding-right: 8px; }
+html[lang="fr"] .intro-school :is(b,span) { overflow-wrap: break-word; }
+html[lang="fr"] .school-card .head { align-items: flex-start; }
+html[lang="fr"] .school-card .head .stack { flex: 1 1 310px; }
+html[lang="fr"] .school-card .head .tiny { flex: 0 1 300px; }
+html[lang="fr"] .panel-head { gap: 10px; flex-wrap: wrap; align-items: center; }
+html[lang="fr"] a[href^="mailto:"],
+html[lang="fr"] a[href^="http"] { overflow-wrap: anywhere; }
+@media (max-width: 1220px) {
+  html[lang="fr"] .menu-btn { display: inline-flex; }
+  html[lang="fr"] .nav { display: none; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border-bottom: 1px solid var(--line); flex-direction: column; padding: 8px 16px 16px; }
+  html[lang="fr"] .nav.open { display: flex; }
+  html[lang="fr"] .nav a { padding: 12px; border-bottom: 1px solid var(--line-2); border-radius: 0; white-space: normal; }
+  html[lang="fr"] .nav-item { display: block; position: relative; }
+  html[lang="fr"] .nav-item > a { padding-right: 56px; }
+  html[lang="fr"] .nav-item .caret { display: none; }
+  html[lang="fr"] .nav-item .sub { display: none; position: static; box-shadow: none; border: 0; min-width: 0; padding: 4px 0 10px; }
+  html[lang="fr"] .nav-item.sub-open .sub { display: flex; }
+  html[lang="fr"] .nav-item .sub a { white-space: normal; }
+  html[lang="fr"] .sub-toggle { display: flex; align-items: center; justify-content: center; position: absolute; right: 0; top: 8px; width: 48px; height: 48px; border: 0; background: transparent; }
+}
+@media (max-width:640px) {
+  html[lang="fr"] .intro-school { grid-template-columns: minmax(0,1fr); }
+  html[lang="fr"] .intro-school .lv { border-right:0; grid-row:auto; }
+  html[lang="fr"] .ftr { grid-template-columns: minmax(0,1fr) !important; }
+  html[lang="fr"] .ftr > :first-child { grid-column:auto; }
+}

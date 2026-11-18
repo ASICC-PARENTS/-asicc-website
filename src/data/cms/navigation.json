@@ -1,0 +1,124 @@
+{
+  "site_name": {
+    "ko": "쿠르브부아 한국어 국제섹션 학부모협회",
+    "fr": "Association de la Section Internationale Coréenne à Courbevoie"
+  },
+  "site_short": {
+    "ko": "쿠르브부아 한국어 국제섹션 학부모협회",
+    "fr": "Section internationale coréenne de Courbevoie"
+  },
+  "nav_about": {
+    "ko": "협회 소개",
+    "fr": "L’association"
+  },
+  "nav_section": {
+    "ko": "국제섹션",
+    "fr": "La section"
+  },
+  "nav_admission": {
+    "ko": "입학",
+    "fr": "Admissions"
+  },
+  "nav_news": {
+    "ko": "소식",
+    "fr": "Actualités"
+  },
+  "nav_events": {
+    "ko": "행사",
+    "fr": "Agenda"
+  },
+  "nav_join": {
+    "ko": "참여",
+    "fr": "S’engager"
+  },
+  "nav_contact": {
+    "ko": "문의",
+    "fr": "Contact"
+  },
+  "nav_members": {
+    "ko": "회원",
+    "fr": "Espace membres"
+  },
+  "nav_menu": {
+    "ko": "메뉴",
+    "fr": "Menu"
+  },
+  "nav_skip": {
+    "ko": "본문 바로가기",
+    "fr": "Aller au contenu"
+  },
+  "lang_switch": {
+    "ko": "Français",
+    "fr": "한국어"
+  },
+  "lang_label": {
+    "ko": "언어",
+    "fr": "Langue"
+  },
+  "footer_declared": {
+    "ko": "2026년 4월 28일 신고",
+    "fr": "déclarée le 28 avril 2026"
+  },
+  "footer_legal": {
+    "ko": "법적 고지",
+    "fr": "Mentions légales"
+  },
+  "footer_privacy": {
+    "ko": "개인정보 처리방침",
+    "fr": "Confidentialité"
+  },
+  "footer_statuts": {
+    "ko": "정관",
+    "fr": "Statuts"
+  },
+  "footer_subscribe": {
+    "ko": "소식지 구독",
+    "fr": "Lettre d’information"
+  },
+  "common_more": {
+    "ko": "자세히 보기",
+    "fr": "En savoir plus"
+  },
+  "common_all": {
+    "ko": "전체 보기",
+    "fr": "Tout voir"
+  },
+  "common_back": {
+    "ko": "목록으로",
+    "fr": "Retour à la liste"
+  },
+  "common_placeholder": {
+    "ko": "확정 후 게재",
+    "fr": "À compléter"
+  },
+  "section_submenu": [
+    {
+      "label": {
+        "ko": "국제섹션 안내",
+        "fr": "Présentation de la section"
+      },
+      "path": "section/"
+    },
+    {
+      "label": {
+        "ko": "프랑스 학제와 국제섹션",
+        "fr": "Système scolaire et section internationale"
+      },
+      "path": "section/#system"
+    },
+    {
+      "label": {
+        "ko": "유치원·초등학교·중학교",
+        "fr": "De la maternelle au collège"
+      },
+      "path": "section/#schools"
+    },
+    {
+      "label": {
+        "ko": "프랑스 학교생활 가이드",
+        "fr": "Guide de la vie scolaire"
+      },
+      "path": "section/guide/"
+    }
+  ]
+}

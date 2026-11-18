@@ -1,0 +1,102 @@
+{
+  "item_001": {
+    "ko": "문의",
+    "fr": "Contact"
+  },
+  "item_002": {
+    "ko": "문의",
+    "fr": "Contact"
+  },
+  "item_003": {
+    "ko": "협회 문의와 소식지 구독",
+    "fr": "Nous contacter et recevoir la lettre d’information"
+  },
+  "item_004": {
+    "ko": "한국어와 프랑스어로 문의하실 수 있으며, 국제섹션 입학 및 학교생활에 관한 궁금한 사항은 해당 학교별 학부모 대표가 안내해 드립니다. 단, 입학 지원서 접수 및 선발 결과에 관한 공식 문의는 관할 교육청으로 해주시기 바랍니다.",
+    "fr": "Vous pouvez nous écrire en coréen ou en français. L’association répond aux questions générales sur la vie de la section et oriente les familles vers les interlocuteurs compétents pour les démarches officielles."
+  },
+  "item_005": {
+    "ko": "다른 연락 방법",
+    "fr": "Autres moyens"
+  },
+  "item_006": {
+    "ko": "이메일 보내기",
+    "fr": "Envoyer un e-mail"
+  },
+  "item_007": {
+    "ko": "이름",
+    "fr": "Nom"
+  },
+  "item_008": {
+    "ko": "이메일",
+    "fr": "E-mail"
+  },
+  "item_009": {
+    "ko": "문의 유형",
+    "fr": "Objet"
+  },
+  "item_010": {
+    "ko": "관련 학교",
+    "fr": "Niveau concerné"
+  },
+  "item_011": {
+    "ko": "해당 없음",
+    "fr": "Sans objet"
+  },
+  "item_012": {
+    "ko": "유치원",
+    "fr": "Maternelle"
+  },
+  "item_013": {
+    "ko": "초등학교",
+    "fr": "Élémentaire"
+  },
+  "item_014": {
+    "ko": "중학교",
+    "fr": "Collège"
+  },
+  "item_015": {
+    "ko": "내용",
+    "fr": "Message"
+  },
+  "item_016": {
+    "ko": "답변을 위한 개인정보 수집에 동의합니다.",
+    "fr": "J’accepte que mes données soient utilisées pour me répondre."
+  },
+  "item_017": {
+    "ko": "보내기",
+    "fr": "Envoyer"
+  },
+  "item_018": {
+    "ko": "소식지",
+    "fr": "Lettre d’information"
+  },
+  "item_019": {
+    "ko": "협회 소식지 구독",
+    "fr": "Recevoir la lettre de l’ASICC"
+  },
+  "item_020": {
+    "ko": "총회 결과, 입학 일정, 협회 공지를 학기마다 이메일로 보내 드립니다. 재학생 가정이 아니어도 구독할 수 있으며, 언제든 해지할 수 있습니다.",
+    "fr": "Recevez par e-mail les nouvelles de l’association, les informations utiles sur les admissions et les événements, à raison d’environ une lettre par trimestre. La lettre est ouverte à toutes les personnes intéressées."
+  },
+  "item_021": {
+    "ko": "이메일",
+    "fr": "E-mail"
+  },
+  "item_022": {
+    "ko": "받을 언어",
+    "fr": "Langue"
+  },
+  "item_023": {
+    "ko": "한국어·프랑스어",
+    "fr": "Coréen et français"
+  },
+  "item_024": {
+    "ko": "소식지 발송을 위한 이메일 수집에 동의합니다.",
+    "fr": "J’accepte l’utilisation de mon adresse e-mail pour recevoir la lettre d’information."
+  },
+  "item_025": {
+    "ko": "구독하기",
+    "fr": "S’abonner"
+  }
+}

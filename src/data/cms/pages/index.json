@@ -1,0 +1,38 @@
+{
+  "item_001": {
+    "ko": "세 학교",
+    "fr": "Les trois établissements"
+  },
+  "item_002": {
+    "ko": "바로가기와 최신 정보",
+    "fr": "Accès rapides et actualités"
+  },
+  "item_003": {
+    "ko": "바로가기",
+    "fr": "Accès rapides"
+  },
+  "item_004": {
+    "ko": "최근 소식",
+    "fr": "Actualités"
+  },
+  "item_005": {
+    "ko": "전체",
+    "fr": "Tout"
+  },
+  "item_006": {
+    "ko": "다가오는 일정",
+    "fr": "À venir"
+  },
+  "item_007": {
+    "ko": "전체",
+    "fr": "Tout"
+  },
+  "item_008": {
+    "ko": "현재 등록된 예정 행사가 없습니다. 새로운 일정은 행사 페이지에서 확인해 주세요.",
+    "fr": "Aucun événement à venir n’est encore publié. Consultez la page Agenda."
+  },
+  "item_009": {
+    "ko": "예정",
+    "fr": "à confirmer"
+  }
+}

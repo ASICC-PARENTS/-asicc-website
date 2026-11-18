@@ -1,0 +1,250 @@
+{
+  "item_001": {
+    "ko": "프랑스 학교생활 가이드",
+    "fr": "Guide de la vie scolaire"
+  },
+  "item_002": {
+    "ko": "국제섹션",
+    "fr": "La section"
+  },
+  "item_003": {
+    "ko": "학교생활 가이드",
+    "fr": "Guide pratique"
+  },
+  "item_004": {
+    "ko": "프랑스 학교생활 안내",
+    "fr": "La vie scolaire en France : les repères essentiels"
+  },
+  "item_005": {
+    "ko": "한국 학제에 익숙한 가정을 위해 프랑스 공립학교 생활의 기본 구조와 행정 절차를 정리했습니다. 세부 사항은 각 학교와 쿠르브부아 시청의 안내가 우선합니다.",
+    "fr": "Un guide pratique sur le fonctionnement de l’école publique française, les démarches des familles et la vie quotidienne. Les informations propres à chaque établissement restent à vérifier auprès de l’école."
+  },
+  "item_006": {
+    "ko": "목차",
+    "fr": "Sommaire"
+  },
+  "item_007": {
+    "ko": "프랑스는 출생연도(1월~12월)를 기준으로 학년을 정하며, 학년은 9월에 시작합니다. 한국은 3월 학기제이므로 한국과 프랑스는 학년도 시작 시점이 달라, 전학 시기에 따라 학년 배정에 차이가 있을 수 있습니다. 아래 표는 대략적인 대응입니다.",
+    "fr": "La classe dépend de l’année civile de naissance ; l’année scolaire commence en septembre. Correspondances indicatives avec le système coréen (rentrée en mars)."
+  },
+  "item_008": {
+    "ko": "해당 연도 만 나이",
+    "fr": "Âge dans l’année"
+  },
+  "item_009": {
+    "ko": "프랑스",
+    "fr": "France"
+  },
+  "item_010": {
+    "ko": "한국 학년",
+    "fr": "Équivalent coréen"
+  },
+  "item_011": {
+    "ko": "교육 단계",
+    "fr": "Niveau"
+  },
+  "item_012": {
+    "ko": "유치원과 초등학교 취학 등록은 거주지 관할 시청에서, 중학교 배정은 교육청 절차로 진행됩니다. 일반 학생은 주소에 따라 정해진 학교(학구, secteur)에 다닙니다. 국제섹션 입학이 결정된 학생은 학구와 관계없이 섹션이 설치된 학교에 다닙니다.",
+    "fr": "L’inscription en maternelle et en élémentaire se fait en mairie ; l’affectation au collège relève de l’académie. Les élèves admis en section sont scolarisés dans l’établissement qui l’accueille, indépendamment de la sectorisation."
+  },
+  "item_013": {
+    "ko": "쿠르브부아 거주 가정: 입학 결정 후 쿠르브부아 시청에서 해당 학교로 등록합니다.",
+    "fr": "Familles courbevoisiennes : inscription en mairie dans l’école de la section après l’admission."
+  },
+  "item_014": {
+    "ko": "쿠르브부아 외 지역 거주 가정: 거주지 시청의 학구 예외 허가(dérogation)와 쿠르브부아 시청의 수용이 필요합니다. 통학 방법과 방과 후 돌봄 이용 가능 여부도 미리 확인하는 것이 좋습니다.",
+    "fr": "Familles d’autres communes : dérogation de la commune de résidence et accord de Courbevoie ; prévoir transport et accueil périscolaire."
+  },
+  "item_015": {
+    "ko": "주요 제출 서류(예시): 가족관계 증빙(livret de famille 또는 출생증명), 주소 증빙, 예방접종 기록. 정확한 목록은 시청 안내를 따릅니다.",
+    "fr": "Pièces habituelles : livret de famille ou acte de naissance, justificatif de domicile, carnet de vaccination (liste exacte auprès de la mairie)."
+  },
+  "item_016": {
+    "ko": "쿠르브부아는 베르사유 교육청 관할로, 방학 구분상 C구역(zone C)에 속합니다. 학년은 9월 초에 시작해 7월 초에 끝나며, 학기 중에는 대체로 6~7주간 수업한 뒤 약 2주간의 방학이 있습니다.",
+    "fr": "Courbevoie relève de l’académie de Versailles (zone C). L’année va de début septembre à début juillet, avec environ deux semaines de vacances toutes les six à sept semaines."
+  },
+  "item_017": {
+    "ko": "방학",
+    "fr": "Vacances"
+  },
+  "item_018": {
+    "ko": "시기",
+    "fr": "Période"
+  },
+  "item_019": {
+    "ko": "투생 방학 (Toussaint)",
+    "fr": "Toussaint"
+  },
+  "item_020": {
+    "ko": "10월 말~11월 초, 2주",
+    "fr": "Fin octobre, deux semaines"
+  },
+  "item_021": {
+    "ko": "성탄 방학 (Noël)",
+    "fr": "Noël"
+  },
+  "item_022": {
+    "ko": "12월 말~1월 초, 2주",
+    "fr": "Fin décembre, deux semaines"
+  },
+  "item_023": {
+    "ko": "겨울 방학 (hiver)",
+    "fr": "Hiver"
+  },
+  "item_024": {
+    "ko": "2월~3월, 구역별 상이",
+    "fr": "Février–mars, selon la zone"
+  },
+  "item_025": {
+    "ko": "봄 방학 (printemps)",
+    "fr": "Printemps"
+  },
+  "item_026": {
+    "ko": "4월~5월, 구역별 상이",
+    "fr": "Avril–mai, selon la zone"
+  },
+  "item_027": {
+    "ko": "여름 방학 (été)",
+    "fr": "Été"
+  },
+  "item_028": {
+    "ko": "7월 초~8월 말",
+    "fr": "Juillet–août"
+  },
+  "item_029": {
+    "ko": "공휴일과 징검다리 연휴(pont)로 휴업일이 발생할 수 있습니다. 정확한 방학 일정은 프랑스 교육부의 공식 학사 일정을 참고해 주세요.",
+    "fr": "En mai, jours fériés et ponts réduisent le nombre de jours de classe. Dates officielles :"
+  },
+  "item_030": {
+    "ko": "유치원과 초등학교는 주 24시간 수업을 하며, 학교별로 차이가 있으나 일반적으로 오전 8시 30분경 등교하여 오후 4시 30분경 하교합니다. 쿠르브부아의 유치원과 초등학교는 수요일과 금요일에 오전 정규 수업만 진행됩니다. 오후에는 가정의 희망에 따라 시청에서 운영하는 방과 후 프로그램을 신청하여 이용할 수 있으며, 이용 요금은 각 가정의 소득 및 가족 구성 등을 반영한 가구별 요금 산정 지수(Quotient familial, QF)에 따라 차등 적용됩니다.",
+    "fr": "Maternelle et élémentaire : 24 heures par semaine, de 8 h 30 à 16 h 30 environ, avec une pause méridienne d’environ deux heures. L’organisation du mercredi est précisée par chaque école."
+  },
+  "item_031": {
+    "ko": "국제섹션 수업은 주 24시간 안에 편성되므로, 국제섹션 학생들은 정해진 시간에 별도로 편성된 한국어 수업에 참여합니다. 중학교에서는 섹션 수업이 일반 시간표에 더해지므로 주당 수업 시간이 늘어납니다.",
+    "fr": "Les cours de section sont intégrés aux 24 heures en primaire ; au collège, ils s’ajoutent à l’horaire commun."
+  },
+  "item_032": {
+    "ko": "출결",
+    "fr": "Assiduité"
+  },
+  "item_033": {
+    "ko": "만 3세부터 교육이 의무이므로 결석은 사유와 함께 학교에 알려야 합니다. 학기 중 장기 여행이나 한국 방문 등으로 장기 결석이 필요한 경우에는 사전에 학교장과 관할 장학관(IEN)에게 요청하여 승인을 받아야 합니다. 학기 중 장기 결석은 원칙적으로 제한되므로, 사유가 있는 경우 여유를 두고 관련 절차를 진행하시기 바랍니다. 정해진 등·하교 시간을 준수해야 하며, 유치원과 초등학교 하교 시에는 보호자나 위임받은 성인이 아이를 데려가야 합니다.",
+    "fr": "L’instruction étant obligatoire dès 3 ans, toute absence doit être justifiée. Les départs anticipés en vacances ne sont pas autorisés ; en cas de nécessité, s’adresser à la direction. Les enfants du primaire sont remis à un adulte autorisé."
+  },
+  "item_034": {
+    "ko": "학교 급식 (cantine)",
+    "fr": "Restauration scolaire"
+  },
+  "item_035": {
+    "ko": "유치원과 초등학교 급식은 쿠르브부아 시청이 운영하며, 시청 가족 포털(espace famille)에서 신청합니다. 요금은 가정 소득 등급(quotient familial)에 따라 달라지므로, 신학기 전에 등급 산정을 받아 두는 것이 좋습니다.",
+    "fr": "Gérée par la ville pour le 1er degré ; inscription sur l’espace famille, tarif selon le quotient familial, à faire calculer avant la rentrée."
+  },
+  "item_036": {
+    "ko": "방과후 (périscolaire)",
+    "fr": "Accueil périscolaire"
+  },
+  "item_037": {
+    "ko": "등교 전 돌봄, 방과 후 돌봄과 학습 지원(étude), 수요일과 방학 중 돌봄(centre de loisirs)을 시청을 통해 신청합니다. 방학 중 돌봄은 신청 마감이 이르므로 일정을 미리 확인하세요.",
+    "fr": "Accueil du matin et du soir, études surveillées, mercredis et vacances (centres de loisirs) : réservations auprès de la ville, avec des délais à anticiper."
+  },
+  "item_038": {
+    "ko": "학생 보험 (assurance scolaire)",
+    "fr": "Assurance scolaire"
+  },
+  "item_039": {
+    "ko": "학교 밖 선택 활동과 견학에는 책임보험과 상해보험 증명서가 필요합니다. 가정 종합보험(assurance habitation)에 포함되어 있는지 확인하고, 신학기에 증명서를 제출합니다.",
+    "fr": "Responsabilité civile et individuelle accidents sont exigées pour les activités facultatives ; vérifier l’assurance habitation et fournir l’attestation à la rentrée."
+  },
+  "item_040": {
+    "ko": "중학교 급식 (demi-pension)",
+    "fr": "La demi-pension au collège"
+  },
+  "item_041": {
+    "ko": "중학교 급식은 학교와 오드센 도가 운영하며, 신청 절차와 요금 체계가 초등학교와 다릅니다. 6e 입학 서류와 함께 안내됩니다.",
+    "fr": "Relève de l’établissement et du département des Hauts-de-Seine ; modalités communiquées avec le dossier d’entrée en 6e."
+  },
+  "item_042": {
+    "ko": "유치원: 점수 없이 학습 기록장(carnet de suivi des apprentissages)으로 아이의 발달을 기록하고, GS 말에 종합 기록(synthèse des acquis)을 작성합니다.",
+    "fr": "Maternelle : carnet de suivi des apprentissages et synthèse des acquis en fin de GS."
+  },
+  "item_043": {
+    "ko": "초등학교: 학생 통합 기록부(LSU)를 통해 학기별 평가를 받습니다. CP, CE1, CM1 등에서 국가 학력 평가(évaluations nationales)가 실시됩니다.",
+    "fr": "Élémentaire : livret scolaire unique et évaluations nationales à certains niveaux."
+  },
+  "item_044": {
+    "ko": "중학교: 과목별 점수와 학기 평가 회의(conseil de classe) 의견이 성적표(bulletin)에 기록됩니다. 3e 말에 국가 중학 졸업 시험(DNB)을 봅니다.",
+    "fr": "Collège : bulletins trimestriels et conseil de classe ; DNB en fin de 3e."
+  },
+  "item_045": {
+    "ko": "국제섹션 수업의 평가도 같은 기록부에 포함됩니다.",
+    "fr": "Les enseignements de section figurent dans les mêmes documents."
+  },
+  "item_046": {
+    "ko": "프랑스에서 유급(redoublement)은 예외적인 조치이며, 학습 지원이 필요한 경우 학교가 개별 지원(APC, PPRE 등)을 제안합니다.",
+    "fr": "Le redoublement reste exceptionnel ; l’école peut proposer des aides (APC, PPRE)."
+  },
+  "item_047": {
+    "ko": "초등 섹션 학생이 Collège Les Bruyères 한국어 섹션으로 진학하려면 CM2 재학 중 다시 지원합니다. 일반 중학교 배정 절차(Affelnet 6e)와 섹션 지원이 함께 진행되므로, 담임 교사와 학교 안내를 함께 확인합니다.",
+    "fr": "L’entrée en section au collège Les Bruyères nécessite une nouvelle candidature en CM2, en parallèle de la procédure d’affectation en 6e."
+  },
+  "item_048": {
+    "ko": "중학교에서는 과목별 교사가 수업하고, 학급마다 담임 교사(professeur principal)가 학생 생활을 총괄합니다.",
+    "fr": "Un professeur par discipline et un professeur principal par classe."
+  },
+  "item_049": {
+    "ko": "생활지도 교사(CPE)가 출결과 학교생활을 담당합니다.",
+    "fr": "Le CPE suit l’assiduité et la vie scolaire."
+  },
+  "item_050": {
+    "ko": "성적, 숙제, 시간표 변경, 결석 신고는 온라인 학교 시스템(ENT, Pronote)으로 확인합니다.",
+    "fr": "Notes, devoirs, emploi du temps et absences sur l’ENT (Pronote)."
+  },
+  "item_051": {
+    "ko": "국제섹션 학생은 3e 말 DNB를 국제 옵션으로 응시합니다.",
+    "fr": "Les élèves de section présentent le DNB option internationale."
+  },
+  "item_052": {
+    "ko": "평가와 학위",
+    "fr": "Évaluation et diplômes"
+  },
+  "item_053": {
+    "ko": "유치원·초등학교: 연락 수첩(cahier de liaison)이 학교와 가정을 잇는 기본 통로입니다. 공지 확인 후 서명하고, 결석이나 면담 요청도 수첩에 적습니다.",
+    "fr": "1er degré : le cahier de liaison sert aux informations, signatures, justificatifs et demandes de rendez-vous."
+  },
+  "item_054": {
+    "ko": "교사 면담: 담임 교사나 섹션 교사에게 수첩이나 이메일로 면담을 요청합니다. 학년 초에는 학급 설명회(réunion de rentrée)가 열립니다.",
+    "fr": "Rendez-vous avec l’enseignant ou le professeur de section sur demande ; réunion de rentrée en début d’année."
+  },
+  "item_055": {
+    "ko": "중학교: ENT 메시지가 공식 소통 수단입니다.",
+    "fr": "Collège : messagerie de l’ENT."
+  },
+  "item_056": {
+    "ko": "학교 공지는 대부분 프랑스어로 전달됩니다. 이해가 어려운 내용은 협회 교육 단계 대표에게 문의하시면 안내해 드립니다.",
+    "fr": "Les communications scolaires sont principalement en français. Les représentants des parents au sein de l’association peuvent vous aider à mieux les comprendre."
+  },
+  "item_057": {
+    "ko": "프랑스 학교에서는 매년 10월 학부모 대표 선거를 치릅니다. 선출된 대표는 유치원·초등학교의 학교 운영위원회(conseil d’école), 중학교의 운영위원회(conseil d’administration)와 학급 평가 회의(conseil de classe)에 참석해 학부모 의견을 전달합니다. 모든 보호자가 투표권을 가지며, 우편 투표나 전자 투표도 가능합니다.",
+    "fr": "Les représentants de parents sont élus chaque année en octobre. Ils siègent au conseil d’école, au conseil d’administration et aux conseils de classe. Chaque parent est électeur ; le vote par correspondance ou électronique est possible."
+  },
+  "item_058": {
+    "ko": "ASICC는 학교 학부모 대표와는 별개의 협회이지만, 국제섹션 가정의 의견이 학교 운영 기구에 전달되도록 학부모 대표 선거 참여를 권장합니다.",
+    "fr": "L’ASICC est distincte des listes de représentants de parents, mais encourage les familles de la section à participer aux élections."
+  },
+  "item_059": {
+    "ko": "용어",
+    "fr": "Terme"
+  },
+  "item_060": {
+    "ko": "뜻",
+    "fr": "Définition"
+  },
+  "item_061": {
+    "ko": "학교생활에 관한 질문은 협회 교육 단계 대표가 경험을 바탕으로 안내해 드립니다.",
+    "fr": "Les représentants de niveau de l’association répondent volontiers à vos questions."
+  },
+  "item_062": {
+    "ko": "문의하기",
+    "fr": "Nous écrire"
+  }
+}

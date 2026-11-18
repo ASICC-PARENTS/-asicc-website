@@ -1,0 +1,154 @@
+{
+  "item_001": {
+    "ko": "국제섹션 안내",
+    "fr": "La section internationale"
+  },
+  "item_002": {
+    "ko": "국제섹션",
+    "fr": "La section"
+  },
+  "item_003": {
+    "ko": "프랑스 공립학교의 한국어 국제섹션",
+    "fr": "Apprendre en coréen au sein de l’école publique française"
+  },
+  "item_004": {
+    "ko": "쿠르브부아 한국어 국제섹션의 운영 방식, 프랑스 교육제도 속 국제섹션, 세 학교의 교육 내용을 정리했습니다.",
+    "fr": "Fonctionnement de la section, place dans le système scolaire français et contenus d’enseignement dans les trois établissements."
+  },
+  "item_005": {
+    "ko": "목차",
+    "fr": "Sommaire"
+  },
+  "item_006": {
+    "ko": "국제섹션(section internationale)은 프랑스 국민교육부가 협력국과 맺은 협약에 따라 프랑스 공립학교 안에 설치하는 이중언어·이중문화 과정입니다. 협력국의 언어와 문화를 프랑스 정규 교육과정과 연계하여 가르친다는 점이 특징입니다. 프랑스 교육법(Code de l’éducation D.421-132)은 국제섹션의 목적을 외국 학생의 프랑스 학교 적응을 돕고, 프랑스 학생이 외국어를 일부 교과와 함께 깊이 익히도록 하는 데 둡니다.",
+    "fr": "Les sections internationales sont des dispositifs bilingues et biculturels créés dans les établissements publics français, sur la base d’accords bilatéraux. Elles intègrent au système français un enseignement relevant de la langue, de la culture et des méthodes pédagogiques du pays partenaire. Selon l’article D.421-132 du code de l’éducation, elles facilitent l’accueil des élèves étrangers et la pratique approfondie d’une langue étrangère par les élèves français."
+  },
+  "item_007": {
+    "ko": "현재 프랑스에는 18개 언어의 국제섹션이 있으며, 한국어는 그중 하나입니다. 쿠르브부아에는 독일어, 미국 영어, 영국 영어, 아랍어, 중국어, 한국어, 일본어의 7개 언어 섹션이 있습니다. 한국어 섹션은 2017년 9월, 한·불 수교 130주년을 계기로 양국 교육부의 협약에 따라 쿠르브부아와 스트라스부르(Collège Vauban)에 함께 개설되었습니다.",
+    "fr": "Les sections internationales existent aujourd’hui en 18 langues, dont le coréen. Courbevoie en accueille sept : allemand, anglais américain, anglais britannique, arabe, chinois, coréen et japonais. La section coréenne a ouvert en septembre 2017, à Courbevoie et au collège Vauban de Strasbourg, dans le cadre de l’accord conclu à l’occasion des 130 ans des relations franco-coréennes."
+  },
+  "item_008": {
+    "ko": "국제섹션은 프랑스 공립학교의 정규 과정이므로 수업료가 없습니다. 학생은 일반 학생과 같은 프랑스 교육과정을 모두 이수하고, 그 위에 한국어로 진행되는 수업을 함께 듣습니다.",
+    "fr": "La section fait partie de l’enseignement public et est gratuite. Les élèves suivent l’intégralité du programme français, complété par des enseignements dispensés en coréen."
+  },
+  "item_009": {
+    "ko": "프랑스에서는 만 3세부터 교육이 의무이며, 학교 교육은 학습 단계(cycle)로 나뉩니다. 유치원(école maternelle)과 초등학교(école élémentaire)는 주 24시간 수업을 하고, 중학교(collège) 4년을 마치면 국가 중학 졸업 시험(DNB)을 봅니다. 고등학교(lycée) 3년 뒤에는 바칼로레아(baccalauréat)를 치릅니다. 아래 표는 각 단계에서 한국어 국제섹션이 어떻게 이어지는지 보여 줍니다.",
+    "fr": "L’instruction est obligatoire dès 3 ans et la scolarité est organisée en cycles. Maternelle et élémentaire comptent 24 heures hebdomadaires ; le collège se conclut par le diplôme national du brevet (DNB), le lycée par le baccalauréat. Le tableau situe la section coréenne à chaque étape."
+  },
+  "item_010": {
+    "ko": "단계",
+    "fr": "Cycle"
+  },
+  "item_011": {
+    "ko": "학년",
+    "fr": "Classes"
+  },
+  "item_012": {
+    "ko": "나이",
+    "fr": "Âge"
+  },
+  "item_013": {
+    "ko": "한국어 국제섹션",
+    "fr": "Section coréenne"
+  },
+  "item_014": {
+    "ko": "한국 학년과의 대응은 학교생활 가이드의 학년 대응표를 참고하세요.",
+    "fr": "Correspondances avec le système coréen : voir le guide de la vie scolaire."
+  },
+  "item_015": {
+    "ko": "학년 대응표",
+    "fr": "Tableau"
+  },
+  "item_016": {
+    "ko": "일반 학급과 국제섹션 수업의 병행",
+    "fr": "Des cours de section intégrés à la scolarité"
+  },
+  "item_017": {
+    "ko": "국제섹션 학생은 따로 반을 이루지 않고, 학교의 여러 학급에 나뉘어 배정됩니다. 학생은 담임 교사와 함께 프랑스 정규 수업을 모두 듣고, 정해진 시간에 한국어 섹션 수업에 참여합니다. 유치원과 초등학교에서는 이 시간이 주 24시간 안에 포함되며, 45분씩 4회 또는 1시간씩 3회로 편성하는 것이 원칙입니다.",
+    "fr": "Les élèves de la section sont répartis dans toutes les classes de l’école. Ils suivent l’ensemble des enseignements avec leur classe et rejoignent les cours de section aux horaires prévus ; en maternelle et en élémentaire, ces trois heures sont incluses dans les 24 heures hebdomadaires, idéalement en quatre séances de 45 minutes."
+  },
+  "item_018": {
+    "ko": "한국어로 배우는 교과 수업",
+    "fr": "Des matières enseignées en coréen"
+  },
+  "item_019": {
+    "ko": "국제섹션 수업은 한국어 자체만 가르치는 시간이 아니라, 정해진 교과를 한국어로 배우는 시간입니다. 유치원에서는 모든 영역에서 언어를 활용하는 활동을, 초등 2단계(CP~CE2)에서는 문학·음악·세계 탐구를, 3단계(CM1~CM2)에서는 문학·음악·역사지리를 한국어로 다룹니다. 중학교에서는 한국어와 한국 문학, 수학 등 교과를 한국어와 프랑스어로 배웁니다. 실제 수업 편성은 해당 학년도 학교 안내를 확인해 주세요.",
+    "fr": "Les cours de section portent sur des domaines disciplinaires : langage en maternelle ; littérature, musique et questionner le monde en cycle 2 ; littérature, musique et histoire-géographie en cycle 3. Au collège, les cours de la section portent sur la langue, la littérature et des disciplines comme les mathématiques, en coréen et en français. Les horaires exacts sont à confirmer auprès du collège."
+  },
+  "item_020": {
+    "ko": "교사 간 협의와 교육의 연속성",
+    "fr": "Une continuité pédagogique entre les établissements"
+  },
+  "item_021": {
+    "ko": "섹션 교사와 학급 담임 교사는 수업 내용을 함께 협의해 섹션 수업이 학교 전체 교육과 이어지도록 합니다. 초등학교 섹션 교사와 중학교 섹션 교사 사이의 협의도 권장되어, 학교가 바뀌어도 배움이 끊기지 않도록 합니다.",
+    "fr": "Un travail de concertation est mené entre le professeur de SI et les autres enseignants, ainsi qu’avec les professeurs de SI du collège, pour assurer la continuité du parcours."
+  },
+  "item_022": {
+    "ko": "쿠르브부아 국제섹션 안내 책자는 학교 수업과 더불어 가정에서 한국어를 지속적으로 사용하는 것이 중요하다고 강조합니다. 가정에서 한국어를 정기적으로 쓰고 한국 문화를 함께 나누는 것이 섹션 수업을 따라가기 위한 전제입니다.",
+    "fr": "Selon la plaquette des SI de Courbevoie, l’enfant doit bénéficier d’une exposition régulière et authentique au coréen hors des trois heures : les familles s’engagent à parler la langue à la maison et à en partager la culture."
+  },
+  "item_023": {
+    "ko": "쿠르브부아 한국어 국제섹션은 세 학교에서 학교별로 운영됩니다. 유치원과 초등학교는 쿠르브부아 시가 운영하는 공립학교이고, 중학교는 오드센 도(Hauts-de-Seine)가 운영하는 공립 중학교입니다.",
+    "fr": "La section est répartie entre trois établissements publics : une école maternelle et une école élémentaire de la ville de Courbevoie, et un collège du département des Hauts-de-Seine."
+  },
+  "item_024": {
+    "ko": "한국어 수업",
+    "fr": "Enseignement en coréen"
+  },
+  "item_025": {
+    "ko": "교육 내용",
+    "fr": "Contenus"
+  },
+  "item_026": {
+    "ko": "수업 방식",
+    "fr": "Organisation"
+  },
+  "item_027": {
+    "ko": "입학",
+    "fr": "Conditions d’admission"
+  },
+  "item_028": {
+    "ko": "입학 절차 자세히 보기",
+    "fr": "Procédure d’admission"
+  },
+  "item_029": {
+    "ko": "유치원 GS 과정 종료 후 초등학교(CP) 국제섹션 진학을 위해 별도의 지원 절차를 거칩니다. 유치원 국제섹션에서의 학습 경험은 초등학교 진학에 긍정적으로 작용할 수 있으나, 최종 입학 여부는 정해진 선발 절차에 따라 결정됩니다.",
+    "fr": "Après la GS, une nouvelle candidature est nécessaire pour entrer en section internationale en CP. L’expérience en maternelle peut être un atout, mais l’admission dépend de la procédure officielle de sélection."
+  },
+  "item_030": {
+    "ko": "유치원: 학습 기록장(carnet de suivi)에 섹션 수업의 진행을 함께 기록합니다.",
+    "fr": "Maternelle : carnet de suivi des apprentissages."
+  },
+  "item_031": {
+    "ko": "초등학교: 학생 통합 기록부(livret scolaire unique)에 섹션 수업 평가가 들어갑니다. 2단계를 마치는 CE2 말에는 평가 자료를 바탕으로 3단계 진행 여부를 판단합니다.",
+    "fr": "Élémentaire : livret scolaire unique ; en fin de CE2, les grilles d’évaluation sont étudiées pour la poursuite en cycle 3."
+  },
+  "item_032": {
+    "ko": "중학교: 3e 말에 국가 중학 졸업 시험(DNB)을 \"국제 옵션\"으로 응시할 수 있습니다. 역사·지리와 외국어 두 과목의 특별 시험이 더해지며, 학위에 국제섹션 이수가 표기됩니다.",
+    "fr": "Collège : DNB « option internationale » en fin de 3e, avec deux épreuves spécifiques (histoire-géographie et langue)."
+  },
+  "item_033": {
+    "ko": "고등학교 단계에서 국제섹션은 2nde에 운영되고, 1re부터는 프랑스 국제 바칼로레아(BFI) 과정으로 이어지는 것이 프랑스의 일반 제도입니다. 한국어 섹션은 현재 중학교 과정까지 운영됩니다.",
+    "fr": "Au lycée, les SI existent en seconde, puis les classes mènent au baccalauréat français international (BFI). La section coréenne est actuellement ouverte jusqu’au collège."
+  },
+  "item_034": {
+    "ko": "국제섹션 교육과정은 프랑스 교육 당국과 협력국 당국이 함께 정합니다. 한국어 섹션의 경우 대한민국 교육부가 교사 인건비 예산을 마련하고, 주프랑스 한국교육원이 교사 채용과 급여 지급을 맡습니다. 교사는 프랑스 공립학교에서 수업하므로, 수업과 교육 활동의 관리·감독은 각 학교와 베르사유 교육청이 담당합니다. 입학 여부는 교육청이 주재하는 도 단위 위원회가 결정합니다.",
+    "fr": "Les programmes sont élaborés conjointement par les autorités françaises et coréennes. Le ministère coréen de l’Éducation finance les postes ; le Centre éducatif coréen recrute et rémunère les enseignants. Le pilotage pédagogique relève des établissements et de l’académie de Versailles, et les admissions d’une commission départementale."
+  },
+  "item_035": {
+    "ko": "같은 체계 아래 스트라스부르의 Collège international Vauban에도 한국어 국제섹션 중학교 과정이 운영되고 있습니다.",
+    "fr": "Le collège international Vauban de Strasbourg accueille également une section coréenne au collège, dans le même cadre."
+  },
+  "item_036": {
+    "ko": "운영 기관과 공식 누리집",
+    "fr": "Institutions et sites officiels"
+  },
+  "item_037": {
+    "ko": "프랑스·한국 학년 비교표, 학사 일정 및 방학, 학교 일과 및 출결 안내, 학교 행정, 급식과 방과후, 학교와 소통하는 방법, 학부모 대표 제도까지 프랑스 학교생활에 필요한 정보를 따로 정리했습니다.",
+    "fr": "Retrouvez dans notre guide les correspondances entre les classes françaises et coréennes, les vacances scolaires, la vie quotidienne à l’école, la cantine, les activités périscolaires et les démarches administratives."
+  },
+  "item_038": {
+    "ko": "프랑스 학교생활 가이드",
+    "fr": "Guide de la vie scolaire"
+  }
+}

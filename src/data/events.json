@@ -2,18 +2,18 @@
   {
     "date": "2026-11-04",
     "title_ko": "유치원/초등학교 입학 지원서 접수 시작 ",
-    "title_fr": "Ouverture des candidatures",
+    "title_fr": "Ouverture des candidatures (maternelle et élémentaire)",
     "kind": "info",
     "tentative": true,
     "place_ko": "교육청 누리집",
     "place_fr": "Site de l’académie",
     "desc_ko": "유치원 초등학교 서류지원 : 2026년 11월 4일 ~ 12월 18일",
-    "desc_fr": "L’an dernier : de novembre au 19 décembre. Date exacte dès publication."
+    "desc_fr": "Période indiquée : du 4 novembre au 18 décembre 2026, sous réserve de confirmation dans l’avis officiel."
   },
   {
     "date": "2026-12-18",
     "title_ko": "유치원/초등학교 (1차) 지원서 마감 ",
-    "title_fr": "Clôture des dossiers (prévision)",
+    "title_fr": "Clôture de la première campagne (prévision)",
     "kind": "info",
     "tentative": true,
     "place_ko": "교육청",

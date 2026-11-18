@@ -1,5 +1,6 @@
 ---
 import cmsCopy from '../../data/site-copy.json';
+import pageCopy from '../../data/cms/pages/legal.json';
 import Base from '../../layouts/Base.astro';
 import PageHero from '../../components/PageHero.astro';
 import { langPaths, L, type Lang } from '../../i18n/ui';
@@ -7,11 +8,13 @@ import { langPaths, L, type Lang } from '../../i18n/ui';
 export const getStaticPaths = langPaths;
 const lang = Astro.params.lang as Lang;
 const ko = lang === 'ko';
+const pageText = (lang: 'ko' | 'fr', key: keyof typeof pageCopy) => pageCopy[key][lang];
+
 ---
-<Base lang={lang} rest="legal/" title={L(lang, { ko: '법적 고지와 개인정보 처리방침', fr: 'Mentions légales et confidentialité' })}>
-  <PageHero lang={lang} eyebrow={L(lang, { ko: '법적 고지', fr: 'Mentions légales' })}
-    title={L(lang, { ko: '법적 고지와 개인정보 처리방침', fr: 'Mentions légales et politique de confidentialité' })}
-    intro={L(lang, { ko: '프랑스 법에 따른 고지입니다. 법적 효력은 프랑스어판을 기준으로 합니다.', fr: 'Informations légales et protection des données personnelles (RGPD).' })} />
+<Base lang={lang} rest="legal/" title={pageText(lang, 'item_001')}>
+  <PageHero lang={lang} eyebrow={pageText(lang, 'item_002')}
+    title={pageText(lang, 'item_003')}
+    intro={pageText(lang, 'item_004')} />
   <div class="wrap sec">
     <div class="prose">
       <h2 id="mentions">{ko ? '사이트 운영자' : 'Éditeur du site'}</h2>

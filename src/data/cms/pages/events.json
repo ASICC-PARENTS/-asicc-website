@@ -1,0 +1,42 @@
+{
+  "item_001": {
+    "ko": "행사 일정",
+    "fr": "Agenda"
+  },
+  "item_002": {
+    "ko": "행사",
+    "fr": "Agenda"
+  },
+  "item_003": {
+    "ko": "국제섹션 및 협회 주요 일정",
+    "fr": "Les temps forts de la section et de l’association"
+  },
+  "item_004": {
+    "ko": "입학 전형, 학교 행사 및 협회의 주요 일정을 한눈에 확인할 수 있습니다. ‘예정’으로 표시된 일정은 이전 학년도 자료를 참고한 것으로, 공식 발표에 따라 변경될 수 있습니다.",
+    "fr": "Retrouvez les principales dates des établissements, de l’association et des admissions. Les dates indiquées comme provisoires restent à confirmer."
+  },
+  "item_005": {
+    "ko": "캘린더 구독 기능은 준비 중입니다. 일정은 아래 목록을 확인해 주세요.",
+    "fr": "L’abonnement au calendrier est en préparation. Retrouvez les dates ci-dessous."
+  },
+  "item_006": {
+    "ko": "예정",
+    "fr": "À confirmer"
+  },
+  "item_007": {
+    "ko": "연간 일정",
+    "fr": "L’année en un coup d’œil"
+  },
+  "item_008": {
+    "ko": "해마다 비슷한 시기에 반복되는 학교와 협회의 주요 일정입니다.",
+    "fr": "Rendez-vous qui reviennent chaque année à des périodes proches."
+  },
+  "item_009": {
+    "ko": "시기",
+    "fr": "Période"
+  },
+  "item_010": {
+    "ko": "일정",
+    "fr": "Rendez-vous"
+  }
+}

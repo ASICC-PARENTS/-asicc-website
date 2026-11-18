@@ -1,0 +1,37 @@
+[
+  {
+    "id": "greeting",
+    "ko": "인사말",
+    "fr": "Mot d’accueil"
+  },
+  {
+    "id": "mission",
+    "ko": "설립 목적",
+    "fr": "Notre mission"
+  },
+  {
+    "id": "axes",
+    "ko": "협회의 4대 주요 활동",
+    "fr": "Nos quatre axes"
+  },
+  {
+    "id": "history",
+    "ko": "연혁",
+    "fr": "Historique"
+  },
+  {
+    "id": "bureau",
+    "ko": "운영진",
+    "fr": "Le bureau"
+  },
+  {
+    "id": "structure",
+    "ko": "국제섹션 운영 기관",
+    "fr": "Les institutions"
+  },
+  {
+    "id": "statuts",
+    "ko": "정관과 운영 원칙",
+    "fr": "Statuts et fonctionnement"
+  }
+]

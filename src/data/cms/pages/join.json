@@ -1,0 +1,110 @@
+{
+  "item_001": {
+    "ko": "참여하기",
+    "fr": "S’engager"
+  },
+  "item_002": {
+    "ko": "참여",
+    "fr": "S’engager"
+  },
+  "item_003": {
+    "ko": "협회와 함께하는 방법",
+    "fr": "Comment participer"
+  },
+  "item_004": {
+    "ko": "협회에 참여하는 다양한 방법을 안내합니다. 회원공간과 일부 온라인 기능은 현재 준비 중입니다.",
+    "fr": "Découvrez les différentes façons de participer à la vie de l’association. L’espace membres et certains services en ligne sont en cours de mise en place."
+  },
+  "item_005": {
+    "ko": "홈페이지 회원가입",
+    "fr": "Créer un compte sur le site"
+  },
+  "item_006": {
+    "ko": "홈페이지는 누구나 일반회원으로 가입할 수 있도록 준비하고 있습니다. 이메일 인증 후 일반회원은 자동 등록되며, 협회회원과 특별회원(졸업생·졸업생 학부모)은 별도의 운영진 승인을 거쳐 이용 권한이 부여됩니다. 홈페이지 회원 등급과 정관상의 회원 자격은 구분하여 관리합니다.",
+    "fr": "L’espace membres est en cours de préparation. À son ouverture, chacun pourra créer un compte général après avoir confirmé son adresse e-mail. L’accès en tant que membre de l’association ou membre spécial (ancien élève ou parent d’ancien élève) sera accordé après validation par le bureau. Les droits d’accès au site et la qualité de membre au sens des statuts sont distincts."
+  },
+  "item_007": {
+    "ko": "이메일과 비밀번호로 계정 만들기",
+    "fr": "Créer un compte avec une adresse e-mail et un mot de passe"
+  },
+  "item_008": {
+    "ko": "이메일 주소 인증하기",
+    "fr": "Vérifier son adresse e-mail"
+  },
+  "item_009": {
+    "ko": "협회회원·특별회원은 승급 신청 후 운영진 승인받기",
+    "fr": "Demander, si nécessaire, le statut de membre de l’association ou de membre spécial"
+  },
+  "item_010": {
+    "ko": "회원가입 서비스 준비 중",
+    "fr": "Espace membres en préparation"
+  },
+  "item_011": {
+    "ko": "연회비 납부",
+    "fr": "Cotisation annuelle"
+  },
+  "item_012": {
+    "ko": "회비는 가정 단위의 자율 납부입니다. 책임보험, 협회 이메일·도메인·웹사이트, 최소 행정비에 사용합니다. 행사비는 행사별로 따로 분담합니다.",
+    "fr": "La cotisation contribue au fonctionnement de l’association : assurance, courrier, nom de domaine, site et frais administratifs. Les éventuelles dépenses liées aux manifestations sont présentées séparément."
+  },
+  "item_013": {
+    "ko": "온라인 납부 링크 준비 중",
+    "fr": "Paiement en ligne en préparation"
+  },
+  "item_014": {
+    "ko": "HelloAsso는 프랑스 협회용 무료 결제 서비스입니다. 결제 화면에서 선택 기부(팁) 금액은 0으로 바꿀 수 있습니다.",
+    "fr": "HelloAsso est gratuit pour les associations ; la contribution volontaire proposée au paiement est facultative."
+  },
+  "item_015": {
+    "ko": "실무진 참여",
+    "fr": "Devenir bénévole"
+  },
+  "item_016": {
+    "ko": "직책과 관계없이 할 수 있는 만큼 함께합니다.",
+    "fr": "Sans mandat, selon vos disponibilités."
+  },
+  "item_017": {
+    "ko": "참여 의사 보내기",
+    "fr": "Je me propose"
+  },
+  "item_018": {
+    "ko": "협력·후원 제안",
+    "fr": "Partenariats"
+  },
+  "item_019": {
+    "ko": "한인 단체, 기업, 기관의 행사 협력과 후원 제안을 받습니다. 후원금의 세제 혜택 여부는 협회 자격 확인 후 안내합니다.",
+    "fr": "Associations, entreprises, institutions : nous étudions vos propositions de partenariat. L’éligibilité à la réduction d’impôt reste à vérifier."
+  },
+  "item_020": {
+    "ko": "제안하기",
+    "fr": "Nous contacter"
+  },
+  "item_021": {
+    "ko": "소식지",
+    "fr": "Lettre d’information"
+  },
+  "item_022": {
+    "ko": "소식지 구독",
+    "fr": "Recevoir nos nouvelles"
+  },
+  "item_023": {
+    "ko": "입학 일정과 협회 소식을 이메일로 받아 보세요. 학부모가 아니어도 구독할 수 있고, 언제든 해지할 수 있습니다.",
+    "fr": "Recevez par e-mail les nouvelles de l’association et les informations sur les admissions. La lettre est ouverte à tous ; vous pourrez vous désabonner à tout moment."
+  },
+  "item_024": {
+    "ko": "이메일",
+    "fr": "E-mail"
+  },
+  "item_025": {
+    "ko": "받을 언어",
+    "fr": "Langue"
+  },
+  "item_026": {
+    "ko": "소식지 발송을 위한 이메일 수집에 동의합니다.",
+    "fr": "J’accepte de recevoir la lettre d’information."
+  },
+  "item_027": {
+    "ko": "구독하기",
+    "fr": "S’abonner"
+  }
+}

@@ -1,0 +1,47 @@
+[
+  {
+    "id": "first",
+    "ko": "국제섹션 입학을 준비하는 가정에",
+    "fr": "Pour commencer"
+  },
+  {
+    "id": "who",
+    "ko": "지원 자격",
+    "fr": "Conditions de candidature"
+  },
+  {
+    "id": "commitment",
+    "ko": "가정에서의 협력과 지원",
+    "fr": "Engagement des familles"
+  },
+  {
+    "id": "steps",
+    "ko": "모집 절차와 일정",
+    "fr": "Procédure et calendrier"
+  },
+  {
+    "id": "entries",
+    "ko": "학교별 입학 지원 시기",
+    "fr": "Entrées possibles"
+  },
+  {
+    "id": "notes",
+    "ko": "유의 사항",
+    "fr": "Points d’attention"
+  },
+  {
+    "id": "contacts",
+    "ko": "입학 관련 공식 문의처",
+    "fr": "Contacts officiels"
+  },
+  {
+    "id": "session",
+    "ko": "입학설명회 일정 알림 신청",
+    "fr": "Réunion d’information"
+  },
+  {
+    "id": "faq",
+    "ko": "자주 묻는 질문",
+    "fr": "Questions fréquentes"
+  }
+]

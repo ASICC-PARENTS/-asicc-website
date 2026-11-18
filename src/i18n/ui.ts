@@ -1,4 +1,5 @@
 import { BASE } from '../config';
+import navCopy from '../data/cms/navigation.json';
 
 export const LANGS = ['ko', 'fr'] as const;
 export type Lang = (typeof LANGS)[number];
@@ -12,29 +13,29 @@ export const href = (lang: Lang, rest = '') => `${BASE}${lang}/${rest}`;
 type Dict = Record<string, { ko: string; fr: string }>;
 
 export const ui = {
-  'site.name': { ko: '쿠르브부아 한국어 국제섹션 학부모협회', fr: 'Association de la Section Internationale Coréenne à Courbevoie' },
-  'site.short': { ko: '쿠르브부아 한국어 국제섹션 학부모협회', fr: 'Section internationale coréenne de Courbevoie' },
-  'nav.about': { ko: '협회 소개', fr: 'L’association' },
-  'nav.section': { ko: '국제섹션', fr: 'La section' },
-  'nav.admission': { ko: '입학', fr: 'Admissions' },
-  'nav.news': { ko: '소식', fr: 'Actualités' },
-  'nav.events': { ko: '행사', fr: 'Agenda' },
-  'nav.join': { ko: '참여', fr: 'S’engager' },
-  'nav.contact': { ko: '문의', fr: 'Contact' },
-  'nav.members': { ko: '회원', fr: 'Espace membres' },
-  'nav.menu': { ko: '메뉴', fr: 'Menu' },
-  'nav.skip': { ko: '본문 바로가기', fr: 'Aller au contenu' },
-  'lang.switch': { ko: 'Français', fr: '한국어' },
-  'lang.label': { ko: '언어', fr: 'Langue' },
-  'footer.declared': { ko: '2026년 4월 28일 신고', fr: 'déclarée le 28 avril 2026' },
-  'footer.legal': { ko: '법적 고지', fr: 'Mentions légales' },
-  'footer.privacy': { ko: '개인정보 처리방침', fr: 'Confidentialité' },
-  'footer.statuts': { ko: '정관', fr: 'Statuts' },
-  'footer.subscribe': { ko: '소식지 구독', fr: 'Lettre d’information' },
-  'common.more': { ko: '자세히 보기', fr: 'En savoir plus' },
-  'common.all': { ko: '전체 보기', fr: 'Tout voir' },
-  'common.back': { ko: '목록으로', fr: 'Retour à la liste' },
-  'common.placeholder': { ko: '확정 후 게재', fr: 'À compléter' },
+  'site.name': navCopy.site_name,
+  'site.short': navCopy.site_short,
+  'nav.about': navCopy.nav_about,
+  'nav.section': navCopy.nav_section,
+  'nav.admission': navCopy.nav_admission,
+  'nav.news': navCopy.nav_news,
+  'nav.events': navCopy.nav_events,
+  'nav.join': navCopy.nav_join,
+  'nav.contact': navCopy.nav_contact,
+  'nav.members': navCopy.nav_members,
+  'nav.menu': navCopy.nav_menu,
+  'nav.skip': navCopy.nav_skip,
+  'lang.switch': navCopy.lang_switch,
+  'lang.label': navCopy.lang_label,
+  'footer.declared': navCopy.footer_declared,
+  'footer.legal': navCopy.footer_legal,
+  'footer.privacy': navCopy.footer_privacy,
+  'footer.statuts': navCopy.footer_statuts,
+  'footer.subscribe': navCopy.footer_subscribe,
+  'common.more': navCopy.common_more,
+  'common.all': navCopy.common_all,
+  'common.back': navCopy.common_back,
+  'common.placeholder': navCopy.common_placeholder,
 } satisfies Dict;
 
 export type UiKey = keyof typeof ui;
@@ -46,12 +47,7 @@ export const L = <T,>(lang: Lang, v: { ko: T; fr: T }) => v[lang];
 export type NavItem = { key: UiKey; path: string; children?: { label: { ko: string; fr: string }; path: string }[] };
 export const NAV: NavItem[] = [
   { key: 'nav.about', path: 'about/' },
-  { key: 'nav.section', path: 'section/', children: [
-    { label: { ko: '국제섹션 안내', fr: 'Présentation de la section' }, path: 'section/' },
-    { label: { ko: '프랑스 학제와 국제섹션', fr: 'Système scolaire et SI' }, path: 'section/#system' },
-    { label: { ko: '유치원·초등학교·중학교', fr: 'Maternelle · Élémentaire · Collège' }, path: 'section/#schools' },
-    { label: { ko: '프랑스 학교생활 가이드', fr: 'Guide de la vie scolaire' }, path: 'section/guide/' },
-  ] },
+  { key: 'nav.section', path: 'section/', children: navCopy.section_submenu },
   { key: 'nav.admission', path: 'admission/' },
   { key: 'nav.news', path: 'news/' },
   { key: 'nav.events', path: 'events/' },

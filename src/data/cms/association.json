@@ -1,0 +1,352 @@
+{
+  "BUREAU": [
+    {
+      "role": {
+        "ko": "회장",
+        "fr": "Présidente"
+      },
+      "name": "안정아",
+      "latin": "Jungah Ahn"
+    },
+    {
+      "role": {
+        "ko": "부회장",
+        "fr": "Vice-présidente"
+      },
+      "name": "김영란",
+      "latin": "KIM YOUNGLAN"
+    },
+    {
+      "role": {
+        "ko": "사무총장",
+        "fr": "Secrétaire générale"
+      },
+      "name": "변지영"
+    },
+    {
+      "role": {
+        "ko": "회계",
+        "fr": "Trésorière"
+      },
+      "name": "방은주"
+    },
+    {
+      "role": {
+        "ko": "유치원 대표",
+        "fr": "Représentante, maternelle"
+      },
+      "name": "호지연",
+      "latin": "Jeeyoun Ho"
+    },
+    {
+      "role": {
+        "ko": "초등학교 대표",
+        "fr": "Représentante, élémentaire"
+      },
+      "name": "이연호",
+      "latin": "Younho Lee"
+    },
+    {
+      "role": {
+        "ko": "중학교 대표",
+        "fr": "Représentante, collège"
+      },
+      "name": "김자경",
+      "latin": "Jakyoung Kim"
+    }
+  ],
+  "AXES": [
+    {
+      "tag": {
+        "ko": "지원 · SOUTIEN",
+        "fr": "SOUTIEN"
+      },
+      "color": "var(--hong)",
+      "title": {
+        "ko": "학교 교육 활동 지원",
+        "fr": "Soutien aux activités scolaires"
+      },
+      "text": {
+        "ko": "국제섹션 수업이 학교 생활 속에 자연스럽게 자리 잡도록, 학교와 교사의 문화 행사를 학부모가 함께 준비합니다. 학교마다 운영 방식에 맞추어 지원 대상과 방법을 달리합니다.",
+        "fr": "Les parents accompagnent les temps forts culturels organisés par les écoles et les enseignants, selon des modalités adaptées à chaque niveau."
+      },
+      "items": [
+        {
+          "ko": "설날 등 한국 명절을 계기로 한 학교 단위 한국 문화 소개 활동 (학교와 협의하여 진행)",
+          "fr": "Présentation de la culture coréenne dans les écoles à l’occasion des fêtes traditionnelles, en accord avec les établissements"
+        },
+        {
+          "ko": "한국의 날(Journée de la Corée) 준비와 진행 지원",
+          "fr": "Préparation de la Journée de la Corée"
+        },
+        {
+          "ko": "학교 축제의 한국 문화 부스 운영",
+          "fr": "Stands de culture coréenne lors des fêtes d’école"
+        }
+      ],
+      "result": {
+        "ko": "학생들의 참여와 한국 문화에 대한 긍정적 인식",
+        "fr": "Adhésion des élèves et image positive de la culture coréenne"
+      }
+    },
+    {
+      "tag": {
+        "ko": "대외협력 · COOPÉRATION",
+        "fr": "COOPÉRATION"
+      },
+      "color": "var(--jjok)",
+      "title": {
+        "ko": "관계 기관과의 지속적 소통",
+        "fr": "Dialogue avec les institutions"
+      },
+      "text": {
+        "ko": "국제섹션은 한국과 프랑스 기관이 역할을 나누어 운영하므로, 학부모의 의견을 각 기관에 정확히 전달하는 창구가 필요합니다. 협회는 학교 현장의 상황을 기록하고 공식적으로 전달합니다.",
+        "fr": "La section reposant sur plusieurs institutions françaises et coréennes, l’association transmet officiellement la voix des familles et suit les échanges dans la durée."
+      },
+      "items": [
+        {
+          "ko": "주프랑스 한국교육원장과 해마다 한 차례 이상 정기 면담",
+          "fr": "Rencontre au moins annuelle avec la direction du Centre éducatif coréen"
+        },
+        {
+          "ko": "학교와 섹션의 주요 소식 공유, 필요한 지원 요청",
+          "fr": "Partage des informations et demandes de soutien"
+        },
+        {
+          "ko": "학교 학부모 대표 활동을 통한 학교 운영 참여",
+          "fr": "Participation aux instances de l’école via les représentants de parents"
+        }
+      ],
+      "result": {
+        "ko": "기관과의 신뢰에 바탕을 둔 지속적 협력 관계",
+        "fr": "Partenariats durables"
+      }
+    },
+    {
+      "tag": {
+        "ko": "입학 안내 및 홍보 · DÉVELOPPEMENT",
+        "fr": "DÉVELOPPEMENT"
+      },
+      "color": "var(--gam-d)",
+      "title": {
+        "ko": "국제섹션 입학 안내 및 홍보",
+        "fr": "Des effectifs stables"
+      },
+      "text": {
+        "ko": "국제섹션에 관심 있는 가정에 입학 정보를 제공합니다. 협회는 입학을 고민하는 가정이 정확한 정보를 얻을 수 있도록 안내하고, 지원 과정 전반을 돕습니다.",
+        "fr": "La pérennité de la section dépend de candidatures régulières à chaque niveau ; l’association informe et accompagne les familles intéressées."
+      },
+      "items": [
+        {
+          "ko": "한인 온라인 커뮤니티와 지역 한인 사회에 국제섹션 소개",
+          "fr": "Présentation de la section auprès de la communauté coréenne"
+        },
+        {
+          "ko": "입학 관심 가정에 절차와 일정 안내, 재학생 가정 경험 공유",
+          "fr": "Information des familles sur la procédure et le calendrier"
+        },
+        {
+          "ko": "주프랑스 한국교육원의 입학설명회 개최 협력",
+          "fr": "Appui aux réunions d’information du Centre éducatif coréen"
+        }
+      ],
+      "result": {
+        "ko": "입학 안내 및 홍보를 통한 섹션의 지속 가능한 발전",
+        "fr": "Candidatures et pérennité de la section"
+      }
+    },
+    {
+      "tag": {
+        "ko": "공동체 · COMMUNAUTÉ",
+        "fr": "COMMUNAUTÉ"
+      },
+      "color": "var(--sol)",
+      "title": {
+        "ko": "유치원부터 중학교까지 이어지는 학부모 공동체",
+        "fr": "Une seule section, trois niveaux"
+      },
+      "text": {
+        "ko": "유치원, 초등학교, 중학교는 서로 다른 학교에 있지만 하나의 과정으로 이어집니다. 협회는 학교별 정보를 잇고, 새로 온 가정이 섹션에 빨리 적응하도록 돕습니다.",
+        "fr": "Les trois niveaux sont répartis dans trois établissements mais forment un même parcours ; l’association relie les familles et facilite l’accueil des nouvelles."
+      },
+      "items": [
+        {
+          "ko": "학교별 대표를 통한 정보 공유",
+          "fr": "Relais d’information par les représentants de niveau"
+        },
+        {
+          "ko": "새로 입학한 가정 안내",
+          "fr": "Accueil des nouvelles familles"
+        },
+        {
+          "ko": "임원 교체에도 이어지는 기록 보존과 인수인계",
+          "fr": "Archivage et transmission entre bureaux successifs"
+        }
+      ],
+      "result": {
+        "ko": "학부모 네트워크와 공동체 강화",
+        "fr": "Un réseau de parents solide"
+      }
+    }
+  ],
+  "HISTORY": [
+    {
+      "date": {
+        "ko": "2017년 9월",
+        "fr": "Septembre 2017"
+      },
+      "title": {
+        "ko": "한국어 국제섹션 개설",
+        "fr": "Ouverture de la section internationale coréenne"
+      },
+      "text": {
+        "ko": "한·불 수교 130주년을 계기로 한국과 프랑스 교육부가 맺은 협약에 따라, 베르사유 교육청 관할의 쿠르브부아(초등학교·중학교)와 스트라스부르 교육청 관할의 Collège Vauban에 한국어 국제섹션이 처음 문을 열었습니다. 이후 쿠르브부아에는 유치원 과정이 더해져, 유치원부터 중학교까지 이어지는 과정이 갖추어졌습니다.",
+        "fr": "Dans le cadre d’un accord entre les ministères français et coréen, à l’occasion des 130 ans des relations diplomatiques, la section ouvre à Courbevoie (élémentaire et collège) et au collège Vauban de Strasbourg. La maternelle complète ensuite le parcours à Courbevoie."
+      }
+    },
+    {
+      "date": {
+        "ko": "2017 ~ 2025",
+        "fr": "2017–2025"
+      },
+      "title": {
+        "ko": "학부모 자원 활동의 축적",
+        "fr": "Huit années d’engagement bénévole"
+      },
+      "text": {
+        "ko": "정식 협회가 없던 시기에도 학부모들은 학교 행사 지원, 신입생 홍보, 주프랑스 한국교육원과의 면담을 자발적으로 이어 왔습니다. 섹션이 성장하면서 학교와 관계 기관에 학부모 전체의 의견을 공식적으로 대표할 조직이 필요하다는 공감대가 형성되었습니다.",
+        "fr": "Sans structure formelle, les parents ont soutenu les événements, la promotion de la section et le dialogue avec le Centre éducatif coréen. La croissance de la section a fait émerger le besoin d’une représentation officielle."
+      }
+    },
+    {
+      "date": {
+        "ko": "2026년 3월",
+        "fr": "Mars 2026"
+      },
+      "title": {
+        "ko": "정관 채택",
+        "fr": "Adoption des statuts"
+      },
+      "text": {
+        "ko": "3월 16일 학부모 모임에서 협회 정관을 채택하고, 3월 30일 정관에 서명했습니다. 국제섹션에 자녀를 둔 학부모는 정관에 따라 모두 협회 회원이 됩니다.",
+        "fr": "Les statuts sont adoptés le 16 mars et signés le 30 mars. Tous les parents d’élèves de la section en sont membres."
+      }
+    },
+    {
+      "date": {
+        "ko": "2026년 4월 28일",
+        "fr": "28 avril 2026"
+      },
+      "title": {
+        "ko": "협회 공식 신고",
+        "fr": "Déclaration de l’association"
+      },
+      "text": {
+        "ko": "1901년 법에 따른 비영리 협회로 신고를 마쳤습니다. 이후 임시 운영진이 협회 운영의 기틀을 마련했습니다.",
+        "fr": "Déclaration en préfecture comme association loi 1901 ; une équipe provisoire met en place le fonctionnement."
+      }
+    },
+    {
+      "date": {
+        "ko": "2026년 9월",
+        "fr": "Septembre 2026"
+      },
+      "title": {
+        "ko": "운영 기반 마련",
+        "fr": "Mise en place administrative"
+      },
+      "text": {
+        "ko": "협회 명의의 은행 계좌를 개설하고 책임보험 가입을 추진했습니다.",
+        "fr": "Ouverture du compte bancaire et souscription de l’assurance responsabilité civile."
+      }
+    },
+    {
+      "date": {
+        "ko": "2026년 10월 4일",
+        "fr": "4 octobre 2026"
+      },
+      "title": {
+        "ko": "제1회 정기총회",
+        "fr": "Première assemblée générale"
+      },
+      "text": {
+        "ko": "운영진 재신임(임기 2년)과 2026–2027년도 협회 운영 및 연회비에 대해 논의하고, 임시 운영 체계에서 공식 운영 체계로 전환했습니다. 학교별 대표를 새로 정하고 실무진 모집을 시작했습니다.",
+        "fr": "Reconduction du bureau pour deux ans, échanges sur la cotisation et les orientations 2026–2027 et passage à un fonctionnement régulier ; désignation des représentants de niveau."
+      }
+    }
+  ],
+  "PARTNERS": [
+    {
+      "side": "kr",
+      "name": {
+        "ko": "대한민국 교육부",
+        "fr": "Ministère coréen de l’Éducation"
+      },
+      "role": {
+        "ko": "양국 협약에 따른 교사 인건비 예산",
+        "fr": "Financement des postes d’enseignants"
+      },
+      "href": "https://www.moe.go.kr"
+    },
+    {
+      "side": "kr",
+      "name": {
+        "ko": "주프랑스 한국교육원",
+        "fr": "Centre éducatif coréen en France"
+      },
+      "role": {
+        "ko": "한국어 교사 채용과 급여 집행, 섹션 홍보와 입학설명회",
+        "fr": "Recrutement et rémunération des enseignants, promotion"
+      },
+      "href": "https://fr-fr.educoree.fr/"
+    },
+    {
+      "side": "fr",
+      "name": {
+        "ko": "프랑스 국민교육부",
+        "fr": "Ministère de l’Éducation nationale"
+      },
+      "role": {
+        "ko": "국제섹션 제도와 교육과정",
+        "fr": "Cadre et programmes des sections internationales"
+      },
+      "href": "https://www.education.gouv.fr/"
+    },
+    {
+      "side": "fr",
+      "name": {
+        "ko": "베르사유 교육청",
+        "fr": "Académie de Versailles"
+      },
+      "role": {
+        "ko": "수업 관리·감독, 입학 심사와 결정",
+        "fr": "Pilotage pédagogique, admissions"
+      },
+      "href": "https://www.ac-versailles.fr/si92"
+    },
+    {
+      "side": "fr",
+      "name": {
+        "ko": "쿠르브부아 시청",
+        "fr": "Ville de Courbevoie"
+      },
+      "role": {
+        "ko": "유치원·초등학교 운영 지원, 입학 안내",
+        "fr": "Écoles du 1er degré, information des familles"
+      },
+      "href": "https://www.ville-courbevoie.fr/"
+    },
+    {
+      "side": "fr",
+      "name": {
+        "ko": "Collège Les Bruyères",
+        "fr": "Collège Les Bruyères"
+      },
+      "role": {
+        "ko": "중학교 과정 운영",
+        "fr": "Section au collège"
+      },
+      "href": "https://clg-bruyeres-courbevoie.ac-versailles.fr/"
+    }
+  ]
+}
