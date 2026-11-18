@@ -1,0 +1,286 @@
+// ASICC Firestore unified draft — 2026-11-17
+// NOT DEPLOYED. Review against current Astro forms and Firebase Emulator first.
+// Roles: general / member / special / admin
+// Do not upload private child/student files until Storage rules are verified.
+// ASICC member-space V2 — STAGING RULESET, not a drop-in replacement for the
+// existing website's rules. Before deployment merge and test existing public
+// contact, event, newsletter and legacy collections. Default is deny.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function verified() { return signedIn() && request.auth.token.email_verified == true; }
+    function myProfileExists() {
+      return signedIn() && exists(/databases/$(database)/documents/members/$(request.auth.uid));
+    }
+    function me() {
+      return get(/databases/$(database)/documents/members/$(request.auth.uid)).data;
+    }
+    function isActive() { return verified() && myProfileExists() && me().status == 'approved'; }
+    function isAdmin() { return isActive() && me().role == 'admin'; }
+    function hasGalleryAccess() {
+      return isActive() && me().role in ['member','special','admin'];
+    }
+    function validRole(role) { return role in ['general','member','special','admin']; }
+    function validRegistration(uid) {
+      return signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name','email','role','status','consent','createdAt'])
+        && request.resource.data.keys().hasAll(['name','email','role','status','consent','createdAt'])
+        && request.resource.data.name is string && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 80
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.role == 'general'
+        && request.resource.data.status == 'approved'
+        && request.resource.data.consent == true
+        && request.resource.data.createdAt == request.time;
+    }
+    match /members/{uid} {
+      // Profiles are not a public or member-wide directory.
+      allow get: if signedIn() && request.auth.uid == uid || isAdmin();
+      allow list: if isAdmin();
+      // Self-service registration can never grant privileged roles.
+      allow create: if validRegistration(uid);
+      // Only admins may change roles and status; login users cannot elevate themselves.
+      allow update: if isAdmin()
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.consent == resource.data.consent
+        && request.resource.data.name == resource.data.name
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role','status'])
+        && validRole(request.resource.data.role)
+        && request.resource.data.status in ['approved','suspended'];
+      allow delete: if false;
+    }
+    function validUpgrade(uid) {
+      return isActive() && request.auth.uid == uid && me().role == 'general'
+        && request.resource.data.uid == uid
+        && request.resource.data.applicantName == me().name
+        && request.resource.data.applicantEmail == request.auth.token.email
+        && request.resource.data.requestedRole in ['member','special']
+        && request.resource.data.kind in ['parent','alumnus','alumni-parent']
+        && (request.resource.data.requestedRole == 'member' && request.resource.data.kind == 'parent'
+           || request.resource.data.requestedRole == 'special' && request.resource.data.kind in ['alumnus','alumni-parent'])
+        && (request.resource.data.schoolYear == null || request.resource.data.schoolYear is int
+            && request.resource.data.schoolYear >= 2000 && request.resource.data.schoolYear <= 2100)
+        && request.resource.data.note is string && request.resource.data.note.size() <= 500
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time;
+    }
+    match /upgradeRequests/{uid} {
+      allow get: if isAdmin() || verified() && request.auth.uid == uid;
+      allow list: if isAdmin();
+      allow create: if request.resource.data.keys().hasOnly([
+          'uid','applicantName','applicantEmail','requestedRole','kind','schoolYear','note','status','createdAt'
+        ]) && validUpgrade(uid);
+      // A rejected applicant can submit a new request; the previous review is retained.
+      allow update: if (isAdmin()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','reviewedBy','reviewedAt'])
+          && request.resource.data.status in ['approved','rejected']
+          && request.resource.data.reviewedBy == request.auth.uid
+          && request.resource.data.reviewedAt == request.time)
+        || (verified() && request.auth.uid == uid && resource.data.status == 'rejected'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+             'requestedRole','kind','schoolYear','note','status','createdAt'
+          ]) && validUpgrade(uid));
+      allow delete: if isAdmin();
+    }
+    function allowedMime(m) {
+      return m in [
+        'application/pdf', 'image/jpeg', 'image/png', 'image/webp',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+      ];
+    }
+    function validFileRecord(prefix,id) {
+      return request.resource.data.keys().hasOnly([
+          'title','filename','mime','storagePath','createdBy','createdAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'title','filename','mime','storagePath','createdBy','createdAt'
+        ])
+        && request.resource.data.title is string && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 150
+        && request.resource.data.filename is string && request.resource.data.filename.size() > 0
+        && request.resource.data.filename.size() <= 255
+        && allowedMime(request.resource.data.mime)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.storagePath.matches('^' + prefix + '/' + id + '/[^/]+$');
+    }
+    match /learningResources/{id} {
+      allow get, list: if isActive();
+      allow create: if isAdmin() && validFileRecord('learning',id);
+      allow delete: if isAdmin();
+    }
+    match /galleryItems/{id} {
+      allow get, list: if hasGalleryAccess();
+      allow create: if isAdmin() && validFileRecord('gallery',id);
+      allow delete: if isAdmin();
+    }
+    match /officeDocs/{id} {
+      allow get, list: if isAdmin();
+      allow create: if isAdmin() && validFileRecord('office',id);
+      allow delete: if isAdmin();
+    }
+    // Private member bulletin board: read for all verified active members,
+    // writing for association members, alumni/special members, and admins only.
+    function canWriteBoard() { return hasGalleryAccess(); }
+    function postDoc(postId) {
+      return /databases/$(database)/documents/boardPosts/$(postId);
+    }
+    function validPostCreate() {
+      return request.resource.data.keys().hasOnly([
+          'title','body','authorUid','authorName','createdAt','updatedAt','deleted'
+        ]) && request.resource.data.keys().hasAll([
+          'title','body','authorUid','authorName','createdAt','updatedAt','deleted'
+        ])
+        && request.resource.data.title is string && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 120
+        && request.resource.data.body is string && request.resource.data.body.size() > 0
+        && request.resource.data.body.size() <= 5000
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.authorName == me().name
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.deleted == false;
+    }
+    function validPostUpdate() {
+      return resource.data.deleted == false
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'title','body','deleted','updatedAt'
+        ])
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.title is string && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 120
+        && request.resource.data.body is string && request.resource.data.body.size() > 0
+        && request.resource.data.body.size() <= 5000
+        && (request.resource.data.deleted == false
+          || request.resource.data.deleted == true
+            && request.resource.data.title == '[숨김 처리된 게시글]'
+            && request.resource.data.body == '[숨김 처리된 게시글]');
+    }
+    function validCommentCreate() {
+      return request.resource.data.keys().hasOnly([
+          'body','authorUid','authorName','createdAt','updatedAt','deleted'
+        ]) && request.resource.data.keys().hasAll([
+          'body','authorUid','authorName','createdAt','updatedAt','deleted'
+        ])
+        && request.resource.data.body is string && request.resource.data.body.size() > 0
+        && request.resource.data.body.size() <= 2000
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.authorName == me().name
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.deleted == false;
+    }
+    function validCommentUpdate() {
+      return resource.data.deleted == false
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'body','deleted','updatedAt'
+        ])
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.body is string && request.resource.data.body.size() > 0
+        && request.resource.data.body.size() <= 2000
+        && (request.resource.data.deleted == false
+          || request.resource.data.deleted == true
+            && request.resource.data.body == '[숨김 처리된 댓글]');
+    }
+    match /boardPosts/{postId} {
+      allow get, list: if isActive();
+      allow create: if canWriteBoard() && validPostCreate();
+      allow update: if canWriteBoard()
+        && (resource.data.authorUid == request.auth.uid || isAdmin())
+        && validPostUpdate();
+      // Soft deletion avoids orphaning comment subcollections. No physical deletion.
+      allow delete: if false;
+      match /comments/{commentId} {
+        // Comments under hidden posts are not readable even through direct SDK queries.
+        allow get, list: if isActive() && exists(postDoc(postId))
+          && get(postDoc(postId)).data.deleted == false;
+        allow create: if canWriteBoard() && exists(postDoc(postId))
+          && get(postDoc(postId)).data.deleted == false && validCommentCreate();
+        allow update: if canWriteBoard()
+          && exists(postDoc(postId)) && get(postDoc(postId)).data.deleted == false
+          && (resource.data.authorUid == request.auth.uid || isAdmin())
+          && validCommentUpdate();
+        allow delete: if false;
+      }
+    }
+    // Legacy Astro collections retained to avoid losing the original forms.
+    // Notice reading is for all active members; administrators publish.
+    match /notices/{id} {
+      allow read: if isActive();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Sensitive association-office records: administrators ONLY.
+    match /minutes/{id} {
+      allow read, write: if isAdmin();
+    }
+    match /relations/{id} {
+      allow read, write: if isAdmin();
+    }
+    match /expenses/{id} {
+      allow read, write: if isAdmin();
+    }
+    match /handover/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    // Legacy gallery; new member space uses galleryItems.
+    match /gallery/{id} {
+      allow read: if hasGalleryAccess();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Legacy sharing board; new member space uses boardPosts and comments.
+    match /sharing/{id} {
+      allow read: if isActive();
+      allow create: if canWriteBoard()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 120
+        && request.resource.data.get('body', '') is string
+        && request.resource.data.get('body', '').size() <= 2000;
+      allow delete: if canWriteBoard()
+        && (resource.data.uid == request.auth.uid || isAdmin());
+    }
+
+    // Public contact, event registration and newsletter signup forms.
+    // These preserve existing field contracts, but are vulnerable to automated spam;
+    // add rate limiting / server-side abuse controls before public launch.
+    function isEmail(v) {
+      return v is string
+        && v.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$')
+        && v.size() < 200;
+    }
+    function str(v, max) { return v is string && v.size() <= max; }
+    match /messages/{id} {
+      allow create: if isEmail(request.resource.data.email)
+        && str(request.resource.data.name, 100)
+        && str(request.resource.data.message, 5000)
+        && request.resource.data.consent == true;
+      allow get, list, delete: if isAdmin();
+    }
+    match /registrations/{id} {
+      allow create: if isEmail(request.resource.data.email)
+        && str(request.resource.data.name, 100)
+        && str(request.resource.data.get('message', ''), 3000)
+        && request.resource.data.consent == true;
+      allow get, list, delete: if isAdmin();
+    }
+    match /subscribers/{id} {
+      allow create: if isEmail(request.resource.data.email)
+        && request.resource.data.consent == true
+        && request.resource.data.keys().hasOnly([
+          'email','lang','consent','pageLang','date','createdAt'
+        ]);
+      allow get, list, delete: if isAdmin();
+    }
+
+    // Anything not explicitly approved above is denied.
+    match /{document=**} { allow read, write: if false; }
+  }
+}
