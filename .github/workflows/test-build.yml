@@ -1,0 +1,29 @@
+
+name: ASICC Test Build
+
+on:
+  push:
+    branches: [test-cms-fr]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Check Astro build
+        run: npm run build
+        env:
+          SITE_URL: ${{ vars.ASICC_CUSTOM_DOMAIN != '' && format('https://{0}', vars.ASICC_CUSTOM_DOMAIN) || format('https://{0}.github.io', github.repository_owner) }}
+          BASE_PATH: ${{ vars.ASICC_CUSTOM_DOMAIN != '' && '/' || format('/{0}/', github.event.repository.name) }}
