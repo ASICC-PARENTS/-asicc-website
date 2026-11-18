@@ -255,9 +255,10 @@ test('new user may create only approved general member profile', async () => {
 
   await assertSucceeds(
     setDoc(doc(db, 'members', newuid), {
-      name: 'New user',
-      email: EMAIL(newuid),
-      role: 'general',
+  name: 'New user',
+  nickname: 'NewTester',
+  email: EMAIL(newuid),
+  role: 'general',
       status: 'approved',
       consent: true,
       createdAt: serverTimestamp()
