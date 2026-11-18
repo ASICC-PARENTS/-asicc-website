@@ -57,7 +57,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
 <script>
   import { getApps, initializeApp } from 'firebase/app';
   import { getAuth, onAuthStateChanged, getIdToken } from 'firebase/auth';
-  import { getFirestore, doc, collection, getDoc, getDocs, query, orderBy, limit, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+  import { getFirestore, doc, collection, getDoc, getDocs, query, orderBy, limit, setDoc, updateDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
   import { firebaseConfig } from '../../../firebase-config';
   type BoardData = { id:string;title:string;body:string;authorUid:string;authorName:string;deleted:boolean;createdAt?:{toDate?:()=>Date};updatedAt?:unknown };
   type CommentData = { id:string;body:string;authorUid:string;authorName:string;deleted:boolean;createdAt?:{toDate?:()=>Date} };
@@ -76,7 +76,10 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
   // Content edits are restricted to the original author, including when the viewer is an admin.
   const canEdit=(owner:string)=>canWrite()&&owner===uid;
   // Administrators may moderate other members' posts and comments; authors may withdraw theirs.
-  const canModerate=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
+  
+const canModerate=()=>role==='admin';
+const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
+
   const show=(id:string,on:boolean)=>{const v=by<HTMLElement>(id);if(v)v.hidden=!on;};
   async function refreshPosts(){
     const list=by<HTMLElement>('board-list');if(!list)return;
@@ -100,15 +103,34 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
     const title=by<HTMLElement>('detail-title'),body=by<HTMLElement>('detail-body'),meta=by<HTMLElement>('detail-meta'),actions=by<HTMLElement>('detail-actions');
     if(title)title.textContent=post.title;if(body)body.textContent=post.body;if(meta)meta.textContent=`${post.authorName} · ${stamp(post.createdAt)}`;
     actions?.replaceChildren();
+    
     if(!post.deleted){
       if(canEdit(post.authorUid)){
-        const edit=el('button',tr('수정','Modifier')) as HTMLButtonElement;edit.type='button';edit.className='btn btn-ghost';edit.addEventListener('click',()=>void editPost(post));actions?.append(edit);
+        const edit=el('button',tr('수정','Modifier')) as HTMLButtonElement;
+        edit.type='button';
+        edit.className='btn btn-ghost';
+        edit.addEventListener('click',()=>void editPost(post));
+        actions?.append(edit);
       }
-      if(canModerate(post.authorUid)){
+
+      if(canModerate() && post.authorUid!==uid){
         const hide=el('button',tr('숨기기','Masquer')) as HTMLButtonElement;
-        hide.type='button';hide.className='btn btn-ghost';hide.addEventListener('click',()=>void hidePost(post));actions?.append(hide);
+        hide.type='button';
+        hide.className='btn btn-ghost';
+        hide.addEventListener('click',()=>void hidePost(post));
+        actions?.append(hide);
+      }
+
+      if(canDelete(post.authorUid)){
+        const own=post.authorUid===uid;
+        const del=el('button',tr(own?'삭제':'완전 삭제',own?'Supprimer':'Supprimer définitivement')) as HTMLButtonElement;
+        del.type='button';
+        del.className='btn btn-ghost';
+        del.addEventListener('click',()=>void deletePost(post));
+        actions?.append(del);
       }
     }
+
     show('comment-form',canWrite()&&!post.deleted);await refreshComments(post.id);
   }
   function back(){selected=null;show('post-detail',false);show('post-form',canWrite());show('board-list',true);show('board-search',true);}
@@ -125,6 +147,126 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
     try{await updateDoc(doc(db,'boardPosts',post.id),{deleted:true,title:'[숨김 처리된 게시글]',body:'[숨김 처리된 게시글]',updatedAt:serverTimestamp()});back();await refreshPosts();}
     catch(e){console.error(e);notify(tr('숨김 처리 실패','Impossible de masquer.'),true);}
   }
+
+  const deletionReason=(own:boolean):'author_request'|'spam'|'rules_violation'|null=>{
+    if(own)return 'author_request';
+
+    const value=prompt(
+      tr('완전 삭제 사유: spam 또는 rules_violation',
+         'Motif : spam ou rules_violation'),
+      'spam'
+    );
+
+    if(value===null)return null;
+
+    if(value!=='spam'&&value!=='rules_violation'){
+      notify(tr('삭제 사유를 확인하세요.','Motif non valide.'),true);
+      return null;
+    }
+    return value;
+  };
+
+  async function deletePost(post:BoardData){
+    if(!canDelete(post.authorUid)||post.deleted)return;
+
+    const own=post.authorUid===uid;
+    const reason=deletionReason(own);
+    if(!reason)return;
+
+    if(!confirm(tr(
+      '게시글과 모든 댓글을 완전히 삭제할까요? 복구할 수 없습니다.',
+      'Supprimer définitivement ce message et tous ses commentaires ?'
+    )))return;
+
+    try{
+      const comments=await getDocs(
+        query(collection(db,'boardPosts',post.id,'comments'),limit(451))
+      );
+
+      if(comments.size>450){
+        notify(tr(
+          '댓글이 너무 많아 일괄 삭제할 수 없습니다.',
+          'Trop de commentaires.'
+        ),true);
+        return;
+      }
+
+      const batch=writeBatch(db);
+
+      for(const comment of comments.docs){
+        batch.delete(comment.ref);
+      }
+
+      batch.delete(doc(db,'boardPosts',post.id));
+
+      batch.set(doc(db,'boardDeletionLogs',`post_${post.id}`),{
+        targetType:'post',
+        postId:post.id,
+        commentId:'',
+        authorUid:post.authorUid,
+        actorUid:uid,
+        reason,
+        deletedAt:serverTimestamp()
+      });
+
+      await batch.commit();
+      back();
+      await refreshPosts();
+      notify(tr('게시글이 삭제되었습니다.','Message supprimé.'));
+    }catch(e){
+      console.error(e);
+      notify(tr('삭제에 실패했습니다.','Échec de la suppression.'),true);
+    }
+  }
+
+  async function deleteComment(postId:string,c:CommentData){
+    if(!canDelete(c.authorUid)||c.deleted)return;
+
+    const own=c.authorUid===uid;
+    const reason=deletionReason(own);
+    if(!reason)return;
+
+    if(!confirm(tr(
+      '댓글을 완전히 삭제할까요? 복구할 수 없습니다.',
+      'Supprimer définitivement ce commentaire ?'
+    )))return;
+
+    try{
+      const batch=writeBatch(db);
+
+      batch.delete(
+        doc(db,'boardPosts',postId,'comments',c.id)
+      );
+
+      batch.set(
+        doc(db,'boardDeletionLogs',`comment_${postId}_${c.id}`),
+        {
+          targetType:'comment',
+          postId,
+          commentId:c.id,
+          authorUid:c.authorUid,
+          actorUid:uid,
+          reason,
+          deletedAt:serverTimestamp()
+        }
+      );
+
+      await batch.commit();
+      await refreshComments(postId);
+
+      notify(tr(
+        '댓글이 삭제되었습니다.',
+        'Commentaire supprimé.'
+      ));
+    }catch(e){
+      console.error(e);
+      notify(tr(
+        '댓글 삭제에 실패했습니다.',
+        'Échec de la suppression.'
+      ),true);
+    }
+  }
+
   async function refreshComments(postId:string){
     const list=by<HTMLElement>('comment-list');if(!list)return;list.replaceChildren();
     try{
