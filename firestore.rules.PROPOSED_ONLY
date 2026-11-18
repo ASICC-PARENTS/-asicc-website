@@ -1,8 +1,8 @@
 // ASICC Firestore unified draft — 2026-11-17
-// NOT DEPLOYED. Review against current Astro forms and Firebase Emulator first.
+// IMPORTANT: Deploy manually to Firebase Console after GitHub CI tests pass.
 // Roles: general / member / special / admin
 // Do not upload private child/student files until Storage rules are verified.
-// ASICC member-space V2 — STAGING RULESET, not a drop-in replacement for the
+// ASICC member-space V2 — current staging rules; changes require review of the
 // existing website's rules. Before deployment merge and test existing public
 // contact, event, newsletter and legacy collections. Default is deny.
 rules_version = '2';
@@ -145,20 +145,31 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time
         && request.resource.data.deleted == false;
     }
-    function validPostUpdate() {
+    // Only the actual author may change content; admin status is not enough.
+    function validPostEdit() {
       return resource.data.deleted == false
+        && request.resource.data.deleted == false
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'title','body','deleted','updatedAt'
+          'title','body','updatedAt'
         ])
         && request.resource.data.updatedAt == request.time
         && request.resource.data.title is string && request.resource.data.title.size() > 0
         && request.resource.data.title.size() <= 120
         && request.resource.data.body is string && request.resource.data.body.size() > 0
-        && request.resource.data.body.size() <= 5000
-        && (request.resource.data.deleted == false
-          || request.resource.data.deleted == true
-            && request.resource.data.title == '[숨김 처리된 게시글]'
-            && request.resource.data.body == '[숨김 처리된 게시글]');
+        && request.resource.data.body.size() <= 5000;
+    }
+    // Authors may withdraw their posts, while admins can hide others' posts.
+    // The current board client redacts content in place; this is NOT recoverable.
+    // A reversible moderation archive must be built separately with admin-only storage.
+    function validPostHide() {
+      return resource.data.deleted == false
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'title','body','deleted','updatedAt'
+        ])
+        && request.resource.data.deleted == true
+        && request.resource.data.title == '[숨김 처리된 게시글]'
+        && request.resource.data.body == '[숨김 처리된 게시글]'
+        && request.resource.data.updatedAt == request.time;
     }
     function validCommentCreate() {
       return request.resource.data.keys().hasOnly([
@@ -174,24 +185,32 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time
         && request.resource.data.deleted == false;
     }
-    function validCommentUpdate() {
+    function validCommentEdit() {
+      return resource.data.deleted == false
+        && request.resource.data.deleted == false
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'body','updatedAt'
+        ])
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.body is string && request.resource.data.body.size() > 0
+        && request.resource.data.body.size() <= 2000;
+    }
+    function validCommentHide() {
       return resource.data.deleted == false
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'body','deleted','updatedAt'
         ])
-        && request.resource.data.updatedAt == request.time
-        && request.resource.data.body is string && request.resource.data.body.size() > 0
-        && request.resource.data.body.size() <= 2000
-        && (request.resource.data.deleted == false
-          || request.resource.data.deleted == true
-            && request.resource.data.body == '[숨김 처리된 댓글]');
+        && request.resource.data.deleted == true
+        && request.resource.data.body == '[숨김 처리된 댓글]'
+        && request.resource.data.updatedAt == request.time;
     }
     match /boardPosts/{postId} {
       allow get, list: if isActive();
       allow create: if canWriteBoard() && validPostCreate();
-      allow update: if canWriteBoard()
-        && (resource.data.authorUid == request.auth.uid || isAdmin())
-        && validPostUpdate();
+      allow update: if canWriteBoard() && (
+          (resource.data.authorUid == request.auth.uid && validPostEdit())
+          || ((resource.data.authorUid == request.auth.uid || isAdmin()) && validPostHide())
+        );
       // Soft deletion avoids orphaning comment subcollections. No physical deletion.
       allow delete: if false;
       match /comments/{commentId} {
@@ -202,8 +221,10 @@ service cloud.firestore {
           && get(postDoc(postId)).data.deleted == false && validCommentCreate();
         allow update: if canWriteBoard()
           && exists(postDoc(postId)) && get(postDoc(postId)).data.deleted == false
-          && (resource.data.authorUid == request.auth.uid || isAdmin())
-          && validCommentUpdate();
+          && (
+            (resource.data.authorUid == request.auth.uid && validCommentEdit())
+            || ((resource.data.authorUid == request.auth.uid || isAdmin()) && validCommentHide())
+          );
         allow delete: if false;
       }
     }
