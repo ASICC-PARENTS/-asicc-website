@@ -78,7 +78,43 @@ function validRegistration(uid) {
         && request.resource.data.status in ['approved','suspended'];
       allow delete: if false;
     }
-    function validUpgrade(uid) {
+
+match /nicknames/{key} {
+  // 본인과 운영진만 예약정보 열람 가능
+  allow get: if isAdmin()
+    || (signedIn() && resource.data.uid == request.auth.uid);
+  allow list: if isAdmin();
+
+  // 신규 회원가입과 동시에 닉네임 예약
+  allow create: if signedIn()
+    && request.resource.data.keys().hasOnly([
+      'uid', 'nickname', 'createdAt'
+    ])
+    && request.resource.data.keys().hasAll([
+      'uid', 'nickname', 'createdAt'
+    ])
+    && request.resource.data.uid == request.auth.uid
+    && request.resource.data.nickname is string
+    && request.resource.data.nickname.size() >= 2
+    && request.resource.data.nickname.size() <= 24
+    && request.resource.data.nickname.lower() == key
+    && request.resource.data.createdAt == request.time
+    && !exists(
+      /databases/$(database)/documents/members/$(request.auth.uid)
+    )
+    && getAfter(
+      /databases/$(database)/documents/members/$(request.auth.uid)
+    ).data.nicknameKey == key
+    && getAfter(
+      /databases/$(database)/documents/members/$(request.auth.uid)
+    ).data.nickname == request.resource.data.nickname;
+
+  // 기존 닉네임 덮어쓰기 금지
+  allow update, delete: if false;
+}
+    
+
+function validUpgrade(uid) {
       return isActive() && request.auth.uid == uid && me().role == 'general'
         && request.resource.data.uid == uid
         && request.resource.data.applicantName == me().name
