@@ -1,105 +1,3662 @@
-# ASICC 편집용 CMS (https://app.pagescms.org/)
-# 1) 협회 GitHub 저장소에 올림 → 2) Pages CMS에 GitHub 로그인 → 3) 저장소를 선택
-# .pages.yml은 저장소 루트에 위치해야 합니다.
-# 한국어/프랑스어 공지글은 같은 영문 파일명으로 작성하면 언어 전환이 연결됩니다.
-# 파일명 변경(기존 게시물)은 주소가 바뀔 수 있으므로 피하세요.
+# ASICC Pages CMS · 6개 카테고리 안에 26개 한/불 콘텐츠 편집 항목
 media:
   input: public/uploads
   output: /uploads
   rename: safe
-  categories: [image, document]
+  categories:
+  - image
+  - document
 content:
+- name: home
+  label: 첫 화면 · 메뉴 · 푸터
+  type: group
+  items:
   - name: homepage
-    label: '01 | 첫 화면·협회 소개 문구 (한/불)'
+    label: 첫 화면·협회 소개 문구 (한/불)
     type: file
     path: src/data/site-copy.json
     format: json
     fields:
-      - { name: contact_email, label: '협회 공식 이메일 / E-mail', type: string, required: true }
-      - { name: home_headline_ko, label: '첫 화면 제목 - 한국어', type: string, required: true }
-      - { name: home_headline_fr, label: '첫 화면 제목 - 프랑스어', type: string, required: true }
-      - { name: home_intro_ko, label: '첫 화면 설명 - 한국어', type: text, required: true }
-      - { name: home_intro_fr, label: '첫 화면 설명 - 프랑스어', type: text, required: true }
-      - { name: about_title_ko, label: '협회 소개 제목 - 한국어', type: string, required: true }
-      - { name: about_title_fr, label: '협회 소개 제목 - 프랑스어', type: string, required: true }
-      - { name: about_intro_ko, label: '협회 소개 설명 - 한국어', type: text, required: true }
-      - { name: about_intro_fr, label: '협회 소개 설명 - 프랑스어', type: text, required: true }
-
+    - name: contact_email
+      label: 협회 공식 이메일 / E-mail
+      type: string
+      required: true
+    - name: home_headline_ko
+      label: 첫 화면 제목 - 한국어
+      type: string
+      required: true
+    - name: home_headline_fr
+      label: 첫 화면 제목 - 프랑스어
+      type: string
+      required: true
+    - name: home_intro_ko
+      label: 첫 화면 설명 - 한국어
+      type: text
+      required: true
+    - name: home_intro_fr
+      label: 첫 화면 설명 - 프랑스어
+      type: text
+      required: true
+    - name: about_title_ko
+      label: 협회 소개 제목 - 한국어
+      type: string
+      required: true
+    - name: about_title_fr
+      label: 협회 소개 제목 - 프랑스어
+      type: string
+      required: true
+    - name: about_intro_ko
+      label: 협회 소개 설명 - 한국어
+      type: text
+      required: true
+    - name: about_intro_fr
+      label: 협회 소개 설명 - 프랑스어
+      type: text
+      required: true
+    - name: show_extended_about
+      label: 협회 소개 추가 섹션(운영진·기관·정관) 공개
+      type: boolean
+  - name: homepage_tiles
+    label: 첫 화면 바로가기 6개 (한/불)
+    type: file
+    path: src/data/cms/home-tiles.json
+    format: json
+    list: true
+    fields:
+    - name: k
+      label: 아이콘 식별자
+      type: string
+      readonly: true
+    - name: path
+      label: 링크 주소
+      type: string
+      readonly: true
+    - name: title_ko
+      label: 제목 - 한국어
+      type: string
+    - name: title_fr
+      label: Titre - français
+      type: string
+    - name: desc_ko
+      label: 설명 - 한국어
+      type: text
+    - name: desc_fr
+      label: Description - français
+      type: text
+  - name: page_index
+    label: 첫 화면 페이지 문구 (한/불)
+    type: file
+    path: src/data/cms/pages/index.json
+    format: json
+    fields:
+    - name: item_001
+      label: 세 학교
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_002
+      label: 바로가기와 최신 정보
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_003
+      label: 바로가기
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_004
+      label: 최근 소식
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_005
+      label: 전체
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_006
+      label: 다가오는 일정
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_007
+      label: 전체
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_008
+      label: 현재 등록된 예정 행사가 없습니다. 새로운 일정은 …
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_009
+      label: 예정
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+  - name: menu_texts
+    label: 메뉴·푸터 공통 문구 (한/불)
+    type: file
+    path: src/data/cms/navigation.json
+    format: json
+    fields:
+    - name: site_name
+      label: site · name
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: site_short
+      label: site · short
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: nav_about
+      label: nav · about
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: nav_section
+      label: nav · section
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: nav_admission
+      label: nav · admission
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: nav_news
+      label: nav · news
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: nav_events
+      label: nav · events
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: nav_join
+      label: nav · join
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: nav_contact
+      label: nav · contact
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: nav_members
+      label: nav · members
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: nav_menu
+      label: nav · menu
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: nav_skip
+      label: nav · skip
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: lang_switch
+      label: lang · switch
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: lang_label
+      label: lang · label
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: footer_declared
+      label: footer · declared
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: footer_legal
+      label: footer · legal
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: footer_privacy
+      label: footer · privacy
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: footer_statuts
+      label: footer · statuts
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: footer_subscribe
+      label: footer · subscribe
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: common_more
+      label: common · more
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: common_all
+      label: common · all
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: common_back
+      label: common · back
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: common_placeholder
+      label: common · placeholder
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: section_submenu
+      label: 국제섹션 하위 메뉴
+      type: object
+      list:
+        collapsible: true
+      fields:
+      - name: label
+        label: 메뉴 제목
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: Français
+          type: string
+      - name: path
+        label: 내부 링크 경로 (수정 금지)
+        type: string
+        readonly: true
+- name: association
+  label: 협회 소개 · 참여
+  type: group
+  items:
+  - name: content_association
+    label: 협회 소개·연혁 / Association
+    type: file
+    path: src/data/cms/association.json
+    format: json
+    fields:
+    - name: BUREAU
+      label: 운영진 소개
+      type: object
+      fields:
+      - name: role
+        label: 역할
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: 프랑스어
+          type: string
+      - name: name
+        label: 이름
+        type: string
+      - name: latin
+        label: 프랑스어 표기 이름
+        type: string
+      list:
+        collapsible: true
+    - name: AXES
+      label: 협회의 4대 활동
+      type: object
+      fields:
+      - name: tag
+        label: 활동 구분
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: 프랑스어
+          type: string
+      - name: color
+        label: 강조색(디자인)
+        type: string
+        readonly: true
+      - name: title
+        label: 제목
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: 프랑스어
+          type: string
+      - name: text
+        label: 내용
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: text
+        - name: fr
+          label: 프랑스어
+          type: text
+      - name: items
+        label: 세부 항목
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: 프랑스어
+          type: text
+        list:
+          collapsible: true
+      - name: result
+        label: 기대 효과
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: 프랑스어
+          type: string
+      list:
+        collapsible: true
+    - name: HISTORY
+      label: 협회 연혁
+      type: object
+      fields:
+      - name: date
+        label: 일자
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: 프랑스어
+          type: string
+      - name: title
+        label: 제목
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: 프랑스어
+          type: string
+      - name: text
+        label: 내용
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: text
+        - name: fr
+          label: 프랑스어
+          type: text
+      list:
+        collapsible: true
+    - name: PARTNERS
+      label: 관련 기관 및 링크
+      type: object
+      fields:
+      - name: side
+        label: 기관 구분
+        type: string
+        readonly: true
+      - name: name
+        label: 이름
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: 프랑스어
+          type: string
+      - name: role
+        label: 역할
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: 프랑스어
+          type: string
+      - name: href
+        label: 공식 링크
+        type: string
+      list:
+        collapsible: true
+  - name: page_about
+    label: 협회 소개 페이지 문구 (한/불)
+    type: file
+    path: src/data/cms/pages/about.json
+    format: json
+    fields:
+    - name: item_001
+      label: 협회 소개
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_002
+      label: 협회 소개
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_003
+      label: 목차
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_004
+      label: 협회는 정관에 따라 다음 세 가지를 목적으로 활동합…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_005
+      label: 국제섹션에 자녀를 둔 학부모는 정관에 따라 모두 협…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: text
+    - name: item_006
+      label: 협회는 지원, 대외협력, 입학 안내 및 홍보, 공동…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_007
+      label: 기대 효과
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_008
+      label: 2026–2027 운영진은 제1회 정기총회에서 재신…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_009
+      label: 임원
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_010
+      label: 학교별 대표
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_011
+      label: 한국어 국제섹션은 양국 교육부의 협약에 바탕을 두고…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_012
+      label: 한국 측
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_013
+      label: 프랑스 측
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_014
+      label: '정기총회: 해마다 1~2회 열어 운영진 선출, 연회…'
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: text
+    - name: item_015
+      label: '운영진 선출: 다음 선거부터는 일정 공고, 후보 모…'
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: text
+    - name: item_016
+      label: '공식 입장: 협회의 공식 입장은 운영진 논의와 총회…'
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: text
+    - name: item_017
+      label: '실무진: 직책과 관계없이 회의록 정리, 홍보, 행정…'
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_018
+      label: '기록 보존: 회의록과 대외협력 기록은 회원 영역에 …'
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: text
+    - name: item_019
+      label: '재정: 연회비는 책임보험, 협회 이메일·도메인·웹사…'
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: text
+    - name: item_020
+      label: 정관과 회의록 보기 (회원 영역)
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+  - name: toc_about
+    label: 협회 소개 목차 (한/불)
+    type: file
+    path: src/data/cms/toc-about.json
+    format: json
+    list: true
+    fields:
+    - name: id
+      label: 링크 ID (수정하지 마세요)
+      type: string
+      readonly: true
+    - name: ko
+      label: 목차 제목 — 한국어
+      type: string
+    - name: fr
+      label: Titre du sommaire — français
+      type: string
+  - name: about_letter
+    label: 회장 인사말 (한/불)
+    type: file
+    path: src/data/cms/about-letter.json
+    format: json
+    fields:
+    - name: ko
+      label: 한국어
+      type: object
+      fields:
+      - name: paragraphs
+        label: 인사말 문단
+        type: text
+        list: true
+      - name: signature
+        label: 서명
+        type: string
+    - name: fr
+      label: Français
+      type: object
+      fields:
+      - name: paragraphs
+        label: 인사말 문단
+        type: text
+        list: true
+      - name: signature
+        label: 서명
+        type: string
+  - name: page_join
+    label: 참여 안내 페이지 문구 (한/불)
+    type: file
+    path: src/data/cms/pages/join.json
+    format: json
+    fields:
+    - name: item_001
+      label: 참여하기
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_002
+      label: 참여
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_003
+      label: 협회와 함께하는 방법
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_004
+      label: 협회 참여 방법을 확인하실 수 있습니다. 온라인 회…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: text
+    - name: item_005
+      label: 웹사이트 회원 가입
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_006
+      label: 국제섹션 학부모는 정관상 협회 회원입니다. 웹사이트…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: text
+    - name: item_007
+      label: 이메일과 비밀번호로 가입
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_008
+      label: 이메일 인증
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_009
+      label: 학교별 대표 승인 (보통 며칠 이내)
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_010
+      label: 온라인 회원 가입 준비 중
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_011
+      label: 연회비 납부
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_012
+      label: 회비는 가정 단위의 자율 납부입니다. 책임보험, 협…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: text
+    - name: item_013
+      label: 온라인 납부 링크 준비 중
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_014
+      label: HelloAsso는 프랑스 협회용 무료 결제 서비스…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: text
+    - name: item_015
+      label: 실무진 참여
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_016
+      label: 직책과 관계없이 할 수 있는 만큼 함께합니다.
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_017
+      label: 참여 의사 보내기
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_018
+      label: 협력·후원 제안
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_019
+      label: 한인 단체, 기업, 기관의 행사 협력과 후원 제안을…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: text
+    - name: item_020
+      label: 제안하기
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_021
+      label: 소식지
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_022
+      label: 소식지 구독
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_023
+      label: 입학 일정과 협회 소식을 이메일로 받아 보세요. 학…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: text
+    - name: item_024
+      label: 이메일
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_025
+      label: 받을 언어
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_026
+      label: 소식지 발송을 위한 이메일 수집에 동의합니다.
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_027
+      label: 구독하기
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+- name: school
+  label: 국제섹션 · 학교생활
+  type: group
+  items:
+  - name: content_schools
+    label: 학교·교육과정 / Écoles
+    type: file
+    path: src/data/cms/schools.json
+    format: json
+    fields:
+    - name: NEXT_YEAR
+      label: 다음 입학 학년도
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: 프랑스어
+        type: string
+    - name: STATS
+      label: 첫 화면 통계
+      type: object
+      fields:
+      - name: value
+        label: 표시 값
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: 프랑스어
+          type: string
+      - name: label
+        label: 항목명
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: 프랑스어
+          type: string
+      list:
+        collapsible: true
+    - name: LEVELS
+      label: 학교별 교육과정
+      type: object
+      fields:
+      - name: id
+        label: 시스템 식별자
+        type: string
+        readonly: true
+      - name: code
+        label: 구분 표시
+        type: string
+      - name: name
+        label: 이름
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: 프랑스어
+          type: string
+      - name: school
+        label: 학교명
+        type: string
+      - name: address
+        label: 주소
+        type: string
+      - name: hours
+        label: 수업 시간
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: 프랑스어
+          type: string
+      - name: desc
+        label: 설명
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: 프랑스어
+          type: string
+      - name: subjects
+        label: 수업 과목
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: 프랑스어
+          type: string
+        list:
+          collapsible: true
+      - name: tint
+        label: 배경색(디자인)
+        type: string
+        readonly: true
+      - name: ink
+        label: 글자색(디자인)
+        type: string
+        readonly: true
+      list:
+        collapsible: true
+    - name: GRADES
+      label: 프랑스·한국 학년 대응표
+      type: object
+      fields:
+      - name: age
+        label: 나이
+        type: string
+      - name: fr
+        label: 프랑스어
+        type: string
+      - name: ko
+        label: 한국어
+        type: string
+      - name: level
+        label: 학년·학교급
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: 프랑스어
+          type: string
+      list:
+        collapsible: true
+  - name: page_section_index
+    label: 국제섹션 소개 페이지 문구 (한/불)
+    type: file
+    path: src/data/cms/pages/section-index.json
+    format: json
+    fields:
+    - name: item_001
+      label: 국제섹션 안내
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_002
+      label: 국제섹션
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_003
+      label: 프랑스 공립학교의 한국어 국제섹션
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_004
+      label: 쿠르브부아 한국어 국제섹션의 운영 방식, 프랑스 교…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: text
+    - name: item_005
+      label: 목차
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_006
+      label: 국제섹션(section internationale)…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_007
+      label: 현재 프랑스에는 18개 언어의 국제섹션이 있으며, …
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_008
+      label: 국제섹션은 프랑스 공립학교의 정규 과정이므로 수업료…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_009
+      label: 프랑스에서는 만 3세부터 교육이 의무이며, 학교 교…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_010
+      label: 단계
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_011
+      label: 학년
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_012
+      label: 나이
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_013
+      label: 한국어 국제섹션
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_014
+      label: 한국 학년과의 대응은 학교생활 가이드의 학년 대응표…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_015
+      label: 학년 대응표
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_016
+      label: 일반 학급과 국제섹션 수업의 병행
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_017
+      label: 국제섹션 학생은 따로 반을 이루지 않고, 학교의 여…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_018
+      label: 한국어로 배우는 교과 수업
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_019
+      label: 국제섹션 수업은 한국어 자체만 가르치는 시간이 아니…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_020
+      label: 교사 간 협의와 교육의 연속성
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_021
+      label: 섹션 교사와 학급 담임 교사는 수업 내용을 함께 협…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_022
+      label: 쿠르브부아 국제섹션 안내 책자는 학교 수업과 더불어…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_023
+      label: 쿠르브부아 한국어 국제섹션은 세 학교에서 학교별로 …
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_024
+      label: 한국어 수업
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_025
+      label: 교육 내용
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_026
+      label: 수업 방식
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_027
+      label: 입학
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_028
+      label: 입학 절차 자세히 보기
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_029
+      label: 유치원 GS 과정 종료 후 초등학교(CP) 국제섹션…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_030
+      label: '유치원: 학습 기록장(carnet de suivi)…'
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_031
+      label: '초등학교: 학생 통합 기록부(livret scola…'
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_032
+      label: '중학교: 3e 말에 국가 중학 졸업 시험(DNB)을…'
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_033
+      label: 고등학교 단계에서 국제섹션은 2nde에 운영되고, …
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_034
+      label: 국제섹션 교육과정은 프랑스 교육 당국과 협력국 당국…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_035
+      label: 같은 체계 아래 스트라스부르의 Collège int…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: text
+    - name: item_036
+      label: 운영 기관과 공식 누리집
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_037
+      label: 프랑스·한국 학년 비교표, 학사 일정 및 방학, 학…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_038
+      label: 프랑스 학교생활 가이드
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+  - name: toc_section_index
+    label: 국제섹션 목차 (한/불)
+    type: file
+    path: src/data/cms/toc-section-index.json
+    format: json
+    list: true
+    fields:
+    - name: id
+      label: 링크 ID (수정하지 마세요)
+      type: string
+      readonly: true
+    - name: ko
+      label: 목차 제목 — 한국어
+      type: string
+    - name: fr
+      label: Titre du sommaire — français
+      type: string
+  - name: page_section_guide
+    label: 학교생활 가이드 페이지 문구 (한/불)
+    type: file
+    path: src/data/cms/pages/section-guide.json
+    format: json
+    fields:
+    - name: item_001
+      label: 프랑스 학교생활 가이드
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_002
+      label: 국제섹션
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_003
+      label: 학교생활 가이드
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_004
+      label: 프랑스 학교생활 안내
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_005
+      label: 한국 학제에 익숙한 가정을 위해 프랑스 공립학교 생…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_006
+      label: 목차
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_007
+      label: 프랑스는 출생연도(1월~12월)를 기준으로 학년을 …
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_008
+      label: 해당 연도 만 나이
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_009
+      label: 프랑스
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_010
+      label: 한국 학년
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_011
+      label: 교육 단계
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_012
+      label: 유치원과 초등학교 취학 등록은 거주지 관할 시청에서…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_013
+      label: '쿠르브부아 거주 가정: 입학 결정 후 쿠르브부아 시…'
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: text
+    - name: item_014
+      label: '쿠르브부아 외 지역 거주 가정: 거주지 시청의 학구…'
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_015
+      label: '주요 제출 서류(예시): 가족관계 증빙(livret…'
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_016
+      label: 쿠르브부아는 베르사유 교육청 관할로, 방학 구분상 …
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_017
+      label: 방학
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_018
+      label: 시기
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_019
+      label: 투생 방학 (Toussaint)
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_020
+      label: 10월 말~11월 초, 2주
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_021
+      label: 성탄 방학 (Noël)
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_022
+      label: 12월 말~1월 초, 2주
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_023
+      label: 겨울 방학 (hiver)
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_024
+      label: 2월~3월, 구역별 상이
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_025
+      label: 봄 방학 (printemps)
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_026
+      label: 4월~5월, 구역별 상이
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_027
+      label: 여름 방학 (été)
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_028
+      label: 7월 초~8월 말
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_029
+      label: 공휴일과 징검다리 연휴(pont)로 휴업일이 발생할…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: text
+    - name: item_030
+      label: 유치원과 초등학교는 주 24시간 수업을 하며, 학교…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_031
+      label: 국제섹션 수업은 주 24시간 안에 편성되므로, 국제…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_032
+      label: 출결
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_033
+      label: 만 3세부터 교육이 의무이므로 결석은 사유와 함께 …
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_034
+      label: 학교 급식 (cantine)
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_035
+      label: 유치원과 초등학교 급식은 쿠르브부아 시청이 운영하며…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_036
+      label: 방과후 (périscolaire)
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_037
+      label: 등교 전 돌봄, 방과 후 돌봄과 학습 지원(étud…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_038
+      label: 학생 보험 (assurance scolaire)
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_039
+      label: 학교 밖 선택 활동과 견학에는 책임보험과 상해보험 …
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_040
+      label: 중학교 급식 (demi-pension)
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_041
+      label: 중학교 급식은 학교와 오드센 도가 운영하며, 신청 …
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: text
+    - name: item_042
+      label: '유치원: 점수 없이 학습 기록장(carnet de …'
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: string
+    - name: item_043
+      label: '초등학교: 학생 통합 기록부(LSU)를 통해 학기별…'
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: string
+    - name: item_044
+      label: '중학교: 과목별 점수와 학기 평가 회의(consei…'
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: string
+    - name: item_045
+      label: 국제섹션 수업의 평가도 같은 기록부에 포함됩니다.
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_046
+      label: 프랑스에서 유급(redoublement)은 예외적인…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_047
+      label: 초등 섹션 학생이 Collège Les Bruyèr…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_048
+      label: 중학교에서는 과목별 교사가 수업하고, 학급마다 담임…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_049
+      label: 생활지도 교사(CPE)가 출결과 학교생활을 담당합니…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_050
+      label: 성적, 숙제, 시간표 변경, 결석 신고는 온라인 학…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_051
+      label: 국제섹션 학생은 3e 말 DNB를 국제 옵션으로 응…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_052
+      label: 평가와 학위
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_053
+      label: '유치원·초등학교: 연락 수첩(cahier de li…'
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_054
+      label: '교사 면담: 담임 교사나 섹션 교사에게 수첩이나 이…'
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: text
+    - name: item_055
+      label: '중학교: ENT 메시지가 공식 소통 수단입니다.'
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_056
+      label: 학교 공지는 대부분 프랑스어로 전달됩니다. 이해가 …
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: text
+    - name: item_057
+      label: 프랑스 학교에서는 매년 10월 학부모 대표 선거를 …
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_058
+      label: ASICC는 학교 학부모 대표와는 별개의 협회이지만…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: text
+    - name: item_059
+      label: 용어
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_060
+      label: 뜻
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_061
+      label: 학교생활에 관한 질문은 협회 교육 단계 대표가 경험…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_062
+      label: 문의하기
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+  - name: toc_section_guide
+    label: 학교생활 가이드 목차 (한/불)
+    type: file
+    path: src/data/cms/toc-section-guide.json
+    format: json
+    list: true
+    fields:
+    - name: id
+      label: 링크 ID (수정하지 마세요)
+      type: string
+      readonly: true
+    - name: ko
+      label: 목차 제목 — 한국어
+      type: string
+    - name: fr
+      label: Titre du sommaire — français
+      type: string
+- name: admission
+  label: 입학 · FAQ
+  type: group
+  items:
+  - name: content_admissions
+    label: 입학·FAQ / Admissions
+    type: file
+    path: src/data/cms/admissions.json
+    format: json
+    fields:
+    - name: PROFILES
+      label: 지원자 유형
+      type: object
+      fields:
+      - name: title
+        label: 제목
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: 프랑스어
+          type: string
+      - name: text
+        label: 내용
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: 프랑스어
+          type: text
+      list:
+        collapsible: true
+    - name: EXPECTED
+      label: 한국어 수준 기준
+      type: object
+      fields:
+      - name: when
+        label: 시기
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: 프랑스어
+          type: string
+      - name: level
+        label: 학년·학교급
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: 프랑스어
+          type: string
+      list:
+        collapsible: true
+    - name: CAMPAIGN
+      label: 입학 모집 단계·일정
+      type: object
+      fields:
+      - name: when
+        label: 시기
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: 프랑스어
+          type: string
+      - name: what
+        label: 단계
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: 프랑스어
+          type: string
+      - name: detail
+        label: 세부 안내
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: 프랑스어
+          type: text
+      list:
+        collapsible: true
+    - name: WAVE2
+      label: 2차 모집 안내
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: 프랑스어
+        type: text
+    - name: ADMISSION_NOTES
+      label: 입학 관련 유의사항
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: 프랑스어
+        type: text
+      list:
+        collapsible: true
+    - name: ADMISSION_CONTACTS
+      label: 입학 문의처
+      type: object
+      fields:
+      - name: label
+        label: 항목명
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: 프랑스어
+          type: string
+      - name: value
+        label: 표시 값
+        type: string
+      - name: href
+        label: 공식 링크
+        type: text
+      list:
+        collapsible: true
+    - name: FAQ
+      label: 자주 묻는 질문
+      type: object
+      fields:
+      - name: q
+        label: 질문
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: 프랑스어
+          type: string
+      - name: a
+        label: 답변
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: text
+        - name: fr
+          label: 프랑스어
+          type: text
+      list:
+        collapsible: true
+  - name: page_admission
+    label: 입학 안내 페이지 문구 (한/불)
+    type: file
+    path: src/data/cms/pages/admission.json
+    format: json
+    fields:
+    - name: item_001
+      label: 입학 안내
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_002
+      label: 입학 안내
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_003
+      label: 한국어 국제섹션의 입학 전형 및 선발은 베르사유 교…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_004
+      label: 교육청 입학 지원서
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_005
+      label: 입학설명회 일정 알림 신청
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_006
+      label: 목차
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_007
+      label: 한국어 국제섹션은 프랑스 공립학교의 정규 교육과정으…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_008
+      label: 국제섹션 알아보기
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_009
+      label: 국제섹션이 프랑스 학제 안에서 어떻게 운영되는지 먼…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_010
+      label: 국제섹션 안내
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_011
+      label: 입학설명회 참여
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_012
+      label: 주프랑스 한국교육원이 보통 11월 말~12월 초에 …
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_013
+      label: 입학 지원서 제출
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_014
+      label: 일반적으로 유치원/초등학교는 11월, 중학교는 2월…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_015
+      label: 국제섹션은 한국어 학습 경험을 바탕으로 프랑스어와 …
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_016
+      label: 진학 단계별 한국어 능력 기준
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_017
+      label: 교육청은 진학 단계별로 아래의 한국어 능력 기준을 …
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_018
+      label: 시점
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_019
+      label: 기대 한국어 수준
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_020
+      label: 쿠르브부아 국제섹션 안내 책자는 학교 수업과 더불어…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_021
+      label: 가정에서 한국어를 정기적으로 사용합니다.
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_022
+      label: 한국 문화(책, 영상, 행사, 방문 등)를 자녀와 …
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_023
+      label: 국제섹션 수업의 과제와 학교 안내 사항을 확인하고,…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_024
+      label: 두 교육과정을 원활하게 이수할 수 있도록 학습을 지…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_025
+      label: 유치원/초등 정기 모집(1차)
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_026
+      label: 추가 모집(2차) — 귀국 및 이주 예정 가정
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_027
+      label: 상기 일정은 이전 학년도 모집 공고를 기준으로 작성…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: text
+    - name: item_028
+      label: 교육 단계
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_029
+      label: 지원 시점
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_030
+      label: 비고
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_031
+      label: 입학 지원서 접수와 선발은 교육청 및 해당 학교에서…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: text
+    - name: item_032
+      label: 설명회 일정 알림 신청 기능은 현재 준비 중입니다.…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_033
+      label: 보호자 이름
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_034
+      label: 이메일
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_035
+      label: 관심 교육 단계
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_036
+      label: 유치원
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_037
+      label: 초등학교
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_038
+      label: 중학교
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_039
+      label: 문의 사항(선택)
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_040
+      label: 설명회 안내를 위한 개인정보 수집에 동의합니다.
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_041
+      label: 신청하기
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_042
+      label: 섹션 생활에 관한 질문은
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_043
+      label: 협회 문의하기
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+  - name: toc_admission
+    label: 입학 안내 목차 (한/불)
+    type: file
+    path: src/data/cms/toc-admission.json
+    format: json
+    list: true
+    fields:
+    - name: id
+      label: 링크 ID (수정하지 마세요)
+      type: string
+      readonly: true
+    - name: ko
+      label: 목차 제목 — 한국어
+      type: string
+    - name: fr
+      label: Titre du sommaire — français
+      type: string
+- name: news_events
+  label: 공지사항 · 행사
+  type: group
+  items:
   - name: events
-    label: '02 | 행사 일정 (한/불 함께)'
+    label: 행사 일정 (한/불 함께)
     type: file
     path: src/data/events.json
     format: json
     list: true
     fields:
-      - { name: date, label: '행사 날짜', type: date, required: true, options: { format: 'yyyy-MM-dd' } }
-      - { name: title_ko, label: '행사 제목 - 한국어', type: string, required: true }
-      - { name: title_fr, label: '행사 제목 - 프랑스어', type: string, required: true }
-      - name: kind
-        label: '분류'
-        type: select
-        required: true
-        options:
-          values:
-            - { name: info, label: '입학 관련' }
-            - { name: school, label: '학교 행사' }
-            - { name: asso, label: '협회 행사' }
-      - { name: tentative, label: '미확정 일정(예정 표기)', type: boolean }
-      - { name: place_ko, label: '장소 - 한국어', type: string, required: true }
-      - { name: place_fr, label: '장소 - 프랑스어', type: string, required: true }
-      - { name: time_ko, label: '시간 - 한국어 (선택)', type: string }
-      - { name: time_fr, label: '시간 - 프랑스어 (선택)', type: string }
-      - { name: desc_ko, label: '안내 - 한국어 (선택)', type: text }
-      - { name: desc_fr, label: '안내 - 프랑스어 (선택)', type: text }
-
+    - name: date
+      label: 행사 날짜
+      type: date
+      required: true
+      options:
+        format: yyyy-MM-dd
+    - name: title_ko
+      label: 행사 제목 - 한국어
+      type: string
+      required: true
+    - name: title_fr
+      label: 행사 제목 - 프랑스어
+      type: string
+      required: true
+    - name: kind
+      label: 분류
+      type: select
+      required: true
+      options:
+        values:
+        - name: info
+          label: 입학 관련
+        - name: school
+          label: 학교 행사
+        - name: asso
+          label: 협회 행사
+    - name: tentative
+      label: 미확정 일정(예정 표기)
+      type: boolean
+    - name: place_ko
+      label: 장소 - 한국어
+      type: string
+      required: true
+    - name: place_fr
+      label: 장소 - 프랑스어
+      type: string
+      required: true
+    - name: time_ko
+      label: 시간 - 한국어 (선택)
+      type: string
+    - name: time_fr
+      label: 시간 - 프랑스어 (선택)
+      type: string
+    - name: desc_ko
+      label: 안내 - 한국어 (선택)
+      type: text
+    - name: desc_fr
+      label: 안내 - 프랑스어 (선택)
+      type: text
+  - name: content_annual
+    label: 연간 일정 / Calendrier
+    type: file
+    path: src/data/cms/annual.json
+    format: json
+    fields:
+    - name: ANNUAL
+      label: 연간 주요 일정
+      type: object
+      fields:
+      - name: when
+        label: 시기
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: 프랑스어
+          type: string
+      - name: items
+        label: 세부 항목
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: 프랑스어
+          type: string
+        list:
+          collapsible: true
+      list:
+        collapsible: true
   - name: news_ko
-    label: '03 | 공지사항·소식 - 한국어'
+    label: 공지사항·소식 - 한국어
     type: collection
     path: src/content/news/ko
     format: yaml-frontmatter
     filename:
       template: '{year}-{month}-{day}-{primary}.md'
       field: create
-    view: { primary: title, sort: date, order: desc }
+    view:
+      primary: title
+      sort: date
+      order: desc
     fields:
-      - { name: title, label: '제목', type: string, required: true }
-      - { name: date, label: '게시 날짜', type: date, required: true, options: { format: 'yyyy-MM-dd' } }
-      - name: category
-        label: '분류'
-        type: select
-        required: true
-        options:
-          values:
-            - { name: notice, label: '공지' }
-            - { name: event, label: '행사' }
-            - { name: relations, label: '대외협력' }
-            - { name: press, label: '언론·기고' }
-      - { name: summary, label: '목록용 요약', type: text, required: true }
-      - { name: draft, label: '임시 저장(공개하지 않음)', type: boolean }
-      - { name: body, label: '본문', type: rich-text, options: { format: markdown, switcher: true } }
-
+    - name: title
+      label: 제목
+      type: string
+      required: true
+    - name: date
+      label: 게시 날짜
+      type: date
+      required: true
+      options:
+        format: yyyy-MM-dd
+    - name: category
+      label: 분류
+      type: select
+      required: true
+      options:
+        values:
+        - name: notice
+          label: 공지
+        - name: event
+          label: 행사
+        - name: relations
+          label: 대외협력
+        - name: press
+          label: 언론·기고
+    - name: summary
+      label: 목록용 요약
+      type: text
+      required: true
+    - name: draft
+      label: 임시 저장(공개하지 않음)
+      type: boolean
+    - name: body
+      label: 본문
+      type: rich-text
+      options:
+        format: markdown
+        switcher: true
   - name: news_fr
-    label: '04 | Actualités - français'
+    label: Actualités - français
     type: collection
     path: src/content/news/fr
     format: yaml-frontmatter
     filename:
       template: '{year}-{month}-{day}-{primary}.md'
       field: create
-    view: { primary: title, sort: date, order: desc }
+    view:
+      primary: title
+      sort: date
+      order: desc
     fields:
-      - { name: title, label: 'Titre', type: string, required: true }
-      - { name: date, label: 'Date', type: date, required: true, options: { format: 'yyyy-MM-dd' } }
-      - name: category
-        label: 'Catégorie'
-        type: select
-        required: true
-        options:
-          values:
-            - { name: notice, label: 'Annonce' }
-            - { name: event, label: 'Événement' }
-            - { name: relations, label: 'Relations institutionnelles' }
-            - { name: press, label: 'Presse' }
-      - { name: summary, label: 'Résumé', type: text, required: true }
-      - { name: draft, label: 'Brouillon (non publié)', type: boolean }
-      - { name: body, label: 'Texte', type: rich-text, options: { format: markdown, switcher: true } }
+    - name: title
+      label: Titre
+      type: string
+      required: true
+    - name: date
+      label: Date
+      type: date
+      required: true
+      options:
+        format: yyyy-MM-dd
+    - name: category
+      label: Catégorie
+      type: select
+      required: true
+      options:
+        values:
+        - name: notice
+          label: Annonce
+        - name: event
+          label: Événement
+        - name: relations
+          label: Relations institutionnelles
+        - name: press
+          label: Presse
+    - name: summary
+      label: Résumé
+      type: text
+      required: true
+    - name: draft
+      label: Brouillon (non publié)
+      type: boolean
+    - name: body
+      label: Texte
+      type: rich-text
+      options:
+        format: markdown
+        switcher: true
+  - name: page_events
+    label: 행사 안내 페이지 문구 (한/불)
+    type: file
+    path: src/data/cms/pages/events.json
+    format: json
+    fields:
+    - name: item_001
+      label: 행사 일정
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_002
+      label: 행사
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_003
+      label: 국제섹션 및 협회 주요 일정
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_004
+      label: 입학 전형, 학교 행사 및 협회의 주요 일정을 한눈…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_005
+      label: 캘린더 구독 기능은 준비 중입니다. 일정은 아래 목…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_006
+      label: 예정
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_007
+      label: 연간 일정
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_008
+      label: 해마다 비슷한 시기에 반복되는 학교와 협회의 주요 …
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_009
+      label: 시기
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_010
+      label: 일정
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+  - name: page_news_index
+    label: 소식 목록 페이지 문구 (한/불)
+    type: file
+    path: src/data/cms/pages/news-index.json
+    format: json
+    fields:
+    - name: item_001
+      label: 소식
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_002
+      label: 소식·활동
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_003
+      label: 협회 소식
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_004
+      label: 공지, 행사, 대외활동, 언론 보도와 기고문을 모았…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_005
+      label: 분류
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_006
+      label: 전체
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_007
+      label: 검색
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_008
+      label: 소식 검색
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_009
+      label: 조건에 맞는 소식이 없습니다.
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+  - name: page_news_slug
+    label: 소식 상세 페이지 문구 (한/불)
+    type: file
+    path: src/data/cms/pages/news-slug.json
+    format: json
+    fields:
+    - name: item_001
+      label: 소식 목록
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_002
+      label: 이 글은 한국어로만 제공됩니다.
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+- name: contact_legal
+  label: 문의 · 법적 고지
+  type: group
+  items:
+  - name: page_contact
+    label: 문의·소식지 페이지 문구 (한/불)
+    type: file
+    path: src/data/cms/pages/contact.json
+    format: json
+    fields:
+    - name: item_001
+      label: 문의
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_002
+      label: 문의
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_003
+      label: 협회 문의와 소식지 구독
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_004
+      label: 한국어와 프랑스어로 문의하실 수 있으며, 국제섹션 …
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: text
+      - name: fr
+        label: Français
+        type: text
+    - name: item_005
+      label: 다른 연락 방법
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_006
+      label: 이메일 보내기
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_007
+      label: 이름
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_008
+      label: 이메일
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_009
+      label: 문의 유형
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_010
+      label: 관련 학교
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_011
+      label: 해당 없음
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_012
+      label: 유치원
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_013
+      label: 초등학교
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_014
+      label: 중학교
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_015
+      label: 내용
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_016
+      label: 답변을 위한 개인정보 수집에 동의합니다.
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_017
+      label: 보내기
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_018
+      label: 소식지
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_019
+      label: 협회 소식지 구독
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_020
+      label: 총회 결과, 입학 일정, 협회 공지를 학기마다 이메…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: text
+    - name: item_021
+      label: 이메일
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_022
+      label: 받을 언어
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_023
+      label: 한국어·프랑스어
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_024
+      label: 소식지 발송을 위한 이메일 수집에 동의합니다.
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_025
+      label: 구독하기
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+  - name: page_legal
+    label: 개인정보·법적 고지 페이지 문구 (한/불)
+    type: file
+    path: src/data/cms/pages/legal.json
+    format: json
+    fields:
+    - name: item_001
+      label: 법적 고지와 개인정보 처리방침
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_002
+      label: 법적 고지
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_003
+      label: 법적 고지와 개인정보 처리방침
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
+    - name: item_004
+      label: 프랑스 법에 따른 고지입니다. 법적 효력은 프랑스어…
+      type: object
+      fields:
+      - name: ko
+        label: 한국어
+        type: string
+      - name: fr
+        label: Français
+        type: string
