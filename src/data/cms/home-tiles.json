@@ -42,9 +42,9 @@
   {
     "k": "contact",
     "path": "contact/",
-    "title_ko": "문의 · 소식지",
-    "title_fr": "Contact et lettre d’information",
-    "desc_ko": "공식 이메일 문의 · 소식지 준비 중",
-    "desc_fr": "Nous contacter et recevoir les nouvelles de l’association"
+    "title_ko": "문의하기",
+    "title_fr": "Contact",
+    "desc_ko": "공식 이메일 · 협회 문의",
+    "desc_fr": "Écrire à l’association"
   }
 ]

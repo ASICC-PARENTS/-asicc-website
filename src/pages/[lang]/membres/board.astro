@@ -6,7 +6,7 @@ const lang = Astro.params.lang as Lang;
 const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
 ---
 <Base lang={lang} rest="membres/board/" title={L(lang,{ko:'회원 소통 게시판',fr:'Forum des membres'})} noindex>
-  <section class="wrap m-shell">
+  <section class="wrap m-shell board-shell">
     <div class="stack gap-16" id="board-root" data-lang={lang} data-login-url={href(lang,'membres/login/')}>
       <a href={href(lang,'membres/')} class="small">← {L(lang,{ko:'회원공간',fr:'Espace membres'})}</a>
       <h1 class="h2">{L(lang,{ko:'회원 소통 게시판',fr:'Forum des membres'})}</h1>
@@ -16,21 +16,37 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
       <div id="board-app" hidden={!live} class="stack gap-16">
         <p id="board-status" role="status" aria-live="polite" class="small muted">{L(lang,{ko:'회원 권한 확인 중…',fr:'Vérification des autorisations…'})}</p>
         <div id="board-content" hidden class="stack gap-16">
-          <form id="post-form" class="card auth-card stack gap-12" hidden>
-            <h2 class="h3">{L(lang,{ko:'글쓰기',fr:'Publier un message'})}</h2>
+          <div id="board-toolbar" class="board-toolbar">
+            <div class="board-search-wrap">
+              <label for="board-search" class="sr-only">{L(lang,{ko:'게시글 검색',fr:'Rechercher dans les messages'})}</label>
+              <span class="board-search-icon" aria-hidden="true">⌕</span>
+              <input id="board-search" type="search" maxlength="120" placeholder={L(lang,{ko:'제목 또는 내용 검색',fr:'Rechercher par titre ou contenu'})} />
+            </div>
+            <button id="board-write-toggle" type="button" class="btn btn-dark" hidden>+ {L(lang,{ko:'글쓰기',fr:'Écrire un message'})}</button>
+          </div>
+          <form id="post-form" class="card board-editor stack gap-12" hidden>
+            <h2 class="h3">{L(lang,{ko:'새 게시글 작성',fr:'Créer un message'})}</h2>
             <label for="post-title">{L(lang,{ko:'제목',fr:'Titre'})}</label>
             <input id="post-title" name="title" maxlength="120" required />
             <label for="post-body">{L(lang,{ko:'내용',fr:'Message'})}</label>
-            <textarea id="post-body" name="body" maxlength="5000" rows="5" required></textarea>
-            <button class="btn btn-dark" type="submit">{L(lang,{ko:'등록하기',fr:'Publier'})}</button>
+            <textarea id="post-body" name="body" maxlength="5000" rows="7" required></textarea>
+            <div class="board-editor-actions row gap-12">
+              <button class="btn btn-dark" type="submit">{L(lang,{ko:'등록하기',fr:'Publier'})}</button>
+              <button class="btn btn-ghost" id="post-cancel" type="button">{L(lang,{ko:'취소',fr:'Annuler'})}</button>
+            </div>
           </form>
-          <div class="card auth-card stack gap-12">
-            <label for="board-search">{L(lang,{ko:'게시글 검색',fr:'Rechercher dans les messages'})}</label>
-            <input id="board-search" type="search" maxlength="120" />
-            <div id="board-list" class="stack gap-12"></div>
-          </div>
-          <article id="post-detail" class="card auth-card stack gap-16" hidden>
-            <button type="button" class="btn btn-ghost" id="post-back">← {L(lang,{ko:'목록으로',fr:'Retour à la liste'})}</button>
+          <section id="board-list-panel" class="board-list-card" aria-label={L(lang,{ko:'게시글 목록',fr:'Liste des messages'})}>
+            <div class="board-table-head">
+              <span>{L(lang,{ko:'번호',fr:'N°'})}</span>
+              <span>{L(lang,{ko:'제목',fr:'Sujet'})}</span>
+              <span>{L(lang,{ko:'작성자',fr:'Auteur'})}</span>
+              <span>{L(lang,{ko:'날짜',fr:'Date'})}</span>
+            </div>
+            <div id="board-list" class="board-list"></div>
+            <p class="board-count" id="board-count" aria-live="polite"></p>
+          </section>
+          <article id="post-detail" class="card board-detail stack gap-16" hidden>
+            <button type="button" class="btn btn-ghost board-back" id="post-back">← {L(lang,{ko:'목록으로',fr:'Retour à la liste'})}</button>
             <h2 id="detail-title" class="h3"></h2>
             <p id="detail-meta" class="small muted"></p>
             <p id="detail-body" class="board-text"></p>
@@ -48,13 +64,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
     </div>
   </section>
 </Base>
-<style>
-.board-text { white-space:pre-wrap;overflow-wrap:anywhere; }
-.board-post { width:100%;background:transparent;border:0;text-align:left;cursor:pointer;padding:12px;display:flex;flex-direction:column;gap:5px;color:inherit; }
-.board-post:hover { background:var(--tint-accent,#f1f5f9); }
-.board-row { border:1px solid #e2e8f0;border-radius:10px;min-width:0; }
-.board-actions { display:flex;flex-wrap:wrap;gap:10px; }
-</style>
+
 <script>
   import { getApps, initializeApp } from 'firebase/app';
   import { getAuth, onAuthStateChanged, getIdToken } from 'firebase/auth';
@@ -100,16 +110,21 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
     const list=by<HTMLElement>('board-list');if(!list)return;list.replaceChildren();
     const search=by<HTMLInputElement>('board-search')?.value.trim().toLocaleLowerCase()||'';
     const filtered=posts.filter(p=>!p.deleted&&(!search||`${p.title} ${p.body}`.toLocaleLowerCase().includes(search)));
-    if(!filtered.length){list.append(el('p',tr('게시글이 없습니다.','Aucun message.')));return;}
-    for(const post of filtered){
-      const row=el('div');row.className='board-row';const b=el('button') as HTMLButtonElement;b.className='board-post';b.type='button';
-      const title=el('strong',post.title),meta=el('span',`${post.authorName||''} · ${stamp(post.createdAt)}`);meta.className='small muted';
-      b.append(title,meta);b.addEventListener('click',()=>void openPost(post));row.append(b);list.append(row);
-       void nicknameOf(post.authorUid).then(nick=>{meta.textContent=`${nick} · ${stamp(post.createdAt)}`;});
-    }
+    const count=by<HTMLElement>('board-count');
+    if(count)count.textContent=tr(`게시글 ${filtered.length}개 · 최근 100개 기준`,` ${filtered.length} message(s) · parmi les 100 derniers`);
+    if(!filtered.length){const empty=el('p',search?tr('검색 결과가 없습니다.','Aucun résultat.'):tr('아직 등록된 게시글이 없습니다.','Aucun message publié.'));empty.className='board-empty';list.append(empty);return;}
+    filtered.forEach((post,index)=>{
+      const row=el('div');row.className='board-row';
+      const number=el('span',String(filtered.length-index));number.className='board-number';
+      const title=el('button',post.title) as HTMLButtonElement;title.type='button';title.className='board-title-link';title.addEventListener('click',()=>void openPost(post));
+      const author=el('span',tr('회원','Membre'));author.className='board-author';
+      const date=el('span',stamp(post.createdAt));date.className='board-date';
+      row.append(number,title,author,date);list.append(row);
+      void nicknameOf(post.authorUid).then(nick=>{if(row.isConnected)author.textContent=nick;});
+    });
   }
   async function openPost(post:BoardData){
-    selected=post;show('post-detail',true);show('post-form',false);show('board-list',false);show('board-search',false);
+    selected=post;show('post-detail',true);show('post-form',false);show('board-list-panel',false);show('board-toolbar',false);
     const title=by<HTMLElement>('detail-title'),body=by<HTMLElement>('detail-body'),meta=by<HTMLElement>('detail-meta'),actions=by<HTMLElement>('detail-actions');
     if(title)title.textContent=post.title;if(body)body.textContent=post.body;if(meta){meta.textContent=stamp(post.createdAt);void nicknameOf(post.authorUid).then(nick=>{if(selected?.id===post.id)meta.textContent=`${nick} · ${stamp(post.createdAt)}`;});}
     actions?.replaceChildren();
@@ -143,7 +158,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
 
     show('comment-form',canWrite()&&!post.deleted);await refreshComments(post.id);
   }
-  function back(){selected=null;show('post-detail',false);show('post-form',canWrite());show('board-list',true);show('board-search',true);}
+  function back(){selected=null;show('post-detail',false);show('post-form',false);show('board-list-panel',true);show('board-toolbar',true);}
   async function editPost(post:BoardData){
     if(!canEdit(post.authorUid)||post.deleted)return;
     const title=prompt(tr('제목 수정','Modifier le titre'),post.title);if(title===null)return;
@@ -328,16 +343,23 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       const snap=await getDoc(doc(db,'members',user.uid));
       if(!snap.exists()||snap.data().status!=='approved')throw Error('profile');
       uid=user.uid;role=snap.data().role;name=snap.data().nickname||'기존회원';
-      show('board-content',true);show('post-form',canWrite());notify(tr('게시판을 열었습니다.','Forum ouvert.'));
+      show('board-content',true);show('post-form',false);show('board-write-toggle',canWrite());notify(tr('게시판을 열었습니다.','Forum ouvert.'));
       await refreshPosts();
     }catch(e){console.error(e);notify(tr('접근 권한이 없습니다. 인증 후 로그인해 주세요.','Accès refusé. Vérifiez votre compte.'),true);}
   });
   by<HTMLInputElement>('board-search')?.addEventListener('input',renderPosts);
+  by<HTMLButtonElement>('board-write-toggle')?.addEventListener('click',()=>{
+    if(!canWrite())return;
+    const editor=by<HTMLElement>('post-form');if(!editor)return;
+    editor.hidden=!editor.hidden;
+    if(!editor.hidden)by<HTMLInputElement>('post-title')?.focus();
+  });
+  by<HTMLButtonElement>('post-cancel')?.addEventListener('click',()=>{show('post-form',false);});
   by<HTMLButtonElement>('post-back')?.addEventListener('click',back);
   by<HTMLFormElement>('post-form')?.addEventListener('submit',async e=>{
     e.preventDefault();if(!canWrite())return;const title=by<HTMLInputElement>('post-title')?.value.trim()||'',body=by<HTMLTextAreaElement>('post-body')?.value.trim()||'';
     if(!title||title.length>120||!body||body.length>5000)return notify(tr('제목과 내용을 확인하세요.','Vérifiez le titre et le message.'),true);
-    try{await setDoc(doc(collection(db,'boardPosts')),{title,body,authorUid:uid,authorName:name,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),deleted:false});by<HTMLFormElement>('post-form')?.reset();await refreshPosts();notify(tr('게시했습니다.','Message publié.'));}
+    try{await setDoc(doc(collection(db,'boardPosts')),{title,body,authorUid:uid,authorName:name,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),deleted:false});by<HTMLFormElement>('post-form')?.reset();show('post-form',false);await refreshPosts();notify(tr('게시했습니다.','Message publié.'));}
     catch(e){console.error(e);notify(tr('등록하지 못했습니다.','Impossible de publier.'),true);}
   });
   by<HTMLFormElement>('comment-form')?.addEventListener('submit',async e=>{

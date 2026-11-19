@@ -52,7 +52,10 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
 </div></section>
 </Base>
 <style>
- .child-row {display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:9px;border:1px solid #dce0e7;padding:12px;border-radius:10px}
+ .child-row {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:12px;border:1px solid #dce0e7;padding:16px;border-radius:10px;min-width:0}
+ .child-row label {min-width:0;overflow-wrap:anywhere}
+ .child-row input {width:100%;min-width:0}
+ .child-row .child-remove {grid-column:1 / -1;justify-self:start}
 </style>
 <script>
   import { getApps,initializeApp } from 'firebase/app';
@@ -78,7 +81,13 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
       const input=document.createElement('input');input.setAttribute('data-field',field);input.placeholder=ph;input.maxLength=100;
       label.append(input);row.append(label);
     }
-    const btn=document.createElement('button');btn.type='button';btn.className='btn btn-ghost';btn.textContent=tr('제거','Retirer');btn.addEventListener('click',()=>row.remove());row.append(btn);container.append(row);
+    if(container.children.length>0){
+      const btn=document.createElement('button');btn.type='button';btn.className='btn btn-ghost child-remove';
+      btn.textContent=tr('이 학생 항목 삭제','Supprimer cette ligne élève');
+      btn.setAttribute('aria-label',tr('이 학생 입력 항목 삭제','Supprimer cette fiche élève'));
+      btn.addEventListener('click',()=>row.remove());row.append(btn);
+    }
+    container.append(row);
   }
   addChild();document.querySelector('#full-add-child')?.addEventListener('click',addChild);
   const role=document.querySelector<HTMLSelectElement>('#full-role')!;

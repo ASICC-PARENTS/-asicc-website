@@ -1,0 +1,60 @@
+---
+import { L, type Lang } from '../i18n/ui';
+import campaigns from '../data/cms/home-campaigns.json';
+interface Props { lang: Lang; }
+const { lang } = Astro.props;
+const { bazaar, donation } = campaigns;
+// HelloAsso remains inactive until the association provides its actual campaign URL.
+const helloassoUrl = donation.helloassoUrl.trim();
+const helloassoReady = /^https:\/\/www\.helloasso\.com\//i.test(helloassoUrl);
+---
+{(bazaar.enabled || donation.enabled) && <section class="wrap home-campaigns" aria-label={L(lang,{ko:'ASICC 진행 행사와 후원 안내',fr:'Événements et soutien à l’ASICC'})}>
+  {bazaar.enabled && <article class="campaign-banner bazaar-banner">
+    <div class="campaign-content">
+      <span class="campaign-kicker">{L(lang,bazaar.eyebrow)}</span>
+      <h2>{L(lang,bazaar.title)}</h2>
+      <p>{L(lang,bazaar.body)}</p>
+      <span class="campaign-state"><span aria-hidden="true">●</span> {L(lang,bazaar.status)}</span>
+    </div>
+    <div class="campaign-decoration" aria-hidden="true">🎁</div>
+  </article>}
+  {donation.enabled && <article class="campaign-banner support-banner">
+    <div class="campaign-content">
+      <span class="campaign-kicker">{L(lang,donation.eyebrow)}</span>
+      <h2>{L(lang,donation.title)}</h2>
+      <p>{L(lang,donation.body)}</p>
+      {helloassoReady && <a class="btn btn-dark support-button" href={helloassoUrl} target="_blank" rel="noopener noreferrer">{L(lang,{ko:'HelloAsso에서 후원하기',fr:'Faire un don sur HelloAsso'})} ↗</a>}
+      <div class="bank-transfer">
+        <strong>{L(lang,donation.bankLabel)}</strong>
+        <span class="bank-holder">{donation.bankName}</span>
+        <code>{donation.iban}</code>
+      </div>
+      {!helloassoReady && <span class="support-pending">{L(lang,{ko:'HelloAsso 온라인 후원은 연결 준비 중입니다.',fr:'Le don en ligne via HelloAsso sera bientôt disponible.'})}</span>}
+    </div>
+  </article>}
+</section>}
+<style>
+.home-campaigns { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr); gap:18px; padding-top:24px; }
+.campaign-banner { position:relative; display:flex; border-radius:10px; padding:28px 30px; min-width:0; overflow:hidden; }
+.campaign-content { position:relative; z-index:1; display:flex; flex-direction:column; align-items:flex-start; gap:10px; min-width:0; width:100%; }
+.campaign-kicker { font-family:var(--strong); font-size:11px; font-weight:600; letter-spacing:.08em; line-height:1.5; }
+.campaign-banner h2 { font-family:var(--serif); font-size:clamp(21px,2.15vw,27px); line-height:1.4; overflow-wrap:anywhere; }
+.campaign-banner p { font-size:14.5px; line-height:1.7; max-width:56ch; }
+.bazaar-banner { background:#F7EDE3; border:1px solid #EFD4BE; color:#57351F; min-height:248px; }
+.bazaar-banner .campaign-kicker { color:#98592F; }
+.bazaar-banner h2, .bazaar-banner p { max-width:calc(100% - 72px); }
+.campaign-decoration { position:absolute; right:20px; bottom:28px; font-size:78px; transform:rotate(-8deg); opacity:.9; line-height:1; }
+.campaign-state { display:inline-flex; gap:8px; align-items:center; padding:6px 11px; border-radius:999px; font-size:12.5px; background:#FFF7F0; border:1px solid #EFD7C2; font-weight:600; }
+.campaign-state span { color:#C57946; font-size:9px; }
+.support-banner { background:#EBF4F0; border:1px solid #BFD6CD; color:#204C40; }
+.support-banner .campaign-kicker { color:#3D7964; }
+.support-banner p { color:#456057; }
+.bank-transfer { display:flex; flex-wrap:wrap; gap:4px 10px; align-items:baseline; width:100%; border-top:1px solid #CADFD7; margin-top:8px; padding-top:12px; font-size:13px; }
+.bank-transfer strong { font-weight:700; flex:1 0 100%; }
+.bank-holder { font-weight:600; }
+.bank-transfer code { display:block; width:100%; font-size:12.5px; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; letter-spacing:.015em; word-break:break-word; overflow-wrap:anywhere; user-select:all; }
+.support-pending { font-size:12px; color:#45665A; }
+.support-button { margin-top:4px; }
+@media(max-width:800px) { .home-campaigns { grid-template-columns:minmax(0,1fr); gap:12px; } .campaign-banner { min-height:0; padding:24px; } .bazaar-banner { min-height:220px; } }
+@media(max-width:430px) { .campaign-banner { padding:20px; } .bazaar-banner h2,.bazaar-banner p { max-width:100%; } .campaign-decoration { opacity:.17; right:14px; bottom:10px; } }
+</style>

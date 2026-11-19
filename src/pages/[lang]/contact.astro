@@ -50,26 +50,8 @@ const pageText = (lang: 'ko' | 'fr', key: keyof typeof pageCopy) => pageCopy[key
       <div class="full row gap-16"><button class="btn btn-dark" type="submit">{pageText(lang, 'item_017')}</button><span class="err" data-form-msg role="status"></span></div>
     </form>
   </section>
-  <section id="newsletter" class="wrap sec" style="scroll-margin-top:96px;padding-top:0">
-    <div class="card card-pad split" style="align-items:start;gap:32px">
-      <div class="side stack gap-8">
-        <span class="eyebrow">{pageText(lang, 'item_018')}</span>
-        <h2 class="h2">{pageText(lang, 'item_019')}</h2>
-        <p class="muted">{pageText(lang, 'item_020')}</p>
-      </div>
-      <form class="main form" data-public-form="subscribers" novalidate>
-        <label class="field full">{pageText(lang, 'item_021')}<input name="email" type="email" autocomplete="email" required></label>
-        <label class="field full">{pageText(lang, 'item_022')}
-          <select name="lang"><option value="ko" selected={lang === 'ko'}>한국어</option><option value="fr" selected={lang === 'fr'}>Français</option><option value="both">{pageText(lang, 'item_023')}</option></select>
-        </label>
-        <label class="check full"><input type="checkbox" name="consent" required>{pageText(lang, 'item_024')}</label>
-        <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
-        <div class="full row gap-16"><button class="btn btn-accent" type="submit">{pageText(lang, 'item_025')}</button><span class="err" data-form-msg role="status"></span></div>
-      </form>
-    </div>
-  </section>
+  <!-- Newsletter subscription is temporarily hidden. Restore from Git history if needed. -->
   <script>
-    import '../../scripts/public-forms';
     const t = new URLSearchParams(location.search).get('type');
     const s = document.getElementById('ctype') as HTMLSelectElement;
     if (t && [...s.options].some((o) => o.value === t)) s.value = t;

@@ -865,3 +865,45 @@ html[lang="fr"] a[href^="http"] { overflow-wrap: anywhere; }
   html[lang="fr"] .ftr { grid-template-columns: minmax(0,1fr) !important; }
   html[lang="fr"] .ftr > :first-child { grid-column:auto; }
 }
+
+/* ASICC member forum — full-width table and responsive mobile rows */
+
+.board-shell { max-width:1200px; }
+#board-root { min-width:0; }
+#board-content, #board-content > * { min-width:0; }
+.board-toolbar { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+.board-search-wrap { display:flex; align-items:center; flex:1 1 280px; min-width:0; max-width:450px; position:relative; }
+.board-search-icon { position:absolute; left:13px; top:50%; transform:translateY(-50%); font-size:25px; color:#60736c; line-height:1; pointer-events:none; }
+.board-search-wrap input { width:100%; min-width:0; min-height:46px; padding:10px 14px 10px 42px; border:1px solid var(--line-3); border-radius:8px; background:white; }
+.board-list-card { width:100%; background:white; border:1px solid var(--line); border-radius:9px; overflow:hidden; }
+.board-table-head,.board-row { display:grid; grid-template-columns:76px minmax(0,1fr) 158px 112px; gap:14px; align-items:center; }
+.board-table-head { background:#F2F7F5; border-bottom:1px solid #DDE7E2; padding:14px 18px; font-size:13px; font-family:var(--strong); font-weight:600; color:#53635D; }
+.board-row { padding:0 18px; border-bottom:1px solid var(--line-2); min-height:59px; min-width:0; }
+.board-row:hover { background:#F7FAF8; }
+.board-row .board-number { font-size:13px; color:var(--ink-4); }
+.board-title-link { width:100%; min-width:0; background:transparent; border:0; text-align:left; cursor:pointer; color:var(--ink); font-size:15px; font-family:var(--sans); padding:16px 0; overflow-wrap:anywhere; font-weight:600; }
+.board-title-link:hover { color:var(--cheongja-d); text-decoration:underline; }
+.board-author,.board-date { color:var(--ink-3); font-size:13px; min-width:0; overflow-wrap:anywhere; }
+.board-count { padding:13px 18px; font-size:12.5px; color:var(--ink-4); text-align:right; background:#FCFDFC; }
+.board-empty { padding:45px 16px; text-align:center; color:var(--ink-3); }
+.board-editor, .board-detail { width:100%; max-width:none; padding:30px; margin:0; min-width:0; }
+.board-editor label,.board-detail label { font-weight:600; font-size:14px; }
+.board-editor :is(input,textarea),.board-detail textarea { width:100%; min-width:0; border:1px solid var(--line-3); border-radius:7px; padding:12px 14px; background:#fff; }
+.board-text { white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.85; min-height:90px; border-top:1px solid var(--line-2); padding-top:20px; }
+.board-detail .board-back { align-self:flex-start; }
+.board-actions { display:flex; flex-wrap:wrap; gap:10px; }
+.board-detail #comment-list .board-row { display:flex; flex-direction:column; align-items:stretch; gap:7px; padding:16px; border:1px solid var(--line); border-radius:8px; background:#FAFCFB; }
+.board-detail #comment-list .board-row:hover { background:#FAFCFB; }
+@media(max-width:650px){
+  .board-toolbar { align-items:stretch; }
+  .board-toolbar .board-search-wrap { max-width:none; flex:1 1 100%; }
+  #board-write-toggle { margin-left:auto; }
+  .board-table-head { display:none; }
+  .board-row { display:grid; grid-template-columns: minmax(0,1fr) auto; gap:0 12px; padding:12px 15px; min-height:0; }
+  .board-row .board-number { display:none; }
+  .board-title-link { grid-column:1 / -1; padding:2px 0 6px; }
+  .board-author { grid-column:1; grid-row:2; }
+  .board-date { grid-column:2; grid-row:2; text-align:right; }
+  .board-editor,.board-detail { padding:18px 16px; }
+}
+

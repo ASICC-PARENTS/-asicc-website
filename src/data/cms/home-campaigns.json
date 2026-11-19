@@ -1,0 +1,43 @@
+{
+  "bazaar": {
+    "enabled": true,
+    "eyebrow": {
+      "ko": "COMING SOON · ASICC BAZAAR",
+      "fr": "PROCHAINEMENT · BAZAR ASICC"
+    },
+    "title": {
+      "ko": "🎁 ASICC 온라인 바자회 준비 중!",
+      "fr": "🎁 Bazar en ligne ASICC : bientôt !"
+    },
+    "body": {
+      "ko": "한국의 맛과 즐거움을 나누는 온라인 바자회를 준비하고 있습니다. 상품과 주문 방법은 추후 안내할게요.",
+      "fr": "Nous préparons un bazar en ligne pour partager les saveurs et les plaisirs de la Corée. Les articles et modalités de commande seront annoncés prochainement."
+    },
+    "status": {
+      "ko": "오픈 일정 추후 공지",
+      "fr": "Date d’ouverture à annoncer"
+    }
+  },
+  "donation": {
+    "enabled": true,
+    "helloassoUrl": "",
+    "eyebrow": {
+      "ko": "SOUTENEZ NOS ACTIVITÉS",
+      "fr": "SOUTENEZ NOS ACTIVITÉS"
+    },
+    "title": {
+      "ko": "우리 아이들의 한국어 교육을 응원해 주세요",
+      "fr": "Soutenez l’apprentissage du coréen"
+    },
+    "body": {
+      "ko": "여러분의 후원은 ASICC의 한국어 교육 및 문화 활동을 지원합니다.",
+      "fr": "Vos dons soutiennent les activités éducatives et culturelles de l’ASICC."
+    },
+    "bankLabel": {
+      "ko": "계좌이체 후원",
+      "fr": "Don par virement bancaire"
+    },
+    "bankName": "ASSOCIATION SICC",
+    "iban": "FR76 1027 8060 2200 0226 1190 128"
+  }
+}

@@ -8,7 +8,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
 
 <Base lang={lang} rest="membres/signup/" title={L(lang, { ko: '회원가입', fr: 'Inscription' })} noindex>
   <section class="wrap m-shell">
-    <div class="card auth-card stack gap-24" style="max-width:680px">
+    <div class="card auth-card signup-panel stack gap-24" style="max-width:680px">
       <div class="stack gap-12">
         <span class="m-badge" style="align-self:flex-start">
           {L(lang, { ko: 'ASICC 회원공간', fr: 'Espace membres ASICC' })}
@@ -105,13 +105,42 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
           <a href={href(lang, 'contact/')}>{L(lang, { ko: '문의하기', fr: 'Nous contacter' })}</a>
         </div>
       </form>
+      <div id="signup-verification-pending" class="verification-pending stack gap-16" data-member-home={href(lang,'membres/')} hidden>
+        <div class="verification-icon" aria-hidden="true">✉</div>
+        <h2 class="h3">{L(lang,{ko:'이메일 인증을 완료해 주세요',fr:'Confirmez votre adresse e-mail'})}</h2>
+        <p class="muted small">{L(lang,{ko:'인증 이메일의 링크를 누르면 이 화면이 자동으로 인증 상태를 확인하고 회원공간으로 이동합니다. 이 탭을 열어 두세요.',fr:'Cliquez sur le lien reçu par e-mail. Cet onglet vérifiera automatiquement la confirmation et ouvrira votre espace membre. Gardez cet onglet ouvert.'})}</p>
+        <p id="signup-verification-status" role="status" aria-live="polite" class="small"></p>
+        <div class="verification-actions row gap-12">
+          <button id="signup-verification-check" class="btn btn-dark" type="button">{L(lang,{ko:'인증 완료 확인',fr:'Vérifier maintenant'})}</button>
+          <button id="signup-verification-resend" class="btn btn-ghost" type="button">{L(lang,{ko:'인증메일 재발송',fr:'Renvoyer le courriel'})}</button>
+        </div>
+        <a href={href(lang,'membres/login/')} class="small">{L(lang,{ko:'다른 기기에서 인증했나요? 로그인하기',fr:'Confirmation sur un autre appareil ? Se connecter'})}</a>
+      </div>
     </div>
   </section>
 </Base>
+<style>
+.signup-panel {width:100%; min-width:0; }
+#asicc-signup {width:100%; min-width:0; }
+#asicc-signup > *, #asicc-signup details, #asicc-signup details > *, #asicc-signup details li { min-width:0; max-width:100%; }
+#asicc-signup :is(input:not([type="checkbox"]),select,textarea) { width:100%; min-width:0; max-width:100%; }
+#asicc-signup details > summary { cursor:pointer; white-space:normal; overflow-wrap:anywhere; padding:2px 0; line-height:1.6; }
+#asicc-signup details ul { padding-left:1.3em; }
+#asicc-signup details li + li { margin-top:9px; }
+#asicc-signup label.row { display:grid; grid-template-columns:22px minmax(0,1fr); column-gap:12px; align-items:start !important; width:100%; }
+#asicc-signup label.row input[type="checkbox"] { display:block; width:20px; height:20px; margin-top:3px !important; min-width:20px; }
+#asicc-signup label.row span { display:block; min-width:0; overflow-wrap:anywhere; line-height:1.75; }
+#asicc-signup .btn { max-width:100%; white-space:normal; overflow-wrap:anywhere; }
+.verification-pending { border:1px solid #B8D8CB; border-radius:10px; background:#F2F9F5; padding:22px; min-width:0; }
+.verification-pending p { overflow-wrap:anywhere; }
+.verification-icon {font-size:30px; line-height:1; }
+.verification-actions .btn { white-space:normal; }
+@media(max-width:600px) { .signup-panel {padding:20px 16px;} .verification-pending {padding:16px;} .verification-actions .btn {width:100%;} }
+</style>
 
 <script>
   import { getApps, initializeApp } from 'firebase/app';
-  import { getAuth, createUserWithEmailAndPassword, sendEmailVerification, signOut, deleteUser } from 'firebase/auth';
+  import { getAuth, createUserWithEmailAndPassword, sendEmailVerification, onAuthStateChanged, getIdToken, deleteUser } from 'firebase/auth';
   import { getFirestore, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
   import { firebaseConfig } from '../../../firebase-config';
 
@@ -125,6 +154,76 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     message.hidden=false; message.textContent=text;
     message.style.color=error?'#b42318':'#067647';
   };
+  const pending = document.querySelector<HTMLElement>('#signup-verification-pending');
+  const pendingStatus = document.querySelector<HTMLElement>('#signup-verification-status');
+  const checkButton = document.querySelector<HTMLButtonElement>('#signup-verification-check');
+  const resendButton = document.querySelector<HTMLButtonElement>('#signup-verification-resend');
+  const app = getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
+  const auth = getAuth(app),db=getFirestore(app);
+  auth.languageCode=isFr?'fr':'ko';
+  let registrationInProgress = false;
+  let checkInProgress = false;
+  let pollTimer:ReturnType<typeof setInterval>|undefined;
+  let pollAttempts = 0;
+  const pendingMessage=(s:string,bad=false)=>{
+    if(pendingStatus){pendingStatus.textContent=s;pendingStatus.style.color=bad?'#b42318':'#25694e';}
+  };
+  const pausePolling=()=>{if(pollTimer!==undefined){clearInterval(pollTimer);pollTimer=undefined;}};
+  async function checkVerification(manual=false){
+    const user=auth.currentUser;
+    if(!user||checkInProgress)return;
+    checkInProgress=true;
+    if(manual&&checkButton)checkButton.disabled=true;
+    try{
+      await user.reload();
+      await getIdToken(user,true); // Firestore rules require refreshed email_verified claims.
+      if(user.emailVerified){
+        pausePolling();
+        pendingMessage(label('인증 완료! 회원공간으로 이동합니다.','Adresse confirmée ! Ouverture de votre espace membre…'));
+        location.assign(pending?.dataset.memberHome||'/');
+      } else if(manual){
+        pendingMessage(label('인증 전입니다. 메일 속 링크를 눌러 주세요.','En attente : ouvrez le lien reçu par e-mail.'));
+      }
+    }catch(err){
+      console.error('ASICC email verification refresh error:',err);
+      if(manual)pendingMessage(label('인증 확인에 실패했습니다. 잠시 후 다시 시도해 주세요.','Échec de la vérification. Réessayez dans un instant.'),true);
+    }finally{checkInProgress=false;if(checkButton)checkButton.disabled=false;}
+  }
+  function watchVerification(){
+    if(pollTimer!==undefined)return;
+    // Poll only while the tab is visible, and stop after ~4 minutes to limit requests.
+    pollAttempts=0;
+    pollTimer=setInterval(()=>{
+      if(document.visibilityState!=='visible')return;
+      if(++pollAttempts>30){pausePolling();return;}
+      void checkVerification();
+    },8000);
+  }
+  function displayPending(){
+    if(form)form.hidden=true;
+    if(pending)pending.hidden=false;
+    pendingMessage(label('인증 메일을 확인 중입니다. 받은편지함과 스팸함을 확인해 주세요.','En attente de confirmation. Vérifiez la boîte de réception et les indésirables.'));
+    watchVerification();
+  }
+  if(import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true'){
+    onAuthStateChanged(auth,user=>{
+      if(registrationInProgress||!user)return;
+      if(user.emailVerified){void checkVerification();}
+      else displayPending();
+    });
+    window.addEventListener('focus',()=>{if(!pending?.hidden)void checkVerification();});
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!pending?.hidden)void checkVerification();});
+    checkButton?.addEventListener('click',()=>void checkVerification(true));
+    resendButton?.addEventListener('click',async()=>{
+      const user=auth.currentUser;
+      if(!user)return pendingMessage(label('다시 로그인해 주세요.','Reconnectez-vous.'),true);
+      resendButton.disabled=true;
+      try{await sendEmailVerification(user);pendingMessage(label('인증 메일을 다시 보냈습니다.','Un nouveau courriel a été envoyé.'));watchVerification();}
+      catch(err){console.error(err);pendingMessage(label('재발송에 실패했습니다. 잠시 후 다시 시도해 주세요.','Impossible de renvoyer le courriel. Réessayez plus tard.'),true);}
+      finally{resendButton.disabled=false;}
+    });
+  }
+
   const nicknameOkay = (n:string) => {
     if(Array.from(n).length<2 || Array.from(n).length>24) return false;
     if(!/^[\p{Script=Latin}\p{Script=Hangul}0-9]+$/u.test(n))return false;
@@ -150,9 +249,8 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
         show(label('필수 확인 항목 세 가지를 모두 선택해 주세요.','Veuillez cocher les trois cases obligatoires.'),true);return;
       }
       submit.disabled=true;
+      registrationInProgress=true;
       show(label('가입 정보를 저장하고 있습니다…','Enregistrement du compte…'));
-      const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
-      const auth=getAuth(app),db=getFirestore(app);
       let createdUser:import('firebase/auth').User|null=null;
       try{
         const credential=await createUserWithEmailAndPassword(auth,email,password);
@@ -177,10 +275,11 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
         }
         try{
           await sendEmailVerification(createdUser);
-          show(label('가입이 접수됐습니다. 인증 이메일의 링크를 누른 후 로그인해 주세요.','Compte créé. Vérifiez votre adresse grâce au lien reçu, puis connectez-vous.'));
+          displayPending();
         }catch(e){
           console.error('ASICC verification email error',e);
-          show(label('계정은 생성됐지만 인증 메일 발송에 문제가 있습니다. 로그인 화면의 인증 메일 재발송을 이용해 주세요.','Le compte existe mais le courriel de vérification n’a pas pu être envoyé. Utilisez le renvoi depuis la page de connexion.'),true);
+          displayPending();
+          pendingMessage(label('계정은 생성됐지만 메일 발송에 실패했습니다. 아래 재발송 버튼을 눌러 주세요.','Compte créé, mais l’envoi du courriel a échoué. Cliquez ci-dessous pour le renvoyer.'),true);
         }
         form.reset();
       }catch(e:unknown){
@@ -195,7 +294,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
         const pair=code&&pairs[code];
         show(pair?label(pair[0],pair[1]):label('가입하지 못했습니다. 입력값과 연결을 확인하거나 협회에 문의해 주세요.','Inscription impossible. Vérifiez les données et la connexion ou contactez l’association.'),true);
       }finally{
-        try{await signOut(auth);}catch{/* ignore */}
+        registrationInProgress=false;
         submit.disabled=false;
       }
     });
