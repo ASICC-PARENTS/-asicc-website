@@ -56,26 +56,46 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
           <input id="signup-confirm" name="confirm" type="password" autocomplete="new-password" minlength="8" required />
         </div>
 
-        <div class="card" style="padding:16px;background:var(--surface, #f7f8fa)">
-          <p style="margin:0"><strong>{L(lang, { ko: '가입 등급: 일반회원', fr: 'Statut initial : membre général' })}</strong></p>
-          <p class="small muted" style="margin:8px 0 0">{L(lang, {
-            ko: '협회회원·특별회원은 가입 후 운영진에게 승급을 신청합니다. 운영진 권한은 운영진만 부여할 수 있습니다.',
-            fr: 'Après l’inscription, vous pourrez demander une promotion au statut de membre de l’association ou de membre spécial. Le statut d’administrateur est accordé uniquement par un administrateur.'
-          })}</p>
-        </div>
-
-        <label class="row gap-12" for="signup-consent" style="align-items:flex-start">
+        <details class="card stack gap-8" style="padding:16px">
+          <summary><strong>{L(lang,{ko:'회원 등급 및 이용 권한 안내',fr:'Catégories de membres et droits d’accès'})}</strong></summary>
+          <ul class="small" style="margin-top:12px">
+            <li>{L(lang,{ko:'일반회원: 이메일 인증 후 학습자료와 게시판 열람',fr:'Membre général : accès aux ressources et lecture du forum après vérification de l’e-mail'})}</li>
+            <li>{L(lang,{ko:'협회회원: 재학생 학부모, 운영진 승인 후 게시글·댓글 작성 및 갤러리 열람',fr:'Membre de l’association : parent d’élève, publication et galerie après approbation'})}</li>
+            <li>{L(lang,{ko:'특별회원: 졸업·전학생, 그 학부모, 교사·기여자 등 운영진이 인정한 회원. 협회회원과 동일한 홈페이지 이용 권한',fr:'Membre spécial : ancien élève, parent d’ancien élève, enseignant ou contributeur reconnu. Même accès aux espaces du site que les membres de l’association'})}</li>
+            <li>{L(lang,{ko:'운영진: 회원 심사·관리 및 온라인 협회사무실 접근. 지정된 운영진만 권한 부여 가능',fr:'Administrateur : examen des demandes, gestion des comptes et bureau privé, sur nomination'})}</li>
+          </ul>
+          <p class="small muted">{L(lang,{ko:'먼저 일반회원으로 가입하고 승급은 별도 신청합니다. 홈페이지 등급과 정관상 의결권은 별개입니다.',fr:'Toute personne s’inscrit d’abord comme membre général. L’accès au site est distinct des droits statutaires de l’association.'})}</p>
+        </details>
+        <details class="card stack gap-8" style="padding:16px">
+          <summary><strong>{L(lang,{ko:'개인정보 수집·처리 안내',fr:'Informations sur les données personnelles'})}</strong></summary>
+          <div class="small stack gap-8" style="padding-top:12px">
+            <p>{L(lang,{ko:'관리 주체: ASICC 학부모협회 · 문의: contact@asicc-parents.fr',fr:'Responsable : association ASICC · Contact : contact@asicc-parents.fr'})}</p>
+            <p>{L(lang,{ko:'수집: 실명, 닉네임, 이메일, 계정 인증정보, 회원 등급 및 가입 확인 기록. 승급 신청 때에는 자녀의 이름·학교·학년·보호자 관계와 관련 이력을 추가로 수집합니다.',fr:'Données : nom, pseudonyme, e-mail, informations d’authentification, statut et preuve de prise de connaissance des règles ; pour les demandes de statut, nom, école, classe et lien avec l’enfant.'})}</p>
+            <p>{L(lang,{ko:'목적: 계정 운영, 자격 심사, 접근권한 확인, 게시판 표시, 회원 문의 처리. 실명·이메일·자녀 정보는 일반 회원에게 공개하지 않으며, 게시글·댓글에는 닉네임을 표시합니다.',fr:'Finalités : gestion du compte, vérification des droits, affichage du pseudo sur le forum et suivi des demandes. Les autres membres ne voient pas le nom réel, l’e-mail ni les données des enfants.'})}</p>
+            <p>{L(lang,{ko:'협회 운영진과 필요한 서비스 제공자가 관련 정보에 접근할 수 있습니다. 보관기간과 정보 열람·정정·삭제 등 권리는 개인정보 처리방침을 참고하세요.',fr:'Les administrateurs habilités et les prestataires nécessaires peuvent traiter ces données. Consultez la politique de confidentialité pour les durées de conservation et vos droits.'})}</p>
+            <a href={`${href(lang,'legal/')}#privacy`} target="_blank" rel="noopener noreferrer">{L(lang,{ko:'개인정보 처리방침 전문 보기',fr:'Voir la politique de confidentialité'})}</a>
+          </div>
+        </details>
+        <details class="card stack gap-8" style="padding:16px">
+          <summary><strong>{L(lang,{ko:'게시판 이용 규칙 및 운영진 권한',fr:'Règles du forum et modération'})}</strong></summary>
+          <div class="small stack gap-8" style="padding-top:12px">
+            <p>{L(lang,{ko:'비방·모욕·괴롭힘, 고의적 분란 조장, 허위정보, 개인정보 무단 공개, 광고·스팸, 차별적 표현 등을 금지합니다. 건전한 비판과 의견 차이는 존중합니다.',fr:'Sont interdits : attaques personnelles, harcèlement, provocations délibérées, informations mensongères, divulgation de données privées, publicité indésirable et propos discriminatoires. Les critiques constructives restent permises.'})}</p>
+            <p>{L(lang,{ko:'운영진은 규칙 위반 게시물을 사전 동의 없이 숨기거나 삭제할 수 있고, 위반의 정도에 따라 등급·글쓰기 권한 변경, 계정 정지 또는 홈페이지 강제 탈퇴 조치를 할 수 있습니다. 타인의 글 내용은 임의로 수정하지 않습니다.',fr:'En cas de violation, les administrateurs peuvent masquer ou supprimer des messages sans accord préalable, limiter les droits, modifier le statut, suspendre ou désactiver un compte. Ils ne réécrivent pas les messages d’autrui.'})}</p>
+            <p>{L(lang,{ko:'원칙적으로 사유를 안내하고 이의제기 기회를 제공합니다. 긴급한 침해는 즉시 임시 조치할 수 있습니다. 홈페이지 계정 제한과 정관에 따른 협회 제명은 별개입니다. 이의제기: contact@asicc-parents.fr',fr:'Le membre est en principe informé des motifs et peut contester la mesure. Une restriction temporaire urgente reste possible. L’exclusion statutaire de l’association suit une procédure distincte. Recours : contact@asicc-parents.fr'})}</p>
+          </div>
+        </details>
+        <label class="row gap-12" style="align-items:flex-start" for="signup-consent">
           <input id="signup-consent" name="consent" type="checkbox" required style="margin-top:4px" />
-          <span>{L(lang, {
-            ko: '회원 계정 운영을 위한 이름·이메일 수집 및 이용에 동의합니다. (필수)',
-            fr: 'J’accepte la collecte et l’utilisation de mon nom et de mon adresse e-mail pour la gestion de mon compte. (Obligatoire)'
-          })}</span>
+          <span>{L(lang,{ko:'[필수] 개인정보 처리 안내를 읽고 확인했습니다.',fr:'[Obligatoire] J’ai pris connaissance des informations sur mes données personnelles.'})}</span>
         </label>
-        <p class="small muted">{L(lang, {
-          ko: '개인정보 이용 목적·보관 기간·삭제 및 문의 방법은 개인정보 처리방침을 확인해 주세요.',
-          fr: 'Consultez la politique de confidentialité pour les finalités, la conservation, la suppression et les contacts.'
-        })}</p>
-
+        <label class="row gap-12" style="align-items:flex-start" for="signup-membership-rules">
+          <input id="signup-membership-rules" name="membershipRules" type="checkbox" required style="margin-top:4px" />
+          <span>{L(lang,{ko:'[필수] 회원 등급, 권한 변경, 계정 정지·강제 탈퇴에 관한 이용 규칙을 확인하고 동의합니다.',fr:'[Obligatoire] J’accepte les règles de statut, de limitation d’accès et de désactivation du compte.'})}</span>
+        </label>
+        <label class="row gap-12" style="align-items:flex-start" for="signup-forum-rules">
+          <input id="signup-forum-rules" name="forumRules" type="checkbox" required style="margin-top:4px" />
+          <span>{L(lang,{ko:'[필수] 게시판 이용 규칙과 운영진의 게시물 관리 권한에 동의합니다.',fr:'[Obligatoire] J’accepte les règles du forum et la modération des publications.'})}</span>
+        </label>
         <p id="signup-message" aria-live="polite" role="status" class="small" hidden></p>
         <button id="signup-submit" class="btn btn-dark" type="submit">
           {L(lang, { ko: '회원가입 및 인증메일 받기', fr: 'Créer le compte et recevoir le courriel de vérification' })}
@@ -91,168 +111,92 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
 
 <script>
   import { getApps, initializeApp } from 'firebase/app';
-  import { getAuth, createUserWithEmailAndPassword, sendEmailVerification, signOut } from 'firebase/auth';
-  
-import { getFirestore, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
-
+  import { getAuth, createUserWithEmailAndPassword, sendEmailVerification, signOut, deleteUser } from 'firebase/auth';
+  import { getFirestore, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
   import { firebaseConfig } from '../../../firebase-config';
 
   const form = document.querySelector<HTMLFormElement>('#asicc-signup');
   const message = document.querySelector<HTMLElement>('#signup-message');
   const submit = document.querySelector<HTMLButtonElement>('#signup-submit');
-
   const isFr = form?.dataset.lang === 'fr';
-  const label = (ko: string, fr: string) => isFr ? fr : ko;
-  const show = (text: string, error = false) => {
-    if (!message) return;
-    message.hidden = false;
-    message.textContent = text;
-    message.style.color = error ? '#b42318' : '#067647';
+  const label = (ko:string, fr:string) => isFr ? fr : ko;
+  const show = (text:string, error=false) => {
+    if(!message)return;
+    message.hidden=false; message.textContent=text;
+    message.style.color=error?'#b42318':'#067647';
+  };
+  const nicknameOkay = (n:string) => {
+    if(Array.from(n).length<2 || Array.from(n).length>24) return false;
+    if(!/^[\p{Script=Latin}\p{Script=Hangul}0-9]+$/u.test(n))return false;
+    const plain=n.normalize('NFD').toLowerCase().replace(/\p{M}/gu,'');
+    const reserved=['asicc','admin','administrator','administrateur','administratrice','moderateur','moderatrice','official','officiel','staff','관리자','운영진','협회','공식'];
+    return !reserved.some(x=>plain.includes(x.normalize('NFD')));
   };
 
-  if (import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true" && form && submit) {
-    form.addEventListener('submit', async (event) => {
+  if(import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true' && form && submit){
+    form.addEventListener('submit',async event=>{
       event.preventDefault();
-      const data = new FormData(form);
-      const name = String(data.get('name') ?? '').trim();
-      
-const nickname = String(data.get('nickname') ?? '').trim().normalize('NFKC');
-
-      const email = String(data.get('email') ?? '').trim().toLowerCase();
-      const password = String(data.get('password') ?? '');
-      const confirm = String(data.get('confirm') ?? '');
-
-const nicknameLength = Array.from(nickname).length;
-
-const allowedNickname =
-  /^[\p{Script=Hangul}\p{Script=Latin}0-9][\p{Script=Hangul}\p{Script=Latin}\p{M}0-9]*$/u.test(nickname);
-
-const nicknameForCheck = nickname
-  .toLowerCase()
-  .normalize('NFD')
-  .replace(/\p{M}/gu, '');
-
-const reservedNames = [
-  'asicc',
-  'admin',
-  'administrator',
-  'administrateur',
-  'administratrice',
-  'moderateur',
-  'moderatrice',
-  'official',
-  'officiel',
-  'staff',
-  '관리자',
-  '운영진',
-  '협회',
-  '공식'
-];
-
-if (
-  nicknameLength < 2 ||
-  nicknameLength > 24 ||
-  !allowedNickname ||
-  reservedNames.some(word => nicknameForCheck.includes(word))
-) {
-  show(label(
-    '닉네임은 한글·영문·숫자 2~24자로 입력해주세요. 특수문자와 운영진을 사칭하는 이름은 사용할 수 없습니다.',
-    'Le pseudo doit comporter 2 à 24 caractères : lettres coréennes, latines ou chiffres. Les caractères spéciaux et les noms réservés sont interdits.'
-  ), true);
-  return;
-}
-
-
-      if (name.length < 1 || name.length > 80 || nickname.length < 2 || nickname.length > 24 || !email || password.length < 8) {
-        show(label('입력 내용을 확인해주세요.', 'Vérifiez les informations saisies.'), true);
-        return;
+      const data=new FormData(form);
+      const name=String(data.get('name')??'').trim();
+      const nickname=String(data.get('nickname')??'').trim().normalize('NFKC');
+      const email=String(data.get('email')??'').trim().toLowerCase();
+      const password=String(data.get('password')??'');
+      const confirm=String(data.get('confirm')??'');
+      if(!name||name.length>80||!nicknameOkay(nickname)||!email||password.length<8){
+        show(label('실명, 닉네임(한글·라틴문자·숫자 2~24자)과 비밀번호를 확인해 주세요. 운영진을 사칭하는 닉네임은 허용되지 않습니다.','Vérifiez le nom, le pseudo (2 à 24 lettres coréennes/latines ou chiffres) et le mot de passe. Les pseudos réservés sont interdits.'),true);return;
       }
-      if (password !== confirm) {
-        show(label('비밀번호가 일치하지 않습니다.', 'Les mots de passe ne correspondent pas.'), true);
-        return;
+      if(password!==confirm){show(label('비밀번호가 일치하지 않습니다.','Les mots de passe ne correspondent pas.'),true);return;}
+      if(data.get('consent')!=='on'||data.get('membershipRules')!=='on'||data.get('forumRules')!=='on'){
+        show(label('필수 확인 항목 세 가지를 모두 선택해 주세요.','Veuillez cocher les trois cases obligatoires.'),true);return;
       }
-      if (data.get('consent') !== 'on') {
-        show(label('개인정보 수집에 동의해야 합니다.', 'Votre consentement est nécessaire.'), true);
-        return;
-      }
-
-      submit.disabled = true;
-      show(label('계정을 만들고 있습니다…', 'Création du compte en cours…'));
-
-      try {
-        // This profile shape matches ASICC's staged 4-role Firestore rule draft.
-        // All users register as general members; higher roles are admin-approved later.
-        const app = getApps().find((entry) => entry.name === 'asicc-website')
-          ?? initializeApp(firebaseConfig, 'asicc-website');
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-const credential = await createUserWithEmailAndPassword(auth, email, password);
-        try {
-          
-const nicknameKey = nickname.toLowerCase();
-
-const batch = writeBatch(db);
-
-batch.set(doc(db, 'members', credential.user.uid), {
-  name,
-  nickname,
-  nicknameKey,
-  email,
-  role: 'general',
-  status: 'approved',
-  consent: true,
-  createdAt: serverTimestamp()
-});
-
-batch.set(doc(db, 'nicknames', nicknameKey), {
-  uid: credential.user.uid,
-  nickname,
-  createdAt: serverTimestamp()
-});
-
-await batch.commit();
-
-        } catch (profileError) {
-          console.error('ASICC profile creation failed:', profileError);
-          show(label(
-            '인증 계정은 만들어졌지만 회원정보 저장이 실패했습니다. 다시 가입하지 말고 협회로 문의해주세요. Firebase 보안 규칙을 확인해야 합니다.',
-            'Le compte a été créé mais le profil n’a pas pu être enregistré. Ne recommencez pas l’inscription ; contactez l’association.'
-          ), true);
-          try { await signOut(auth); } catch { /* best effort */ }
+      submit.disabled=true;
+      show(label('가입 정보를 저장하고 있습니다…','Enregistrement du compte…'));
+      const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
+      const auth=getAuth(app),db=getFirestore(app);
+      let createdUser:import('firebase/auth').User|null=null;
+      try{
+        const credential=await createUserWithEmailAndPassword(auth,email,password);
+        createdUser=credential.user;
+        const nicknameKey=nickname.toLowerCase();
+        const batch=writeBatch(db);
+        batch.set(doc(db,'members',createdUser.uid),{
+          name,nickname,nicknameKey,email,role:'general',status:'approved',
+          consent:true,termsVersion:'2026-11',termsAcceptedAt:serverTimestamp(),createdAt:serverTimestamp()
+        });
+        batch.set(doc(db,'nicknames',nicknameKey),{uid:createdUser.uid,nickname,createdAt:serverTimestamp()});
+        batch.set(doc(db,'publicNames',createdUser.uid),{nickname,updatedAt:serverTimestamp()});
+        try{await batch.commit();}
+        catch(e){
+          console.error('ASICC profile/nickname reservation error:',e);
+          let cleaned=false;
+          try{await deleteUser(createdUser);cleaned=true;}catch(cleanError){console.error('Could not clean up incomplete Firebase Auth user',cleanError);}
+          show(cleaned
+            ? label('닉네임이 이미 사용 중이거나 계정 저장에 실패했습니다. 다른 닉네임으로 다시 시도해 주세요.','Ce pseudo est peut-être déjà utilisé ou le profil n’a pas pu être enregistré. Essayez un autre pseudo.')
+            : label('회원정보 저장에 실패했고 계정 정리도 완료되지 않았습니다. 같은 이메일로 재가입하지 말고 협회에 문의해 주세요.','Le profil n’a pas pu être enregistré et le compte n’a pas pu être annulé. Contactez l’association sans recommencer.'),true);
           return;
         }
-
-        try {
-          await sendEmailVerification(credential.user);
-          show(label(
-            '가입이 접수되었습니다! 이메일로 보낸 인증 링크를 눌러주세요. 인증 후 로그인하면 일반회원으로 이용할 수 있습니다.',
-            'Inscription enregistrée ! Vérifiez votre adresse e-mail via le lien reçu, puis connectez-vous comme membre général.'
-          ));
-        } catch (emailError) {
-          console.error('ASICC verification email failed:', emailError);
-          show(label(
-            '회원정보는 저장됐지만 인증메일 발송에 문제가 생겼습니다. 다시 가입하지 말고 협회에 문의해주세요.',
-            'Le profil a été enregistré, mais l’envoi du courriel de vérification a échoué. Contactez l’association sans recréer le compte.'
-          ), true);
+        try{
+          await sendEmailVerification(createdUser);
+          show(label('가입이 접수됐습니다. 인증 이메일의 링크를 누른 후 로그인해 주세요.','Compte créé. Vérifiez votre adresse grâce au lien reçu, puis connectez-vous.'));
+        }catch(e){
+          console.error('ASICC verification email error',e);
+          show(label('계정은 생성됐지만 인증 메일 발송에 문제가 있습니다. 로그인 화면의 인증 메일 재발송을 이용해 주세요.','Le compte existe mais le courriel de vérification n’a pas pu être envoyé. Utilisez le renvoi depuis la page de connexion.'),true);
         }
         form.reset();
-        try { await signOut(auth); } catch { /* best effort */ }
-      } catch (error: unknown) {
-        const code = (error as { code?: string })?.code;
-        const messages: Record<string, [string, string]> = {
-          'auth/email-already-in-use': ['이미 가입된 이메일입니다. 로그인하거나 비밀번호 찾기를 이용해주세요.', 'Cette adresse e-mail est déjà utilisée. Connectez-vous ou réinitialisez votre mot de passe.'],
-          'auth/invalid-email': ['이메일 주소를 확인해주세요.', 'Vérifiez votre adresse e-mail.'],
-          'auth/weak-password': ['더 강력한 비밀번호를 사용해주세요.', 'Choisissez un mot de passe plus fort.'],
-          'auth/too-many-requests': ['요청이 많습니다. 잠시 후 다시 시도해주세요.', 'Trop de tentatives. Réessayez plus tard.']
+      }catch(e:unknown){
+        console.error('ASICC signup failure',e);
+        const code=(e as {code?:string})?.code;
+        const pairs:Record<string,[string,string]>={
+          'auth/email-already-in-use':['이미 가입된 이메일입니다. 로그인 또는 비밀번호 찾기를 이용해 주세요.','Cette adresse est déjà utilisée. Connectez-vous ou réinitialisez le mot de passe.'],
+          'auth/invalid-email':['이메일 주소를 확인해 주세요.','Vérifiez l’adresse e-mail.'],
+          'auth/weak-password':['비밀번호를 더 강하게 설정해 주세요.','Choisissez un mot de passe plus fort.'],
+          'auth/too-many-requests':['요청이 많습니다. 나중에 다시 시도해 주세요.','Trop de demandes. Réessayez ultérieurement.']
         };
-        const pair = code && messages[code];
-        show(pair ? label(pair[0], pair[1]) : label(
-          '회원가입을 완료하지 못했습니다. 인터넷 연결과 Firebase 설정을 확인해주세요.',
-          'Impossible de terminer l’inscription. Vérifiez la connexion Internet et la configuration Firebase.'
-        ), true);
-        console.error('ASICC signup error:', error);
-      } finally {
-        submit.disabled = false;
+        const pair=code&&pairs[code];
+        show(pair?label(pair[0],pair[1]):label('가입하지 못했습니다. 입력값과 연결을 확인하거나 협회에 문의해 주세요.','Inscription impossible. Vérifiez les données et la connexion ou contactez l’association.'),true);
+      }finally{
+        try{await signOut(auth);}catch{/* ignore */}
+        submit.disabled=false;
       }
     });
   }

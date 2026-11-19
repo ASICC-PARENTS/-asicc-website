@@ -1,309 +1,121 @@
 ---
 import Base from '../../../layouts/Base.astro';
-import { langPaths, href, L, type Lang } from '../../../i18n/ui';
-export const getStaticPaths = langPaths;
-const lang = Astro.params.lang as Lang;
-const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
+import { langPaths,href,L,type Lang } from '../../../i18n/ui';
+export const getStaticPaths=langPaths;
+const lang=Astro.params.lang as Lang;
+const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
 ---
-<Base
-  lang={lang}
-  rest="membres/"
-  title={L(lang, { ko: 'ASICC 회원공간', fr: 'Espace membres ASICC' })}
-  noindex
->
-  <section class="wrap m-shell">
-    <div
-      id="member-root"
-      class="stack gap-24"
-      data-lang={lang}
-      data-login-url={href(lang, 'membres/login/')}
-      data-home-url={href(lang)}
-    >
-      <div class="stack gap-12">
-        <span class="m-badge" style="align-self:flex-start">{L(lang, { ko: '회원 서비스', fr: 'Services membres' })}</span>
-        <h1 class="h2">{L(lang, { ko: 'ASICC 회원공간', fr: 'Espace membres ASICC' })}</h1>
-        <p class="muted">{L(lang, {
-          ko: '회원 등급에 따라 이용할 수 있는 공간을 확인하고, 협회회원 또는 특별회원 승급을 신청하세요.',
-          fr: 'Consultez les espaces accessibles selon votre statut et demandez, si nécessaire, votre adhésion ou le statut de membre spécial.'
-        })}</p>
-      </div>
-
-      {!live && <div class="card auth-card" role="status">{L(lang,{ko:"회원공간은 테스트 중입니다. 실제 서비스는 Firebase 권한 검증 후 개통됩니다.",fr:"L’espace membres est en cours de test. Il sera ouvert après validation des autorisations Firebase."})}</div>}
-      <div hidden={!live} id="member-loading" class="card auth-card" role="status">
-        {L(lang, { ko: '로그인 상태를 확인하는 중입니다…', fr: 'Vérification de votre session…' })}
-      </div>
-      <div id="member-error" class="card auth-card stack gap-12" hidden>
-        <p id="member-error-text" role="alert"></p>
-        <a class="btn btn-dark" href={href(lang, 'membres/login/')}>
-          {L(lang, { ko: '로그인 페이지', fr: 'Page de connexion' })}
-        </a>
-      </div>
-
-      <div id="member-content" class="stack gap-24" hidden>
-        <div class="card auth-card stack gap-12">
-          <div class="row gap-16" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
-            <div class="stack gap-8">
-              <strong id="member-name"></strong>
-              <span id="member-role" class="m-badge" style="align-self:flex-start"></span>
-              <span id="member-email" class="small muted"></span>
-            </div>
-            <button id="member-signout" class="btn btn-ghost" type="button">
-              {L(lang, { ko: '로그아웃', fr: 'Se déconnecter' })}
-            </button>
-          </div>
-        </div>
-
-        <div class="stack gap-16">
-          <h2 class="h3">{L(lang, { ko: '회원 전용 공간', fr: 'Espaces réservés' })}</h2>
-          <div class="asicc-member-grid">
-            <article class="card asicc-member-tile stack gap-12">
-              <h3 class="h3">{L(lang, { ko: '학습자료실', fr: 'Ressources pédagogiques' })}</h3>
-              <p class="small muted">{L(lang, { ko: '모든 인증 회원 이용 가능', fr: 'Accessible à tous les membres vérifiés' })}</p>
-              <a class="btn btn-ghost" href={href(lang, "membres/learning/")}>{L(lang, {ko:"자료실 열기", fr:"Consulter les ressources"})}</a>
-            </article>
-            <article class="card asicc-member-tile stack gap-12">
-              <h3 class="h3">{L(lang, { ko: '회원 소통 게시판', fr: 'Forum des membres' })}</h3>
-              <p id="board-privilege" class="small muted"></p>
-              <a class="btn btn-ghost" href={href(lang, "membres/board/")}>{L(lang, {ko:"게시판 열기", fr:"Accéder au forum"})}</a>
-            </article>
-            <article class="card asicc-member-tile stack gap-12">
-              <h3 class="h3">{L(lang, { ko: '갤러리', fr: 'Galerie' })}</h3>
-              <p id="gallery-privilege" class="small muted"></p>
-              <a id="gallery-link" class="btn btn-ghost" href={href(lang, "membres/gallery/")}>{L(lang, {ko:"갤러리 열기", fr:"Voir la galerie"})}</a>
-            </article>
-            <article id="office-tile" class="card asicc-member-tile stack gap-12" hidden>
-              <h3 class="h3">{L(lang, { ko: '온라인 협회사무실', fr: 'Bureau de l’association' })}</h3>
-              <p class="small muted">{L(lang, { ko: '운영진 전용 · 회의록, 정관, 명부 등', fr: 'Réservé aux administrateurs : procès-verbaux, statuts et registres' })}</p>
-              <a class="btn btn-ghost" href={href(lang, "membres/office/")}>{L(lang, {ko:"사무실 열기", fr:"Accéder au bureau"})}</a>
-            </article>
-          </div>
-        </div>
-
-        <div id="admin-shortcut" class="card auth-card" hidden>
-          <a class="btn btn-dark" href={href(lang, "membres/admin/")}>{L(lang,{ko:"운영진 관리자 페이지",fr:"Administration des membres"})}</a>
-        </div>
-        <div id="upgrade-panel" class="card auth-card stack gap-16" hidden>
-          <div class="stack gap-8">
-            <h2 class="h3">{L(lang, { ko: '회원 등급 승급 신청', fr: 'Demander un changement de statut' })}</h2>
-            <p class="small muted">{L(lang, {
-              ko: '협회회원과 특별회원은 같은 회원공간 이용 권한을 갖습니다. 운영진이 신청 내용을 확인하고 승인합니다.',
-              fr: 'Les membres de l’association et les membres spéciaux bénéficient du même accès. La demande est examinée par un administrateur.'
-            })}</p>
-          </div>
-          <div id="upgrade-existing" class="small muted" hidden></div>
-          <form id="upgrade-form" class="stack gap-12">
-            <div class="stack gap-8">
-              <label for="upgrade-role">{L(lang, { ko: '신청 등급', fr: 'Statut demandé' })}</label>
-              <select id="upgrade-role" name="requestedRole" required>
-                <option value="member">{L(lang, { ko: '협회회원', fr: 'Membre de l’association' })}</option>
-                <option value="special">{L(lang, { ko: '특별회원 (졸업생 또는 졸업생 학부모)', fr: 'Membre spécial (ancien élève ou parent)' })}</option>
-              </select>
-            </div>
-            <div id="upgrade-kind-wrap" class="stack gap-8" hidden>
-              <label for="upgrade-kind">{L(lang, { ko: '특별회원 유형', fr: 'Catégorie de membre spécial' })}</label>
-              <select id="upgrade-kind" name="kind">
-                <option value="alumnus">{L(lang, { ko: '졸업생', fr: 'Ancien élève' })}</option>
-                <option value="alumni-parent">{L(lang, { ko: '졸업생 학부모', fr: 'Parent d’ancien élève' })}</option>
-              </select>
-            </div>
-            <div class="stack gap-8">
-              <label for="upgrade-year">{L(lang, { ko: '관련 졸업 연도 (선택)', fr: 'Année de fin de scolarité (facultatif)' })}</label>
-              <input id="upgrade-year" name="schoolYear" type="number" min="2000" max="2100" inputmode="numeric" />
-            </div>
-            <div class="stack gap-8">
-              <label for="upgrade-note">{L(lang, { ko: '심사 참고사항 (선택)', fr: 'Informations complémentaires (facultatif)' })}</label>
-              <textarea id="upgrade-note" name="note" maxlength="500" rows="3"></textarea>
-            </div>
-            <p id="upgrade-message" class="small" aria-live="polite" role="status" hidden></p>
-            <button id="upgrade-submit" class="btn btn-dark" type="submit">
-              {L(lang, { ko: '운영진에게 승급 신청', fr: 'Envoyer la demande' })}
-            </button>
-          </form>
-        </div>
-      </div>
+<Base lang={lang} rest="membres/" title={L(lang,{ko:'ASICC 회원공간',fr:'Espace membres ASICC'})} noindex>
+<section class="wrap m-shell">
+  <div id="member-root" data-lang={lang} data-login-url={href(lang,'membres/login/')} class="stack gap-24">
+    <div class="stack gap-8">
+      <span class="m-badge" style="align-self:flex-start">ASICC · ESPACE MEMBRES</span>
+      <h1 class="h2">{L(lang,{ko:'회원공간',fr:'Espace membres'})}</h1>
+      <p class="muted">{L(lang,{ko:'새 게시글·학습자료·갤러리를 한눈에 확인하세요.',fr:'Consultez les derniers messages, ressources et albums.'})}</p>
     </div>
-  </section>
+    {!live && <div class="card">{L(lang,{ko:'회원공간 기능은 시험 준비 중입니다.',fr:'Espace membres en préparation.'})}</div>}
+    <div id="member-loading" hidden={!live} class="card" role="status">{L(lang,{ko:'회원정보를 불러오는 중…',fr:'Chargement du profil…'})}</div>
+    <div id="member-error" class="card" role="alert" hidden></div>
+    <div id="member-content" hidden class="stack gap-20">
+      <div class="card member-topbar">
+        <div class="stack gap-8">
+          <strong id="member-name"></strong><span id="member-role" class="m-badge" style="align-self:flex-start"></span>
+          <span class="small muted" id="member-email"></span>
+        </div>
+        <div class="member-top-actions">
+          <a class="btn btn-ghost" href={href(lang,'membres/profile/')}>{L(lang,{ko:'내 정보 관리',fr:'Mon profil'})}</a>
+          <a class="btn btn-ghost" href={href(lang,'membres/upgrade/')} id="upgrade-shortcut" hidden>{L(lang,{ko:'승급 신청',fr:'Demander un statut'})}</a>
+          <a class="btn btn-ghost" href={href(lang,'membres/suggestions/')}>{L(lang,{ko:'협회에 건의',fr:'Écrire à l’association'})}</a>
+          <a class="btn btn-ghost" href={href(lang,'membres/admin/')} id="admin-shortcut" hidden>{L(lang,{ko:'회원관리',fr:'Administration'})}</a>
+          <a class="btn btn-ghost" href={href(lang,'membres/office/')} id="office-shortcut" hidden>{L(lang,{ko:'온라인 협회사무실',fr:'Bureau privé'})}</a>
+          <button id="member-signout" type="button" class="btn btn-ghost">{L(lang,{ko:'로그아웃',fr:'Déconnexion'})}</button>
+        </div>
+      </div>
+      <div class="member-three">
+        <section class="card member-panel stack gap-12">
+          <div class="member-panel-title"><h2 class="h3">{L(lang,{ko:'학습자료실',fr:'Ressources pédagogiques'})}</h2><span aria-hidden="true">📚</span></div>
+          <p class="small muted">{L(lang,{ko:'최근 등록 자료 5개',fr:'5 dernières ressources'})}</p>
+          <div id="recent-learning" class="member-feed stack gap-8"></div>
+          <a class="btn btn-ghost member-bottom-link" href={href(lang,'membres/learning/')}>{L(lang,{ko:'전체 자료 보기',fr:'Toutes les ressources'})} →</a>
+        </section>
+        <section class="card member-panel stack gap-12">
+          <div class="member-panel-title"><h2 class="h3">{L(lang,{ko:'회원 게시판',fr:'Forum des membres'})}</h2><span aria-hidden="true">💬</span></div>
+          <p id="board-privilege" class="small muted"></p>
+          <div id="recent-posts" class="member-feed stack gap-8"></div>
+          <a class="btn btn-ghost member-bottom-link" href={href(lang,'membres/board/')}>{L(lang,{ko:'전체 게시글 보기',fr:'Tous les messages'})} →</a>
+        </section>
+        <section class="card member-panel stack gap-12">
+          <div class="member-panel-title"><h2 class="h3">{L(lang,{ko:'갤러리',fr:'Galerie'})}</h2><span aria-hidden="true">🖼️</span></div>
+          <p class="small muted">{L(lang,{ko:'최근 등록 앨범',fr:'Albums récents'})}</p>
+          <div id="recent-gallery" class="member-feed stack gap-8"></div>
+          <a id="gallery-link" class="btn btn-ghost member-bottom-link" href={href(lang,'membres/gallery/')}>{L(lang,{ko:'전체 앨범 보기',fr:'Voir tous les albums'})} →</a>
+        </section>
+      </div>
+      <p id="member-dashboard-status" class="small muted" role="status" aria-live="polite"></p>
+    </div>
+  </div>
+</section>
 </Base>
-
 <style>
-  .asicc-member-grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,260px),1fr)); gap:16px; }
-  .asicc-member-tile { padding:22px; min-height:165px; }
-  .asicc-tile-state { font-size:0.85rem; color:var(--muted,#6b7280); }
+.member-topbar {padding:20px 24px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.member-top-actions {display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.member-three {display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:16px;align-items:stretch}
+.member-panel {padding:22px;min-width:0;min-height:340px}
+.member-panel-title {display:flex;justify-content:space-between;align-items:center;gap:8px}
+.member-feed {flex:1;min-width:0}
+.member-feed-item {border-bottom:1px solid #e9e9e9;padding:8px 0;min-width:0;overflow-wrap:anywhere}
+.member-bottom-link {margin-top:auto}
+.member-lock {border:1px dashed #b9c1cc;border-radius:12px;padding:25px 14px;text-align:center;background:#f8fafc;min-height:175px;display:grid;place-content:center;gap:10px}
+@media(max-width:900px){.member-three{grid-template-columns:1fr}.member-panel{min-height:220px}}
 </style>
-
 <script>
-  import { getApps, initializeApp } from 'firebase/app';
-  import { getAuth, onAuthStateChanged, signOut, getIdToken } from 'firebase/auth';
-  import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-  import { firebaseConfig } from '../../../firebase-config';
-
-  const root = document.querySelector<HTMLElement>('#member-root');
-  const content = document.querySelector<HTMLElement>('#member-content');
-  const loading = document.querySelector<HTMLElement>('#member-loading');
-  const error = document.querySelector<HTMLElement>('#member-error');
-  const errorText = document.querySelector<HTMLElement>('#member-error-text');
-  const roleText = document.querySelector<HTMLElement>('#member-role');
-  const nameText = document.querySelector<HTMLElement>('#member-name');
-  const emailText = document.querySelector<HTMLElement>('#member-email');
-  const boardText = document.querySelector<HTMLElement>('#board-privilege');
-  const galleryText = document.querySelector<HTMLElement>('#gallery-privilege');
-  const officeTile = document.querySelector<HTMLElement>('#office-tile');
-  const galleryLink = document.querySelector<HTMLElement>('#gallery-link');
-  const adminShortcut = document.querySelector<HTMLElement>('#admin-shortcut');
-  const upgradePanel = document.querySelector<HTMLElement>('#upgrade-panel');
-  const upgradeExisting = document.querySelector<HTMLElement>('#upgrade-existing');
-  const upgradeForm = document.querySelector<HTMLFormElement>('#upgrade-form');
-  const upgradeRole = document.querySelector<HTMLSelectElement>('#upgrade-role');
-  const upgradeKindWrap = document.querySelector<HTMLElement>('#upgrade-kind-wrap');
-  const upgradeKind = document.querySelector<HTMLSelectElement>('#upgrade-kind');
-  const upgradeYear = document.querySelector<HTMLInputElement>('#upgrade-year');
-  const upgradeNote = document.querySelector<HTMLTextAreaElement>('#upgrade-note');
-  const upgradeMessage = document.querySelector<HTMLElement>('#upgrade-message');
-  const upgradeSubmit = document.querySelector<HTMLButtonElement>('#upgrade-submit');
-
-  const fr = root?.dataset.lang === 'fr';
-  const tr = (ko: string, french: string) => fr ? french : ko;
-  const loginUrl = root?.dataset.loginUrl || '/';
-  const fail = (text: string) => {
-    if (loading) loading.hidden = true;
-    if (content) content.hidden = true;
-    if (error) error.hidden = false;
-    if (errorText) errorText.textContent = text;
-  };
-  const showUpgradeMessage = (text: string, bad = false) => {
-    if (!upgradeMessage) return;
-    upgradeMessage.hidden = false;
-    upgradeMessage.textContent = text;
-    upgradeMessage.style.color = bad ? '#b42318' : '#067647';
-  };
-
-  const app = getApps().find(a => a.name === 'asicc-website')
-    ?? initializeApp(firebaseConfig, 'asicc-website');
-  const auth = getAuth(app);
-  const db = getFirestore(app);
-  let currentProfile: { name: string; email: string; role: string; status: string } | null = null;
-
-  const refreshUpgradeState = async (uid: string) => {
-    const snapshot = await getDoc(doc(db, 'upgradeRequests', uid));
-    if (snapshot.exists()) {
-      const status = snapshot.data().status as string;
-      if (upgradeExisting) {
-        upgradeExisting.hidden = false;
-        upgradeExisting.textContent = status === 'pending'
-          ? tr('승급 신청을 심사 중입니다.', 'Votre demande est en cours d’examen.')
-          : status === 'approved'
-          ? tr('승급 신청이 승인되었습니다. 새로 로그인하면 반영됩니다.', 'Demande approuvée. Reconnectez-vous pour actualiser votre statut.')
-          : tr('이전 신청은 반려됐습니다. 내용을 수정해 다시 신청할 수 있습니다.', 'Votre précédente demande a été refusée. Vous pouvez présenter une nouvelle demande.');
-      }
-      if (upgradeForm) upgradeForm.hidden = status !== 'rejected';
-      return status;
-    }
-    if (upgradeExisting) upgradeExisting.hidden = true;
-    if (upgradeForm) upgradeForm.hidden = false;
-    return null;
-  };
-
-  if (import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true") onAuthStateChanged(auth, async (user) => {
-    if (!user) { window.location.replace(loginUrl); return; }
-    try {
-      await user.reload();
-      await getIdToken(user, true);
-      if (!user.emailVerified) { window.location.replace(loginUrl); return; }
-      const snapshot = await getDoc(doc(db, 'members', user.uid));
-      if (!snapshot.exists()) {
-        fail(tr('회원정보를 찾을 수 없습니다. 협회에 문의해 주세요.', 'Profil introuvable. Contactez l’association.'));
-        return;
-      }
-      const data = snapshot.data();
-      if (data.status !== 'approved' || !['general', 'member', 'special', 'admin'].includes(data.role)) {
-        fail(tr('사용할 수 없는 회원 상태입니다. 협회에 문의해 주세요.', 'Ce compte ne peut pas accéder à l’espace membres.'));
-        return;
-      }
-      currentProfile = { name: data.name, email: data.email, role: data.role, status: data.status };
-      if (nameText) nameText.textContent = data.name;
-      if (emailText) emailText.textContent = data.email;
-      if (roleText) roleText.textContent = ({
-        general: tr('일반회원', 'Membre général'),
-        member: tr('협회회원', 'Membre de l’association'),
-        special: tr('특별회원', 'Membre spécial'),
-        admin: tr('운영진', 'Administrateur')
-      } as Record<string,string>)[data.role] || data.role;
-      const canContribute = ['member', 'special', 'admin'].includes(data.role);
-      if (boardText) boardText.textContent = canContribute
-        ? tr('읽기·글쓰기·댓글 가능', 'Lecture, publication et commentaires autorisés')
-        : tr('게시글 열람 가능 · 글쓰기는 승인회원만', 'Lecture autorisée ; publication réservée aux membres approuvés');
-      if (galleryText) galleryText.textContent = canContribute
-        ? tr('앨범 열람 가능', 'Consultation des albums autorisée')
-        : tr('협회회원·특별회원·운영진만 열람 가능', 'Réservée aux membres de l’association, aux membres spéciaux et aux administrateurs');
-      if (officeTile) officeTile.hidden = data.role !== 'admin';
-      if (galleryLink) galleryLink.hidden = !canContribute;
-      if (adminShortcut) adminShortcut.hidden = data.role !== 'admin';
-      if (upgradePanel) upgradePanel.hidden = data.role !== 'general';
-      if (data.role === 'general') {
-        try { await refreshUpgradeState(user.uid); }
-        catch (err) { console.error('Upgrade status unavailable', err); showUpgradeMessage(tr('승급 신청 상태를 불러오지 못했습니다.', 'Impossible de charger votre demande.'), true); }
-      }
-      if (loading) loading.hidden = true;
-      if (error) error.hidden = true;
-      if (content) content.hidden = false;
-    } catch (e) {
-      console.error('ASICC member dashboard error', e);
-      fail(tr('회원정보를 불러오지 못했습니다. Firebase 보안 규칙을 확인해 주세요.', 'Impossible de charger le profil. Vérifiez les règles Firebase.'));
-    }
-  });
-
-  upgradeRole?.addEventListener('change', () => {
-    if (upgradeKindWrap) upgradeKindWrap.hidden = upgradeRole.value !== 'special';
-  });
-
-  upgradeForm?.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const user = auth.currentUser;
-    if (!user || !currentProfile || currentProfile.role !== 'general' || !upgradeRole) return;
-    const requestedRole = upgradeRole.value;
-    if (!['member', 'special'].includes(requestedRole)) return;
-    const yearRaw = upgradeYear?.value.trim() || '';
-    const schoolYear = yearRaw ? Number(yearRaw) : null;
-    if (schoolYear !== null && (!Number.isInteger(schoolYear) || schoolYear < 2000 || schoolYear > 2100)) {
-      showUpgradeMessage(tr('연도를 확인해 주세요.', 'Vérifiez l’année saisie.'), true);
-      return;
-    }
-    if (upgradeSubmit) upgradeSubmit.disabled = true;
-    const requestRef = doc(db, 'upgradeRequests', user.uid);
-    try {
-      const snapshot = await getDoc(requestRef);
-      const submission = {
-        requestedRole,
-        kind: requestedRole === 'member' ? 'parent' : upgradeKind?.value || 'alumnus',
-        schoolYear,
-        note: upgradeNote?.value.trim() || '',
-        status: 'pending',
-        createdAt: serverTimestamp()
-      };
-      if (!snapshot.exists()) {
-        await setDoc(requestRef, {
-          uid: user.uid,
-          applicantName: currentProfile.name,
-          applicantEmail: currentProfile.email,
-          ...submission
-        });
-      } else if (snapshot.data().status === 'rejected') {
-        await updateDoc(requestRef, submission);
-      } else {
-        showUpgradeMessage(tr('이미 신청 내역이 있습니다.', 'Une demande existe déjà.'), true);
-        return;
-      }
-      showUpgradeMessage(tr('승급 신청을 접수했습니다. 운영진 승인 후 변경됩니다.', 'Demande envoyée. Le statut sera mis à jour après approbation.'));
-      await refreshUpgradeState(user.uid);
-    } catch (e) {
-      console.error('ASICC upgrade request error', e);
-      showUpgradeMessage(tr('신청을 저장하지 못했습니다. 운영진에게 문의해 주세요.', 'Impossible d’enregistrer la demande. Contactez l’association.'), true);
-    } finally {
-      if (upgradeSubmit) upgradeSubmit.disabled = false;
-    }
-  });
-
-  document.querySelector<HTMLButtonElement>('#member-signout')?.addEventListener('click', async () => {
-    try { await signOut(auth); } finally { window.location.assign(loginUrl); }
-  });
+import {getApps,initializeApp} from 'firebase/app';
+import {getAuth,onAuthStateChanged,signOut,getIdToken} from 'firebase/auth';
+import {getFirestore,doc,getDoc,getDocs,collection,query,orderBy,limit} from 'firebase/firestore';
+import {firebaseConfig} from '../../../firebase-config';
+const root=document.querySelector<HTMLElement>('#member-root');const fr=root?.dataset.lang==='fr';
+const tr=(ko:string,french:string)=>fr?french:ko;
+const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
+const auth=getAuth(app),db=getFirestore(app);
+const by=(id:string)=>document.getElementById(id) as HTMLElement|null;
+function note(id:string,text:string){const p=by(id);if(p)p.textContent=text;}
+function item(text:string,sub?:string){const n=document.createElement('div');n.className='member-feed-item';const b=document.createElement('strong');b.textContent=text;n.append(b);if(sub){const t=document.createElement('div');t.className='small muted';t.textContent=sub;n.append(t);}return n;}
+async function displayFeed(id:string,collectionName:string,max=5){
+ const target=by(id);if(!target)return;
+ try{
+   const snap=await getDocs(query(collection(db,collectionName),orderBy('createdAt','desc'),limit(collectionName==='boardPosts'?20:max)));
+   const docs=snap.docs.filter(d=>collectionName!=='boardPosts'||d.data().deleted!==true).slice(0,max);
+   target.replaceChildren();
+   if(!docs.length){target.textContent=tr('등록된 자료가 없습니다.','Aucun contenu.');return;}
+   docs.forEach(d=>{const data=d.data();target.append(item(String(data.title||data.filename||tr('제목 없는 자료','Sans titre')).slice(0,120),collectionName==='boardPosts'?tr('게시글','Message'):String(data.mime||tr('자료','Ressource'))));});
+ }catch(err){console.error(err);target.textContent=tr('자료를 불러오지 못했습니다.','Impossible de charger les données.');}
+}
+if(import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true')onAuthStateChanged(auth,async user=>{
+ if(!user){location.replace(root?.dataset.loginUrl||'/');return;}
+ try{
+   await user.reload();await getIdToken(user,true);if(!user.emailVerified)throw Error('unverified');
+   const snap=await getDoc(doc(db,'members',user.uid));if(!snap.exists()||snap.data().status!=='approved')throw Error('inactive');
+   const data=snap.data(),role=String(data.role);
+   note('member-name',tr(`안녕하세요, ${data.nickname||'회원'}님!`,`Bienvenue, ${data.nickname||'membre'} !`));
+   note('member-email',String(data.email||''));
+   note('member-role',({general:tr('일반회원','Membre général'),member:tr('협회회원','Membre'),special:tr('특별회원','Membre spécial'),admin:tr('운영진','Administrateur')} as Record<string,string>)[role]||role);
+   const full=['member','special','admin'].includes(role);
+   const upgrade=by('upgrade-shortcut');if(upgrade)upgrade.hidden=role!=='general';
+   const admin=by('admin-shortcut');if(admin)admin.hidden=role!=='admin';
+   const office=by('office-shortcut');if(office)office.hidden=role!=='admin';
+   note('board-privilege',full?tr('읽기·글쓰기·댓글 가능','Lecture, publication et commentaires'):tr('읽기 가능 · 글쓰기는 🔒 잠금','Lecture autorisée · publication verrouillée 🔒'));
+   const loading=by('member-loading');if(loading)loading.hidden=true;
+   const content=by('member-content');if(content)content.hidden=false;
+   if(!full){
+     const gal=by('recent-gallery');if(gal){gal.replaceChildren();const lock=document.createElement('div');lock.className='member-lock';
+       const symbol=document.createElement('div');symbol.textContent='🔒';symbol.style.fontSize='2rem';
+       const label=document.createElement('p');label.textContent=tr('협회회원·특별회원부터 볼 수 있습니다.','Galerie réservée aux membres approuvés.');
+       lock.append(symbol,label);gal.append(lock);}
+     const galLink=by('gallery-link');if(galLink)galLink.hidden=true;
+   }else{void displayFeed('recent-gallery','galleryItems');}
+   void displayFeed('recent-learning','learningResources');
+   void displayFeed('recent-posts','boardPosts');
+ }catch(err){console.error(err);const loading=by('member-loading');if(loading)loading.hidden=true;const errBox=by('member-error');if(errBox){errBox.hidden=false;errBox.textContent=tr('회원정보를 불러올 수 없습니다. 인증·권한을 확인해 주세요.','Impossible de charger le profil. Vérifiez vos droits.');}}
+});
+by('member-signout')?.addEventListener('click',async()=>{try{await signOut(auth);}finally{location.replace(root?.dataset.loginUrl||'/');}});
 </script>

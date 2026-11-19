@@ -101,7 +101,7 @@ before(async () => {
         title: 'test',
         body: 'test',
         authorUid: uid.member,
-        authorName: uid.member,
+        authorName: '기존회원',
         createdAt: new Date(),
         updatedAt: new Date(),
         deleted: false
@@ -221,7 +221,7 @@ test('member and special can write board posts', async () => {
         title: 'example',
         body: 'hello',
         authorUid: user,
-        authorName: user,
+        authorName: '기존회원',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         deleted: false
@@ -252,41 +252,24 @@ test('general cannot read all member profiles; admin can', async () => {
 test('new user may create only approved general member profile', async () => {
   const newuid = 'new-signup';
   const db = context(newuid);
-
-  
-const batch = writeBatch(db);
-
-batch.set(doc(db, 'members', newuid), {
-  name: 'New user',
-  nickname: 'NewTester',
-  nicknameKey: 'newtester',
-  email: EMAIL(newuid),
-  role: 'general',
-  status: 'approved',
-  consent: true,
-  createdAt: serverTimestamp()
-});
-
-batch.set(doc(db, 'nicknames', 'newtester'), {
-  uid: newuid,
-  nickname: 'NewTester',
-  createdAt: serverTimestamp()
-});
-
-await assertSucceeds(batch.commit());
-
-  const evil = 'evil-signup';
-
-  await assertFails(
-    setDoc(doc(context(evil), 'members', evil), {
-      name: 'Evil',
-      email: EMAIL(evil),
-      role: 'admin',
-      status: 'approved',
-      consent: true,
-      createdAt: serverTimestamp()
-    })
-  );
+  const batch = writeBatch(db);
+  batch.set(doc(db,'members',newuid),{
+    name:'New user',nickname:'NewTester',nicknameKey:'newtester',email:EMAIL(newuid),
+    role:'general',status:'approved',consent:true,termsVersion:'2026-11',
+    termsAcceptedAt:serverTimestamp(),createdAt:serverTimestamp()
+  });
+  batch.set(doc(db,'nicknames','newtester'),{
+    uid:newuid,nickname:'NewTester',createdAt:serverTimestamp()
+  });
+  batch.set(doc(db,'publicNames',newuid),{
+    nickname:'NewTester',updatedAt:serverTimestamp()
+  });
+  await assertSucceeds(batch.commit());
+  const evil='evil-signup';
+  await assertFails(setDoc(doc(context(evil),'members',evil),{
+    name:'Evil',email:EMAIL(evil),role:'admin',status:'approved',
+    consent:true,createdAt:serverTimestamp()
+  }));
 });
 
 test('general member can file request to become association member', async () => {
@@ -463,7 +446,7 @@ test('admin may hide another member post', async () => {
         title: 'Post to be hidden',
         body: 'Original content',
         authorUid: uid.member,
-        authorName: uid.member,
+        authorName: '기존회원',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         deleted: false
@@ -471,18 +454,20 @@ test('admin may hide another member post', async () => {
     )
   );
 
-  // Hide using the current soft-delete data format.
-  await assertSucceeds(
-    updateDoc(
-      doc(context(uid.admin), 'boardPosts', postId),
-      {
-        deleted: true,
-        title: '[숨김 처리된 게시글]',
-        body: '[숨김 처리된 게시글]',
-        updatedAt: serverTimestamp()
-      }
-    )
-  );
+  // Hide with a private archive so an administrator can restore the original.
+  const db=context(uid.admin),batch=writeBatch(db);
+  batch.set(doc(db,'hiddenPosts',postId),{
+    title:'Post to be hidden',body:'Original content',authorUid:uid.member,
+    hiddenBy:uid.admin,hiddenAt:serverTimestamp()
+  });
+  batch.update(doc(db,'boardPosts',postId),{
+    deleted:true,title:'[숨김 처리된 게시글]',body:'[숨김 처리된 게시글]',
+    updatedAt:serverTimestamp()
+  });
+  await assertSucceeds(batch.commit());
+  await assertFails(getDoc(doc(context(uid.member),'hiddenPosts',postId)));
+  const redacted=await assertSucceeds(getDoc(doc(context(uid.member),'boardPosts',postId)));
+  assert.equal(redacted.data().body,'[숨김 처리된 게시글]');
 });
 
 // =====================================================
@@ -509,7 +494,7 @@ test('comment owner may edit; admin cannot rewrite but may hide', async () => {
       {
         body: 'Original member comment',
         authorUid: uid.member,
-        authorName: uid.member,
+        authorName: '기존회원',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         deleted: false
@@ -568,23 +553,17 @@ test('comment owner may edit; admin cannot rewrite but may hide', async () => {
     )
   );
 
-  // Admin may hide the comment.
-  await assertSucceeds(
-    updateDoc(
-      doc(
-        context(uid.admin),
-        'boardPosts',
-        postId,
-        'comments',
-        commentId
-      ),
-      {
-        body: '[숨김 처리된 댓글]',
-        deleted: true,
-        updatedAt: serverTimestamp()
-      }
-    )
-  );
+  // Admin hides the comment, retaining the original in a private archive.
+  const db=context(uid.admin),batch=writeBatch(db);
+  batch.set(doc(db,'hiddenComments',`${postId}_${commentId}`),{
+    postId,commentId,body:'Edited by the original commenter',authorUid:uid.member,
+    hiddenBy:uid.admin,hiddenAt:serverTimestamp()
+  });
+  batch.update(doc(db,'boardPosts',postId,'comments',commentId),{
+    body:'[숨김 처리된 댓글]',deleted:true,updatedAt:serverTimestamp()
+  });
+  await assertSucceeds(batch.commit());
+  await assertFails(getDoc(doc(context(uid.member),'hiddenComments',`${postId}_${commentId}`)));
 });
 
 
@@ -716,6 +695,8 @@ test('duplicate nickname registration is denied', async () => {
     role: 'general',
     status: 'approved',
     consent: true,
+    termsVersion: '2026-11',
+    termsAcceptedAt: serverTimestamp(),
     createdAt: serverTimestamp()
   });
 
@@ -725,5 +706,119 @@ test('duplicate nickname registration is denied', async () => {
     createdAt: serverTimestamp()
   });
 
+  batch.set(doc(db, 'publicNames', newuid), {nickname:'NewTester',updatedAt:serverTimestamp()});
   await assertFails(batch.commit());
+});
+
+// ASICC 2026-11: nickname uniqueness, atomic renaming, privacy and requests.
+test('a different member cannot read nickname reservations', async () => {
+  await assertFails(getDoc(doc(context(uid.member),'nicknames','newtester')));
+  await assertSucceeds(getDoc(doc(context(uid.admin),'nicknames','newtester')));
+});
+
+test('reserved administrator nickname cannot be registered', async () => {
+  const other='impersonator';const db=context(other);const batch=writeBatch(db);
+  batch.set(doc(db,'members',other),{
+    name:'Bad',nickname:'ASICCAdmin',nicknameKey:'asiccadmin',email:EMAIL(other),
+    role:'general',status:'approved',consent:true,termsVersion:'2026-11',
+    termsAcceptedAt:serverTimestamp(),createdAt:serverTimestamp()
+  });
+  batch.set(doc(db,'nicknames','asiccadmin'),{uid:other,nickname:'ASICCAdmin',createdAt:serverTimestamp()});
+  batch.set(doc(db,'publicNames',other),{nickname:'ASICCAdmin',updatedAt:serverTimestamp()});
+  await assertFails(batch.commit());
+});
+
+test('member can reserve an alias atomically but cannot seize an existing one', async () => {
+  const db=context(uid.member);const member=doc(db,'members',uid.member);
+  const good=writeBatch(db);
+  good.update(member,{nickname:'Bonjour77',nicknameKey:'bonjour77'});
+  good.set(doc(db,'nicknames','bonjour77'),{uid:uid.member,nickname:'Bonjour77',createdAt:serverTimestamp()});
+  good.set(doc(db,'publicNames',uid.member),{nickname:'Bonjour77',updatedAt:serverTimestamp()});
+  await assertSucceeds(good.commit());
+  const bad=writeBatch(db);
+  bad.update(member,{nickname:'NewTester',nicknameKey:'newtester'});
+  bad.set(doc(db,'nicknames','newtester'),{uid:uid.member,nickname:'NewTester',createdAt:serverTimestamp()});
+  bad.set(doc(db,'publicNames',uid.member),{nickname:'NewTester',updatedAt:serverTimestamp()});
+  bad.delete(doc(db,'nicknames','bonjour77'));
+  await assertFails(bad.commit());
+});
+
+test('nickname can change with reservation release and public display update', async () => {
+  const db=context(uid.member);const batch=writeBatch(db);
+  batch.update(doc(db,'members',uid.member),{nickname:'Bonjour78',nicknameKey:'bonjour78'});
+  batch.set(doc(db,'nicknames','bonjour78'),{uid:uid.member,nickname:'Bonjour78',createdAt:serverTimestamp()});
+  batch.set(doc(db,'publicNames',uid.member),{nickname:'Bonjour78',updatedAt:serverTimestamp()});
+  batch.delete(doc(db,'nicknames','bonjour77'));
+  await assertSucceeds(batch.commit());
+  const snap=await assertSucceeds(getDoc(doc(context(uid.special),'publicNames',uid.member)));
+  assert.equal(snap.data().nickname,'Bonjour78');
+});
+
+test('a general member can request a real-name correction but not change real name', async () => {
+  const db=context(uid.general);
+  await assertFails(updateDoc(doc(db,'members',uid.general),{name:'Forgery'}));
+  await assertSucceeds(setDoc(doc(db,'nameChangeRequests',uid.general),{
+    uid:uid.general,currentName:uid.general,requestedName:'Corrected Name',
+    status:'pending',createdAt:serverTimestamp()
+  }));
+  await assertFails(getDoc(doc(context(uid.member),'nameChangeRequests',uid.general)));
+});
+
+test('admin can approve a real-name correction', async () => {
+  const db=context(uid.admin);
+  await assertSucceeds(runTransaction(db,async tx=>{
+    const r=doc(db,'nameChangeRequests',uid.general),m=doc(db,'members',uid.general);
+    const request=await tx.get(r);assert.equal(request.data().status,'pending');
+    tx.update(m,{name:request.data().requestedName});
+    tx.update(r,{status:'approved',reviewedBy:uid.admin,reviewedAt:serverTimestamp()});
+  }));
+});
+
+test('member suggestion is private, admin may respond', async()=>{
+  const member=context(uid.general),ref=doc(member,'suggestions','item1');
+  await assertSucceeds(setDoc(ref,{
+    uid:uid.general,category:'operations',subject:'Question',body:'Message',
+    status:'received',createdAt:serverTimestamp()
+  }));
+  await assertFails(getDoc(doc(context(uid.special),'suggestions','item1')));
+  await assertSucceeds(getDoc(doc(context(uid.admin),'suggestions','item1')));
+  await assertFails(updateDoc(ref,{status:'answered',response:'By member'}));
+  await assertSucceeds(updateDoc(doc(context(uid.admin),'suggestions','item1'),{
+    status:'answered',response:'Merci',respondedBy:uid.admin,respondedAt:serverTimestamp()
+  }));
+});
+
+test('admin can restore a previously hidden post, but a member cannot access its archive', async()=>{
+  const postId='post-for-admin-hide';const db=context(uid.admin);
+  const archive=await assertSucceeds(getDoc(doc(db,'hiddenPosts',postId)));
+  assert.equal(archive.data().body,'Original content');
+  const batch=writeBatch(db);
+  batch.update(doc(db,'boardPosts',postId),{
+    title:archive.data().title,body:archive.data().body,deleted:false,updatedAt:serverTimestamp()
+  });
+  batch.delete(doc(db,'hiddenPosts',postId));
+  await assertSucceeds(batch.commit());
+  const result=await assertSucceeds(getDoc(doc(context(uid.member),'boardPosts',postId)));
+  assert.equal(result.data().body,'Original content');
+});
+
+test('admin can restore a previously hidden comment, but others cannot access its archive', async()=>{
+  const postId='post1',commentId='comment-permission-test';const db=context(uid.admin);
+  const hidden=doc(db,'hiddenComments',`${postId}_${commentId}`);
+  const archive=await assertSucceeds(getDoc(hidden));
+  const batch=writeBatch(db);
+  batch.update(doc(db,'boardPosts',postId,'comments',commentId),{
+    body:archive.data().body,deleted:false,updatedAt:serverTimestamp()
+  });
+  batch.delete(hidden);
+  await assertSucceeds(batch.commit());
+  const result=await assertSucceeds(getDoc(doc(context(uid.member),'boardPosts',postId,'comments',commentId)));
+  assert.equal(result.data().body,'Edited by the original commenter');
+});
+
+test('admin may anonymize historical authorName without rewriting the body', async()=>{
+  const db=context(uid.admin);
+  await assertSucceeds(updateDoc(doc(db,'boardPosts','post1'),{authorName:'기존회원',updatedAt:serverTimestamp()}));
+  await assertSucceeds(updateDoc(doc(db,'boardPosts','post1','comments','comment-permission-test'),{authorName:'기존회원',updatedAt:serverTimestamp()}));
+  await assertFails(updateDoc(doc(context(uid.special),'boardPosts','post1'),{authorName:'other',updatedAt:serverTimestamp()}));
 });

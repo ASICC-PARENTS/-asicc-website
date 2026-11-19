@@ -15,8 +15,8 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
         <span class="m-badge" style="align-self:flex-start">{L(lang, { ko: '운영진 전용', fr: 'Accès administrateur' })}</span>
         <h1 class="h2">{L(lang, { ko: 'ASICC 회원관리', fr: 'Gestion des membres ASICC' })}</h1>
         <p class="muted">{L(lang, {
-          ko: '승급 신청 심사 및 회원 등급 관리를 위한 운영진 전용 화면입니다.',
-          fr: 'Examinez les demandes de statut et gérez les accès des membres.'
+          ko: '회원 가입·승급 심사, 실명 변경 신청, 비공개 건의, 계정 이용 제한을 관리합니다.',
+          fr: 'Examinez les statuts, corrections de nom, suggestions confidentielles et accès des membres.'
         })}</p>
       </div>
 
@@ -67,7 +67,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
             fr: 'Membres et membres spéciaux ont le même accès. Vérifiez soigneusement toute nomination d’administrateur.'
           })}</p>
           <input id="admin-member-search" type="search"
-            placeholder={L(lang, { ko: '이름 또는 이메일 검색', fr: 'Chercher par nom ou e-mail' })}
+            placeholder={L(lang, { ko: '실명·닉네임·이메일·학생·학교·학년 검색', fr: 'Nom, pseudo, e-mail, élève, école, classe' })}
             aria-label={L(lang, { ko: '회원 검색', fr: 'Rechercher un membre' })}/>
           <div id="admin-members" class="stack gap-12"></div>
           <button id="admin-more" class="btn btn-ghost" type="button" hidden>
@@ -75,6 +75,29 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
           </button>
         </section>
 
+        <section class="card stack gap-16" style="padding:22px" aria-labelledby="name-requests-heading">
+          <h2 id="name-requests-heading" class="h3">{L(lang,{ko:'실명 변경 신청',fr:'Demandes de correction du nom'})}</h2>
+          <div id="admin-name-requests" class="stack gap-12"></div>
+        </section>
+        <section class="card stack gap-16" style="padding:22px" aria-labelledby="suggestions-heading">
+          <h2 id="suggestions-heading" class="h3">{L(lang,{ko:'협회 비공개 건의함',fr:'Boîte de suggestions privées'})}</h2>
+          <div id="admin-suggestions" class="stack gap-12"></div>
+        </section>
+        <section class="card stack gap-12" style="padding:22px" aria-labelledby="hidden-heading">
+          <h2 id="hidden-heading" class="h3">{L(lang,{ko:'숨김 글·댓글 관리 / 복구',fr:'Contenus masqués / restauration'})}</h2>
+          <p class="small muted">{L(lang,{ko:'숨긴 원문은 운영진만 확인하고 복구할 수 있습니다. 기존 방식으로 숨겨 이미 덮어쓴 글은 복구되지 않습니다.',fr:'Les archives privées permettent la restauration. Les anciens textes déjà écrasés avant cette mise à jour ne sont pas récupérables.'})}</p>
+          <div id="admin-hidden-list" class="stack gap-12"></div>
+        </section>
+        <section class="card stack gap-12" style="padding:22px" aria-labelledby="anonymize-heading">
+          <h2 id="anonymize-heading" class="h3">{L(lang,{ko:'기존 게시글 실명 비공개 처리',fr:'Anonymiser les anciennes signatures'})}</h2>
+          <p class="small muted">{L(lang,{ko:'예전 글·댓글의 authorName 필드에 남아 있는 실명을 ‘기존회원’으로 변경합니다. 게시글 본문은 수정하지 않습니다. 한번에 최대 100개 게시글을 점검합니다.',fr:'Remplace les anciens noms réels par « ancien membre » dans les métadonnées, sans modifier le contenu. Vérifie jusqu’à 100 messages à la fois.'})}</p>
+          <button class="btn btn-ghost" type="button" id="admin-redact-legacy">{L(lang,{ko:'기존 작성자 실명 비공개 처리 실행',fr:'Anonymiser les anciens noms'})}</button>
+        </section>
+        <section class="card stack gap-12" style="padding:22px" aria-labelledby="deletions-heading">
+          <h2 id="deletions-heading" class="h3">{L(lang,{ko:'게시판 삭제 이력',fr:'Historique de suppression'})}</h2>
+          <p class="small muted">{L(lang,{ko:'삭제된 본문은 보관하지 않고 처리자·사유·시각만 조회합니다.',fr:'Les textes supprimés ne sont pas conservés ; seul le journal minimal est affiché.'})}</p>
+          <div id="admin-deletion-logs" class="stack gap-8"></div>
+        </section>
         <div class="card auth-card stack gap-8">
           <h2 class="h3">{L(lang, { ko: '콘텐츠 관리 안내', fr: 'Gestion du contenu' })}</h2>
           <p class="small muted">{L(lang, {
@@ -104,15 +127,15 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   import { getAuth, onAuthStateChanged, getIdToken } from 'firebase/auth';
   import {
     getFirestore, doc, getDoc, getDocs, query, collection, where,
-    limit, startAfter, updateDoc, runTransaction, serverTimestamp,
+    limit, startAfter, updateDoc, runTransaction, serverTimestamp, writeBatch,
     type DocumentData, type QueryDocumentSnapshot
   } from 'firebase/firestore';
   import { firebaseConfig } from '../../../firebase-config';
 
-  type Member = { id: string; name: string; email: string; role: string; status: string };
+  type Member = { id: string; name: string; nickname?:string; email: string; role: string; status: string };
   type Upgrade = { uid: string; applicantName: string; applicantEmail: string;
     requestedRole: 'member' | 'special'; kind: string; schoolYear?: number | null;
-    note?: string; status: string; };
+    note?: string; relation?:string; children?:Array<{studentName:string;school:string;grade:string}>; status: string; };
 
   const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T | null;
   const root = el<HTMLElement>('asicc-admin');
@@ -124,6 +147,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   const db = getFirestore(app);
   let meUid = '';
   let members: Member[] = [];
+  const upgradeHistory=new Map<string,Upgrade>();
   let lastMember: QueryDocumentSnapshot<DocumentData> | null = null;
   let busy = false;
 
@@ -155,7 +179,8 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   } as Record<string,string>)[role] || role;
   const kindLabel = (kind: string) => ({
     parent: tr('학부모','Parent'), alumnus: tr('졸업생','Ancien élève'),
-    'alumni-parent': tr('졸업생 학부모','Parent d’ancien élève')
+    'alumni-parent': tr('졸업생 학부모','Parent d’ancien élève'),
+    teacher:tr('교사·기여자','Enseignant'),contributor:tr('특별기여자','Contributeur')
   } as Record<string,string>)[kind] || kind;
   const roleOptions = ['general','member','special','admin'];
 
@@ -164,6 +189,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     container.replaceChildren(panel('small muted', tr('불러오는 중…','Chargement…')));
     const snaps = await getDocs(query(collection(db,'upgradeRequests'), where('status','==','pending')));
     const requests = snaps.docs.map(s => s.data() as Upgrade);
+    requests.forEach(req=>upgradeHistory.set(req.uid,req));
     text('admin-pending-count', String(requests.length));
     container.replaceChildren();
     if (!requests.length) {
@@ -177,6 +203,8 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       card.append(panel('asicc-admin-muted', item.applicantEmail || ''));
       card.append(panel('small', tr('신청 등급: ','Statut demandé : ') + roleLabel(item.requestedRole)
         + ' · ' + kindLabel(item.kind) + (item.schoolYear ? ` · ${item.schoolYear}` : '')));
+      if(item.relation)card.append(panel('small',tr('관계: ','Lien : ')+item.relation));
+      if(item.children?.length)item.children.forEach(child=>card.append(panel('small',`${child.studentName||''} · ${child.school||''} · ${child.grade||''}`)));
       if (item.note) card.append(panel('asicc-admin-muted',item.note));
       const buttons = document.createElement('div'); buttons.className = 'asicc-admin-actions';
       buttons.append(
@@ -217,7 +245,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       });
       showMessage(approve ? tr('승급을 승인했습니다.','Demande approuvée.')
         : tr('신청을 거절했습니다.','Demande refusée.'));
-      await Promise.all([loadRequests(),loadMembers(true)]);
+      await Promise.all([loadRequests(),loadMembers(true),loadHistory(),loadNameRequests(),loadSuggestions(),loadDeletionLogs(),loadHiddenArchives()]);
     } catch (error) {
       console.error('ASICC admin review:',error);
       showMessage(tr('처리하지 못했습니다. 신청 상태와 Firebase 규칙을 확인해 주세요.',
@@ -228,14 +256,23 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   function renderMembers() {
     const container = el<HTMLElement>('admin-members'); if (!container) return;
     const term = el<HTMLInputElement>('admin-member-search')?.value.trim().toLowerCase() || '';
-    const filtered = members.filter(m => `${m.name} ${m.email}`.toLowerCase().includes(term));
+    const filtered = members.filter(m => {
+      const req=upgradeHistory.get(m.id);
+      const childText=(req?.children||[]).map(c=>`${c.studentName} ${c.school} ${c.grade}`).join(' ');
+      return `${m.name} ${m.nickname||''} ${m.email} ${req?.kind||''} ${childText}`.toLowerCase().includes(term);
+    });
     container.replaceChildren();
     if (!filtered.length) { container.append(panel('small muted', tr('일치하는 회원이 없습니다.','Aucun membre trouvé.'))); return; }
     for (const member of filtered) {
       const card = document.createElement('article'); card.className = 'asicc-admin-record stack gap-8';
       const heading = panel('', member.name || tr('이름 없음','Sans nom'));
       heading.style.fontWeight = '700'; card.append(heading);
-      card.append(panel('asicc-admin-muted', member.email || ''));
+      card.append(panel('asicc-admin-muted', `${member.nickname||tr('닉네임 미설정','Sans pseudo')} · ${member.email||''}`));
+      const enrollment=upgradeHistory.get(member.id);
+      if(enrollment){
+        card.append(panel('small',tr('회원 구분: ','Catégorie : ')+kindLabel(enrollment.kind)+(enrollment.relation?` · ${enrollment.relation}`:'')));
+        enrollment.children?.forEach(child=>card.append(panel('small',`${child.studentName||''} · ${child.school||''} · ${child.grade||''}`)));
+      }
       const fields = document.createElement('div'); fields.className='asicc-admin-fields';
       const roleWrap = document.createElement('label'); roleWrap.className='stack gap-8';
       roleWrap.append(panel('small',tr('회원 등급','Statut')));
@@ -296,6 +333,141 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     renderMembers();
   }
 
+  async function loadHistory(){
+    const snap=await getDocs(collection(db,'upgradeRequests'));
+    upgradeHistory.clear();snap.docs.forEach(d=>upgradeHistory.set(d.id,d.data() as Upgrade));
+    renderMembers();
+  }
+  async function loadNameRequests(){
+    const target=el<HTMLElement>('admin-name-requests');if(!target)return;
+    const snap=await getDocs(query(collection(db,'nameChangeRequests'),where('status','==','pending')));
+    target.replaceChildren();
+    if(snap.empty){target.textContent=tr('대기 중인 신청이 없습니다.','Aucune demande en attente.');return;}
+    snap.docs.forEach(d=>{
+      const r=d.data();const box=document.createElement('article');box.className='asicc-admin-record stack gap-8';
+      box.append(panel('small',`${r.currentName||''} → ${r.requestedName||''}`));
+      box.append(actionButton(tr('실명 변경 승인','Approuver'),()=>void reviewName(d.id,true)));
+      box.append(actionButton(tr('거절','Refuser'),()=>void reviewName(d.id,false)));
+      target.append(box);
+    });
+  }
+  async function reviewName(uid:string,approve:boolean){
+    if(busy||!confirm(approve?tr('실명 변경을 승인할까요?','Approuver la correction ?'):tr('신청을 거절할까요?','Refuser ?')))return;
+    busy=true;
+    try{
+      const reqRef=doc(db,'nameChangeRequests',uid),memRef=doc(db,'members',uid);
+      await runTransaction(db,async tx=>{
+        const req=await tx.get(reqRef);if(!req.exists()||req.data().status!=='pending')throw Error('already handled');
+        if(approve){const member=await tx.get(memRef);if(!member.exists())throw Error('member missing');tx.update(memRef,{name:req.data().requestedName});}
+        tx.update(reqRef,{status:approve?'approved':'rejected',reviewedBy:meUid,reviewedAt:serverTimestamp()});
+      });
+      showMessage(approve?tr('실명을 변경했습니다.','Nom corrigé.'):tr('신청을 거절했습니다.','Demande refusée.'));
+      await Promise.all([loadNameRequests(),loadMembers(true)]);
+    }catch(e){console.error(e);showMessage(tr('실명 변경을 처리하지 못했습니다.','Impossible de traiter la demande.'),true);}
+    finally{busy=false;}
+  }
+  async function loadSuggestions(){
+    const target=el<HTMLElement>('admin-suggestions');if(!target)return;
+    const snap=await getDocs(query(collection(db,'suggestions'),limit(100)));
+    target.replaceChildren();
+    if(snap.empty){target.textContent=tr('접수된 건의가 없습니다.','Aucune suggestion.');return;}
+    snap.docs.forEach(d=>{
+      const r=d.data();const box=document.createElement('article');box.className='asicc-admin-record stack gap-8';
+      box.append(panel('',String(r.subject||'')));box.append(panel('small muted',`${r.category||''} · ${r.status||''}`));
+      box.append(panel('',String(r.body||'')));
+      if(r.response)box.append(panel('small',tr('답변: ','Réponse : ')+String(r.response)));
+      box.append(actionButton(tr('답변·상태 변경','Répondre / changer de statut'),()=>void replySuggestion(d.id,String(r.response||''))));
+      target.append(box);
+    });
+  }
+  async function replySuggestion(id:string,previous:string){
+    if(busy)return;
+    const response=prompt(tr('운영진 답변 (최대 3000자)','Réponse (3000 caractères maximum)'),previous);
+    if(response===null)return;if(response.length>3000){showMessage(tr('답변이 너무 깁니다.','Réponse trop longue.'),true);return;}
+    busy=true;
+    try{
+      await updateDoc(doc(db,'suggestions',id),{response,status:'answered',respondedBy:meUid,respondedAt:serverTimestamp()});
+      showMessage(tr('답변이 저장되었습니다.','Réponse enregistrée.'));await loadSuggestions();
+    }catch(e){console.error(e);showMessage(tr('답변을 저장하지 못했습니다.','Impossible d’enregistrer la réponse.'),true);}
+    finally{busy=false;}
+  }
+  async function loadHiddenArchives(){
+    const target=el<HTMLElement>('admin-hidden-list');if(!target)return;
+    const [posts,comments]=await Promise.all([
+      getDocs(query(collection(db,'hiddenPosts'),limit(100))),
+      getDocs(query(collection(db,'hiddenComments'),limit(100)))
+    ]);
+    target.replaceChildren();
+    if(posts.empty&&comments.empty){target.textContent=tr('숨겨진 자료가 없습니다.','Aucun contenu masqué.');return;}
+    posts.docs.forEach(d=>{
+      const v=d.data(),box=document.createElement('article');box.className='asicc-admin-record stack gap-8';
+      box.append(panel('',tr('숨김 게시글: ','Message masqué : ')+String(v.title||'')));
+      const detail=document.createElement('details');const summary=document.createElement('summary');summary.textContent=tr('원문 보기','Voir le texte');
+      const body=panel('',String(v.body||''));body.style.whiteSpace='pre-wrap';detail.append(summary,body);box.append(detail);
+      box.append(actionButton(tr('숨김 해제·원문 복구','Restaurer le message'),()=>void restorePost(d.id,String(v.title),String(v.body))));
+      target.append(box);
+    });
+    comments.docs.forEach(d=>{
+      const v=d.data(),box=document.createElement('article');box.className='asicc-admin-record stack gap-8';
+      box.append(panel('',tr('숨김 댓글','Commentaire masqué')));
+      const detail=document.createElement('details'),summary=document.createElement('summary');summary.textContent=tr('원문 보기','Voir le texte');
+      detail.append(summary,panel('',String(v.body||'')));box.append(detail);
+      box.append(actionButton(tr('숨김 해제·원문 복구','Restaurer le commentaire'),()=>void restoreComment(d.id,String(v.postId),String(v.commentId),String(v.body))));
+      target.append(box);
+    });
+  }
+  async function restorePost(postId:string,title:string,body:string){
+    if(busy||!confirm(tr('게시글을 다시 공개할까요?','Rendre ce message visible ?')))return;
+    busy=true;
+    try{
+      const batch=writeBatch(db);
+      batch.update(doc(db,'boardPosts',postId),{title,body,deleted:false,updatedAt:serverTimestamp()});
+      batch.delete(doc(db,'hiddenPosts',postId));await batch.commit();
+      showMessage(tr('게시글을 복구했습니다.','Message restauré.'));await loadHiddenArchives();
+    }catch(e){console.error(e);showMessage(tr('복구하지 못했습니다.','Échec de la restauration.'),true);}
+    finally{busy=false;}
+  }
+  async function restoreComment(archiveId:string,postId:string,commentId:string,body:string){
+    if(busy||!confirm(tr('댓글을 다시 공개할까요?','Rendre ce commentaire visible ?')))return;
+    busy=true;
+    try{
+      const batch=writeBatch(db);
+      batch.update(doc(db,'boardPosts',postId,'comments',commentId),{body,deleted:false,updatedAt:serverTimestamp()});
+      batch.delete(doc(db,'hiddenComments',archiveId));await batch.commit();
+      showMessage(tr('댓글을 복구했습니다.','Commentaire restauré.'));await loadHiddenArchives();
+    }catch(e){console.error(e);showMessage(tr('복구하지 못했습니다.','Échec de la restauration.'),true);}
+    finally{busy=false;}
+  }
+  async function redactHistoricalNames(){
+    if(busy||!confirm(tr('게시글·댓글에 남은 기존 실명 표시를 제거할까요? 본문은 수정하지 않습니다.','Anonymiser les anciennes signatures sans modifier les textes ?')))return;
+    busy=true;
+    try{
+      let count=0;
+      const posts=await getDocs(query(collection(db,'boardPosts'),limit(100)));
+      for(const post of posts.docs){
+        if(post.data().authorName!=='기존회원'){
+          await updateDoc(post.ref,{authorName:'기존회원',updatedAt:serverTimestamp()});count++;
+        }
+        const comments=await getDocs(query(collection(db,'boardPosts',post.id,'comments'),limit(100)));
+        for(const c of comments.docs){
+          if(c.data().authorName!=='기존회원'){
+            await updateDoc(c.ref,{authorName:'기존회원',updatedAt:serverTimestamp()});count++;
+          }
+        }
+      }
+      showMessage(tr(`${count}건의 작성자 표시를 비공개 처리했습니다. 100개 이상의 글이 있으면 추가 점검이 필요합니다.`,
+        `${count} signatures anonymisées. Une vérification supplémentaire est nécessaire au-delà de 100 messages.`));
+    }catch(e){console.error(e);showMessage(tr('일부 처리에 실패했습니다. 목록을 확인해 주세요.','Anonymisation partiellement impossible.'),true);}
+    finally{busy=false;}
+  }
+  async function loadDeletionLogs(){
+    const target=el<HTMLElement>('admin-deletion-logs');if(!target)return;
+    const snap=await getDocs(query(collection(db,'boardDeletionLogs'),limit(100)));
+    target.replaceChildren();if(snap.empty){target.textContent=tr('삭제 기록이 없습니다.','Aucune suppression.');return;}
+    snap.docs.forEach(d=>{
+      const r=d.data();target.append(panel('small',`${r.targetType||''} · ${r.reason||''} · ${r.actorUid||''} · ${r.deletedAt?.toDate?.().toLocaleDateString(fr?'fr-FR':'ko-KR')||''}`));
+    });
+  }
   if (import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true") onAuthStateChanged(auth, async user => {
     if(!user) {window.location.replace(root?.dataset.loginUrl || '/');return;}
     try {
@@ -309,7 +481,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       text('admin-who',me.data().name || user.email || 'Admin');
       const loading=el<HTMLElement>('admin-loading');if(loading)loading.hidden=true;
       const content=el<HTMLElement>('admin-content');if(content)content.hidden=false;
-      await Promise.all([loadRequests(),loadMembers(true)]);
+      await Promise.all([loadRequests(),loadMembers(true),loadHistory(),loadNameRequests(),loadSuggestions(),loadDeletionLogs(),loadHiddenArchives()]);
     } catch(error) {
       console.error('ASICC admin access:',error);
       deny(tr('관리자 화면을 불러올 수 없습니다. Firebase 규칙을 확인해 주세요.',
@@ -317,9 +489,10 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     }
   });
 
+  el<HTMLButtonElement>('admin-redact-legacy')?.addEventListener('click',()=>void redactHistoricalNames());
   el<HTMLButtonElement>('admin-refresh')?.addEventListener('click',()=>{
     if(busy)return;
-    void Promise.all([loadRequests(),loadMembers(true)]).catch(error=>{
+    void Promise.all([loadRequests(),loadMembers(true),loadHistory(),loadNameRequests(),loadSuggestions(),loadDeletionLogs(),loadHiddenArchives()]).catch(error=>{
       console.error('ASICC refresh:',error);
       showMessage(tr('새로고침 중 오류가 발생했습니다.','Erreur pendant l’actualisation.'),true);
     });

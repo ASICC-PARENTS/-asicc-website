@@ -1,0 +1,69 @@
+---
+import Base from '../../../layouts/Base.astro';
+import {langPaths,href,L,type Lang} from '../../../i18n/ui';
+export const getStaticPaths=langPaths;
+const lang=Astro.params.lang as Lang;
+const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
+---
+<Base lang={lang} rest="membres/suggestions/" title={L(lang,{ko:'협회에 건의하기',fr:'Écrire à l’association'})} noindex>
+<section class="wrap m-shell"><div id="suggest-root" class="stack gap-16" data-lang={lang} data-login-url={href(lang,'membres/login/')} style="max-width:780px;margin:auto">
+<a href={href(lang,'membres/')} class="small">← {L(lang,{ko:'회원공간',fr:'Espace membres'})}</a>
+<h1 class="h2">{L(lang,{ko:'협회에 건의하기',fr:'Écrire à l’association'})}</h1>
+<p class="muted">{L(lang,{ko:'문의·제안·민원을 운영진에게 비공개로 전달합니다. 작성자와 운영진만 내용을 볼 수 있습니다. 완전 익명 접수는 아닙니다.',fr:'Transmettez une question ou une proposition confidentiellement. Seuls vous et les administrateurs peuvent la consulter ; ce service n’est pas anonyme.'})}</p>
+{!live && <p class="card">{L(lang,{ko:'현재 비활성화됨',fr:'Indisponible'})}</p>}
+<p id="suggest-status" role="status" class="small"></p>
+<form id="suggest-form" hidden={!live} class="card stack gap-12" style="padding:24px">
+<label for="suggest-category">{L(lang,{ko:'분류',fr:'Catégorie'})}</label>
+<select id="suggest-category"><option value="operations">{L(lang,{ko:'협회 운영 제안',fr:'Vie de l’association'})}</option><option value="school">{L(lang,{ko:'학교·국제섹션',fr:'École et section internationale'})}</option><option value="events">{L(lang,{ko:'행사·프로그램',fr:'Événements et activités'})}</option><option value="question">{L(lang,{ko:'운영진에게 질문',fr:'Question aux administrateurs'})}</option><option value="confidential">{L(lang,{ko:'비공개 민원·기타',fr:'Demande confidentielle'})}</option></select>
+<label for="suggest-title">{L(lang,{ko:'제목',fr:'Objet'})}</label><input id="suggest-title" maxlength="120" required />
+<label for="suggest-body">{L(lang,{ko:'내용',fr:'Message'})}</label><textarea id="suggest-body" maxlength="3000" rows="6" required></textarea>
+<button class="btn btn-dark" type="submit">{L(lang,{ko:'운영진에게 제출',fr:'Envoyer'})}</button>
+</form>
+<h2 class="h3">{L(lang,{ko:'내 건의 내역',fr:'Mes demandes'})}</h2>
+<div id="suggest-list" class="stack gap-12"></div>
+</div></section>
+</Base>
+<script>
+import {getApps,initializeApp} from 'firebase/app';
+import {getAuth,onAuthStateChanged,getIdToken} from 'firebase/auth';
+import {getFirestore,doc,collection,getDoc,getDocs,setDoc,serverTimestamp,query,where} from 'firebase/firestore';
+import {firebaseConfig} from '../../../firebase-config';
+const root=document.querySelector<HTMLElement>('#suggest-root');const fr=root?.dataset.lang==='fr';
+const tr=(ko:string,french:string)=>fr?french:ko;
+const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
+const auth=getAuth(app),db=getFirestore(app);
+let uid='';const by=(id:string)=>document.getElementById(id) as HTMLElement|null;
+const say=(s:string,bad=false)=>{const el=by('suggest-status');if(el){el.textContent=s;el.style.color=bad?'#b42318':'#067647';}};
+async function load(){
+ const box=by('suggest-list');if(!box||!uid)return;
+ try{
+  const snap=await getDocs(query(collection(db,'suggestions'),where('uid','==',uid)));
+  box.replaceChildren();if(snap.empty){box.textContent=tr('접수 내역이 없습니다.','Aucune demande.');return;}
+  snap.docs.forEach(d=>{const x=d.data();const div=document.createElement('article');div.className='card stack gap-8';div.style.padding='16px';
+   const title=document.createElement('strong');title.textContent=String(x.subject||'');
+   const body=document.createElement('p');body.textContent=String(x.body||'');
+   const state=document.createElement('span');state.className='small muted';state.textContent=tr('상태: ','Statut : ')+String(x.status||'');
+   div.append(title,body,state);
+   if(x.response){const answer=document.createElement('p');answer.textContent=tr('운영진 답변: ','Réponse : ')+String(x.response);div.append(answer);}box.append(div);
+  });
+ }catch(e){console.error(e);box.textContent=tr('접수 내역을 불러오지 못했습니다.','Impossible de charger les demandes.');}
+}
+if(import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true')onAuthStateChanged(auth,async user=>{
+ if(!user){location.replace(root?.dataset.loginUrl||'/');return;}
+ try{await user.reload();await getIdToken(user,true);if(!user.emailVerified)throw Error('verify');const snap=await getDoc(doc(db,'members',user.uid));if(!snap.exists()||snap.data().status!=='approved')throw Error('profile');uid=user.uid;const form=by('suggest-form');if(form)form.hidden=false;say(tr('운영진에게 비공개로 전달됩니다.','Transmis confidentiellement à l’administration.'));await load();}
+ catch(e){console.error(e);say(tr('로그인 또는 권한을 확인해 주세요.','Vérifiez votre session.'),true);}
+});
+by('suggest-form')?.addEventListener('submit',async e=>{
+ e.preventDefault();if(!uid)return;
+ const category=(document.querySelector<HTMLSelectElement>('#suggest-category')!).value;
+ const subject=(document.querySelector<HTMLInputElement>('#suggest-title')!).value.trim();
+ const body=(document.querySelector<HTMLTextAreaElement>('#suggest-body')!).value.trim();
+ if(!subject||!body)return;
+ const btn=document.querySelector<HTMLButtonElement>('#suggest-form button');if(btn)btn.disabled=true;
+ try{
+  await setDoc(doc(collection(db,'suggestions')),{uid,category,subject,body,status:'received',createdAt:serverTimestamp()});
+  (by('suggest-form') as HTMLFormElement).reset();say(tr('접수되었습니다.','Demande reçue.'));await load();
+ }catch(err){console.error(err);say(tr('접수하지 못했습니다.','Échec de l’envoi.'),true);}
+ finally{if(btn)btn.disabled=false;}
+});
+</script>

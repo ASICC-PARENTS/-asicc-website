@@ -11,6 +11,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
       <a href={href(lang,'membres/')} class="small">← {L(lang,{ko:'회원공간',fr:'Espace membres'})}</a>
       <h1 class="h2">{L(lang,{ko:'회원 소통 게시판',fr:'Forum des membres'})}</h1>
       <p class="muted">{L(lang,{ko:'일반회원은 읽기, 협회회원·특별회원·운영진은 글쓰기와 댓글이 가능합니다.',fr:'Les membres généraux peuvent consulter les messages. La publication et les commentaires sont réservés aux membres de l’association, aux membres spéciaux et aux administrateurs.'})}</p>
+      <details class="card" style="padding:14px"><summary>{L(lang,{ko:'게시판 이용 규칙',fr:'Règles du forum'})}</summary><p class="small muted" style="margin-top:10px">{L(lang,{ko:'비방·괴롭힘·고의적 분란 조장·허위정보·개인정보 공개·스팸을 금지합니다. 운영진은 위반 게시물을 숨기거나 삭제하고 계정의 이용 권한을 제한할 수 있습니다. 이의제기는 contact@asicc-parents.fr로 문의해 주세요.',fr:'Les attaques, le harcèlement, les provocations délibérées, les fausses informations, la divulgation de données et les spams sont interdits. La modération peut masquer ou supprimer des contenus et limiter les accès. Recours : contact@asicc-parents.fr.'})}</p></details>
       {!live && <div class="card auth-card" role="status">{L(lang,{ko:'게시판은 보안 점검 중으로 아직 공개되지 않았습니다.',fr:'Le forum est désactivé pendant les vérifications de sécurité.'})}</div>}
       <div id="board-app" hidden={!live} class="stack gap-16">
         <p id="board-status" role="status" aria-live="polite" class="small muted">{L(lang,{ko:'회원 권한 확인 중…',fr:'Vérification des autorisations…'})}</p>
@@ -71,6 +72,14 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
   const stamp=(v?:{toDate?:()=>Date})=>{try{return v?.toDate?.().toLocaleDateString(fr?'fr-FR':'ko-KR')||'';}catch{return '';}};
   const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
   const auth=getAuth(app), db=getFirestore(app);
+  const aliases=new Map<string,Promise<string>>();
+  const nicknameOf=(authorUid:string):Promise<string>=>{
+    if(!authorUid)return Promise.resolve(tr('회원','Membre'));
+    if(!aliases.has(authorUid))aliases.set(authorUid,getDoc(doc(db,'publicNames',authorUid)).then(snap=>
+      snap.exists()&&typeof snap.data().nickname==='string'?snap.data().nickname:tr('기존 회원','Ancien membre')
+    ).catch(()=>tr('기존 회원','Ancien membre')));
+    return aliases.get(authorUid)!;
+  };
   let uid='',name='',role='',posts:BoardData[]=[],selected:BoardData|null=null;
   const canWrite=()=>['member','special','admin'].includes(role);
   // Content edits are restricted to the original author, including when the viewer is an admin.
@@ -96,12 +105,13 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       const row=el('div');row.className='board-row';const b=el('button') as HTMLButtonElement;b.className='board-post';b.type='button';
       const title=el('strong',post.title),meta=el('span',`${post.authorName||''} · ${stamp(post.createdAt)}`);meta.className='small muted';
       b.append(title,meta);b.addEventListener('click',()=>void openPost(post));row.append(b);list.append(row);
+       void nicknameOf(post.authorUid).then(nick=>{meta.textContent=`${nick} · ${stamp(post.createdAt)}`;});
     }
   }
   async function openPost(post:BoardData){
     selected=post;show('post-detail',true);show('post-form',false);show('board-list',false);show('board-search',false);
     const title=by<HTMLElement>('detail-title'),body=by<HTMLElement>('detail-body'),meta=by<HTMLElement>('detail-meta'),actions=by<HTMLElement>('detail-actions');
-    if(title)title.textContent=post.title;if(body)body.textContent=post.body;if(meta)meta.textContent=`${post.authorName} · ${stamp(post.createdAt)}`;
+    if(title)title.textContent=post.title;if(body)body.textContent=post.body;if(meta){meta.textContent=stamp(post.createdAt);void nicknameOf(post.authorUid).then(nick=>{if(selected?.id===post.id)meta.textContent=`${nick} · ${stamp(post.createdAt)}`;});}
     actions?.replaceChildren();
     
     if(!post.deleted){
@@ -144,7 +154,12 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
   }
   async function hidePost(post:BoardData){
     if(!canModerate(post.authorUid)||post.deleted||!confirm(tr('게시글을 숨길까요?','Masquer ce message ?')))return;
-    try{await updateDoc(doc(db,'boardPosts',post.id),{deleted:true,title:'[숨김 처리된 게시글]',body:'[숨김 처리된 게시글]',updatedAt:serverTimestamp()});back();await refreshPosts();}
+    try{
+      const batch=writeBatch(db);
+      batch.set(doc(db,'hiddenPosts',post.id),{title:post.title,body:post.body,authorUid:post.authorUid,hiddenBy:uid,hiddenAt:serverTimestamp()});
+      batch.update(doc(db,'boardPosts',post.id),{deleted:true,title:'[숨김 처리된 게시글]',body:'[숨김 처리된 게시글]',updatedAt:serverTimestamp()});
+      await batch.commit();back();await refreshPosts();
+    }
     catch(e){console.error(e);notify(tr('숨김 처리 실패','Impossible de masquer.'),true);}
   }
 
@@ -274,7 +289,8 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       if(snap.empty){list.append(el('p',tr('등록된 댓글이 없습니다.','Aucun commentaire.')));return;}
       for(const d of snap.docs){const c={id:d.id,...d.data()} as CommentData;
         const wrap=el('div');wrap.className='board-row stack gap-8';wrap.style.padding='12px';
-        const meta=el('p',`${c.authorName||''} · ${stamp(c.createdAt)}`);meta.className='small muted';
+        const meta=el('p',stamp(c.createdAt));meta.className='small muted';
+        void nicknameOf(c.authorUid).then(nick=>{meta.textContent=`${nick} · ${stamp(c.createdAt)}`;});
         const body=el('p',c.body);body.className='board-text';wrap.append(meta,body);
         if(!c.deleted&&(canEdit(c.authorUid)||canModerate(c.authorUid))){
           const btns=el('div');btns.className='board-actions';
@@ -291,7 +307,12 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
             const hide=el('button',tr('숨기기','Masquer')) as HTMLButtonElement;hide.type='button';hide.className='btn btn-ghost';hide.addEventListener('click',async()=>{
               if(!canModerate(c.authorUid))return;
               if(!confirm(tr('댓글을 숨길까요?','Masquer ce commentaire ?')))return;
-              try{await updateDoc(doc(db,'boardPosts',postId,'comments',c.id),{body:'[숨김 처리된 댓글]',deleted:true,updatedAt:serverTimestamp()});await refreshComments(postId);}catch(e){console.error(e);notify(tr('숨김 실패','Impossible de masquer.'),true);}
+              try{
+                const batch=writeBatch(db);
+                batch.set(doc(db,'hiddenComments',`${postId}_${c.id}`),{postId,commentId:c.id,body:c.body,authorUid:c.authorUid,hiddenBy:uid,hiddenAt:serverTimestamp()});
+                batch.update(doc(db,'boardPosts',postId,'comments',c.id),{body:'[숨김 처리된 댓글]',deleted:true,updatedAt:serverTimestamp()});
+                await batch.commit();await refreshComments(postId);
+              }catch(e){console.error(e);notify(tr('숨김 실패','Impossible de masquer.'),true);}
             });btns.append(hide);
           }
           wrap.append(btns);
@@ -306,7 +327,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       if(!user.emailVerified)throw Error('verify');
       const snap=await getDoc(doc(db,'members',user.uid));
       if(!snap.exists()||snap.data().status!=='approved')throw Error('profile');
-      uid=user.uid;role=snap.data().role;name=snap.data().name;
+      uid=user.uid;role=snap.data().role;name=snap.data().nickname||'기존회원';
       show('board-content',true);show('post-form',canWrite());notify(tr('게시판을 열었습니다.','Forum ouvert.'));
       await refreshPosts();
     }catch(e){console.error(e);notify(tr('접근 권한이 없습니다. 인증 후 로그인해 주세요.','Accès refusé. Vérifiez votre compte.'),true);}

@@ -28,36 +28,54 @@ function nicknamePath(key) {
   return /databases/$(database)/documents/nicknames/$(key);
 }
 
+function memberDoc(uid) {
+  return /databases/$(database)/documents/members/$(uid);
+}
+function publicNameDoc(uid) {
+  return /databases/$(database)/documents/publicNames/$(uid);
+}
+function nicknameValid(n, key) {
+  return n is string && key is string
+    && n.size() >= 2 && n.size() <= 24
+    && key == n.lower() && key.size() <= 48
+    && n.matches('^[\\p{Latin}\\p{Hangul}0-9]+$')
+    && !key.matches('.*(asicc|admin|administrator|administrateur|administratrice|moderateur|moderatrice|official|officiel|staff|관리자|운영진|협회|공식).*');
+}
 function validRegistration(uid) {
   return signedIn() && request.auth.uid == uid
     && request.resource.data.keys().hasOnly([
-      'name','nickname','nicknameKey','email',
-      'role','status','consent','createdAt'
+      'name','nickname','nicknameKey','email','role','status','consent',
+      'termsVersion','termsAcceptedAt','createdAt'
     ])
     && request.resource.data.keys().hasAll([
-      'name','nickname','nicknameKey','email',
-      'role','status','consent','createdAt'
+      'name','nickname','nicknameKey','email','role','status','consent',
+      'termsVersion','termsAcceptedAt','createdAt'
     ])
     && request.resource.data.name is string
     && request.resource.data.name.size() > 0
     && request.resource.data.name.size() <= 80
-    && request.resource.data.nickname is string
-    && request.resource.data.nickname.size() >= 2
-    && request.resource.data.nickname.size() <= 24
-    && request.resource.data.nicknameKey is string
-    && request.resource.data.nicknameKey ==
-       request.resource.data.nickname.lower()
+    && nicknameValid(request.resource.data.nickname,request.resource.data.nicknameKey)
     && request.resource.data.email == request.auth.token.email
     && request.resource.data.role == 'general'
     && request.resource.data.status == 'approved'
     && request.resource.data.consent == true
+    && request.resource.data.termsVersion == '2026-11'
+    && request.resource.data.termsAcceptedAt == request.time
     && request.resource.data.createdAt == request.time
-    && getAfter(
-         nicknamePath(request.resource.data.nicknameKey)
-       ).data.uid == uid
-    && getAfter(
-         nicknamePath(request.resource.data.nicknameKey)
-       ).data.nickname == request.resource.data.nickname;
+    && getAfter(nicknamePath(request.resource.data.nicknameKey)).data.uid == uid
+    && getAfter(nicknamePath(request.resource.data.nicknameKey)).data.nickname == request.resource.data.nickname
+    && getAfter(publicNameDoc(uid)).data.nickname == request.resource.data.nickname;
+}
+function validSelfNicknameUpdate(uid) {
+  return isActive() && request.auth.uid == uid
+    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nickname','nicknameKey'])
+    && nicknameValid(request.resource.data.nickname,request.resource.data.nicknameKey)
+    && request.resource.data.nicknameKey != resource.data.get('nicknameKey','')
+    && getAfter(nicknamePath(request.resource.data.nicknameKey)).data.uid == uid
+    && getAfter(nicknamePath(request.resource.data.nicknameKey)).data.nickname == request.resource.data.nickname
+    && getAfter(publicNameDoc(uid)).data.nickname == request.resource.data.nickname
+    && (resource.data.get('nicknameKey','') == ''
+        || !existsAfter(nicknamePath(resource.data.nicknameKey)));
 }
 
 
@@ -67,65 +85,114 @@ function validRegistration(uid) {
       allow list: if isAdmin();
       // Self-service registration can never grant privileged roles.
       allow create: if validRegistration(uid);
-      // Only admins may change roles and status; login users cannot elevate themselves.
-      allow update: if isAdmin()
-        && request.resource.data.email == resource.data.email
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.consent == resource.data.consent
-        && request.resource.data.name == resource.data.name
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role','status'])
-        && validRole(request.resource.data.role)
-        && request.resource.data.status in ['approved','suspended'];
+      // Member may change only their own nickname with an atomic reservation swap.
+      // Administrators retain role/status control and may approve real-name changes.
+      allow update: if validSelfNicknameUpdate(uid)
+        || (isAdmin()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role','status','name'])
+          && validRole(request.resource.data.role)
+          && request.resource.data.status in ['approved','suspended']
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 80);
       allow delete: if false;
     }
 
 match /nicknames/{key} {
-  // 본인과 운영진만 예약정보 열람 가능
-  allow get: if isAdmin()
-    || (signedIn() && resource.data.uid == request.auth.uid);
+  allow get: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
   allow list: if isAdmin();
-
-  // 신규 회원가입과 동시에 닉네임 예약
   allow create: if signedIn()
-    && request.resource.data.keys().hasOnly([
-      'uid', 'nickname', 'createdAt'
-    ])
-    && request.resource.data.keys().hasAll([
-      'uid', 'nickname', 'createdAt'
-    ])
+    && request.resource.data.keys().hasOnly(['uid','nickname','createdAt'])
+    && request.resource.data.keys().hasAll(['uid','nickname','createdAt'])
     && request.resource.data.uid == request.auth.uid
-    && request.resource.data.nickname is string
-    && request.resource.data.nickname.size() >= 2
-    && request.resource.data.nickname.size() <= 24
-    && request.resource.data.nickname.lower() == key
+    && nicknameValid(request.resource.data.nickname,key)
     && request.resource.data.createdAt == request.time
-    && !exists(
-      /databases/$(database)/documents/members/$(request.auth.uid)
-    )
-    && getAfter(
-      /databases/$(database)/documents/members/$(request.auth.uid)
-    ).data.nicknameKey == key
-    && getAfter(
-      /databases/$(database)/documents/members/$(request.auth.uid)
-    ).data.nickname == request.resource.data.nickname;
-
-  // 기존 닉네임 덮어쓰기 금지
-  allow update, delete: if false;
+    && getAfter(memberDoc(request.auth.uid)).data.nicknameKey == key
+    && getAfter(memberDoc(request.auth.uid)).data.nickname == request.resource.data.nickname
+    && getAfter(publicNameDoc(request.auth.uid)).data.nickname == request.resource.data.nickname
+    && (!exists(memberDoc(request.auth.uid))
+        || get(memberDoc(request.auth.uid)).data.get('nicknameKey','') != key);
+  allow update: if false;
+  // An old reservation can be released only when the member changes their key.
+  allow delete: if verified() && resource.data.uid == request.auth.uid
+    && existsAfter(memberDoc(request.auth.uid))
+    && getAfter(memberDoc(request.auth.uid)).data.get('nicknameKey','') != key;
 }
-    
+// Public alias only, never exposes a real name, e-mail or student information.
+match /publicNames/{uid} {
+  allow get, list: if isActive();
+  allow create, update: if signedIn() && request.auth.uid == uid
+    && request.resource.data.keys().hasOnly(['nickname','updatedAt'])
+    && request.resource.data.keys().hasAll(['nickname','updatedAt'])
+    && request.resource.data.updatedAt == request.time
+    && getAfter(memberDoc(uid)).data.nickname == request.resource.data.nickname
+    && getAfter(memberDoc(uid)).data.nicknameKey == request.resource.data.nickname.lower();
+  allow delete: if false;
+}
+// Real-name correction is requested privately and confirmed by an administrator.
+match /nameChangeRequests/{uid} {
+  allow get: if isAdmin() || (isActive() && request.auth.uid == uid);
+  allow list: if isAdmin();
+  allow create: if isActive() && request.auth.uid == uid
+    && !exists(/databases/$(database)/documents/nameChangeRequests/$(uid))
+    && request.resource.data.keys().hasOnly(['uid','currentName','requestedName','status','createdAt'])
+    && request.resource.data.keys().hasAll(['uid','currentName','requestedName','status','createdAt'])
+    && request.resource.data.uid == uid
+    && request.resource.data.currentName == me().name
+    && request.resource.data.requestedName is string
+    && request.resource.data.requestedName.size() > 0
+    && request.resource.data.requestedName.size() <= 80
+    && request.resource.data.status == 'pending'
+    && request.resource.data.createdAt == request.time;
+  allow update: if (isAdmin()
+      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','reviewedAt','reviewedBy'])
+      && request.resource.data.status in ['approved','rejected']
+      && request.resource.data.reviewedBy == request.auth.uid
+      && request.resource.data.reviewedAt == request.time)
+    || (isActive() && request.auth.uid == uid && resource.data.status == 'rejected'
+      && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'currentName','requestedName','status','createdAt','reviewedAt','reviewedBy'])
+      && request.resource.data.currentName == me().name
+      && request.resource.data.requestedName is string
+      && request.resource.data.requestedName.size() > 0
+      && request.resource.data.requestedName.size() <= 80
+      && request.resource.data.status == 'pending'
+      && request.resource.data.createdAt == request.time);
+  allow delete: if false;
+}
 
+
+function validChild(c) {
+  return c is map
+    && c.keys().hasOnly(['studentName','school','grade'])
+    && c.keys().hasAll(['studentName','school','grade'])
+    && c.studentName is string && c.studentName.size() > 0 && c.studentName.size() <= 100
+    && c.school is string && c.school.size() > 0 && c.school.size() <= 100
+    && c.grade is string && c.grade.size() > 0 && c.grade.size() <= 100;
+}
+function validChildren(a) {
+  return a is list && a.size() <= 5
+    && (a.size() < 1 || validChild(a[0]))
+    && (a.size() < 2 || validChild(a[1]))
+    && (a.size() < 3 || validChild(a[2]))
+    && (a.size() < 4 || validChild(a[3]))
+    && (a.size() < 5 || validChild(a[4]));
+}
 function validUpgrade(uid) {
       return isActive() && request.auth.uid == uid && me().role == 'general'
         && request.resource.data.uid == uid
         && request.resource.data.applicantName == me().name
         && request.resource.data.applicantEmail == request.auth.token.email
         && request.resource.data.requestedRole in ['member','special']
-        && request.resource.data.kind in ['parent','alumnus','alumni-parent']
+        && request.resource.data.kind in ['parent','alumnus','alumni-parent','teacher','contributor']
         && (request.resource.data.requestedRole == 'member' && request.resource.data.kind == 'parent'
-           || request.resource.data.requestedRole == 'special' && request.resource.data.kind in ['alumnus','alumni-parent'])
+           || request.resource.data.requestedRole == 'special' && request.resource.data.kind in ['alumnus','alumni-parent','teacher','contributor'])
         && (request.resource.data.schoolYear == null || request.resource.data.schoolYear is int
             && request.resource.data.schoolYear >= 2000 && request.resource.data.schoolYear <= 2100)
         && request.resource.data.note is string && request.resource.data.note.size() <= 500
+        && validChildren(request.resource.data.get('children',[]))
+        && request.resource.data.get('relation','') is string
+        && request.resource.data.get('relation','').size() <= 40
         && request.resource.data.status == 'pending'
         && request.resource.data.createdAt == request.time;
     }
@@ -133,7 +200,7 @@ function validUpgrade(uid) {
       allow get: if isAdmin() || verified() && request.auth.uid == uid;
       allow list: if isAdmin();
       allow create: if request.resource.data.keys().hasOnly([
-          'uid','applicantName','applicantEmail','requestedRole','kind','schoolYear','note','status','createdAt'
+          'uid','applicantName','applicantEmail','requestedRole','kind','schoolYear','note','children','relation','status','createdAt'
         ]) && validUpgrade(uid);
       // A rejected applicant can submit a new request; the previous review is retained.
       allow update: if (isAdmin()
@@ -143,9 +210,29 @@ function validUpgrade(uid) {
           && request.resource.data.reviewedAt == request.time)
         || (verified() && request.auth.uid == uid && resource.data.status == 'rejected'
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-             'requestedRole','kind','schoolYear','note','status','createdAt'
+             'requestedRole','kind','schoolYear','note','children','relation','status','createdAt'
           ]) && validUpgrade(uid));
       allow delete: if isAdmin();
+    }
+    // Confidential suggestions: author sees own, administrators see all.
+    match /suggestions/{id} {
+      allow get, list: if isAdmin() || (isActive() && resource.data.uid == request.auth.uid);
+      allow create: if isActive()
+        && request.resource.data.keys().hasOnly(['uid','category','subject','body','status','createdAt'])
+        && request.resource.data.keys().hasAll(['uid','category','subject','body','status','createdAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.category in ['operations','school','events','question','confidential']
+        && request.resource.data.subject is string && request.resource.data.subject.size() > 0 && request.resource.data.subject.size() <= 120
+        && request.resource.data.body is string && request.resource.data.body.size() > 0 && request.resource.data.body.size() <= 3000
+        && request.resource.data.status == 'received' && request.resource.data.createdAt == request.time;
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','response','respondedBy','respondedAt'])
+        && request.resource.data.status in ['received','reviewing','answered','closed']
+        && request.resource.data.get('response','') is string
+        && request.resource.data.get('response','').size() <= 3000
+        && request.resource.data.respondedBy == request.auth.uid
+        && request.resource.data.respondedAt == request.time;
+      allow delete: if false;
     }
     function allowedMime(m) {
       return m in [
@@ -195,6 +282,12 @@ function validUpgrade(uid) {
     function commentDoc(postId,commentId) {
       return /databases/$(database)/documents/boardPosts/$(postId)/comments/$(commentId);
     }
+    function hiddenPostDoc(postId) {
+      return /databases/$(database)/documents/hiddenPosts/$(postId);
+    }
+    function hiddenCommentDoc(postId,commentId) {
+      return /databases/$(database)/documents/hiddenComments/$(postId + '_' + commentId);
+    }
     function postDeletionLog(postId) {
       let logId = 'post_' + postId;
       return /databases/$(database)/documents/boardDeletionLogs/$(logId);
@@ -214,7 +307,7 @@ function validUpgrade(uid) {
         && request.resource.data.body is string && request.resource.data.body.size() > 0
         && request.resource.data.body.size() <= 5000
         && request.resource.data.authorUid == request.auth.uid
-        && request.resource.data.authorName == me().name
+        && request.resource.data.authorName == me().get('nickname', '기존회원')
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time
         && request.resource.data.deleted == false;
@@ -232,9 +325,9 @@ function validUpgrade(uid) {
         && request.resource.data.body is string && request.resource.data.body.size() > 0
         && request.resource.data.body.size() <= 5000;
     }
-    // Only admins may hide posts. Current staging hide redacts content irreversibly.
-    // Separate permanent deletion uses a batched audit record below.
-    function validPostHide() {
+    // Hiding redacts the public copy while preserving the original in a private archive.
+    // Permanent deletion uses a separate batched audit record below.
+    function validPostHide(postId) {
       return resource.data.deleted == false
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'title','body','deleted','updatedAt'
@@ -242,7 +335,19 @@ function validUpgrade(uid) {
         && request.resource.data.deleted == true
         && request.resource.data.title == '[숨김 처리된 게시글]'
         && request.resource.data.body == '[숨김 처리된 게시글]'
-        && request.resource.data.updatedAt == request.time;
+        && request.resource.data.updatedAt == request.time
+        && getAfter(hiddenPostDoc(postId)).data.title == resource.data.title
+        && getAfter(hiddenPostDoc(postId)).data.body == resource.data.body;
+    }
+    function validPostRestore(postId) {
+      return resource.data.deleted == true
+        && request.resource.data.deleted == false
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','body','deleted','updatedAt'])
+        && exists(hiddenPostDoc(postId))
+        && request.resource.data.title == get(hiddenPostDoc(postId)).data.title
+        && request.resource.data.body == get(hiddenPostDoc(postId)).data.body
+        && request.resource.data.updatedAt == request.time
+        && !existsAfter(hiddenPostDoc(postId));
     }
     function validCommentCreate() {
       return request.resource.data.keys().hasOnly([
@@ -253,7 +358,7 @@ function validUpgrade(uid) {
         && request.resource.data.body is string && request.resource.data.body.size() > 0
         && request.resource.data.body.size() <= 2000
         && request.resource.data.authorUid == request.auth.uid
-        && request.resource.data.authorName == me().name
+        && request.resource.data.authorName == me().get('nickname', '기존회원')
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time
         && request.resource.data.deleted == false;
@@ -268,21 +373,71 @@ function validUpgrade(uid) {
         && request.resource.data.body is string && request.resource.data.body.size() > 0
         && request.resource.data.body.size() <= 2000;
     }
-    function validCommentHide() {
+    function validCommentHide(postId,commentId) {
       return resource.data.deleted == false
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'body','deleted','updatedAt'
         ])
         && request.resource.data.deleted == true
         && request.resource.data.body == '[숨김 처리된 댓글]'
-        && request.resource.data.updatedAt == request.time;
+        && request.resource.data.updatedAt == request.time
+        && getAfter(hiddenCommentDoc(postId,commentId)).data.body == resource.data.body;
+    }
+    function validCommentRestore(postId,commentId) {
+      return resource.data.deleted == true
+        && request.resource.data.deleted == false
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['body','deleted','updatedAt'])
+        && exists(hiddenCommentDoc(postId,commentId))
+        && request.resource.data.body == get(hiddenCommentDoc(postId,commentId)).data.body
+        && request.resource.data.updatedAt == request.time
+        && !existsAfter(hiddenCommentDoc(postId,commentId));
+    }
+    // Moderation archives are private; no original content can be fetched by members.
+    match /hiddenPosts/{postId} {
+      allow get, list: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasOnly(['title','body','authorUid','hiddenBy','hiddenAt'])
+        && request.resource.data.keys().hasAll(['title','body','authorUid','hiddenBy','hiddenAt'])
+        && exists(postDoc(postId))
+        && get(postDoc(postId)).data.deleted == false
+        && request.resource.data.title == get(postDoc(postId)).data.title
+        && request.resource.data.body == get(postDoc(postId)).data.body
+        && request.resource.data.authorUid == get(postDoc(postId)).data.authorUid
+        && request.resource.data.hiddenBy == request.auth.uid
+        && request.resource.data.hiddenAt == request.time
+        && getAfter(postDoc(postId)).data.deleted == true;
+      allow delete: if isAdmin() && existsAfter(postDoc(postId))
+        && getAfter(postDoc(postId)).data.deleted == false;
+      allow update: if false;
+    }
+    match /hiddenComments/{archiveId} {
+      allow get, list: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasOnly(['postId','commentId','body','authorUid','hiddenBy','hiddenAt'])
+        && request.resource.data.keys().hasAll(['postId','commentId','body','authorUid','hiddenBy','hiddenAt'])
+        && archiveId == request.resource.data.postId + '_' + request.resource.data.commentId
+        && exists(commentDoc(request.resource.data.postId,request.resource.data.commentId))
+        && get(commentDoc(request.resource.data.postId,request.resource.data.commentId)).data.deleted == false
+        && request.resource.data.body == get(commentDoc(request.resource.data.postId,request.resource.data.commentId)).data.body
+        && request.resource.data.authorUid == get(commentDoc(request.resource.data.postId,request.resource.data.commentId)).data.authorUid
+        && request.resource.data.hiddenBy == request.auth.uid
+        && request.resource.data.hiddenAt == request.time
+        && getAfter(commentDoc(request.resource.data.postId,request.resource.data.commentId)).data.deleted == true;
+      allow delete: if isAdmin()
+        && existsAfter(commentDoc(resource.data.postId,resource.data.commentId))
+        && getAfter(commentDoc(resource.data.postId,resource.data.commentId)).data.deleted == false;
+      allow update: if false;
     }
     match /boardPosts/{postId} {
       allow get, list: if isActive();
       allow create: if canWriteBoard() && validPostCreate();
       allow update: if canWriteBoard() && (
           (resource.data.authorUid == request.auth.uid && validPostEdit())
-          || (isAdmin() && validPostHide())
+          || (isAdmin() && validPostHide(postId))
+          || (isAdmin() && validPostRestore(postId))
+          || (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['authorName','updatedAt'])
+              && request.resource.data.authorName == '기존회원'
+              && request.resource.data.updatedAt == request.time)
         );
       // Hard delete requires a same-batch moderation log; the client also deletes comments.
       allow delete: if canWriteBoard()
@@ -291,15 +446,19 @@ function validUpgrade(uid) {
         && getAfter(postDeletionLog(postId)).data.actorUid == request.auth.uid;
       match /comments/{commentId} {
         // Comments under hidden posts are not readable even through direct SDK queries.
-        allow get, list: if isActive() && exists(postDoc(postId))
-          && get(postDoc(postId)).data.deleted == false;
+        allow get, list: if isAdmin() || (isActive() && exists(postDoc(postId))
+          && get(postDoc(postId)).data.deleted == false);
         allow create: if canWriteBoard() && exists(postDoc(postId))
           && get(postDoc(postId)).data.deleted == false && validCommentCreate();
         allow update: if canWriteBoard()
           && exists(postDoc(postId)) && get(postDoc(postId)).data.deleted == false
           && (
             (resource.data.authorUid == request.auth.uid && validCommentEdit())
-            || (isAdmin() && validCommentHide())
+            || (isAdmin() && validCommentHide(postId,commentId))
+             || (isAdmin() && validCommentRestore(postId,commentId))
+             || (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['authorName','updatedAt'])
+                 && request.resource.data.authorName == '기존회원'
+                 && request.resource.data.updatedAt == request.time)
           );
         // A member can delete their own comment. Admins can delete inappropriate comments.
         // The post author may delete comments as part of deleting the entire post.
