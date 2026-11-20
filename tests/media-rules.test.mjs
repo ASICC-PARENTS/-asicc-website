@@ -18,16 +18,16 @@ before(async()=>{
   env=await initializeTestEnvironment({projectId:'demo-asicc-media-rules',firestore:{
     rules:fs.readFileSync(new URL('../firestore.rules.PROPOSED_ONLY',import.meta.url),'utf8')
   }});
-  await env.withSecurityRulesDisabled(async ({firestore})=>{
-    await Promise.all(['general','member','special','admin','suspended'].map(role=>setDoc(doc(firestore(),'members',role),mkProfile(role,role,role==='suspended'?'suspended':'approved'))));
+  await env.withSecurityRulesDisabled(async (context)=>{
+    await Promise.all(['general','member','special','admin','suspended'].map(role=>setDoc(doc(context.firestore(),'members',role),mkProfile(role,role,role==='suspended'?'suspended':'approved'))));
   });
 });
 after(async()=>{if(env)await env.cleanup();});
 
 test('general may read learning, not gallery; verified association roles see both',async()=>{
-  await env.withSecurityRulesDisabled(async ({firestore})=>{
-    await setDoc(doc(firestore(),'learningResources','legacyLearn'),{title:'기존 파일',filename:'old.pdf',mime:'application/pdf',storagePath:'learning/legacyLearn/old.pdf',createdBy:'admin',createdAt:new Date()});
-    await setDoc(doc(firestore(),'galleryItems','legacyPhoto'),{title:'기존 사진',filename:'old.webp',mime:'image/webp',storagePath:'gallery/legacyPhoto/old.webp',createdBy:'admin',createdAt:new Date()});
+  await env.withSecurityRulesDisabled(async (context)=>{
+    await setDoc(doc(context.firestore(),'learningResources','legacyLearn'),{title:'기존 파일',filename:'old.pdf',mime:'application/pdf',storagePath:'learning/legacyLearn/old.pdf',createdBy:'admin',createdAt:new Date()});
+    await setDoc(doc(context.firestore(),'galleryItems','legacyPhoto'),{title:'기존 사진',filename:'old.webp',mime:'image/webp',storagePath:'gallery/legacyPhoto/old.webp',createdBy:'admin',createdAt:new Date()});
   });
   await assertSucceeds(getDoc(doc(ctx('general'),'learningResources','legacyLearn')));
   await assertFails(getDoc(doc(ctx('general'),'galleryItems','legacyPhoto')));
