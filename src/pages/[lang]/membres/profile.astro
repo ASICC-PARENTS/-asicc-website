@@ -41,6 +41,12 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
           </form>
           <p class="small muted">{L(lang,{ko:'기존 게시글과 댓글에도 새 닉네임을 표시합니다. 실명은 비공개로 유지합니다.',fr:'Les anciens messages et commentaires afficheront également votre nouveau pseudo. Votre nom réel reste privé.'})}</p>
         </section>
+        <section class="card stack gap-12" style="padding:24px">
+          <h2 class="h3">{L(lang,{ko:'회원 탈퇴 요청',fr:'Demander la clôture du compte'})}</h2>
+          <p class="small muted">{L(lang,{ko:'탈퇴를 요청하면 운영진에게 비공개로 전달됩니다. 이 버튼을 눌러도 계정이 바로 삭제되지는 않습니다. 운영진이 확인한 뒤 개인정보 삭제 절차를 안내합니다.',fr:'Votre demande sera transmise de façon confidentielle aux administrateurs. Elle ne supprime pas immédiatement le compte. L’administration vous précisera la procédure de suppression des données.'})}</p>
+          <p id="withdrawal-request-state" class="small muted"></p>
+          <button class="btn btn-ghost" type="button" id="withdrawal-request-button" style="align-self:flex-start">{L(lang,{ko:'탈퇴 요청 보내기',fr:'Demander la clôture'})}</button>
+        </section>
       </div>
     </div>
   </section>
@@ -82,7 +88,7 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
       document.querySelector<HTMLInputElement>('#new-nickname')!.value=profile!.nickname||'';
       document.querySelector<HTMLElement>('#profile-fields')!.hidden=false;
       say(tr('내 정보가 표시됐습니다.','Profil chargé.'));
-      await loadNameRequest();
+      await Promise.all([loadNameRequest(),loadWithdrawalState()]);
     }catch(e){console.error(e);say(tr('회원정보를 불러올 수 없습니다.','Impossible de charger le profil.'),true);}
   });
   document.querySelector<HTMLFormElement>('#nickname-form')?.addEventListener('submit',async e=>{
@@ -103,6 +109,44 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
       say(tr('닉네임을 변경했습니다.','Pseudo modifié.'));
     }catch(err){console.error(err);say(tr('변경하지 못했습니다. 다른 닉네임을 선택하거나 운영진에게 문의해 주세요.','Modification impossible. Choisissez un autre pseudo ou contactez l’association.'),true);}
     finally{if(button)button.disabled=false;}
+  });
+  async function loadWithdrawalState(){
+    if(!uid)return;
+    const state=document.querySelector<HTMLElement>('#withdrawal-request-state');
+    const button=document.querySelector<HTMLButtonElement>('#withdrawal-request-button');
+    try{
+      const snap=await getDoc(doc(db,'memberWithdrawalRequests',uid));
+      if(snap.exists()){
+        if(state)state.textContent=tr('탈퇴 요청이 운영진에게 접수된 상태입니다.','Votre demande de départ a été transmise aux administrateurs.');
+        if(button)button.disabled=true;
+      }else{
+        if(state)state.textContent='';
+        if(button)button.disabled=false;
+      }
+    }catch(e){
+      console.error('withdrawal state',e);
+      if(state)state.textContent=tr('탈퇴 신청 상태를 확인할 수 없습니다.','Impossible de vérifier votre demande.');
+      if(button)button.disabled=true;
+    }
+  }
+  document.querySelector<HTMLButtonElement>('#withdrawal-request-button')?.addEventListener('click',async()=>{
+    if(!uid||!profile)return;
+    if(!confirm(tr('회원 탈퇴를 운영진에게 요청하시겠습니까? 지금 바로 계정이 삭제되는 것은 아닙니다.',
+      'Souhaitez-vous demander la clôture de votre compte ? Le compte ne sera pas supprimé immédiatement.')))return;
+    const button=document.querySelector<HTMLButtonElement>('#withdrawal-request-button');
+    if(button)button.disabled=true;
+    try{
+      await setDoc(doc(db,'memberWithdrawalRequests',uid),{
+        uid,name:profile.name,email:profile.email,status:'pending',requestedAt:serverTimestamp()
+      });
+      say(tr('탈퇴 요청이 운영진에게 전달됐습니다.','Votre demande a été envoyée aux administrateurs.'));
+      await loadWithdrawalState();
+    }catch(e){
+      console.error('withdrawal request',e);
+      say(tr('탈퇴 요청을 보내지 못했습니다. 운영진에게 이메일로 문의해 주세요.',
+        'Demande non transmise. Contactez l’association par e-mail.'),true);
+      if(button)button.disabled=false;
+    }
   });
   document.querySelector<HTMLFormElement>('#realname-request')?.addEventListener('submit',async e=>{
     e.preventDefault();if(!uid||!profile)return;

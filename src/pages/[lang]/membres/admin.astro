@@ -45,6 +45,23 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
 
         <p id="admin-action-message" class="small" role="status" aria-live="polite" hidden></p>
 
+        <section id="admin-notification" class="asicc-admin-notification stack gap-12" role="alert" aria-live="assertive" hidden>
+          <div class="row gap-12" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
+            <h2 class="h3">{L(lang,{ko:'새로운 회원 소식',fr:'Nouvelles concernant les membres'})}</h2>
+            <span id="admin-notification-count" class="m-badge"></span>
+          </div>
+          <p id="admin-notification-summary"></p>
+          <div id="admin-notification-details" class="small"></div>
+          <label class="row gap-8" style="align-items:center">
+            <input type="checkbox" id="admin-notification-confirm" />
+            <span>{L(lang,{ko:'내용을 확인했습니다. 이 알림은 다시 표시하지 않습니다.',fr:'J’ai pris connaissance de ces informations. Ne plus afficher cette alerte.'})}</span>
+          </label>
+          <div class="row gap-12" style="align-items:center;flex-wrap:wrap">
+            <button type="button" id="admin-notification-ack" class="btn btn-dark" disabled>{L(lang,{ko:'확인 완료',fr:'Confirmer'})}</button>
+            <span id="admin-notification-error" class="small" role="status"></span>
+          </div>
+        </section>
+
         <section class="card auth-card stack gap-16" aria-labelledby="requests-heading">
           <div class="row gap-16" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
             <h2 id="requests-heading" class="h3">{L(lang, { ko: '승급 승인 대기', fr: 'Demandes à examiner' })}</h2>
@@ -66,13 +83,51 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
             ko: '정식 협회회원과 특별회원은 동일한 접근권한을 갖습니다. 다른 운영진을 지정할 때는 신중하게 확인하세요.',
             fr: 'Membres et membres spéciaux ont le même accès. Vérifiez soigneusement toute nomination d’administrateur.'
           })}</p>
-          <input id="admin-member-search" type="search"
-            placeholder={L(lang, { ko: '실명·닉네임·이메일·학생·학교·학년 검색', fr: 'Nom, pseudo, e-mail, élève, école, classe' })}
-            aria-label={L(lang, { ko: '회원 검색', fr: 'Rechercher un membre' })}/>
-          <div id="admin-members" class="stack gap-12"></div>
-          <button id="admin-more" class="btn btn-ghost" type="button" hidden>
-            {L(lang, { ko: '회원 더 불러오기', fr: 'Charger plus de membres' })}
-          </button>
+          <div class="asicc-admin-toolbar">
+            <label class="stack gap-8"><span class="small">{L(lang,{ko:'검색',fr:'Recherche'})}</span>
+              <input id="admin-member-search" type="search" placeholder={L(lang,{ko:'실명·닉네임·이메일·학생·학교·학년·연락처',fr:'Nom, pseudo, e-mail, élève, école, téléphone'})} />
+            </label>
+            <label class="stack gap-8"><span class="small">{L(lang,{ko:'회원 등급',fr:'Statut'})}</span>
+              <select id="admin-filter-role">
+                <option value="all">{L(lang,{ko:'전체',fr:'Tous'})}</option>
+                <option value="general">{L(lang,{ko:'일반회원',fr:'Membre général'})}</option>
+                <option value="member">{L(lang,{ko:'협회회원',fr:'Membre'})}</option>
+                <option value="special">{L(lang,{ko:'특별회원',fr:'Membre spécial'})}</option>
+                <option value="admin">{L(lang,{ko:'운영진',fr:'Administrateur'})}</option>
+              </select>
+            </label>
+            <label class="stack gap-8"><span class="small">{L(lang,{ko:'계정 상태',fr:'État du compte'})}</span>
+              <select id="admin-filter-status">
+                <option value="all">{L(lang,{ko:'전체',fr:'Tous'})}</option>
+                <option value="approved">{L(lang,{ko:'활성',fr:'Actif'})}</option>
+                <option value="suspended">{L(lang,{ko:'정지',fr:'Suspendu'})}</option>
+                <option value="withdrawal">{L(lang,{ko:'탈퇴 요청',fr:'Départ demandé'})}</option>
+              </select>
+            </label>
+            <label class="stack gap-8"><span class="small">{L(lang,{ko:'학교급',fr:'Niveau scolaire'})}</span>
+              <select id="admin-filter-school">
+                <option value="all">{L(lang,{ko:'전체',fr:'Tous'})}</option>
+                <option value="mat">{L(lang,{ko:'유치원',fr:'Maternelle'})}</option>
+                <option value="elem">{L(lang,{ko:'초등학교',fr:'Élémentaire'})}</option>
+                <option value="col">{L(lang,{ko:'중학교',fr:'Collège'})}</option>
+              </select>
+            </label>
+            <label class="stack gap-8"><span class="small">{L(lang,{ko:'가입 시작일',fr:'Inscrit après'})}</span><input id="admin-filter-from" type="date" /></label>
+            <label class="stack gap-8"><span class="small">{L(lang,{ko:'가입 종료일',fr:'Inscrit avant'})}</span><input id="admin-filter-to" type="date" /></label>
+          </div>
+          <div class="row gap-12" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
+            <div id="admin-filter-count" class="small muted" aria-live="polite"></div>
+            <div class="row gap-8" style="flex-wrap:wrap">
+              <button type="button" class="btn btn-ghost btn-sm" id="admin-filter-reset">{L(lang,{ko:'필터 초기화',fr:'Réinitialiser les filtres'})}</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="admin-member-export">{L(lang,{ko:'현재 목록 CSV 저장',fr:'Exporter la sélection CSV'})}</button>
+            </div>
+          </div>
+          <div id="admin-members" class="asicc-admin-table-wrap" aria-live="polite"></div>
+          <div id="admin-page-controls" class="row gap-12" style="justify-content:flex-end;align-items:center;flex-wrap:wrap">
+            <button type="button" id="admin-prev" class="btn btn-ghost btn-sm">{L(lang,{ko:'이전',fr:'Précédent'})}</button>
+            <span id="admin-page-label" class="small muted"></span>
+            <button type="button" id="admin-next" class="btn btn-ghost btn-sm">{L(lang,{ko:'다음',fr:'Suivant'})}</button>
+          </div>
         </section>
 
         <section class="card stack gap-16" style="padding:22px" aria-labelledby="name-requests-heading">
@@ -120,6 +175,25 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   .asicc-admin-fields { display:grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,175px),1fr)); gap:12px; align-items:end; }
   .asicc-admin-actions { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:10px; }
   .asicc-admin-muted { font-size:.88rem; color:var(--muted,#64748b); overflow-wrap:anywhere; }
+  .asicc-admin-notification { border:1px solid #c09b56; border-radius:14px; padding:20px; background:rgba(250,238,216,.35); }
+  .asicc-admin-notification[hidden] { display:none; }
+  .asicc-admin-toolbar { display:grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,170px),1fr)); gap:12px; align-items:end; }
+  .asicc-admin-toolbar input,.asicc-admin-toolbar select { width:100%; min-width:0; }
+  .asicc-admin-table-wrap { max-width:100%; width:100%; overflow:auto; border:1px solid #dce0e7; border-radius:10px; }
+  .asicc-admin-table { border-collapse:collapse; width:100%; min-width:1380px; font-size:.83rem; background:#fff; }
+  .asicc-admin-table th,.asicc-admin-table td { padding:9px 10px; border-bottom:1px solid #e4e7ec; border-right:1px solid #f1f2f5; text-align:left; vertical-align:middle; white-space:nowrap; }
+  .asicc-admin-table thead th { position:sticky; top:0; z-index:1; background:#f5f7fa; font-size:.78rem; font-weight:700; }
+  .asicc-admin-table tbody tr:nth-child(even) { background:#fafbfc; }
+  .asicc-admin-table tbody tr:hover { background:#eff6f3; }
+  .asicc-admin-table th:first-child,.asicc-admin-table td:first-child { position:sticky; left:0; z-index:1; background:inherit; text-align:right; min-width:46px; }
+  .asicc-admin-table thead th:first-child { z-index:2; background:#f5f7fa; }
+  .asicc-admin-table select { width:130px; max-width:100%; padding:6px; font-size:.8rem; }
+  .asicc-admin-table .admin-row-action { min-width:64px; padding:7px 10px; }
+  .asicc-admin-table .admin-row-action[disabled] { opacity:.5; }
+  .asicc-admin-table .admin-small { font-size:.75rem; color:#667085; }
+  .asicc-admin-table .admin-name { font-weight:700; }
+  .asicc-admin-table .admin-students { max-width:270px; overflow:hidden; text-overflow:ellipsis; }
+  @media(max-width:720px) { .asicc-admin-notification { padding:14px; } .asicc-admin-toolbar { grid-template-columns:repeat(2,minmax(0,1fr)); } .asicc-admin-toolbar label:first-child { grid-column:1/-1; } }
 </style>
 
 <script>
@@ -127,12 +201,14 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   import { getAuth, onAuthStateChanged, getIdToken } from 'firebase/auth';
   import {
     getFirestore, doc, getDoc, getDocs, query, collection, where,
-    limit, startAfter, updateDoc, runTransaction, serverTimestamp, writeBatch,
-    type DocumentData, type QueryDocumentSnapshot
+    limit, updateDoc, runTransaction, serverTimestamp, writeBatch, setDoc, type Timestamp,
+    type DocumentData
   } from 'firebase/firestore';
   import { firebaseConfig } from '../../../firebase-config';
 
-  type Member = { id: string; name: string; nickname?:string; email: string; role: string; status: string };
+  type Member = { id: string; name: string; nickname?:string; email: string; phone?: string;
+    levels?: string[]; role: string; status: string; createdAt?: Timestamp | number | string | null }; 
+  type Withdrawal = { uid: string; name: string; email: string; status: string; requestedAt?: Timestamp | number | null };
   type Upgrade = { uid: string; applicantName: string; applicantEmail: string;
     requestedRole: 'member' | 'special'; kind: string; schoolYear?: number | null;
     note?: string; relation?:string; children?:Array<{studentName:string;school:string;grade:string}>; status: string; };
@@ -148,7 +224,11 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   let meUid = '';
   let members: Member[] = [];
   const upgradeHistory=new Map<string,Upgrade>();
-  let lastMember: QueryDocumentSnapshot<DocumentData> | null = null;
+  const withdrawals = new Map<string,Withdrawal>();
+  let page = 1;
+  const pageSize = 25;
+  let sortColumn: 'createdAt' | 'name' | 'email' = 'createdAt';
+  let sortAsc = false;
   let busy = false;
 
   const text = (id: string, value: string) => { const node = el<HTMLElement>(id); if (node) node.textContent = value; };
@@ -245,7 +325,8 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       });
       showMessage(approve ? tr('승급을 승인했습니다.','Demande approuvée.')
         : tr('신청을 거절했습니다.','Demande refusée.'));
-      await Promise.all([loadRequests(),loadMembers(true),loadHistory(),loadNameRequests(),loadSuggestions(),loadDeletionLogs(),loadHiddenArchives()]);
+      await Promise.all([loadRequests(),loadMembers(true),loadHistory(),loadWithdrawals(),loadNameRequests(),loadSuggestions(),loadDeletionLogs(),loadHiddenArchives()]);
+      await loadNotifications();
     } catch (error) {
       console.error('ASICC admin review:',error);
       showMessage(tr('처리하지 못했습니다. 신청 상태와 Firebase 규칙을 확인해 주세요.',
@@ -253,90 +334,243 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     } finally { busy = false; }
   }
 
-  function renderMembers() {
-    const container = el<HTMLElement>('admin-members'); if (!container) return;
-    const term = el<HTMLInputElement>('admin-member-search')?.value.trim().toLowerCase() || '';
-    const filtered = members.filter(m => {
+  const timestamp = (value: any): number => {
+    if(value && typeof value.toMillis === 'function') return value.toMillis();
+    if(typeof value === 'number') return value;
+    if(typeof value === 'string') { const n=Date.parse(value); return Number.isFinite(n)?n:0; }
+    return 0;
+  };
+  const stamp = (value: any): string => {
+    const ms=timestamp(value);if(!ms)return '—';
+    return new Intl.DateTimeFormat(fr?'fr-FR':'ko-KR',{
+      timeZone:'Europe/Paris',year:'numeric',month:'2-digit',day:'2-digit',
+      hour:'2-digit',minute:'2-digit',hour12:false
+    }).format(new Date(ms));
+  };
+  const gradeLabel = (m:Member):string => {
+    const r=upgradeHistory.get(m.id);
+    return (r?.children||[]).map(c=>[c.studentName,c.school,c.grade].filter(Boolean).join(' / ')).join(' · ') || '—';
+  };
+  const schoolLabel = (m: Member):string => {
+    const r=upgradeHistory.get(m.id);
+    const schoolNames = (r?.children||[]).map(c=>c.school).filter(Boolean);
+    if(schoolNames.length)return [...new Set(schoolNames)].join(', ');
+    return (m.levels||[]).map(l=>({mat:tr('유치원','Maternelle'),elem:tr('초등학교','Élémentaire'),col:tr('중학교','Collège')} as Record<string,string>)[l]||l).join(', ') || '—';
+  };
+  const memberSchoolMatches=(m:Member,level:string)=>{
+    if(level==='all')return true;
+    const r=upgradeHistory.get(m.id);
+    const values=(r?.children||[]).map(c=>`${c.school} ${c.grade}`.toLowerCase());
+    if((m.levels||[]).includes(level))return true;
+    // School/grade fields come from voluntarily submitted promotion requests.
+    if(level==='mat')return values.some(v=>/maternelle|^ps |^ms |^gs |école maternelle/.test(v));
+    if(level==='elem')return values.some(v=>/élémentaire|elementaire|\bcp\b|\bce1\b|\bce2\b|\bcm1\b|\bcm2\b/.test(v));
+    return values.some(v=>/collège|college|\b6e\b|\b5e\b|\b4e\b|\b3e\b/.test(v));
+  };
+  function filteredMembers():Member[] {
+    const term=el<HTMLInputElement>('admin-member-search')?.value.trim().toLocaleLowerCase()||'';
+    const role=el<HTMLSelectElement>('admin-filter-role')?.value||'all';
+    const status=el<HTMLSelectElement>('admin-filter-status')?.value||'all';
+    const school=el<HTMLSelectElement>('admin-filter-school')?.value||'all';
+    const from=el<HTMLInputElement>('admin-filter-from')?.value||'';
+    const to=el<HTMLInputElement>('admin-filter-to')?.value||'';
+    const fromMs=from?Date.parse(from+'T00:00:00+01:00'):0;
+    const toMs=to?Date.parse(to+'T23:59:59+01:00'):Infinity;
+    const result=members.filter(m=>{
+      if(role!=='all'&&m.role!==role)return false;
+      if(status==='withdrawal') { if(withdrawals.get(m.id)?.status!=='pending')return false; }
+      else if(status!=='all'&&m.status!==status)return false;
+      if(!memberSchoolMatches(m,school))return false;
+      const t=timestamp(m.createdAt);if(from&&(!t||t<fromMs))return false;
+      if(to&&(!t||t>toMs))return false;
       const req=upgradeHistory.get(m.id);
-      const childText=(req?.children||[]).map(c=>`${c.studentName} ${c.school} ${c.grade}`).join(' ');
-      return `${m.name} ${m.nickname||''} ${m.email} ${req?.kind||''} ${childText}`.toLowerCase().includes(term);
+      const hay=[m.name,m.nickname,m.email,m.phone,schoolLabel(m),gradeLabel(m),req?.kind,req?.relation]
+        .filter(Boolean).join(' ').toLocaleLowerCase();
+      return !term||hay.includes(term);
     });
+    result.sort((a,b)=>{
+      const v=sortColumn==='createdAt' ? timestamp(a.createdAt)-timestamp(b.createdAt)
+        : String(a[sortColumn]||'').localeCompare(String(b[sortColumn]||''),fr?'fr':'ko');
+      return sortAsc?v:-v;
+    });
+    return result;
+  }
+  function td(row:HTMLTableRowElement,value:string,cls='') {
+    const cell=document.createElement('td');cell.textContent=value;if(cls)cell.className=cls;row.append(cell);return cell;
+  }
+  function renderMembers(){
+    const container=el<HTMLElement>('admin-members');if(!container)return;
+    const filtered=filteredMembers(),pages=Math.max(1,Math.ceil(filtered.length/pageSize));
+    page=Math.min(page,pages);
+    const current=filtered.slice((page-1)*pageSize,page*pageSize);
+    const counts=el<HTMLElement>('admin-filter-count');if(counts)counts.textContent=tr(
+      `전체 ${members.length}명 중 ${filtered.length}명 검색됨 (한 페이지 ${pageSize}명)`,
+      `${filtered.length} sur ${members.length} membres (page de ${pageSize})`);
+    const pageLabel=el<HTMLElement>('admin-page-label');if(pageLabel)pageLabel.textContent=`${page} / ${pages}`;
+    const prev=el<HTMLButtonElement>('admin-prev'),next=el<HTMLButtonElement>('admin-next');
+    if(prev)prev.disabled=page<=1;if(next)next.disabled=page>=pages;
     container.replaceChildren();
-    if (!filtered.length) { container.append(panel('small muted', tr('일치하는 회원이 없습니다.','Aucun membre trouvé.'))); return; }
-    for (const member of filtered) {
-      const card = document.createElement('article'); card.className = 'asicc-admin-record stack gap-8';
-      const heading = panel('', member.name || tr('이름 없음','Sans nom'));
-      heading.style.fontWeight = '700'; card.append(heading);
-      card.append(panel('asicc-admin-muted', `${member.nickname||tr('닉네임 미설정','Sans pseudo')} · ${member.email||''}`));
-      const enrollment=upgradeHistory.get(member.id);
-      if(enrollment){
-        card.append(panel('small',tr('회원 구분: ','Catégorie : ')+kindLabel(enrollment.kind)+(enrollment.relation?` · ${enrollment.relation}`:'')));
-        enrollment.children?.forEach(child=>card.append(panel('small',`${child.studentName||''} · ${child.school||''} · ${child.grade||''}`)));
+    if(!filtered.length){container.append(panel('small muted',tr('조건에 맞는 회원이 없습니다.','Aucun membre ne correspond aux critères.')));return;}
+    const table=document.createElement('table');table.className='asicc-admin-table';
+    const thead=document.createElement('thead'),head=document.createElement('tr');
+    const headings:[string,string | null][]=[
+      ['#',null],[tr('실명','Nom'),'name'],[tr('아이디(이메일)','Identifiant (e-mail)'),'email'],
+      [tr('닉네임','Pseudo'),null],[tr('연락처','Téléphone'),null],
+      [tr('가입 일시 (파리)','Inscrit le (Paris)'),'createdAt'],[tr('학교급 / 학교','Niveau / école'),null],
+      [tr('학생 / 학년','Élève / classe'),null],[tr('가입 구분','Catégorie'),null],
+      [tr('회원 등급','Statut'),null],[tr('계정 상태','État'),null],[tr('저장','Enregistrer'),null]
+    ];
+    headings.forEach(([label,key])=>{
+      const th=document.createElement('th');th.scope='col';
+      if(key){const button=document.createElement('button');button.type='button';button.className='admin-head-sort';
+        button.style.cssText='border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;text-align:left';
+        button.textContent=label+(sortColumn===key?(sortAsc?' ▲':' ▼'):' ↕');
+        button.title=tr('정렬','Trier');button.addEventListener('click',()=>{
+          if(sortColumn===key)sortAsc=!sortAsc;else {sortColumn=key as typeof sortColumn;sortAsc=key==='name'||key==='email';}
+          page=1;renderMembers();
+        });th.append(button);
+      }else th.textContent=label;
+      head.append(th);
+    });thead.append(head);table.append(thead);
+    const tbody=document.createElement('tbody');
+    for(let i=0;i<current.length;i++){
+      const m=current[i],row=document.createElement('tr');row.dataset.uid=m.id;
+      td(row,String((page-1)*pageSize+i+1));
+      td(row,m.name||'—','admin-name');td(row,m.email||'—');td(row,m.nickname||'—');td(row,m.phone||'—');
+      td(row,stamp(m.createdAt),'admin-small');td(row,schoolLabel(m));
+      const students=td(row,gradeLabel(m),'admin-students');students.title=gradeLabel(m);
+      const enrollment=upgradeHistory.get(m.id);
+      td(row,enrollment ? kindLabel(enrollment.kind):'—');
+      const roleCell=document.createElement('td'),roleSelect=document.createElement('select');
+      roleSelect.setAttribute('aria-label',tr(`${m.name} 회원 등급`,`Statut de ${m.name}`));
+      for(const r of roleOptions){const opt=document.createElement('option');opt.value=r;opt.textContent=roleLabel(r);roleSelect.append(opt);}
+      roleSelect.value=m.role;roleSelect.disabled=m.id===meUid;roleCell.append(roleSelect);row.append(roleCell);
+      const statusCell=document.createElement('td'),statusSelect=document.createElement('select');
+      statusSelect.setAttribute('aria-label',tr(`${m.name} 계정 상태`,`État du compte de ${m.name}`));
+      [['approved',tr('활성','Actif')],['suspended',tr('정지','Suspendu')]].forEach(([key,label])=>{
+        const opt=document.createElement('option');opt.value=key;opt.textContent=label;statusSelect.append(opt);
+      });
+      statusSelect.value=m.status;statusSelect.disabled=m.id===meUid;statusCell.append(statusSelect);
+      if(withdrawals.get(m.id)?.status==='pending'){
+        const note=panel('admin-small',tr('탈퇴 신청 접수','Départ demandé'));
+        note.style.color='#b42318';statusCell.append(note);
       }
-      const fields = document.createElement('div'); fields.className='asicc-admin-fields';
-      const roleWrap = document.createElement('label'); roleWrap.className='stack gap-8';
-      roleWrap.append(panel('small',tr('회원 등급','Statut')));
-      const roleSelect = document.createElement('select');
-      for (const role of roleOptions) {
-        const option = document.createElement('option'); option.value=role; option.textContent=roleLabel(role);
-        roleSelect.append(option);
-      }
-      roleSelect.value=member.role; roleSelect.disabled=member.id===meUid; roleWrap.append(roleSelect);
-      const statusWrap = document.createElement('label'); statusWrap.className='stack gap-8';
-      statusWrap.append(panel('small',tr('계정 상태','État du compte')));
-      const statusSelect = document.createElement('select');
-      for (const [key,label] of [
-        ['approved',tr('활성','Actif')], ['suspended',tr('정지','Suspendu')]
-      ]) { const opt=document.createElement('option');opt.value=key;opt.textContent=label;statusSelect.append(opt); }
-      statusSelect.value=member.status; statusSelect.disabled=member.id===meUid; statusWrap.append(statusSelect);
-      fields.append(roleWrap,statusWrap); card.append(fields);
-      const actions = document.createElement('div'); actions.className='asicc-admin-actions';
-      const save = actionButton(tr('변경 저장','Enregistrer'), () => void saveMember(member,roleSelect,statusSelect));
-      save.disabled=member.id===meUid; actions.append(save); card.append(actions); container.append(card);
+      row.append(statusCell);
+      const actionCell=document.createElement('td'),save=actionButton(tr('저장','Enregistrer'),()=>void saveMember(m,roleSelect,statusSelect));
+      save.className='btn btn-ghost btn-sm admin-row-action';save.disabled=m.id===meUid;
+      actionCell.append(save);row.append(actionCell);tbody.append(row);
     }
+    table.append(tbody);container.append(table);
   }
 
-  async function saveMember(member: Member, roleSelect: HTMLSelectElement, statusSelect: HTMLSelectElement) {
-    if (busy || member.id===meUid) return;
-    const role=roleSelect.value, status=statusSelect.value;
-    if (!roleOptions.includes(role) || !['approved','suspended'].includes(status)) return;
-    if (role === member.role && status === member.status) return;
-    const message = role==='admin' && member.role!=='admin'
-      ? tr(`주의: ${member.name}님에게 전체 관리자 권한을 부여합니다. 정말 진행할까요?`,
-           `Attention : vous accordez tous les droits d’administrateur à ${member.name}. Confirmer ?`)
-      : tr(`${member.name}님의 회원 등급/상태를 변경할까요?`,
-           `Modifier le statut/compte de ${member.name} ?`);
-    if (!window.confirm(message)) return;
-    busy=true;
-    try {
-      await updateDoc(doc(db,'members',member.id), {role,status});
-      showMessage(tr('회원 정보를 변경했습니다.','Profil modifié.'));
+  async function saveMember(member: Member, roleSelect:HTMLSelectElement,statusSelect:HTMLSelectElement){
+    if(busy||member.id===meUid)return;
+    const role=roleSelect.value,status=statusSelect.value;
+    if(!roleOptions.includes(role)||!['approved','suspended'].includes(status))return;
+    if(role===member.role&&status===member.status){showMessage(tr('변경된 내용이 없습니다.','Aucune modification.'));return;}
+    const question=role==='admin'&&member.role!=='admin'
+      ? tr(`주의: ${member.name}님에게 관리자 권한을 부여합니다. 계속할까요?`,
+           `Attention : donner tous les droits administrateur à ${member.name} ?`)
+      : tr(`${member.name}님의 회원 등급과 계정 상태를 저장할까요?`,
+           `Enregistrer le statut et l’état du compte de ${member.name} ?`);
+    if(!confirm(question)){roleSelect.value=member.role;statusSelect.value=member.status;return;}
+    busy=true;roleSelect.disabled=true;statusSelect.disabled=true;
+    try{
+      await updateDoc(doc(db,'members',member.id),{role,status});
+      showMessage(tr('회원 변경사항을 저장했습니다.','Modifications enregistrées.'));
       await loadMembers(true);
-    } catch(error) {
+    }catch(error){
       console.error('ASICC member update:',error);
-      showMessage(tr('변경하지 못했습니다. Firebase 보안 규칙을 확인해 주세요.',
-        'Modification impossible. Vérifiez les règles Firebase.'), true);
-    } finally {busy=false;}
+      showMessage(tr('회원 정보를 저장하지 못했습니다. Firebase 규칙을 확인하세요.',
+        'Échec de l’enregistrement. Vérifiez les règles Firebase.'),true);
+      roleSelect.value=member.role;statusSelect.value=member.status;
+    }finally{busy=false;roleSelect.disabled=member.id===meUid;statusSelect.disabled=member.id===meUid;}
   }
 
-  async function loadMembers(reset=false) {
-    const container=el<HTMLElement>('admin-members'); if (!container) return;
-    if (reset) {members=[];lastMember=null;}
-    const batch=query(collection(db,'members'),
-      ...(lastMember ? [startAfter(lastMember)] : []), limit(100));
-    const snap=await getDocs(batch);
-    lastMember=snap.docs.length ? snap.docs[snap.docs.length-1] : null;
-    members.push(...snap.docs.map(s=>({id:s.id,...s.data()} as Member)));
-    members.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  async function loadMembers(_reset=false){
+    // Load all members before client-side filters; otherwise matching records on later pages are invisible.
+    const snap=await getDocs(collection(db,'members'));
+    members=snap.docs.map(s=>({id:s.id,...s.data()} as Member));
     text('admin-member-count',String(members.length));
-    const more=el<HTMLButtonElement>('admin-more'); if(more) more.hidden=snap.docs.length<100;
     renderMembers();
   }
-
   async function loadHistory(){
     const snap=await getDocs(collection(db,'upgradeRequests'));
     upgradeHistory.clear();snap.docs.forEach(d=>upgradeHistory.set(d.id,d.data() as Upgrade));
     renderMembers();
+  }
+  async function loadWithdrawals(){
+    try{
+      const snap=await getDocs(collection(db,'memberWithdrawalRequests'));
+      withdrawals.clear();snap.docs.forEach(d=>withdrawals.set(d.id,{uid:d.id,...d.data()} as Withdrawal));
+      renderMembers();
+    }catch(error){
+      // A missing Firestore rule must not lock administrators out of the existing member list.
+      console.error('ASICC withdrawals unavailable until rules update',error);
+      withdrawals.clear();renderMembers();
+      showMessage(tr('탈퇴 요청 목록은 보안 규칙을 반영한 뒤 사용할 수 있습니다.',
+        'La liste des départs sera disponible après mise à jour des règles.'),true);
+    }
+  }
+  async function loadNotifications(){
+    const notice=el<HTMLElement>('admin-notification');if(!notice||!meUid)return;
+    try{
+      const ack=await getDoc(doc(db,'adminNotificationAcks',meUid));
+      // At first admin visit only the last 7 days are considered new, to avoid an old backlog.
+      const since=ack.exists()?timestamp(ack.data().acknowledgedAt):(Date.now()-7*24*60*60*1000);
+      const arrivals=members.filter(m=>timestamp(m.createdAt)>since);
+      const exits=[...withdrawals.values()].filter(r=>r.status==='pending'&&timestamp(r.requestedAt)>since);
+      if(!arrivals.length&&!exits.length){notice.hidden=true;return;}
+      text('admin-notification-count',String(arrivals.length+exits.length));
+      text('admin-notification-summary',tr(
+        `새 가입 ${arrivals.length}명 · 탈퇴 요청 ${exits.length}건`,
+        `${arrivals.length} nouvelle(s) inscription(s) · ${exits.length} demande(s) de départ`));
+      const details=el<HTMLElement>('admin-notification-details');if(details){
+        details.replaceChildren();
+        const showPeople=(label:string,entries:string[])=>{
+          if(!entries.length)return;
+          details.append(panel('small',`${label}: ${entries.slice(0,8).join(', ')}${entries.length>8?tr(' 외',' et autres'):''}`));
+        };
+        showPeople(tr('가입','Inscriptions'),arrivals.map(m=>m.name||m.email||'—'));
+        showPeople(tr('탈퇴 요청','Demandes de départ'),exits.map(r=>r.name||r.email||'—'));
+      }
+      const checkbox=el<HTMLInputElement>('admin-notification-confirm');if(checkbox)checkbox.checked=false;
+      const button=el<HTMLButtonElement>('admin-notification-ack');if(button)button.disabled=true;
+      text('admin-notification-error','');notice.hidden=false;
+    }catch(error){
+      console.error('ASICC notification read',error);
+      notice.hidden=true;
+      showMessage(tr('회원 알림을 확인하지 못했습니다. Firebase 알림 규칙이 적용됐는지 확인해 주세요.',
+        'Les alertes n’ont pas pu être chargées. Vérifiez les règles Firebase.'),true);
+    }
+  }
+  async function acknowledgeNotifications(){
+    if(!meUid||!el<HTMLInputElement>('admin-notification-confirm')?.checked)return;
+    const button=el<HTMLButtonElement>('admin-notification-ack');if(button)button.disabled=true;
+    try{
+      // Server-side acknowledgement is keyed to the administrator, not the browser.
+      await setDoc(doc(db,'adminNotificationAcks',meUid),{acknowledgedAt:serverTimestamp()});
+      const notice=el<HTMLElement>('admin-notification');if(notice)notice.hidden=true;
+    }catch(error){
+      console.error('ASICC notification acknowledgement',error);
+      text('admin-notification-error',tr('확인 상태를 저장하지 못했습니다. Firebase 규칙을 확인해 주세요.',
+        'Enregistrement impossible. Vérifiez les règles Firebase.'));
+      if(button)button.disabled=false;
+    }
+  }
+  function exportMembers(){
+    const headings=['No','Name','Nickname','Email','Phone','Joined (Paris)','School','Students / Grades','Member category','Role','Status','Withdrawal request'];
+    const cells=filteredMembers().map((m,i)=>[
+      String(i+1),m.name||'',m.nickname||'',m.email||'',m.phone||'',stamp(m.createdAt),
+      schoolLabel(m),gradeLabel(m),upgradeHistory.get(m.id)?.kind||'',roleLabel(m.role),
+      m.status,withdrawals.get(m.id)?.status==='pending'?'pending':''
+    ]);
+    // Escape spreadsheet formulas from user-controlled text.
+    const q=(v:string)=>'"'+String(v||'').replace(/^[\s]*[=+\-@]/,(s)=>"'"+s).replace(/"/g,'""')+'"';
+    const csv='\ufeff'+[headings,...cells].map(row=>row.map(q).join(',')).join('\r\n');
+    const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+    const link=document.createElement('a');link.href=url;link.download='asicc-members-'+new Date().toISOString().slice(0,10)+'.csv';
+    link.click();URL.revokeObjectURL(url);
   }
   async function loadNameRequests(){
     const target=el<HTMLElement>('admin-name-requests');if(!target)return;
@@ -481,7 +715,8 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       text('admin-who',me.data().name || user.email || 'Admin');
       const loading=el<HTMLElement>('admin-loading');if(loading)loading.hidden=true;
       const content=el<HTMLElement>('admin-content');if(content)content.hidden=false;
-      await Promise.all([loadRequests(),loadMembers(true),loadHistory(),loadNameRequests(),loadSuggestions(),loadDeletionLogs(),loadHiddenArchives()]);
+      await Promise.all([loadRequests(),loadMembers(true),loadHistory(),loadWithdrawals(),loadNameRequests(),loadSuggestions(),loadDeletionLogs(),loadHiddenArchives()]);
+      await loadNotifications();
     } catch(error) {
       console.error('ASICC admin access:',error);
       deny(tr('관리자 화면을 불러올 수 없습니다. Firebase 규칙을 확인해 주세요.',
@@ -492,16 +727,26 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   el<HTMLButtonElement>('admin-redact-legacy')?.addEventListener('click',()=>void redactHistoricalNames());
   el<HTMLButtonElement>('admin-refresh')?.addEventListener('click',()=>{
     if(busy)return;
-    void Promise.all([loadRequests(),loadMembers(true),loadHistory(),loadNameRequests(),loadSuggestions(),loadDeletionLogs(),loadHiddenArchives()]).catch(error=>{
+    void Promise.all([loadRequests(),loadMembers(true),loadHistory(),loadWithdrawals(),loadNameRequests(),loadSuggestions(),loadDeletionLogs(),loadHiddenArchives()]).then(()=>loadNotifications()).catch(error=>{
       console.error('ASICC refresh:',error);
       showMessage(tr('새로고침 중 오류가 발생했습니다.','Erreur pendant l’actualisation.'),true);
     });
   });
-  el<HTMLInputElement>('admin-member-search')?.addEventListener('input',renderMembers);
-  el<HTMLButtonElement>('admin-more')?.addEventListener('click',()=>{
-    void loadMembers().catch(error=>{
-      console.error('ASICC pagination:',error);
-      showMessage(tr('회원 목록을 더 불러올 수 없습니다.','Impossible de charger d’autres membres.'),true);
-    });
+  const resetPage=()=>{page=1;renderMembers();};
+  el<HTMLInputElement>('admin-member-search')?.addEventListener('input',resetPage);
+  ['admin-filter-role','admin-filter-status','admin-filter-school','admin-filter-from','admin-filter-to']
+    .forEach(id=>el<HTMLInputElement|HTMLSelectElement>(id)?.addEventListener('change',resetPage));
+  el<HTMLButtonElement>('admin-filter-reset')?.addEventListener('click',()=>{
+    ['admin-member-search','admin-filter-from','admin-filter-to'].forEach(id=>{const e=el<HTMLInputElement>(id);if(e)e.value='';});
+    ['admin-filter-role','admin-filter-status','admin-filter-school'].forEach(id=>{const e=el<HTMLSelectElement>(id);if(e)e.value='all';});
+    resetPage();
   });
+  el<HTMLButtonElement>('admin-prev')?.addEventListener('click',()=>{if(page>1){page--;renderMembers();}});
+  el<HTMLButtonElement>('admin-next')?.addEventListener('click',()=>{page++;renderMembers();});
+  el<HTMLButtonElement>('admin-member-export')?.addEventListener('click',exportMembers);
+  el<HTMLInputElement>('admin-notification-confirm')?.addEventListener('change',e=>{
+    const b=el<HTMLButtonElement>('admin-notification-ack');
+    if(b)b.disabled=!(e.target as HTMLInputElement).checked;
+  });
+  el<HTMLButtonElement>('admin-notification-ack')?.addEventListener('click',()=>void acknowledgeNotifications());
 </script>
