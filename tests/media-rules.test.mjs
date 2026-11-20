@@ -7,7 +7,7 @@ const mkProfile=(uid,role,status='approved')=>({uid,role,status,name:uid,email:`
 const ctx=(uid,verified=true)=>env.authenticatedContext(uid,{email:`${uid}@example.test`,email_verified:verified}).firestore();
 const attachment=(id,size)=>({id,name:`file${id}.pdf`,mime:'application/pdf',size});
 const learning=(uid,total=20000000)=>({
-  title:'한글 학습자료',body:'학습 안내',authorUid:uid,status:'draft',
+  title:'한글 학습자료',body:'학습 안내',category:'elementary',authorUid:uid,status:'draft',
   files:[attachment('file_00000001',2000000),attachment('file_00000002',18000000)],
   bytesTotal:total,createdAt:serverTimestamp()
 });
@@ -46,6 +46,14 @@ test('Firestore rejects post declared over 20MB and invalid attachments',async()
   await assertFails(setDoc(doc(ctx('member'),'learningResources','too-big'),learning('member',20000001)));
   const bad=learning('member');bad.files[1].mime='application/x-msdownload';
   await assertFails(setDoc(doc(ctx('member'),'learningResources','exe-file'),bad));
+});
+
+test('school category is required and unverified oversized file lists are rejected',async()=>{
+  const missing=learning('member');delete missing.category;
+  await assertFails(setDoc(doc(ctx('member'),'learningResources','no-category'),missing));
+  const many=learning('member',9);
+  many.files=Array.from({length:9},(_,i)=>attachment(`file_${String(i).padStart(8,'0')}`,1));
+  await assertFails(setDoc(doc(ctx('member'),'learningResources','too-many-attachments'),many));
 });
 
 test('only the author can publish a draft; cannot rewrite its file manifest',async()=>{

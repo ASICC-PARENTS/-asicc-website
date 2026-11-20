@@ -272,9 +272,13 @@ function validUpgrade(uid) {
         ]
         && f.size is int && f.size > 0 && f.size <= 20000000;
     }
+    // Keep validation below Firestore's 1,000-expression limit per request.
+    // A post may contain up to 8 individually validated attachments, 20MB total.
+    // The private media Worker independently verifies all filenames, MIME types,
+    // declared lengths and actual bytes before accepting a B2 upload.
     function validAttachments(a) {
-      return a is list && a.size() > 0 && a.size() <= 20
-        && (a.size() <= 0 || validAttachment(a[0]))
+      return a is list && a.size() >= 1 && a.size() <= 8
+        && validAttachment(a[0])
         && (a.size() <= 1 || validAttachment(a[1]))
         && (a.size() <= 2 || validAttachment(a[2]))
         && (a.size() <= 3 || validAttachment(a[3]))
@@ -282,18 +286,7 @@ function validUpgrade(uid) {
         && (a.size() <= 5 || validAttachment(a[5]))
         && (a.size() <= 6 || validAttachment(a[6]))
         && (a.size() <= 7 || validAttachment(a[7]))
-        && (a.size() <= 8 || validAttachment(a[8]))
-        && (a.size() <= 9 || validAttachment(a[9]))
-        && (a.size() <= 10 || validAttachment(a[10]))
-        && (a.size() <= 11 || validAttachment(a[11]))
-        && (a.size() <= 12 || validAttachment(a[12]))
-        && (a.size() <= 13 || validAttachment(a[13]))
-        && (a.size() <= 14 || validAttachment(a[14]))
-        && (a.size() <= 15 || validAttachment(a[15]))
-        && (a.size() <= 16 || validAttachment(a[16]))
-        && (a.size() <= 17 || validAttachment(a[17]))
-        && (a.size() <= 18 || validAttachment(a[18]))
-        && (a.size() <= 19 || validAttachment(a[19]));
+        ;
     }
     function validLearningCreate(id) {
       return hasGalleryAccess()
