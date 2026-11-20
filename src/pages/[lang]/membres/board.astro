@@ -542,6 +542,9 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
           photoHelp.textContent=tr(`사진 업로드 실패: ${file.name} (${reason})`, `Échec de l’ajout : ${file.name} (${reason})`);
           photoHelp.style.color='#b42318';
         }
+        // Also display the diagnostic above the editor so it cannot be overlooked.
+        // The existing back()/showWriter() paths clear this notice when leaving.
+        notify(tr(`사진 업로드 실패 (${reason})`,`Échec de l’envoi de la photo (${reason})`),true);
       }
     }
     input.value='';photoCaret=null;
