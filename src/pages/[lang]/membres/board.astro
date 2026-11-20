@@ -29,9 +29,31 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
             <label for="post-title">{L(lang,{ko:'제목',fr:'Titre'})}</label>
             <input id="post-title" name="title" maxlength="120" required />
             <label for="post-body">{L(lang,{ko:'내용',fr:'Message'})}</label>
-            <textarea id="post-body" name="body" maxlength="5000" rows="7" required></textarea>
+            <div class="rich-tools" role="toolbar" aria-label={L(lang,{ko:'글 편집 도구',fr:'Outils de mise en forme'})}>
+              <button type="button" data-format="bold" title="Bold" aria-label={L(lang,{ko:'굵게',fr:'Gras'})}><strong>B</strong></button>
+              <button type="button" data-format="italic" title="Italic" aria-label={L(lang,{ko:'기울임',fr:'Italique'})}><em>I</em></button>
+              <button type="button" data-format="underline" aria-label={L(lang,{ko:'밑줄',fr:'Souligner'})}><u>U</u></button>
+              <span class="rich-separator" aria-hidden="true"></span>
+              <button type="button" data-format="formatBlock" data-value="h2" aria-label={L(lang,{ko:'큰 제목',fr:'Grand titre'})}>H2</button>
+              <button type="button" data-format="formatBlock" data-value="p" aria-label={L(lang,{ko:'본문',fr:'Paragraphe'})}>¶</button>
+              <button type="button" data-format="insertUnorderedList" aria-label={L(lang,{ko:'글머리표',fr:'Liste à puces'})}>• ≡</button>
+              <button type="button" data-format="insertOrderedList" aria-label={L(lang,{ko:'번호 목록',fr:'Liste numérotée'})}>1. ≡</button>
+              <span class="rich-separator" aria-hidden="true"></span>
+              <button type="button" data-format="justifyLeft" aria-label={L(lang,{ko:'왼쪽 정렬',fr:'Aligner à gauche'})}>☰</button>
+              <button type="button" data-format="justifyCenter" aria-label={L(lang,{ko:'가운데 정렬',fr:'Centrer'})}>≡</button>
+              <button type="button" id="rich-link" aria-label={L(lang,{ko:'링크',fr:'Lien'})}>🔗</button>
+              <label class="rich-color-label" aria-label={L(lang,{ko:'글자 색상',fr:'Couleur du texte'})}>◉ <input type="color" id="rich-color" value="#254d49" /></label>
+              <button type="button" id="rich-undo" aria-label={L(lang,{ko:'실행 취소',fr:'Annuler'})}>↶</button>
+              <button type="button" id="rich-redo" aria-label={L(lang,{ko:'다시 실행',fr:'Rétablir'})}>↷</button>
+              <span class="rich-separator" aria-hidden="true"></span>
+              <button type="button" id="rich-photo" hidden aria-label={L(lang,{ko:'사진 첨부',fr:'Ajouter une photo'})}>▣ {L(lang,{ko:'사진',fr:'Photo'})}</button>
+              <input type="file" id="rich-photo-file" accept="image/*" multiple hidden />
+            </div>
+            <div id="post-body" class="rich-editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label={L(lang,{ko:'게시글 본문',fr:'Contenu du message'})} data-placeholder={L(lang,{ko:'내용을 입력하세요…',fr:'Écrivez votre message…'})}></div>
+            <p id="photo-help" class="small muted" role="status">{L(lang,{ko:'사진 첨부는 비공개 저장소 연결 후 사용할 수 있습니다.',fr:'L’ajout de photos sera activé après la configuration du stockage privé.'})}</p>
+            <p class="small muted">{L(lang,{ko:'최대 5,000자(서식 코드 포함), 사진 최대 6장 · 사진은 자동 압축됩니다.',fr:'5 000 caractères maximum (mise en forme incluse), 6 photos maximum, compressées automatiquement.'})}</p>
             <div class="board-editor-actions row gap-12">
-              <button class="btn btn-dark" type="submit">{L(lang,{ko:'등록하기',fr:'Publier'})}</button>
+              <button class="btn btn-dark" id="post-save" type="submit">{L(lang,{ko:'등록하기',fr:'Publier'})}</button>
               <button class="btn btn-ghost" id="post-cancel" type="button">{L(lang,{ko:'취소',fr:'Annuler'})}</button>
             </div>
           </form>
@@ -49,7 +71,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
             <button type="button" class="btn btn-ghost board-back" id="post-back">← {L(lang,{ko:'목록으로',fr:'Retour à la liste'})}</button>
             <h2 id="detail-title" class="h3"></h2>
             <p id="detail-meta" class="small muted"></p>
-            <p id="detail-body" class="board-text"></p>
+            <div id="detail-body" class="board-text"></div>
             <div id="detail-actions" class="row gap-12" style="flex-wrap:wrap"></div>
             <h3 class="h3">{L(lang,{ko:'댓글',fr:'Commentaires'})}</h3>
             <div id="comment-list" class="stack gap-8"></div>
@@ -70,6 +92,8 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
   import { getAuth, onAuthStateChanged, getIdToken } from 'firebase/auth';
   import { getFirestore, doc, collection, getDoc, getDocs, query, orderBy, limit, setDoc, updateDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
   import { firebaseConfig } from '../../../firebase-config';
+  import { BOARD_PHOTO_API } from '../../../config/board-photos';
+  import { renderBoardBody, setEditorBody, serializeEditor, boardText, photoKeys, insertPhoto } from '../../../scripts/board-rich';
   type BoardData = { id:string;title:string;body:string;authorUid:string;authorName:string;deleted:boolean;createdAt?:{toDate?:()=>Date};updatedAt?:unknown };
   type CommentData = { id:string;body:string;authorUid:string;authorName:string;deleted:boolean;createdAt?:{toDate?:()=>Date} };
   const root=document.getElementById('board-root') as HTMLElement|null;
@@ -91,6 +115,84 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
     return aliases.get(authorUid)!;
   };
   let uid='',name='',role='',posts:BoardData[]=[],selected:BoardData|null=null;
+  let editingPostId:string|null=null, photoBusy=false;
+  let photoCaret:Range|null=null;
+  const photoCache=new Map<string,string>();
+  const photoApi=BOARD_PHOTO_API.trim().replace(/\/$/,'');
+  const editor=by<HTMLElement>('post-body');
+  const form=by<HTMLFormElement>('post-form');
+  const photoHelp=by<HTMLElement>('photo-help');
+  async function mediaFetch(path:string,method='GET',blob?:Blob):Promise<Response>{
+    if(!photoApi)throw Error('Not configured');
+    const current=auth.currentUser;if(!current)throw Error('Not signed in');
+    const token=await getIdToken(current);
+    const response=await fetch(`${photoApi}${path}`,{method,headers:{Authorization:`Bearer ${token}`,...(blob?{'Content-Type':blob.type}:{})},body:blob,cache:'no-store'});
+    if(!response.ok)throw Error(`Media API ${response.status}`);
+    return response;
+  }
+  async function photoSrc(key:string):Promise<string>{
+    if(photoCache.has(key))return photoCache.get(key)!;
+    const res=await mediaFetch(`/api/photo?key=${encodeURIComponent(key)}`);
+    const blob=await res.blob();
+    if(!blob.type.startsWith('image/'))throw Error('Invalid image');
+    const url=URL.createObjectURL(blob);photoCache.set(key,url);return url;
+  }
+  async function populatePhotos(node:HTMLElement){
+    const images=Array.from(node.querySelectorAll<HTMLImageElement>('img[data-b2-key]'));
+    await Promise.all(images.map(async img=>{
+      const key=img.dataset.b2Key||'';
+      if(img.src.startsWith('blob:'))return;
+      img.classList.add('photo-loading');
+      try{img.src=await photoSrc(key);}
+      catch {img.alt=tr('사진을 불러올 수 없습니다','Impossible de charger la photo');img.classList.add('photo-error');}
+      finally {img.classList.remove('photo-loading');}
+    }));
+  }
+  async function compressPhoto(file:File):Promise<Blob>{
+    if(!file.type.startsWith('image/'))throw Error('image required');
+    if(file.size>20_000_000)throw Error('Photo over 20MB');
+    const bitmap=await createImageBitmap(file);
+    try{
+      let scale=Math.min(1,1400/Math.max(bitmap.width,bitmap.height));
+      for(let attempt=0;attempt<4;attempt++){
+        const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));
+        const ctx=canvas.getContext('2d');if(!ctx)throw Error('Canvas unavailable');
+        ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
+        const format='image/webp';
+        const blob=await new Promise<Blob|null>(resolve=>canvas.toBlob(resolve,format,0.78));
+        if(blob&&blob.type==='image/webp'&&blob.size<=1_500_000)return blob;
+        scale*=0.75;
+      }
+      throw Error('Could not compress to <=1.5MB');
+    }finally{bitmap.close();}
+  }
+  async function uploadPhoto(file:File):Promise<void>{
+    if(!editor||!photoApi||!canWrite())return;
+    if(photoKeys(editor).length>=6)throw Error('max 6 images');
+    photoBusy=true;
+    const button=by<HTMLButtonElement>('rich-photo');if(button)button.disabled=true;
+    if(photoHelp)photoHelp.textContent=tr('사진 압축·업로드 중…','Compression et envoi de la photo…');
+    try{
+      const compressed=await compressPhoto(file);
+      const res=await mediaFetch('/api/upload','POST',compressed);
+      const payload=await res.json() as {key?:string};
+      if(!payload.key)throw Error('Missing key');
+      const url=URL.createObjectURL(compressed);photoCache.set(payload.key,url);
+      insertPhoto(editor,payload.key,url,photoCaret);
+      photoCaret=null;
+      if(photoHelp)photoHelp.textContent=tr('사진이 첨부되었습니다. 게시글을 등록해 주세요.','Photo ajoutée. Publiez votre message.');
+    }finally{photoBusy=false;if(button)button.disabled=false;}
+  }
+  function resetEditor(){editingPostId=null;form?.reset();if(editor)editor.replaceChildren();const btn=by<HTMLButtonElement>('post-save');if(btn)btn.textContent=tr('등록하기','Publier');}
+  function showWriter(post?:BoardData){
+    if(!canWrite()||!editor)return;
+    show('post-detail',false);show('board-list-panel',false);show('post-form',true);
+    show('board-toolbar',false);
+    resetEditor();
+    if(post){editingPostId=post.id;const title=by<HTMLInputElement>('post-title');if(title)title.value=post.title;setEditorBody(editor,post.body);void populatePhotos(editor);const btn=by<HTMLButtonElement>('post-save');if(btn)btn.textContent=tr('수정 저장','Enregistrer les modifications');}
+    by<HTMLInputElement>('post-title')?.focus();
+  }
+  window.addEventListener('beforeunload',()=>{for(const url of photoCache.values())URL.revokeObjectURL(url);});
   const canWrite=()=>['member','special','admin'].includes(role);
   // Content edits are restricted to the original author, including when the viewer is an admin.
   const canEdit=(owner:string)=>canWrite()&&owner===uid;
@@ -109,7 +211,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
   function renderPosts(){
     const list=by<HTMLElement>('board-list');if(!list)return;list.replaceChildren();
     const search=by<HTMLInputElement>('board-search')?.value.trim().toLocaleLowerCase()||'';
-    const filtered=posts.filter(p=>!p.deleted&&(!search||`${p.title} ${p.body}`.toLocaleLowerCase().includes(search)));
+    const filtered=posts.filter(p=>!p.deleted&&(!search||`${p.title} ${boardText(p.body)}`.toLocaleLowerCase().includes(search)));
     const count=by<HTMLElement>('board-count');
     if(count)count.textContent=tr(`게시글 ${filtered.length}개 · 최근 100개 기준`,` ${filtered.length} message(s) · parmi les 100 derniers`);
     if(!filtered.length){const empty=el('p',search?tr('검색 결과가 없습니다.','Aucun résultat.'):tr('아직 등록된 게시글이 없습니다.','Aucun message publié.'));empty.className='board-empty';list.append(empty);return;}
@@ -126,14 +228,14 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
   async function openPost(post:BoardData){
     selected=post;show('post-detail',true);show('post-form',false);show('board-list-panel',false);show('board-toolbar',false);
     const title=by<HTMLElement>('detail-title'),body=by<HTMLElement>('detail-body'),meta=by<HTMLElement>('detail-meta'),actions=by<HTMLElement>('detail-actions');
-    if(title)title.textContent=post.title;if(body)body.textContent=post.body;if(meta){meta.textContent=stamp(post.createdAt);void nicknameOf(post.authorUid).then(nick=>{if(selected?.id===post.id)meta.textContent=`${nick} · ${stamp(post.createdAt)}`;});}
+    if(title)title.textContent=post.title;if(body){renderBoardBody(body,post.body);void populatePhotos(body);}if(meta){meta.textContent=stamp(post.createdAt);void nicknameOf(post.authorUid).then(nick=>{if(selected?.id===post.id)meta.textContent=`${nick} · ${stamp(post.createdAt)}`;});}
     actions?.replaceChildren();
     
     if(!post.deleted){
       if(canEdit(post.authorUid)){
         const edit=el('button',tr('수정','Modifier')) as HTMLButtonElement;
         edit.type='button';
-        edit.className='btn btn-ghost';
+        edit.className='board-mini-btn';
         edit.addEventListener('click',()=>void editPost(post));
         actions?.append(edit);
       }
@@ -141,7 +243,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       if(canModerate() && post.authorUid!==uid){
         const hide=el('button',tr('숨기기','Masquer')) as HTMLButtonElement;
         hide.type='button';
-        hide.className='btn btn-ghost';
+        hide.className='board-mini-btn';
         hide.addEventListener('click',()=>void hidePost(post));
         actions?.append(hide);
       }
@@ -150,7 +252,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
         const own=post.authorUid===uid;
         const del=el('button',tr(own?'삭제':'완전 삭제',own?'Supprimer':'Supprimer définitivement')) as HTMLButtonElement;
         del.type='button';
-        del.className='btn btn-ghost';
+        del.className='board-mini-btn board-mini-danger';
         del.addEventListener('click',()=>void deletePost(post));
         actions?.append(del);
       }
@@ -161,14 +263,10 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
   function back(){selected=null;show('post-detail',false);show('post-form',false);show('board-list-panel',true);show('board-toolbar',true);}
   async function editPost(post:BoardData){
     if(!canEdit(post.authorUid)||post.deleted)return;
-    const title=prompt(tr('제목 수정','Modifier le titre'),post.title);if(title===null)return;
-    const body=prompt(tr('내용 수정','Modifier le message'),post.body);if(body===null)return;
-    if(!title.trim()||title.length>120||!body.trim()||body.length>5000){notify(tr('길이를 확인하세요.','Vérifiez la longueur.'),true);return;}
-    try{await updateDoc(doc(db,'boardPosts',post.id),{title:title.trim(),body:body.trim(),updatedAt:serverTimestamp()});await refreshPosts();const found=posts.find(x=>x.id===post.id);if(found)await openPost(found);}
-    catch(e){console.error(e);notify(tr('수정 실패','Échec de la modification'),true);}
+    showWriter(post);
   }
   async function hidePost(post:BoardData){
-    if(!canModerate(post.authorUid)||post.deleted||!confirm(tr('게시글을 숨길까요?','Masquer ce message ?')))return;
+    if(!canModerate()||post.deleted||!confirm(tr('게시글을 숨길까요?','Masquer ce message ?')))return;
     try{
       const batch=writeBatch(db);
       batch.set(doc(db,'hiddenPosts',post.id),{title:post.title,body:post.body,authorUid:post.authorUid,hiddenBy:uid,hiddenAt:serverTimestamp()});
@@ -303,14 +401,14 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       const snap=await getDocs(query(collection(db,'boardPosts',postId,'comments'),orderBy('createdAt','asc'),limit(100)));
       if(snap.empty){list.append(el('p',tr('등록된 댓글이 없습니다.','Aucun commentaire.')));return;}
       for(const d of snap.docs){const c={id:d.id,...d.data()} as CommentData;
-        const wrap=el('div');wrap.className='board-row stack gap-8';wrap.style.padding='12px';
+        const wrap=el('div');wrap.className='board-row stack gap-8 board-comment';
         const meta=el('p',stamp(c.createdAt));meta.className='small muted';
         void nicknameOf(c.authorUid).then(nick=>{meta.textContent=`${nick} · ${stamp(c.createdAt)}`;});
         const body=el('p',c.body);body.className='board-text';wrap.append(meta,body);
-        if(!c.deleted&&(canEdit(c.authorUid)||canModerate(c.authorUid))){
-          const btns=el('div');btns.className='board-actions';
+        if(!c.deleted&&(canEdit(c.authorUid)||canModerate()||canDelete(c.authorUid))){
+          const btns=el('div');btns.className='board-comment-actions';
           if(canEdit(c.authorUid)){
-            const edit=el('button',tr('수정','Modifier')) as HTMLButtonElement;edit.type='button';edit.className='btn btn-ghost';
+            const edit=el('button',tr('수정','Modifier')) as HTMLButtonElement;edit.type='button';edit.className='board-mini-btn';
             edit.addEventListener('click',async()=>{
               if(!canEdit(c.authorUid))return;
               const updated=prompt(tr('댓글 수정','Modifier le commentaire'),c.body);
@@ -318,9 +416,9 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
               try{await updateDoc(doc(db,'boardPosts',postId,'comments',c.id),{body:updated.trim(),updatedAt:serverTimestamp()});await refreshComments(postId);}catch(e){console.error(e);notify(tr('댓글 수정 실패','Échec de la modification.'),true);}
             });btns.append(edit);
           }
-          if(canModerate(c.authorUid)){
-            const hide=el('button',tr('숨기기','Masquer')) as HTMLButtonElement;hide.type='button';hide.className='btn btn-ghost';hide.addEventListener('click',async()=>{
-              if(!canModerate(c.authorUid))return;
+          if(canModerate() && c.authorUid!==uid){
+            const hide=el('button',tr('숨기기','Masquer')) as HTMLButtonElement;hide.type='button';hide.className='board-mini-btn';hide.addEventListener('click',async()=>{
+              if(!canModerate())return;
               if(!confirm(tr('댓글을 숨길까요?','Masquer ce commentaire ?')))return;
               try{
                 const batch=writeBatch(db);
@@ -329,6 +427,11 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
                 await batch.commit();await refreshComments(postId);
               }catch(e){console.error(e);notify(tr('숨김 실패','Impossible de masquer.'),true);}
             });btns.append(hide);
+          }
+          if(canDelete(c.authorUid)){
+            const del=el('button',tr('삭제','Supprimer')) as HTMLButtonElement;
+            del.type='button';del.className='board-mini-btn board-mini-danger';
+            del.addEventListener('click',()=>void deleteComment(postId,c));btns.append(del);
           }
           wrap.append(btns);
         }list.append(wrap);
@@ -348,19 +451,72 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
     }catch(e){console.error(e);notify(tr('접근 권한이 없습니다. 인증 후 로그인해 주세요.','Accès refusé. Vérifiez votre compte.'),true);}
   });
   by<HTMLInputElement>('board-search')?.addEventListener('input',renderPosts);
-  by<HTMLButtonElement>('board-write-toggle')?.addEventListener('click',()=>{
-    if(!canWrite())return;
-    const editor=by<HTMLElement>('post-form');if(!editor)return;
-    editor.hidden=!editor.hidden;
-    if(!editor.hidden)by<HTMLInputElement>('post-title')?.focus();
+  by<HTMLButtonElement>('board-write-toggle')?.addEventListener('click',()=>showWriter());
+  by<HTMLButtonElement>('post-cancel')?.addEventListener('click',()=>{
+    const old=posts.find(p=>p.id===editingPostId);resetEditor();
+    if(old)void openPost(old);else back();
   });
-  by<HTMLButtonElement>('post-cancel')?.addEventListener('click',()=>{show('post-form',false);});
   by<HTMLButtonElement>('post-back')?.addEventListener('click',back);
-  by<HTMLFormElement>('post-form')?.addEventListener('submit',async e=>{
-    e.preventDefault();if(!canWrite())return;const title=by<HTMLInputElement>('post-title')?.value.trim()||'',body=by<HTMLTextAreaElement>('post-body')?.value.trim()||'';
-    if(!title||title.length>120||!body||body.length>5000)return notify(tr('제목과 내용을 확인하세요.','Vérifiez le titre et le message.'),true);
-    try{await setDoc(doc(collection(db,'boardPosts')),{title,body,authorUid:uid,authorName:name,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),deleted:false});by<HTMLFormElement>('post-form')?.reset();show('post-form',false);await refreshPosts();notify(tr('게시했습니다.','Message publié.'));}
-    catch(e){console.error(e);notify(tr('등록하지 못했습니다.','Impossible de publier.'),true);}
+  form?.addEventListener('submit',async e=>{
+    e.preventDefault();if(!canWrite()||!editor||photoBusy)return;
+    const title=by<HTMLInputElement>('post-title')?.value.trim()||'';
+    const body=serializeEditor(editor),plain=boardText(body).trim(),pics=photoKeys(editor);
+    if(!title||title.length>120||(!plain&&!pics.length)||body.length>5000||pics.length>6)
+      return notify(tr('제목·내용 또는 길이를 확인하세요. (서식 포함 5,000자)','Vérifiez le titre, le contenu et la limite de 5 000 caractères.'),true);
+    const btn=by<HTMLButtonElement>('post-save');if(btn)btn.disabled=true;
+    try{
+      const editing=posts.find(p=>p.id===editingPostId);
+      if(editing){
+        if(!canEdit(editing.authorUid))return notify(tr('수정 권한이 없습니다.','Modification refusée.'),true);
+        await updateDoc(doc(db,'boardPosts',editing.id),{title,body,updatedAt:serverTimestamp()});
+      }else{
+        await setDoc(doc(collection(db,'boardPosts')),{title,body,authorUid:uid,authorName:name,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),deleted:false});
+      }
+      const editedId=editingPostId;resetEditor();show('post-form',false);
+      await refreshPosts();const result=posts.find(p=>p.id===editedId);
+      if(result)await openPost(result);else back();
+      notify(tr('저장되었습니다.','Message enregistré.'));
+    }catch(error){console.error(error);notify(tr('저장에 실패했습니다.','Échec de l’enregistrement.'),true);}
+    finally{if(btn)btn.disabled=false;}
+  });
+  // Browser native editing commands are used only for trusted toolbar actions.
+  document.querySelectorAll<HTMLButtonElement>('#post-form [data-format]').forEach(button=>{
+    button.addEventListener('mousedown',e=>e.preventDefault());
+    button.addEventListener('click',()=>{
+      if(!editor)return;editor.focus();
+      document.execCommand(button.dataset.format||'',false,button.dataset.value||undefined);
+    });
+  });
+  by<HTMLButtonElement>('rich-link')?.addEventListener('click',()=>{
+    if(!editor)return;
+    const link=prompt(tr('연결할 링크 주소 (https://)','URL du lien (https://)'),'https://');
+    if(!link)return;
+    try{const url=new URL(link);if(url.protocol!=='https:'&&url.protocol!=='http:')throw Error('scheme');editor.focus();document.execCommand('createLink',false,url.href);}
+    catch{notify(tr('올바른 링크 주소를 입력하세요.','URL non valide.'),true);}
+  });
+  by<HTMLInputElement>('rich-color')?.addEventListener('input',e=>{
+    const value=(e.currentTarget as HTMLInputElement).value;editor?.focus();document.execCommand('foreColor',false,value);
+  });
+  by<HTMLButtonElement>('rich-undo')?.addEventListener('click',()=>{editor?.focus();document.execCommand('undo');});
+  by<HTMLButtonElement>('rich-redo')?.addEventListener('click',()=>{editor?.focus();document.execCommand('redo');});
+  editor?.addEventListener('paste',event=>{
+    // Avoid embedded remote images, tracking pixels, HTML scripts and hidden links.
+    event.preventDefault();const plain=event.clipboardData?.getData('text/plain')||'';
+    document.execCommand('insertText',false,plain);
+  });
+  const photoButton=by<HTMLButtonElement>('rich-photo');
+  if(photoApi){show('rich-photo',true);if(photoHelp)photoHelp.textContent=tr('사진을 선택하면 자동 압축 후 비공개로 업로드합니다.','Les photos sont compressées et envoyées dans le stockage privé.');}
+  photoButton?.addEventListener('click',()=>{
+    const selection=window.getSelection();
+    photoCaret=selection?.rangeCount&&editor?.contains(selection.getRangeAt(0).commonAncestorContainer)
+      ?selection.getRangeAt(0).cloneRange():null;
+    by<HTMLInputElement>('rich-photo-file')?.click();
+  });
+  by<HTMLInputElement>('rich-photo-file')?.addEventListener('change',async event=>{
+    const input=event.currentTarget as HTMLInputElement;const files=Array.from(input.files||[]);
+    for(const file of files){
+      try{await uploadPhoto(file);}catch(error){console.error(error);notify(tr(`사진 업로드 실패: ${file.name}` ,`Échec de l’ajout : ${file.name}`),true);}
+    }input.value='';photoCaret=null;
   });
   by<HTMLFormElement>('comment-form')?.addEventListener('submit',async e=>{
     e.preventDefault();if(!canWrite()||!selected)return;const body=by<HTMLTextAreaElement>('comment-body')?.value.trim()||'';

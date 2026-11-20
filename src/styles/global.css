@@ -907,3 +907,32 @@ html[lang="fr"] a[href^="http"] { overflow-wrap: anywhere; }
   .board-editor,.board-detail { padding:18px 16px; }
 }
 
+
+/* ASICC rich board editor and compact comment actions. */
+.rich-tools{display:flex;align-items:center;flex-wrap:wrap;gap:5px;padding:9px;border:1px solid var(--line-3);border-radius:9px 9px 0 0;background:#F7FAF8;margin-bottom:-12px}
+.rich-tools button,.rich-color-label{display:inline-flex;align-items:center;justify-content:center;min-height:34px;min-width:34px;padding:4px 9px;border:1px solid transparent;border-radius:6px;background:transparent;color:#344B46;font-size:13px;cursor:pointer;white-space:nowrap}
+.rich-tools button:hover,.rich-tools button:focus-visible,.rich-color-label:hover{background:#E5EEEA;border-color:#C8D9D2}
+.rich-tools button:disabled{opacity:.4;cursor:wait}
+.rich-separator{height:22px;border-left:1px solid #D2DFD9;margin:0 4px}
+.rich-color-label input{width:18px;height:23px;border:0;padding:0;background:transparent;cursor:pointer}
+.rich-editor{outline:none;min-height:280px;width:100%;border:1px solid var(--line-3);border-radius:0 0 9px 9px;padding:18px 20px;background:white;line-height:1.8;overflow-wrap:anywhere;font-size:15px}
+.rich-editor:focus{box-shadow:0 0 0 2px #C8DED6 inset}
+.rich-editor:empty:before{content:attr(data-placeholder);color:#97A9A0;pointer-events:none}
+.rich-editor p,.board-text p{margin:.35em 0 1em}
+.rich-editor h2,.board-text h2{font-size:1.38em;line-height:1.5;margin:.9em 0 .4em}
+.rich-editor h3,.board-text h3{font-size:1.17em;margin:.8em 0 .35em}
+.rich-editor ul,.rich-editor ol,.board-text ul,.board-text ol{padding-left:26px;margin:.5em 0 1em}
+.rich-editor a,.board-text a{color:#176A69;text-decoration:underline}
+.rich-editor img,.board-text img{max-width:100%;height:auto;display:block;margin:14px auto;border-radius:9px;object-fit:contain}
+.rich-editor blockquote,.board-text blockquote{padding:10px 16px;margin:12px 0;border-left:3px solid #91B6A8;background:#F5F8F6}
+.board-text{white-space:normal}
+.board-comment{padding:15px!important}
+.board-comment-actions{display:flex;gap:6px;margin-top:2px;align-self:flex-end;flex-wrap:wrap}
+.board-mini-btn{border:1px solid #DEE6E1;background:transparent;color:#567066;border-radius:5px;padding:3px 8px;font-size:12px;line-height:1.6;min-height:28px;cursor:pointer}
+.board-mini-btn:hover{background:#EEF4F0;color:#243A32}
+.board-mini-danger{color:#A55F53}
+.photo-loading{min-height:110px;background:#F3F6F3;opacity:.65}
+.photo-error{border:1px dashed #C66;padding:25px}
+@media(max-width:640px){.rich-editor{padding:14px;min-height:230px}.rich-tools{gap:2px;padding:6px}.rich-tools button{min-height:32px;min-width:30px;padding:4px 6px}}
+
+.rich-tools [hidden]{display:none!important}
