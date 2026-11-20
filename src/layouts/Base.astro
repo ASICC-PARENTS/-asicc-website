@@ -80,8 +80,8 @@ const current = (p: string) => rest.startsWith(p);
       <div class="tools">
         <a class="lang-link" href={altPath(lang, altR)} hreflang={other} lang={other} data-lang-switch={other}><span class="full">{t(lang, 'lang.switch')}</span><span class="abbr" aria-hidden="true">{other === 'fr' ? 'FR' : 'KO'}</span></a>
         <a class="btn btn-dark btn-sm members-btn" href={href(lang, 'membres/login/')} data-members-lock data-members-login={href(lang, 'membres/login/')} data-members-home={href(lang, 'membres/')} aria-label={lang==='ko'?'로그인/회원가입':'Connexion / Inscription'} title={lang==='ko'?'로그인/회원가입':'Connexion / Inscription'}>
-          <svg data-lock-closed width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
-          <svg data-lock-open width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8-3"/></svg>
+          <!-- 하나의 SVG 자물쇠를 사용하여 SVG hidden 속성의 브라우저별 표시 오류를 방지 -->
+          <svg data-members-icon width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path data-lock-shackle d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
           <span class="lbl" data-members-label>{lang === 'ko' ? '로그인/회원가입' : 'Connexion / Inscription'}</span>
         </a>
         <button type="button" class="menu-btn" id="menuBtn" aria-controls="nav" aria-expanded="false" aria-label={t(lang, 'nav.menu')}>
@@ -169,16 +169,18 @@ const current = (p: string) => rest.startsWith(p);
     import { getAuth, onAuthStateChanged } from 'firebase/auth';
     import { firebaseConfig } from '../firebase-config';
     const membersButton = document.querySelector<HTMLAnchorElement>('[data-members-lock]');
-    const closedIcon = membersButton?.querySelector<SVGElement>('[data-lock-closed]');
-    const openIcon = membersButton?.querySelector<SVGElement>('[data-lock-open]');
+    const lockShackle = membersButton?.querySelector<SVGPathElement>('[data-lock-shackle]');
     const membersLabel = membersButton?.querySelector<HTMLElement>('[data-members-label]');
     const isKorean = document.documentElement.lang === 'ko';
     function setMembersLock(open:boolean){
       // Only the member shortcut changes its appearance after verified sign-in.
       // The rest of the site and Firestore authorization remain unchanged.
       membersButton?.classList.toggle('members-unlocked', open);
-      if(closedIcon) closedIcon.hidden = open;
-      if(openIcon) openIcon.hidden = !open;
+      // 아이콘을 숨기고 바꾸는 대신 쇠고리 자체를 열고 닫는다.
+      // 로그인 후 버튼 배경만 바뀌고 잠긴 그림이 남는 문제 방지.
+      lockShackle?.setAttribute('d', open
+        ? 'M8 11V7a4 4 0 0 1 7.4-2'
+        : 'M8 11V7a4 4 0 0 1 8 0v4');
       const label = open
         ? (isKorean ? '회원공간' : 'Espace membres')
         : (isKorean ? '로그인/회원가입' : 'Connexion / Inscription');
