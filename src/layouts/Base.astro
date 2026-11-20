@@ -166,8 +166,7 @@ const current = (p: string) => rest.startsWith(p);
   </script>
   <script>
     import { getApps, initializeApp } from 'firebase/app';
-    import { getAuth, onAuthStateChanged, getIdToken } from 'firebase/auth';
-    import { getFirestore, doc, getDoc } from 'firebase/firestore';
+    import { getAuth, onAuthStateChanged } from 'firebase/auth';
     import { firebaseConfig } from '../firebase-config';
     const membersButton = document.querySelector<HTMLAnchorElement>('[data-members-lock]');
     const closedIcon = membersButton?.querySelector<SVGElement>('[data-lock-closed]');
@@ -175,6 +174,9 @@ const current = (p: string) => rest.startsWith(p);
     const membersLabel = membersButton?.querySelector<HTMLElement>('[data-members-label]');
     const isKorean = document.documentElement.lang === 'ko';
     function setMembersLock(open:boolean){
+      // Only the member shortcut changes its appearance after verified sign-in.
+      // The rest of the site and Firestore authorization remain unchanged.
+      membersButton?.classList.toggle('members-unlocked', open);
       if(closedIcon) closedIcon.hidden = open;
       if(openIcon) openIcon.hidden = !open;
       const label = open
@@ -189,21 +191,44 @@ const current = (p: string) => rest.startsWith(p);
     }
     if(membersButton && import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true'){
       const app = getApps().find(a => a.name === 'asicc-website') ?? initializeApp(firebaseConfig,'asicc-website');
-      const auth = getAuth(app), db = getFirestore(app);
-      let checkId=0;
-      onAuthStateChanged(auth,async user=>{
-        const id=++checkId;
-        setMembersLock(false);
-        if(!user)return;
-        try{
-          await user.reload();await getIdToken(user,true);
-          if(!user.emailVerified)return;
-          const profile=await getDoc(doc(db,'members',user.uid));
-          if(id!==checkId)return;
-          setMembersLock(profile.exists()&&profile.data().status==='approved');
-        }catch{if(id===checkId)setMembersLock(false);}
+      const auth = getAuth(app);
+      // The header reflects the Firebase sign-in state. Access control for
+      // individual member pages remains enforced separately by Firestore.
+      onAuthStateChanged(auth, (user) => {
+        setMembersLock(Boolean(user?.emailVerified));
       });
+      // If a user verifies their email in a different browser tab, update
+      // the header when they return without requiring a full page refresh.
+      const refreshVerification = async () => {
+        const current = auth.currentUser;
+        if (!current || current.emailVerified) return;
+        try {
+          await current.reload();
+          setMembersLock(Boolean(auth.currentUser?.emailVerified));
+        } catch (error) {
+          console.debug('ASICC header verification refresh unavailable:', error);
+        }
+      };
+      window.addEventListener('focus', () => { void refreshVerification(); });
     }
   </script>
+  <!-- 로그인 후 회원공간 진입 버튼만 은은한 청자빛 배경으로 강조 -->
+  <style is:inline>
+    .site-header .members-btn.members-unlocked {
+      background: #E8F5EE;
+      color: #205744;
+      border-color: #B2D5C2;
+      box-shadow: 0 1px 4px rgba(26, 73, 54, 0.06);
+    }
+    .site-header .members-btn.members-unlocked:hover {
+      background: #D8EEDF;
+      color: #154735;
+      border-color: #8FBCA4;
+    }
+    .site-header .members-btn.members-unlocked:focus-visible {
+      outline: 3px solid #478B69;
+      outline-offset: 2px;
+    }
+  </style>
 </body>
 </html>
