@@ -1,80 +1,408 @@
 ---
 import Base from '../../../layouts/Base.astro';
 import { href, L, type Lang } from '../../../i18n/ui';
-export const getStaticPaths=()=>['ko','fr'].flatMap(lang=>['learning','gallery','office'].map(area=>({params:{lang,area}})));
-const lang=Astro.params.lang as Lang;
-const area=Astro.params.area as 'learning'|'gallery'|'office';
-const titles={learning:{ko:'학습자료실',fr:'Ressources pédagogiques'},gallery:{ko:'갤러리',fr:'Galerie'},office:{ko:'온라인 협회사무실',fr:'Bureau de l’association'}};
-const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
+export const getStaticPaths = () => ['ko', 'fr'].flatMap(lang => ['learning','gallery','office'].map(area => ({params:{lang,area}})));
+const lang = Astro.params.lang as Lang;
+const area = Astro.params.area as 'learning'|'gallery'|'office';
+const titles = {
+  learning: {ko:'학습자료실',fr:'Ressources pédagogiques'},
+  gallery: {ko:'갤러리',fr:'Galerie'},
+  office: {ko:'온라인 협회사무실',fr:'Bureau de l’association'}
+};
+const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
 ---
 <Base lang={lang} rest={`membres/${area}/`} title={L(lang,titles[area])} noindex>
   <section class="wrap m-shell">
     <div class="stack gap-16" id="files-root" data-lang={lang} data-area={area} data-login-url={href(lang,'membres/login/')}>
       <a href={href(lang,'membres/')} class="small">← {L(lang,{ko:'회원공간',fr:'Espace membres'})}</a>
       <h1 class="h2">{L(lang,titles[area])}</h1>
-      <p class="muted">{area==='learning'
-        ? L(lang,{ko:'회원들이 이용하는 학습자료실입니다.',fr:'Espace de consultation des ressources pédagogiques pour les membres.'})
-        : area==='gallery'
-          ? L(lang,{ko:'협회회원·특별회원·운영진만 열람할 수 있습니다.',fr:'Consultation réservée aux membres de l’association, aux membres spéciaux et aux administrateurs.'})
-          : L(lang,{ko:'운영진만 접근 가능한 비공개 문서 공간입니다.',fr:'Espace documentaire confidentiel, réservé aux administrateurs.'})}</p>
-      {!live && <div class="card auth-card" role="status">{L(lang,{ko:'비공개 자료실은 접근권한과 Storage 보안 검증 전까지 비활성화되어 있습니다.',fr:'Cet espace reste désactivé jusqu’à validation des autorisations et des règles de stockage.'})}</div>}
-      <div id="file-app" hidden={!live} class="card auth-card stack gap-12">
-        <p id="files-status" class="small muted" aria-live="polite" role="status">{L(lang,{ko:'권한 확인 중…',fr:'Vérification des autorisations…'})}</p>
+      <p class="muted">
+        {area==='learning' ? L(lang,{
+          ko:'가입된 모든 회원이 자료를 열람·다운로드할 수 있습니다. 협회회원·특별회원·운영진은 자료를 등록할 수 있으며, 게시글당 첨부파일 총합은 20MB까지입니다.',
+          fr:'Tous les membres inscrits peuvent consulter et télécharger les ressources. Les membres, membres spéciaux et administrateurs peuvent publier, avec 20 Mo de pièces jointes par publication.'
+        }) : area==='gallery' ? L(lang,{
+          ko:'협회회원·특별회원·운영진 전용 비공개 사진공간입니다. 사진 등록은 운영진만 가능합니다.',
+          fr:'Galerie privée réservée aux membres de l’association, membres spéciaux et administrateurs. Seuls les administrateurs peuvent publier.'
+        }) : L(lang,{
+          ko:'운영진만 접근 가능한 비공개 문서 공간입니다.',fr:'Espace documentaire confidentiel, réservé aux administrateurs.'
+        })}
+      </p>
+      {!live && <div class="card auth-card" role="status">{L(lang,{
+        ko:'회원 인증 기능이 비활성화되어 있습니다.',fr:'L’authentification des membres est désactivée.'
+      })}</div>}
+      <div id="file-app" hidden={!live} class="stack gap-16">
+        <p id="files-status" class="small muted" aria-live="polite" role="status">{L(lang,{ko:'회원 권한 확인 중…',fr:'Vérification des droits…'})}</p>
+        <div id="files-controls" hidden class="stack gap-12">
+          {area==='learning' && <>
+            <div class="files-toolbar">
+              <label class="sr-only" for="files-search">{L(lang,{ko:'자료 검색',fr:'Rechercher une ressource'})}</label>
+              <input id="files-search" type="search" maxlength="120" placeholder={L(lang,{ko:'자료 제목·내용 검색',fr:'Rechercher un titre ou un texte'})}/>
+              <label class="sr-only" for="resource-filter">{L(lang,{ko:'학교급 필터',fr:'Filtrer par niveau scolaire'})}</label>
+              <select id="resource-filter" aria-label={L(lang,{ko:'학교급 필터',fr:'Niveau scolaire'})}>
+                <option value="all">{L(lang,{ko:'전체',fr:'Tous'})}</option>
+                <option value="kindergarten">{L(lang,{ko:'유치원',fr:'Maternelle'})}</option>
+                <option value="elementary">{L(lang,{ko:'초등학교',fr:'École élémentaire'})}</option>
+                <option value="middle">{L(lang,{ko:'중학교',fr:'Collège'})}</option>
+              </select>
+              <button id="files-open-form" type="button" class="btn btn-dark" hidden>+ {L(lang,{ko:'자료 등록',fr:'Ajouter une ressource'})}</button>
+            </div>
+            <form id="learning-form" class="card files-compose stack gap-12" hidden>
+              <h2 class="h3">{L(lang,{ko:'새 학습자료 등록',fr:'Nouvelle ressource'})}</h2>
+              <label for="resource-title">{L(lang,{ko:'제목',fr:'Titre'})}</label>
+              <input id="resource-title" type="text" required maxlength="150"/>
+              <label for="resource-category">{L(lang,{ko:'자료 분류',fr:'Niveau scolaire'})}</label>
+              <select id="resource-category" required>
+                <option value="" selected disabled>{L(lang,{ko:'학교급을 선택하세요',fr:'Choisissez un niveau'})}</option>
+                <option value="kindergarten">{L(lang,{ko:'유치원',fr:'Maternelle'})}</option>
+                <option value="elementary">{L(lang,{ko:'초등학교',fr:'École élémentaire'})}</option>
+                <option value="middle">{L(lang,{ko:'중학교',fr:'Collège'})}</option>
+              </select>
+              <label for="resource-body">{L(lang,{ko:'설명',fr:'Description'})}</label>
+              <textarea id="resource-body" rows="5" maxlength="10000"></textarea>
+              <label for="resource-files">{L(lang,{ko:'첨부파일 (여러 개 선택 가능)',fr:'Pièces jointes (plusieurs fichiers possibles)'})}</label>
+              <input id="resource-files" type="file" multiple required accept=".pdf,.docx,.xlsx,.pptx,.txt,.jpg,.jpeg,.png,.webp"/>
+              <p id="resource-size" class="small muted" aria-live="polite">{L(lang,{ko:'게시글당 첨부파일 합계 최대 20MB',fr:'Maximum 20 Mo au total par publication'})}</p>
+              <p class="small muted">{L(lang,{
+                ko:'PDF, Word, Excel, PowerPoint, TXT, JPG, PNG, WebP를 첨부할 수 있습니다. 한 번에 최대 20개입니다.',
+                fr:'PDF, Word, Excel, PowerPoint, TXT, JPG, PNG et WebP, jusqu’à 20 fichiers.'
+              })}</p>
+              <div class="row gap-12" style="flex-wrap:wrap">
+                <button id="resource-save" class="btn btn-dark" type="submit">{L(lang,{ko:'자료 등록',fr:'Publier'})}</button>
+                <button id="resource-cancel" class="btn btn-ghost" type="button">{L(lang,{ko:'취소',fr:'Annuler'})}</button>
+              </div>
+            </form>
+          </>}
+          {area==='gallery' && <>
+            <div class="files-toolbar">
+              <span class="small muted">{L(lang,{ko:'회원 전용 사진 갤러리',fr:'Photos réservées aux membres'})}</span>
+              <button id="gallery-open-form" type="button" class="btn btn-dark" hidden>+ {L(lang,{ko:'사진 등록',fr:'Ajouter une photo'})}</button>
+            </div>
+            <form id="gallery-form" class="card files-compose stack gap-12" hidden>
+              <h2 class="h3">{L(lang,{ko:'갤러리에 사진 등록',fr:'Publier une photo'})}</h2>
+              <label for="gallery-title">{L(lang,{ko:'사진 제목',fr:'Titre de la photo'})}</label>
+              <input id="gallery-title" type="text" maxlength="150" required/>
+              <label for="gallery-description">{L(lang,{ko:'설명',fr:'Description'})}</label>
+              <textarea id="gallery-description" rows="3" maxlength="3000"></textarea>
+              <label for="gallery-photo">{L(lang,{ko:'사진 선택',fr:'Choisir une photo'})}</label>
+              <input id="gallery-photo" type="file" accept="image/jpeg,image/png,image/webp" required/>
+              <p class="small muted">{L(lang,{
+                ko:'사진은 비공개 저장소에 보관되며 자동으로 압축됩니다. 아동 사진은 게시 동의를 확인한 후 등록하세요.',
+                fr:'Les images sont compressées et stockées en privé. Vérifiez le consentement avant de publier des photos de mineurs.'
+              })}</p>
+              <div class="row gap-12" style="flex-wrap:wrap">
+                <button id="gallery-save" type="submit" class="btn btn-dark">{L(lang,{ko:'사진 등록',fr:'Publier la photo'})}</button>
+                <button id="gallery-cancel" type="button" class="btn btn-ghost">{L(lang,{ko:'취소',fr:'Annuler'})}</button>
+              </div>
+            </form>
+          </>}
+        </div>
         <div id="files-list" class="stack gap-12"></div>
-        <p class="small muted">{L(lang,{ko:'파일은 협회의 Storage 서비스가 활성화되고 서버 보안 규칙이 검증된 후 등록됩니다.',fr:'Les fichiers seront disponibles après activation du stockage et validation des règles de sécurité.'})}</p>
       </div>
     </div>
   </section>
+  <dialog id="gallery-viewer" aria-label={L(lang,{ko:'사진 크게 보기',fr:'Agrandir la photo'})}>
+    <button id="gallery-viewer-close" class="files-mini-btn" type="button">{L(lang,{ko:'닫기 ✕',fr:'Fermer ✕'})}</button>
+    <img id="gallery-viewer-image" alt="" />
+  </dialog>
 </Base>
+<style>
+  .files-toolbar {display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+  .files-toolbar input {flex:1 1 260px;max-width:560px;min-width:180px}
+  .files-toolbar select {min-width:150px;max-width:100%;padding:10px 12px;border:1px solid #d7dce0;border-radius:9px;background:#fff}
+  .files-compose select {width:100%;padding:10px 12px;border:1px solid #d7dce0;border-radius:9px;background:#fff}
+  .files-category-label {display:inline-block;margin:0 0 6px;padding:4px 10px;background:#eef5ef;border:1px solid #d3e6d7;border-radius:999px;font-size:.8rem;width:max-content;max-width:100%}
+  .files-compose {padding:22px;max-width:800px}
+  .files-compose input:not([type=file]),.files-compose textarea {width:100%}
+  .files-post {padding:20px;border:1px solid #e0e6e8;border-radius:12px;background:#fff;min-width:0}
+  .files-post h2,.files-gallery-tile h2 {margin:0;font-size:1.1rem;line-height:1.5;overflow-wrap:anywhere}
+  .files-post-body {white-space:pre-wrap;overflow-wrap:anywhere}
+  .files-attachment {display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border:1px solid #e2e8f0;border-radius:10px;padding:10px 14px}
+  .files-attachment span {overflow-wrap:anywhere;min-width:0;flex:1}
+  .files-gallery-grid {display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr));gap:16px}
+  .files-gallery-tile {overflow:hidden;background:#fff;border:1px solid #e0e6e8;border-radius:12px}
+  .files-gallery-tile img {display:block;width:100%;height:220px;object-fit:cover;cursor:zoom-in;background:#f3f5f7}
+  .files-gallery-caption {padding:16px;display:grid;gap:8px}
+  .files-gallery-caption p {white-space:pre-wrap;overflow-wrap:anywhere}
+  .files-mini-btn {border:1px solid #d7dce0;background:white;color:inherit;padding:6px 10px;border-radius:8px;font:inherit;cursor:pointer}
+  .files-mini-btn:disabled {opacity:.6;cursor:wait}
+  #gallery-viewer {max-width:min(92vw,980px);border:0;border-radius:12px;padding:12px;background:#fff}
+  #gallery-viewer::backdrop {background:rgba(0,0,0,.82)}
+  #gallery-viewer img {display:block;max-width:85vw;max-height:78vh;object-fit:contain}
+</style>
 <script>
-  import { getApps,initializeApp } from 'firebase/app';
-  import { getAuth,onAuthStateChanged,getIdToken } from 'firebase/auth';
-  import { getFirestore,doc,getDoc,collection,query,orderBy,limit,getDocs } from 'firebase/firestore';
+  import { getApps, initializeApp } from 'firebase/app';
+  import { getAuth, onAuthStateChanged, getIdToken } from 'firebase/auth';
+  import { getFirestore, doc, collection, getDoc, getDocs, query, orderBy, limit, setDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
   import { getStorage,ref,getBytes } from 'firebase/storage';
   import { firebaseConfig } from '../../../firebase-config';
+  import { BOARD_PHOTO_API } from '../../../config/board-photos';
+
+  type SchoolCategory = 'kindergarten' | 'elementary' | 'middle';
+  type Entry = {id:string;title?:string;body?:string;description?:string;category?:SchoolCategory;status?:string;authorUid?:string;createdAt?:{toDate?:()=>Date};files?:ResourcePart[];bytesTotal?:number;image?:ResourcePart;filename?:string;storagePath?:string;mime?:string};
+  type ResourcePart = {id:string;name:string;mime:string;size:number};
   const root=document.getElementById('files-root') as HTMLElement|null;
-  const list=document.getElementById('files-list') as HTMLElement|null;
-  const status=document.getElementById('files-status') as HTMLElement|null;
-  const fr=root?.dataset.lang==='fr',area=root?.dataset.area;
+  const fr=root?.dataset.lang==='fr';
+  const area=root?.dataset.area;
   const tr=(ko:string,french:string)=>fr?french:ko;
-  const setStatus=(text:string,bad=false)=>{if(status){status.textContent=text;status.style.color=bad?'#b42318':'';}};
-  if(import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true'){
-    const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
-    const auth=getAuth(app),db=getFirestore(app),storage=getStorage(app);
-    onAuthStateChanged(auth,async user=>{
-      if(!user){location.replace(root?.dataset.loginUrl||'/');return;}
-      try{
-        await user.reload();await getIdToken(user,true);
-        if(!user.emailVerified)throw Error('verify');
-        const snap=await getDoc(doc(db,'members',user.uid));
-        if(!snap.exists()||snap.data().status!=='approved')throw Error('profile');
-        const role=snap.data().role;
-        const allowed=area==='learning'||(area==='gallery'&&['member','special','admin'].includes(role))||(area==='office'&&role==='admin');
-        if(!allowed)throw Error('role');
-        const col=area==='learning'?'learningResources':area==='gallery'?'galleryItems':'officeDocs';
-        const docs=await getDocs(query(collection(db,col),orderBy('createdAt','desc'),limit(100)));
-        list?.replaceChildren();
-        if(docs.empty){setStatus(tr('아직 등록된 자료가 없습니다.','Aucun document pour le moment.'));return;}
-        setStatus(tr('자료를 선택할 수 있습니다.','Vous pouvez consulter les documents.'));
-        docs.docs.forEach(snapshot=>{
-          const item=snapshot.data();const row=document.createElement('div');row.className='row gap-16';row.style.cssText='align-items:center;justify-content:space-between;flex-wrap:wrap;padding:12px;border:1px solid #e2e8f0;border-radius:10px;';
-          const desc=document.createElement('div');desc.className='stack gap-8';
-          const title=document.createElement('strong');title.textContent=String(item.title||tr('제목 없음','Sans titre'));
-          const filename=document.createElement('span');filename.className='small muted';filename.textContent=String(item.filename||'');
-          desc.append(title,filename);const btn=document.createElement('button');btn.type='button';btn.className='btn btn-ghost';btn.textContent=tr('다운로드','Télécharger');
-          btn.addEventListener('click',async()=>{
-            if(typeof item.storagePath!=='string')return setStatus(tr('파일 경로 오류','Chemin de fichier invalide.'),true);
-            btn.disabled=true;
-            try{
-              // getBytes checks Firebase Storage rules on each request; avoid shareable getDownloadURL links.
-              const bytes=await getBytes(ref(storage,item.storagePath),20*1024*1024);
-              const blob=new Blob([bytes],{type:item.mime||'application/octet-stream'});
-              const link=document.createElement('a'),url=URL.createObjectURL(blob);link.href=url;link.download=String(item.filename||'asicc-document');document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
-            }catch(error){console.error(error);setStatus(tr('다운로드할 수 없습니다. Storage 설정을 확인하세요.','Téléchargement impossible. Vérifiez le stockage.'),true);}
-            finally{btn.disabled=false;}
-          });row.append(desc,btn);list?.append(row);
-        });
-      }catch(error){console.error(error);setStatus(tr('접근할 수 없습니다. 계정 등급과 서버 보안 규칙을 확인하세요.','Accès refusé. Vérifiez le statut et les règles de sécurité.'),true);}
+  const by=<T extends HTMLElement>(id:string)=>document.getElementById(id) as T|null;
+  const status=by<HTMLElement>('files-status');
+  const list=by<HTMLElement>('files-list');
+  const api=BOARD_PHOTO_API.trim().replace(/\/$/,'');
+  const MAX_TOTAL=20_000_000;
+  const SCHOOL_CATEGORIES:SchoolCategory[]=['kindergarten','elementary','middle'];
+  const validCategory=(value:string):value is SchoolCategory=>SCHOOL_CATEGORIES.includes(value as SchoolCategory);
+  const categoryName=(cat?:string)=>cat==='kindergarten'?tr('유치원','Maternelle'):cat==='elementary'?tr('초등학교','École élémentaire'):cat==='middle'?tr('중학교','Collège'):tr('미분류','Non classé');
+  const MAX_FILES=20;
+  const MIME:Record<string,string>={pdf:'application/pdf',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation',txt:'text/plain',jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp'};
+  const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
+  const auth=getAuth(app),db=getFirestore(app),storage=getStorage(app);
+  const memo=new Map<string,string>();
+  let uid='',role='',entries:Entry[]=[];
+  const el=(tag:string,text?:string)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;return e;};
+  const note=(msg:string,bad=false)=>{if(status){status.hidden=!msg;status.textContent=msg;status.style.color=bad?'#b42318':'';}};
+  const moneySize=(n:number)=>(n/1_000_000).toLocaleString(fr?'fr-FR':'ko-KR',{maximumFractionDigits:2})+' MB';
+  const stamp=(v?:{toDate?:()=>Date})=>{try{return v?.toDate?.().toLocaleString(fr?'fr-FR':'ko-KR',{timeZone:'Europe/Paris',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})||'';}catch{return '';}};
+  const canLearningPost=()=>['member','special','admin'].includes(role);
+  const isAdmin=()=>role==='admin';
+  const permitted=()=>area==='learning'||area==='gallery'&&['member','special','admin'].includes(role)||area==='office'&&isAdmin();
+  const show=(id:string,yes:boolean)=>{const node=by<HTMLElement>(id);if(node)node.hidden=!yes;};
+  async function media(path:string,method='GET',content?:Blob,mime?:string){
+    if(!api)throw Error('Media server is not configured');
+    const user=auth.currentUser;if(!user)throw Error('Signed out');
+    const token=await getIdToken(user);
+    const res=await fetch(api+path,{method,headers:{Authorization:`Bearer ${token}`,...(content?{'Content-Type':mime||content.type}:{})},body:content,cache:'no-store'});
+    if(!res.ok){const error=await res.clone().json().catch(()=>null) as {error?:string}|null;throw Error(`HTTP ${res.status}: ${String(error?.error||'Storage error').slice(0,150)}`);}
+    return res;
+  }
+  async function fetchFile(path:string,name:string,mime:string,button:HTMLButtonElement){
+    button.disabled=true;
+    try{
+      const response=await media(path);
+      const blob=await response.blob();
+      if(blob.size>MAX_TOTAL)throw Error('File over limit');
+      const object=URL.createObjectURL(new Blob([blob],{type:mime}));
+      const a=el('a') as HTMLAnchorElement;a.href=object;a.download=name;a.style.display='none';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(object),10000);
+    }catch(error){console.error(error);note(tr('파일 다운로드에 실패했습니다. 저장소와 권한을 확인해 주세요.','Téléchargement impossible. Vérifiez le stockage et les droits.'),true);}
+    finally{button.disabled=false;}
+  }
+  async function refresh(){
+    if(!list)return;
+    list.replaceChildren(el('p',tr('불러오는 중…','Chargement…')));
+    const col=area==='learning'?'learningResources':area==='gallery'?'galleryItems':'officeDocs';
+    const docs=await getDocs(query(collection(db,col),orderBy('createdAt','desc'),limit(100)));
+    entries=docs.docs.map(d=>({id:d.id,...d.data()} as Entry));
+    render();
+  }
+  function visibleEntries(){
+    const q=by<HTMLInputElement>('files-search')?.value.trim().toLocaleLowerCase()||'';
+    const schoolFilter=by<HTMLSelectElement>('resource-filter')?.value||'all';
+    return entries.filter(e=>{
+      if(e.status==='draft'&&e.authorUid!==uid)return false;
+      if(e.status&&e.status!=='draft'&&e.status!=='published')return false;
+      if(area==='learning'&&schoolFilter!=='all'&&e.category!==schoolFilter)return false;
+      return !q||`${e.title||''} ${e.body||''} ${e.filename||''} ${categoryName(e.category)}`.toLocaleLowerCase().includes(q);
     });
   }
+  function render(){
+    if(!list)return;
+    list.replaceChildren();
+    const filtered=visibleEntries();
+    if(!filtered.length){list.append(el('p',tr('아직 등록된 자료가 없습니다.','Aucun contenu pour le moment.')));return;}
+    if(area==='gallery'){
+      const grid=el('div');grid.className='files-gallery-grid';list.append(grid);
+      for(const row of filtered)grid.append(renderGallery(row));
+    } else for(const row of filtered)list.append(renderPost(row));
+  }
+  function renderPost(item:Entry){
+    const card=el('article');card.className='files-post stack gap-12';
+    if(area==='learning'){
+      const category=el('span',categoryName(item.category));category.className='files-category-label';card.append(category);
+    }
+    const title=el('h2',item.title||tr('제목 없음','Sans titre'));
+    card.append(title);
+    const meta=el('p',stamp(item.createdAt)+(item.status==='draft'?' · '+tr('미완성 초안','Brouillon incomplet'):''));meta.className='small muted';card.append(meta);
+    if(item.body){const text=el('p',item.body);text.className='files-post-body';card.append(text);}
+    if(item.status==='draft'&&item.authorUid===uid){
+      const p=el('p',tr('파일 전송이 완료되지 않았습니다. 삭제 후 다시 등록해 주세요.','Transfert incomplet : supprimez ce brouillon et recommencez.'));p.className='small muted';card.append(p);
+    }
+    const parts=Array.isArray(item.files)?item.files:[];
+    for(const f of parts){
+      const line=el('div');line.className='files-attachment';
+      const label=el('span',`📎 ${f.name} · ${moneySize(f.size)}`);
+      const button=el('button',tr('다운로드','Télécharger')) as HTMLButtonElement;button.className='files-mini-btn';button.type='button';
+      button.disabled=item.status==='draft';
+      button.addEventListener('click',()=>void fetchFile(`/api/resource?postId=${encodeURIComponent(item.id)}&fileId=${encodeURIComponent(f.id)}`,f.name,f.mime,button));
+      line.append(label,button);card.append(line);
+    }
+    // Older resources using Firebase Storage continue to display without migrating metadata.
+    if(!parts.length&&item.storagePath){
+      const button=el('button',tr('기존 자료 다운로드','Télécharger le document existant')) as HTMLButtonElement;
+      button.type='button';button.className='files-mini-btn';
+      button.addEventListener('click',async()=>{
+        button.disabled=true;
+        try{const bytes=await getBytes(ref(storage,item.storagePath!),MAX_TOTAL);
+          const object=URL.createObjectURL(new Blob([bytes],{type:item.mime||'application/octet-stream'}));
+          const a=el('a') as HTMLAnchorElement;a.href=object;a.download=item.filename||'asicc-document';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(object),10000);
+        }catch(e){console.error(e);note(tr('기존 파일 저장소 연결을 확인하세요.','Vérifiez le stockage des anciens fichiers.'),true);}finally{button.disabled=false;}
+      });card.append(button);
+    }
+    if(item.authorUid===uid||isAdmin()){
+      if(item.status==='draft'||item.status==='published'){
+        const del=el('button',tr('자료 삭제','Supprimer')) as HTMLButtonElement;del.type='button';del.className='files-mini-btn';
+        del.addEventListener('click',()=>void removeRecord(item,del));card.append(del);
+      }
+    }
+    return card;
+  }
+  function renderGallery(item:Entry){
+    const card=el('article');card.className='files-gallery-tile';
+    const image=el('img') as HTMLImageElement;image.alt=item.title||tr('갤러리 사진','Photo');image.loading='lazy';
+    const cap=el('div');cap.className='files-gallery-caption';cap.append(el('h2',item.title||tr('제목 없음','Sans titre')));
+    if(item.description)cap.append(el('p',item.description));
+    const date=el('span',stamp(item.createdAt));date.className='small muted';cap.append(date);
+    if(item.status==='draft'){const draft=el('span',tr('미완성 초안','Brouillon incomplet'));draft.className='small muted';cap.append(draft);}
+    if(isAdmin()&&(item.status==='draft'||item.status==='published')){
+      const del=el('button',tr('사진 삭제','Supprimer la photo')) as HTMLButtonElement;del.type='button';del.className='files-mini-btn';
+      del.addEventListener('click',()=>void removeRecord(item,del));cap.append(del);
+    }
+    card.append(image,cap);
+    if(item.image&&item.status==='published'){
+      void media(`/api/gallery?itemId=${encodeURIComponent(item.id)}`).then(r=>r.blob()).then(blob=>{
+        if(!image.isConnected)return;
+        const object=URL.createObjectURL(blob);memo.set(item.id,object);image.src=object;
+        image.addEventListener('click',()=>{
+          const dialog=by<HTMLDialogElement>('gallery-viewer'),viewer=by<HTMLImageElement>('gallery-viewer-image');
+          if(dialog&&viewer){viewer.src=object;viewer.alt=image.alt;dialog.showModal();}
+        });
+      }).catch(error=>{console.error(error);image.alt=tr('사진을 불러올 수 없습니다','Photo indisponible');});
+    } else if(item.storagePath){
+      // Legacy Firebase Storage gallery photos (only if Storage rules allow reading).
+      void getBytes(ref(storage,item.storagePath),MAX_TOTAL).then(bytes=>{
+        if(!image.isConnected)return;
+        const object=URL.createObjectURL(new Blob([bytes],{type:item.mime||'image/jpeg'}));memo.set(item.id,object);image.src=object;
+        image.addEventListener('click',()=>{
+          const dialog=by<HTMLDialogElement>('gallery-viewer'),viewer=by<HTMLImageElement>('gallery-viewer-image');
+          if(dialog&&viewer){viewer.src=object;viewer.alt=image.alt;dialog.showModal();}
+        });
+      }).catch(console.error);
+    }
+    return card;
+  }
+  async function removeRecord(item:Entry,button:HTMLButtonElement){
+    if(!confirm(tr('이 자료를 삭제할까요? 파일도 삭제되며 복구할 수 없습니다.','Supprimer ce contenu et son fichier définitivement ?')))return;
+    button.disabled=true;
+    try{
+      if(item.files?.length)await media(`/api/resource?postId=${encodeURIComponent(item.id)}&fileId=${encodeURIComponent(item.files[0].id)}`,'DELETE');
+      else if(item.image)await media(`/api/gallery?itemId=${encodeURIComponent(item.id)}`,'DELETE');
+      await deleteDoc(doc(db,area==='learning'?'learningResources':'galleryItems',item.id));
+      note(tr('삭제했습니다.','Contenu supprimé.'));await refresh();
+    }catch(error){console.error(error);note(tr('삭제할 수 없습니다. 파일 삭제 권한을 확인하세요.','Suppression impossible. Vérifiez les droits du stockage.'),true);}
+    finally{button.disabled=false;}
+  }
+  function contentType(file:File){const ext=file.name.split('.').pop()?.toLocaleLowerCase()||'';return MIME[ext]||'';}
+  function validateFiles(selected:File[]){
+    if(!selected.length)throw Error(tr('첨부파일을 선택해 주세요.','Sélectionnez au moins un fichier.'));
+    if(selected.length>MAX_FILES)throw Error(tr('파일은 한 게시글당 최대 20개까지입니다.','20 fichiers maximum par publication.'));
+    let sum=0;
+    for(const file of selected){
+      if(!contentType(file)||!file.size||file.name.length>255)throw Error(tr('파일 종류·이름·크기를 확인해 주세요.','Vérifiez le format, le nom et la taille des fichiers.'));
+      sum+=file.size;
+    }
+    if(sum>MAX_TOTAL)throw Error(tr('첨부파일 총합이 20MB를 초과했습니다.','Le total des fichiers dépasse 20 Mo.'));
+    return sum;
+  }
+  by<HTMLInputElement>('resource-files')?.addEventListener('change',()=>{
+    const files=Array.from(by<HTMLInputElement>('resource-files')?.files||[]);
+    const sum=files.reduce((acc,f)=>acc+f.size,0);
+    const target=by<HTMLElement>('resource-size');if(!target)return;
+    target.textContent=`${tr('선택 파일','Fichiers sélectionnés')}: ${files.length}${tr('개','')} · ${moneySize(sum)} / 20 MB`;
+    target.style.color=sum>MAX_TOTAL?'#b42318':'';
+  });
+  by<HTMLFormElement>('learning-form')?.addEventListener('submit',async event=>{
+    event.preventDefault();if(!uid||!canLearningPost())return;
+    const files=Array.from(by<HTMLInputElement>('resource-files')?.files||[]);
+    const title=by<HTMLInputElement>('resource-title')?.value.trim()||'';
+    const category=by<HTMLSelectElement>('resource-category')?.value||'';
+    const body=by<HTMLTextAreaElement>('resource-body')?.value.trim()||'';
+    const save=by<HTMLButtonElement>('resource-save');
+    if(!title||title.length>150||body.length>10000||!validCategory(category))return note(tr('제목·학교급·설명을 확인해 주세요.','Vérifiez le titre, le niveau scolaire et la description.'),true);
+    let total=0;try{total=validateFiles(files);}catch(error){return note(String(error),true);}
+    if(!api)return note(tr('비공개 파일 서버가 연결되지 않았습니다.','Le serveur de fichiers privés n’est pas configuré.'),true);
+    if(save)save.disabled=true;
+    try{
+      const record=doc(collection(db,'learningResources'));
+      const manifest:ResourcePart[]=files.map(f=>({id:crypto.randomUUID(),name:f.name,mime:contentType(f),size:f.size}));
+      await setDoc(record,{title,body,category,authorUid:uid,status:'draft',files:manifest,bytesTotal:total,createdAt:serverTimestamp()});
+      for(let i=0;i<files.length;i++){
+        note(tr(`파일 업로드 중… ${i+1}/${files.length}`,`Transfert… ${i+1}/${files.length}`));
+        await media(`/api/resource-upload?postId=${encodeURIComponent(record.id)}&fileId=${encodeURIComponent(manifest[i].id)}`,'POST',files[i],manifest[i].mime);
+      }
+      await updateDoc(record,{status:'published',updatedAt:serverTimestamp()});
+      by<HTMLFormElement>('learning-form')?.reset();show('learning-form',false);show('files-open-form',true);
+      note(tr('학습자료가 등록되었습니다.','Ressource publiée.'));await refresh();
+    }catch(error){console.error(error);note(tr('등록 중 오류가 발생했습니다. 미완성 초안을 삭제한 후 다시 등록해 주세요.','Erreur de publication. Supprimez le brouillon incomplet et réessayez.'),true);await refresh().catch(console.error);}
+    finally{if(save)save.disabled=false;}
+  });
+  async function shrinkPhoto(file:File){
+    if(file.size>20_000_000||!['image/jpeg','image/png','image/webp'].includes(file.type))throw Error('Unsupported photo');
+    const bitmap=await createImageBitmap(file);
+    try{
+      let scale=Math.min(1,1600/Math.max(bitmap.width,bitmap.height));
+      for(let attempt=0;attempt<7;attempt++){
+        const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));
+        const ctx=canvas.getContext('2d');if(!ctx)throw Error('Canvas unavailable');
+        ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
+        const blob=await new Promise<Blob|null>(resolve=>canvas.toBlob(resolve,'image/webp',Math.max(.7,.86-attempt*.02)));
+        if(blob?.type==='image/webp'&&blob.size<=1_500_000)return blob;
+        scale*=.82;
+      }
+      throw Error('Image could not be compressed');
+    }finally{bitmap.close();}
+  }
+  by<HTMLFormElement>('gallery-form')?.addEventListener('submit',async event=>{
+    event.preventDefault();if(!uid||!isAdmin())return;
+    const file=by<HTMLInputElement>('gallery-photo')?.files?.[0];
+    const title=by<HTMLInputElement>('gallery-title')?.value.trim()||'';
+    const description=by<HTMLTextAreaElement>('gallery-description')?.value.trim()||'';
+    const save=by<HTMLButtonElement>('gallery-save');
+    if(!file||!title||title.length>150||description.length>3000)return note(tr('사진과 제목을 확인해 주세요.','Vérifiez la photo et le titre.'),true);
+    if(!api)return note(tr('비공개 사진 서버가 연결되지 않았습니다.','Le serveur photo privé n’est pas configuré.'),true);
+    if(save)save.disabled=true;
+    try{
+      note(tr('사진 압축 중…','Compression de la photo…'));
+      const blob=await shrinkPhoto(file);
+      const refDoc=doc(collection(db,'galleryItems'));
+      const id=crypto.randomUUID();
+      await setDoc(refDoc,{title,description,authorUid:uid,status:'draft',image:{id,mime:'image/webp',size:blob.size},createdAt:serverTimestamp()});
+      note(tr('비공개 사진 업로드 중…','Envoi de la photo privée…'));
+      await media(`/api/gallery-upload?itemId=${encodeURIComponent(refDoc.id)}`,'POST',blob,'image/webp');
+      await updateDoc(refDoc,{status:'published',updatedAt:serverTimestamp()});
+      by<HTMLFormElement>('gallery-form')?.reset();show('gallery-form',false);show('gallery-open-form',true);
+      note(tr('사진이 갤러리에 등록되었습니다.','Photo publiée.'));await refresh();
+    }catch(error){console.error(error);note(tr('등록 실패. 미완성 사진 항목을 삭제하고 다시 시도해 주세요.','Échec de la publication. Supprimez le brouillon incomplet.'),true);await refresh().catch(console.error);}
+    finally{if(save)save.disabled=false;}
+  });
+  by<HTMLElement>('files-search')?.addEventListener('input',render);
+  by<HTMLSelectElement>('resource-filter')?.addEventListener('change',render);
+  by<HTMLButtonElement>('files-open-form')?.addEventListener('click',()=>{show('learning-form',true);show('files-open-form',false);});
+  by<HTMLButtonElement>('resource-cancel')?.addEventListener('click',()=>{show('learning-form',false);show('files-open-form',true);});
+  by<HTMLButtonElement>('gallery-open-form')?.addEventListener('click',()=>{show('gallery-form',true);show('gallery-open-form',false);});
+  by<HTMLButtonElement>('gallery-cancel')?.addEventListener('click',()=>{show('gallery-form',false);show('gallery-open-form',true);});
+  by<HTMLButtonElement>('gallery-viewer-close')?.addEventListener('click',()=>by<HTMLDialogElement>('gallery-viewer')?.close());
+  window.addEventListener('beforeunload',()=>{for(const uri of memo.values())URL.revokeObjectURL(uri);});
+  if(import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true')onAuthStateChanged(auth,async user=>{
+    if(!user){location.replace(root?.dataset.loginUrl||'/');return;}
+    try{
+      await user.reload();await getIdToken(user,true);
+      if(!user.emailVerified)throw Error('Unverified');
+      const snap=await getDoc(doc(db,'members',user.uid));
+      if(!snap.exists()||snap.data().status!=='approved')throw Error('Inactive');
+      uid=user.uid;role=String(snap.data().role||'');
+      if(!permitted())throw Error('Role not allowed');
+      show('files-controls',true);
+      if(area==='learning')show('files-open-form',canLearningPost());
+      if(area==='gallery')show('gallery-open-form',isAdmin());
+      note('');await refresh();
+    }catch(error){console.error(error);note(tr('접근하거나 자료를 불러올 수 없습니다. 회원권한·Firestore 규칙을 확인해 주세요.','Accès ou chargement impossible. Vérifiez les droits et les règles Firestore.'),true);}
+  });
 </script>
