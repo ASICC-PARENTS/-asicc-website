@@ -168,7 +168,9 @@ const current = (p: string) => rest.startsWith(p);
   <script>
     import { getApps, initializeApp } from 'firebase/app';
     import { getAuth, onAuthStateChanged } from 'firebase/auth';
+    import { getFirestore } from 'firebase/firestore';
     import { firebaseConfig } from '../firebase-config';
+    import { recordMemberActivity } from '../scripts/members/activity';
     const membersButton = document.querySelector<HTMLAnchorElement>('[data-members-lock]');
     const membersLabel = membersButton?.querySelector<HTMLElement>('[data-members-label]');
     const isKorean = document.documentElement.lang === 'ko';
@@ -194,6 +196,7 @@ const current = (p: string) => rest.startsWith(p);
       // individual member pages remains enforced separately by Firestore.
       onAuthStateChanged(auth, (user) => {
         setMembersLock(Boolean(user?.emailVerified));
+        if(user?.emailVerified)void recordMemberActivity(getFirestore(app),user.uid);
       });
       // If a user verifies their email in a different browser tab, update
       // the header when they return without requiring a full page refresh.

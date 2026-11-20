@@ -24,17 +24,21 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
     <div id="member-error" class="card" role="alert" hidden></div>
     <div id="member-content" hidden class="stack gap-20">
       <div class="card member-topbar">
-        <div class="stack gap-8">
-          <strong id="member-name"></strong><span id="member-role" class="m-badge" style="align-self:flex-start"></span>
-          <span class="small muted" id="member-email"></span>
-        </div>
-        <div class="member-top-actions">
-          <a class="btn btn-ghost" href={href(lang,'membres/profile/')}>{L(lang,{ko:'내 정보 관리',fr:'Mon profil'})}</a>
-          <a class="btn btn-ghost" href={href(lang,'membres/upgrade/')} id="upgrade-shortcut" hidden>{L(lang,{ko:'승급 신청',fr:'Demander un statut'})}</a>
-          <a class="btn btn-ghost" href={href(lang,'membres/suggestions/')}>{L(lang,{ko:'협회에 건의',fr:'Écrire à l’association'})}</a>
+        <div class="member-staff-links" id="member-staff-links" hidden>
           <a class="btn btn-ghost" href={href(lang,'membres/admin/')} id="admin-shortcut" hidden>{L(lang,{ko:'회원관리',fr:'Administration'})}</a>
-          <a class="btn btn-ghost" href={href(lang,'membres/office/')} id="office-shortcut" hidden>{L(lang,{ko:'온라인 협회사무실',fr:'Bureau privé'})}</a>
-          <button id="member-signout" type="button" class="btn btn-ghost">{L(lang,{ko:'로그아웃',fr:'Déconnexion'})}</button>
+          <a class="btn btn-ghost" href={href(lang,'membres/office/')} id="office-shortcut" hidden>{L(lang,{ko:'온라인 협회 사무실',fr:'Bureau privé'})}</a>
+        </div>
+        <div class="member-user-controls">
+          <div class="stack gap-8 member-identity">
+            <div class="row gap-8" style="align-items:center;flex-wrap:wrap"><strong id="member-name"></strong><span id="member-role" class="m-badge"></span></div>
+            <span class="small muted" id="member-email"></span>
+          </div>
+          <div class="member-top-actions">
+            <a class="btn btn-ghost" href={href(lang,'membres/profile/')}>{L(lang,{ko:'내 정보 관리',fr:'Mon profil'})}</a>
+            <a class="btn btn-ghost" href={href(lang,'membres/upgrade/')} id="upgrade-shortcut" hidden>{L(lang,{ko:'승급 신청',fr:'Demander un statut'})}</a>
+            <a class="btn btn-ghost" href={href(lang,'membres/suggestions/')}>{L(lang,{ko:'협회에 건의',fr:'Écrire à l’association'})}</a>
+            <button id="member-signout" type="button" class="btn btn-ghost">{L(lang,{ko:'로그아웃',fr:'Déconnexion'})}</button>
+          </div>
         </div>
       </div>
       <div class="member-three">
@@ -42,19 +46,19 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
           <div class="member-panel-title"><h2 class="h3">{L(lang,{ko:'학습자료실',fr:'Ressources pédagogiques'})}</h2><span aria-hidden="true">📚</span></div>
           <p class="small muted">{L(lang,{ko:'최근 등록 자료 5개',fr:'5 dernières ressources'})}</p>
           <div id="recent-learning" class="member-feed stack gap-8"></div>
-          <a class="btn btn-ghost member-bottom-link" href={href(lang,'membres/learning/')}>{L(lang,{ko:'전체 자료 보기',fr:'Toutes les ressources'})} →</a>
+          <a class="btn btn-ghost member-bottom-link" href={href(lang,'membres/learning/')}>{L(lang,{ko:'학습자료실 가기',fr:'Accéder aux ressources'})} →</a>
         </section>
         <section class="card member-panel stack gap-12">
           <div class="member-panel-title"><h2 class="h3">{L(lang,{ko:'회원 게시판',fr:'Forum des membres'})}</h2><span aria-hidden="true">💬</span></div>
           <p id="board-privilege" class="small muted"></p>
           <div id="recent-posts" class="member-feed stack gap-8"></div>
-          <a class="btn btn-ghost member-bottom-link" href={href(lang,'membres/board/')}>{L(lang,{ko:'전체 게시글 보기',fr:'Tous les messages'})} →</a>
+          <a class="btn btn-ghost member-bottom-link" href={href(lang,'membres/board/')}>{L(lang,{ko:'회원게시판 가기',fr:'Accéder au forum'})} →</a>
         </section>
         <section class="card member-panel stack gap-12">
           <div class="member-panel-title"><h2 class="h3">{L(lang,{ko:'갤러리',fr:'Galerie'})}</h2><span aria-hidden="true">🖼️</span></div>
           <p class="small muted">{L(lang,{ko:'최근 등록 앨범',fr:'Albums récents'})}</p>
           <div id="recent-gallery" class="member-feed stack gap-8"></div>
-          <a id="gallery-link" class="btn btn-ghost member-bottom-link" href={href(lang,'membres/gallery/')}>{L(lang,{ko:'전체 앨범 보기',fr:'Voir tous les albums'})} →</a>
+          <a id="gallery-link" class="btn btn-ghost member-bottom-link" href={href(lang,'membres/gallery/')}>{L(lang,{ko:'갤러리 가기',fr:'Accéder à la galerie'})} →</a>
         </section>
       </div>
       <p id="member-dashboard-status" class="small muted" role="status" aria-live="polite"></p>
@@ -64,7 +68,12 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
 </Base>
 <style>
 .member-topbar {padding:20px 24px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;justify-content:space-between}
-.member-top-actions {display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.member-staff-links {display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.member-staff-links[hidden] {display:none}
+.member-user-controls {display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-left:auto;justify-content:flex-end}
+.member-identity {text-align:right;align-items:flex-end}
+.member-top-actions {display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:flex-end}
+@media(max-width:720px){.member-user-controls{width:100%;margin-left:0;justify-content:flex-start}.member-identity{text-align:left;align-items:flex-start}.member-top-actions{justify-content:flex-start}}
 .member-three {display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:16px;align-items:stretch}
 .member-panel {padding:22px;min-width:0;min-height:340px}
 .member-panel-title {display:flex;justify-content:space-between;align-items:center;gap:8px}
@@ -109,6 +118,7 @@ if(import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true')onAuthStateChanged(auth
    const upgrade=by('upgrade-shortcut');if(upgrade)upgrade.hidden=role!=='general';
    const admin=by('admin-shortcut');if(admin)admin.hidden=role!=='admin';
    const office=by('office-shortcut');if(office)office.hidden=role!=='admin';
+   const staffLinks=by('member-staff-links');if(staffLinks)staffLinks.hidden=role!=='admin';
    note('board-privilege',full?tr('읽기·글쓰기·댓글 가능','Lecture, publication et commentaires'):tr('읽기 가능 · 글쓰기는 🔒 잠금','Lecture autorisée · publication verrouillée 🔒'));
    const loading=by('member-loading');if(loading)loading.hidden=true;
    const content=by('member-content');if(content)content.hidden=false;

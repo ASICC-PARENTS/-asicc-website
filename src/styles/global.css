@@ -975,7 +975,9 @@ html[lang="fr"] a[href^="http"] { overflow-wrap: anywhere; }
 .board-comment-meta {font-size:12px;color:#67776E}
 .board-comment-text {white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7;margin:0}
 .board-comment-entry .board-comment-actions {align-self:flex-start;margin-top:4px}
-.board-replies {margin:0 0 5px 20px;border-left:2px solid #D9E7DE;background:#F8FBF9}
+.board-replies {margin:0 0 5px 17px;padding-left:8px;border-left:2px solid #D9E7DE;background:#F8FBF9;min-width:0}
+.board-comment-node {min-width:0}
+.board-comment-node .board-replies .board-comment-entry {overflow-wrap:anywhere}
 .board-reply-entry {padding:11px 15px}
 .board-reply-form {margin-top:7px;display:flex;flex-direction:column;gap:8px}
 .board-reply-form textarea {resize:vertical;min-height:70px;width:100%}
@@ -986,5 +988,5 @@ html[lang="fr"] a[href^="http"] { overflow-wrap: anywhere; }
   .board-title-wrap .board-title-link {padding:4px 0;flex-basis:70%}
   .board-category-tabs {gap:5px}
   .board-category-tab {padding:7px 11px;font-size:12px}
-  .board-replies {margin-left:12px}
+  .board-replies {margin-left:8px;padding-left:5px}
 }

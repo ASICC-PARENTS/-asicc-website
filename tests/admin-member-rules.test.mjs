@@ -55,6 +55,15 @@ test('members cannot edit others or elevate their own role; admin cannot change 
   await assertFails(updateDoc(doc(context('admin'),'members','admin'),{role:'general'}));
 });
 
+test('members can update only their own server-timestamped activity',async()=>{
+  const self=context('member');
+  await assertSucceeds(updateDoc(doc(self,'members','member'),{lastSeenAt:serverTimestamp()}));
+  await assertFails(updateDoc(doc(self,'members','member'),{lastSeenAt:new Date('2045-01-01')}));
+  await assertFails(updateDoc(doc(self,'members','member'),{lastSeenAt:serverTimestamp(),role:'admin'}));
+  await assertFails(updateDoc(doc(self,'members','editme'),{lastSeenAt:serverTimestamp()}));
+  await assertSucceeds(updateDoc(doc(context('admin'),'members','admin'),{lastSeenAt:serverTimestamp()}));
+});
+
 test('new member and withdrawal acknowledgement belongs to each admin only',async()=>{
   await assertSucceeds(setDoc(doc(context('admin'),'adminNotificationAcks','admin'),{
     acknowledgedAt:serverTimestamp()
