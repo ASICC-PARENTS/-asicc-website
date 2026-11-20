@@ -101,7 +101,8 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
   const fr=root?.dataset.lang==='fr';
   const tr=(ko:string,french:string)=>fr?french:ko;
   const status=by<HTMLElement>('board-status');
-  const notify=(v:string,bad=false)=>{if(status){status.textContent=v;status.style.color=bad?'#b42318':'';}};
+  const notify=(v:string,bad=false)=>{if(status){status.textContent=v;status.hidden=!v;status.style.color=bad?'#b42318':'';}};
+  const clearNotice=()=>notify('');
   const el=(tag:string,text?:string)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;return node;};
   const stamp=(v?:{toDate?:()=>Date})=>{try{return v?.toDate?.().toLocaleDateString(fr?'fr-FR':'ko-KR')||'';}catch{return '';}};
   const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
@@ -127,7 +128,12 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
     const current=auth.currentUser;if(!current)throw Error('Not signed in');
     const token=await getIdToken(current);
     const response=await fetch(`${photoApi}${path}`,{method,headers:{Authorization:`Bearer ${token}`,...(blob?{'Content-Type':blob.type}:{})},body:blob,cache:'no-store'});
-    if(!response.ok)throw Error(`Media API ${response.status}`);
+    if(!response.ok){
+      // Keep error codes visible for diagnosis. Never include tokens or credentials.
+      const data=await response.clone().json().catch(()=>null) as {error?:unknown}|null;
+      const reason=typeof data?.error==='string' ? data.error.slice(0,120) : 'Request rejected';
+      throw Error(`HTTP ${response.status}: ${reason}`);
+    }
     return response;
   }
   async function photoSrc(key:string):Promise<string>{
@@ -183,9 +189,19 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
       if(photoHelp)photoHelp.textContent=tr('사진이 첨부되었습니다. 게시글을 등록해 주세요.','Photo ajoutée. Publiez votre message.');
     }finally{photoBusy=false;if(button)button.disabled=false;}
   }
-  function resetEditor(){editingPostId=null;form?.reset();if(editor)editor.replaceChildren();const btn=by<HTMLButtonElement>('post-save');if(btn)btn.textContent=tr('등록하기','Publier');}
+  function resetEditor(){
+    editingPostId=null;form?.reset();if(editor)editor.replaceChildren();
+    if(photoHelp){
+      photoHelp.textContent=photoApi
+        ?tr('사진을 선택하면 자동 압축 후 비공개로 업로드합니다.','Les photos sont compressées et envoyées dans le stockage privé.')
+        :tr('사진 첨부는 비공개 저장소 연결 후 사용할 수 있습니다.','L’ajout de photos sera activé après la configuration du stockage privé.');
+      photoHelp.style.color='';
+    }
+    const btn=by<HTMLButtonElement>('post-save');if(btn)btn.textContent=tr('등록하기','Publier');
+  }
   function showWriter(post?:BoardData){
     if(!canWrite()||!editor)return;
+    clearNotice();
     show('post-detail',false);show('board-list-panel',false);show('post-form',true);
     show('board-toolbar',false);
     resetEditor();
@@ -226,6 +242,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
     });
   }
   async function openPost(post:BoardData){
+    clearNotice();
     selected=post;show('post-detail',true);show('post-form',false);show('board-list-panel',false);show('board-toolbar',false);
     const title=by<HTMLElement>('detail-title'),body=by<HTMLElement>('detail-body'),meta=by<HTMLElement>('detail-meta'),actions=by<HTMLElement>('detail-actions');
     if(title)title.textContent=post.title;if(body){renderBoardBody(body,post.body);void populatePhotos(body);}if(meta){meta.textContent=stamp(post.createdAt);void nicknameOf(post.authorUid).then(nick=>{if(selected?.id===post.id)meta.textContent=`${nick} · ${stamp(post.createdAt)}`;});}
@@ -260,7 +277,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
 
     show('comment-form',canWrite()&&!post.deleted);await refreshComments(post.id);
   }
-  function back(){selected=null;show('post-detail',false);show('post-form',false);show('board-list-panel',true);show('board-toolbar',true);}
+  function back(){clearNotice();selected=null;show('post-detail',false);show('post-form',false);show('board-list-panel',true);show('board-toolbar',true);}
   async function editPost(post:BoardData){
     if(!canEdit(post.authorUid)||post.deleted)return;
     showWriter(post);
@@ -515,8 +532,19 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
   by<HTMLInputElement>('rich-photo-file')?.addEventListener('change',async event=>{
     const input=event.currentTarget as HTMLInputElement;const files=Array.from(input.files||[]);
     for(const file of files){
-      try{await uploadPhoto(file);}catch(error){console.error(error);notify(tr(`사진 업로드 실패: ${file.name}` ,`Échec de l’ajout : ${file.name}`),true);}
-    }input.value='';photoCaret=null;
+      try{await uploadPhoto(file);}
+      catch(error){
+        console.error('ASICC photo upload error',error);
+        // Only show photo errors inside the editor; the global board banner stays clear.
+        clearNotice();
+        const reason=error instanceof Error ? error.message : tr('알 수 없는 오류','Erreur inconnue');
+        if(photoHelp){
+          photoHelp.textContent=tr(`사진 업로드 실패: ${file.name} (${reason})`, `Échec de l’ajout : ${file.name} (${reason})`);
+          photoHelp.style.color='#b42318';
+        }
+      }
+    }
+    input.value='';photoCaret=null;
   });
   by<HTMLFormElement>('comment-form')?.addEventListener('submit',async e=>{
     e.preventDefault();if(!canWrite()||!selected)return;const body=by<HTMLTextAreaElement>('comment-body')?.value.trim()||'';
