@@ -80,8 +80,9 @@ const current = (p: string) => rest.startsWith(p);
       <div class="tools">
         <a class="lang-link" href={altPath(lang, altR)} hreflang={other} lang={other} data-lang-switch={other}><span class="full">{t(lang, 'lang.switch')}</span><span class="abbr" aria-hidden="true">{other === 'fr' ? 'FR' : 'KO'}</span></a>
         <a class="btn btn-dark btn-sm members-btn" href={href(lang, 'membres/login/')} data-members-lock data-members-login={href(lang, 'membres/login/')} data-members-home={href(lang, 'membres/')} aria-label={lang==='ko'?'로그인/회원가입':'Connexion / Inscription'} title={lang==='ko'?'로그인/회원가입':'Connexion / Inscription'}>
-          <!-- 하나의 SVG 자물쇠를 사용하여 SVG hidden 속성의 브라우저별 표시 오류를 방지 -->
-          <svg data-members-icon width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path data-lock-shackle d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          <!-- 로그인 버튼의 색상이 바뀌는 같은 CSS 클래스에서 자물쇠 아이콘도 교체 -->
+          <svg class="members-icon-closed" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          <svg class="members-icon-open" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.95-0.6"/></svg>
           <span class="lbl" data-members-label>{lang === 'ko' ? '로그인/회원가입' : 'Connexion / Inscription'}</span>
         </a>
         <button type="button" class="menu-btn" id="menuBtn" aria-controls="nav" aria-expanded="false" aria-label={t(lang, 'nav.menu')}>
@@ -169,18 +170,13 @@ const current = (p: string) => rest.startsWith(p);
     import { getAuth, onAuthStateChanged } from 'firebase/auth';
     import { firebaseConfig } from '../firebase-config';
     const membersButton = document.querySelector<HTMLAnchorElement>('[data-members-lock]');
-    const lockShackle = membersButton?.querySelector<SVGPathElement>('[data-lock-shackle]');
     const membersLabel = membersButton?.querySelector<HTMLElement>('[data-members-label]');
     const isKorean = document.documentElement.lang === 'ko';
     function setMembersLock(open:boolean){
       // Only the member shortcut changes its appearance after verified sign-in.
       // The rest of the site and Firestore authorization remain unchanged.
       membersButton?.classList.toggle('members-unlocked', open);
-      // 아이콘을 숨기고 바꾸는 대신 쇠고리 자체를 열고 닫는다.
-      // 로그인 후 버튼 배경만 바뀌고 잠긴 그림이 남는 문제 방지.
-      lockShackle?.setAttribute('d', open
-        ? 'M8 11V7a4 4 0 0 1 7.4-2'
-        : 'M8 11V7a4 4 0 0 1 8 0v4');
+      // 같은 members-unlocked 클래스가 버튼 배경과 SVG 아이콘을 함께 전환함.
       const label = open
         ? (isKorean ? '회원공간' : 'Espace membres')
         : (isKorean ? '로그인/회원가입' : 'Connexion / Inscription');
@@ -216,6 +212,13 @@ const current = (p: string) => rest.startsWith(p);
   </script>
   <!-- 로그인 후 회원공간 진입 버튼만 은은한 청자빛 배경으로 강조 -->
   <style is:inline>
+    /* 아이콘 전환은 버튼 배경색과 같은 members-unlocked 상태만 기준으로 함. */
+    .site-header .members-btn .members-icon-open { display: none !important; }
+    .site-header .members-btn .members-icon-closed { display: inline-block !important; }
+    .site-header .members-btn.members-unlocked .members-icon-open { display: inline-block !important; }
+    .site-header .members-btn.members-unlocked .members-icon-closed { display: none !important; }
+    .site-header .members-btn .members-icon-open,
+    .site-header .members-btn .members-icon-closed { width: 16px; height: 16px; flex: 0 0 16px; }
     .site-header .members-btn.members-unlocked {
       background: #E8F5EE;
       color: #205744;
