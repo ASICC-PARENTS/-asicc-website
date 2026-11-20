@@ -6,7 +6,7 @@ const lang = Astro.params.lang as Lang;
 const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
 ---
 <Base lang={lang} rest="membres/admin/" title={L(lang, { ko: 'ASICC 운영진 관리', fr: 'Administration ASICC' })} noindex>
-  <section class="wrap m-shell">
+  <section class="wrap m-shell asicc-admin-page">
     <div id="asicc-admin" class="stack gap-24"
       data-lang={lang}
       data-login-url={href(lang, 'membres/login/')}
@@ -61,6 +61,10 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
             <span id="admin-notification-error" class="small" role="status"></span>
           </div>
         </section>
+
+        <p id="admin-notification-empty" class="asicc-admin-empty small" role="status" aria-live="polite" hidden>
+          {L(lang,{ko:'새로운 회원 가입이나 탈퇴 요청이 없습니다.',fr:'Aucune nouvelle inscription ni demande de départ.'})}
+        </p>
 
         <section class="card auth-card stack gap-16" aria-labelledby="requests-heading">
           <div class="row gap-16" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
@@ -171,28 +175,35 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
 </Base>
 
 <style>
-  .asicc-admin-record { border: 1px solid #dce0e7; border-radius: 12px; padding:16px; }
-  .asicc-admin-fields { display:grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,175px),1fr)); gap:12px; align-items:end; }
-  .asicc-admin-actions { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:10px; }
-  .asicc-admin-muted { font-size:.88rem; color:var(--muted,#64748b); overflow-wrap:anywhere; }
+  /* 관리자 전용 페이지는 기본 .wrap(1200px) 및 .auth-card(520px) 제한을 해제합니다.
+     일반 로그인/프로필 페이지는 이 변경의 영향을 받지 않습니다. */
+  .asicc-admin-page { box-sizing:border-box; width:100%; max-width:none; margin:0 auto; padding-inline:clamp(16px,2.2vw,48px); }
+  .asicc-admin-page #asicc-admin, .asicc-admin-page #admin-content { box-sizing:border-box; width:100%; min-width:0; }
+  .asicc-admin-page #admin-content > .card.auth-card,
+  .asicc-admin-page #admin-content > section.card.auth-card { max-width:none; width:100%; margin:0; box-sizing:border-box; padding:clamp(16px,1.8vw,28px); }
+  .asicc-admin-empty { margin:0; padding:13px 17px; color:#345c4a; background:#eff7f1; border:1px solid #d5e8db; border-radius:9px; }
+  :global(.asicc-admin-record) { border: 1px solid #dce0e7; border-radius: 12px; padding:16px; }
+  :global(.asicc-admin-fields) { display:grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,175px),1fr)); gap:12px; align-items:end; }
+  :global(.asicc-admin-actions) { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:10px; }
+  :global(.asicc-admin-muted) { font-size:.88rem; color:var(--muted,#64748b); overflow-wrap:anywhere; }
   .asicc-admin-notification { border:1px solid #c09b56; border-radius:14px; padding:20px; background:rgba(250,238,216,.35); }
   .asicc-admin-notification[hidden] { display:none; }
   .asicc-admin-toolbar { display:grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,170px),1fr)); gap:12px; align-items:end; }
   .asicc-admin-toolbar input,.asicc-admin-toolbar select { width:100%; min-width:0; }
   .asicc-admin-table-wrap { max-width:100%; width:100%; overflow:auto; border:1px solid #dce0e7; border-radius:10px; }
-  .asicc-admin-table { border-collapse:collapse; width:100%; min-width:1380px; font-size:.83rem; background:#fff; }
-  .asicc-admin-table th,.asicc-admin-table td { padding:9px 10px; border-bottom:1px solid #e4e7ec; border-right:1px solid #f1f2f5; text-align:left; vertical-align:middle; white-space:nowrap; }
-  .asicc-admin-table thead th { position:sticky; top:0; z-index:1; background:#f5f7fa; font-size:.78rem; font-weight:700; }
-  .asicc-admin-table tbody tr:nth-child(even) { background:#fafbfc; }
-  .asicc-admin-table tbody tr:hover { background:#eff6f3; }
-  .asicc-admin-table th:first-child,.asicc-admin-table td:first-child { position:sticky; left:0; z-index:1; background:inherit; text-align:right; min-width:46px; }
-  .asicc-admin-table thead th:first-child { z-index:2; background:#f5f7fa; }
-  .asicc-admin-table select { width:130px; max-width:100%; padding:6px; font-size:.8rem; }
-  .asicc-admin-table .admin-row-action { min-width:64px; padding:7px 10px; }
-  .asicc-admin-table .admin-row-action[disabled] { opacity:.5; }
-  .asicc-admin-table .admin-small { font-size:.75rem; color:#667085; }
-  .asicc-admin-table .admin-name { font-weight:700; }
-  .asicc-admin-table .admin-students { max-width:270px; overflow:hidden; text-overflow:ellipsis; }
+  :global(.asicc-admin-table) { border-collapse:collapse; width:100%; min-width:1360px; font-size:.82rem; background:#fff; }
+  :global(.asicc-admin-table) th,:global(.asicc-admin-table) td { padding:9px 8px; border-bottom:1px solid #e4e7ec; border-right:1px solid #f1f2f5; text-align:left; vertical-align:middle; white-space:nowrap; }
+  :global(.asicc-admin-table) thead th { position:sticky; top:0; z-index:1; background:#f5f7fa; font-size:.78rem; font-weight:700; }
+  :global(.asicc-admin-table) tbody tr:nth-child(even) { background:#fafbfc; }
+  :global(.asicc-admin-table) tbody tr:hover { background:#eff6f3; }
+  :global(.asicc-admin-table) th:first-child,:global(.asicc-admin-table) td:first-child { position:sticky; left:0; z-index:1; background:inherit; text-align:right; min-width:46px; }
+  :global(.asicc-admin-table) thead th:first-child { z-index:2; background:#f5f7fa; }
+  :global(.asicc-admin-table) select { width:130px; max-width:100%; padding:6px; font-size:.8rem; }
+  :global(.asicc-admin-table) :global(.admin-row-action) { min-width:64px; padding:7px 10px; }
+  :global(.asicc-admin-table) :global(.admin-row-action)[disabled] { opacity:.5; }
+  :global(.asicc-admin-table) :global(.admin-small) { font-size:.75rem; color:#667085; }
+  :global(.asicc-admin-table) :global(.admin-name) { font-weight:700; }
+  :global(.asicc-admin-table) :global(.admin-students) { max-width:270px; overflow:hidden; text-overflow:ellipsis; }
   @media(max-width:720px) { .asicc-admin-notification { padding:14px; } .asicc-admin-toolbar { grid-template-columns:repeat(2,minmax(0,1fr)); } .asicc-admin-toolbar label:first-child { grid-column:1/-1; } }
 </style>
 
@@ -514,13 +525,19 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   }
   async function loadNotifications(){
     const notice=el<HTMLElement>('admin-notification');if(!notice||!meUid)return;
+    const empty=el<HTMLElement>('admin-notification-empty');
+    if(empty)empty.hidden=true;
     try{
       const ack=await getDoc(doc(db,'adminNotificationAcks',meUid));
       // At first admin visit only the last 7 days are considered new, to avoid an old backlog.
       const since=ack.exists()?timestamp(ack.data().acknowledgedAt):(Date.now()-7*24*60*60*1000);
       const arrivals=members.filter(m=>timestamp(m.createdAt)>since);
       const exits=[...withdrawals.values()].filter(r=>r.status==='pending'&&timestamp(r.requestedAt)>since);
-      if(!arrivals.length&&!exits.length){notice.hidden=true;return;}
+      if(!arrivals.length&&!exits.length){
+        notice.hidden=true;
+        if(empty)empty.hidden=false;
+        return;
+      }
       text('admin-notification-count',String(arrivals.length+exits.length));
       text('admin-notification-summary',tr(
         `새 가입 ${arrivals.length}명 · 탈퇴 요청 ${exits.length}건`,
@@ -540,8 +557,9 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     }catch(error){
       console.error('ASICC notification read',error);
       notice.hidden=true;
-      showMessage(tr('회원 알림을 확인하지 못했습니다. Firebase 알림 규칙이 적용됐는지 확인해 주세요.',
-        'Les alertes n’ont pas pu être chargées. Vérifiez les règles Firebase.'),true);
+      if(empty)empty.hidden=true;
+      showMessage(tr('회원 알림을 조회할 수 없습니다. 새 알림이 없는 상태와는 다릅니다. Firebase 알림 규칙을 확인해 주세요.',
+        'Impossible de consulter les alertes : cela ne signifie pas qu’il n’y en a aucune. Vérifiez les règles Firebase.'),true);
     }
   }
   async function acknowledgeNotifications(){
@@ -551,6 +569,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       // Server-side acknowledgement is keyed to the administrator, not the browser.
       await setDoc(doc(db,'adminNotificationAcks',meUid),{acknowledgedAt:serverTimestamp()});
       const notice=el<HTMLElement>('admin-notification');if(notice)notice.hidden=true;
+      const empty=el<HTMLElement>('admin-notification-empty');if(empty)empty.hidden=false;
     }catch(error){
       console.error('ASICC notification acknowledgement',error);
       text('admin-notification-error',tr('확인 상태를 저장하지 못했습니다. Firebase 규칙을 확인해 주세요.',
