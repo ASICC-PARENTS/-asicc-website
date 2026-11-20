@@ -258,14 +258,103 @@ function validUpgrade(uid) {
         && request.resource.data.createdAt == request.time
         && request.resource.data.storagePath.matches('^' + prefix + '/' + id + '/[^/]+$');
     }
+    function validAttachment(f) {
+      return f is map
+        && f.keys().hasOnly(['id','name','mime','size'])
+        && f.keys().hasAll(['id','name','mime','size'])
+        && f.id is string && f.id.matches('^[A-Za-z0-9_-]{12,128}$')
+        && f.name is string && f.name.size() > 0 && f.name.size() <= 255
+        && f.mime in [
+          'application/pdf','image/jpeg','image/png','image/webp','text/plain',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+        ]
+        && f.size is int && f.size > 0 && f.size <= 20000000;
+    }
+    function validAttachments(a) {
+      return a is list && a.size() > 0 && a.size() <= 20
+        && (a.size() <= 0 || validAttachment(a[0]))
+        && (a.size() <= 1 || validAttachment(a[1]))
+        && (a.size() <= 2 || validAttachment(a[2]))
+        && (a.size() <= 3 || validAttachment(a[3]))
+        && (a.size() <= 4 || validAttachment(a[4]))
+        && (a.size() <= 5 || validAttachment(a[5]))
+        && (a.size() <= 6 || validAttachment(a[6]))
+        && (a.size() <= 7 || validAttachment(a[7]))
+        && (a.size() <= 8 || validAttachment(a[8]))
+        && (a.size() <= 9 || validAttachment(a[9]))
+        && (a.size() <= 10 || validAttachment(a[10]))
+        && (a.size() <= 11 || validAttachment(a[11]))
+        && (a.size() <= 12 || validAttachment(a[12]))
+        && (a.size() <= 13 || validAttachment(a[13]))
+        && (a.size() <= 14 || validAttachment(a[14]))
+        && (a.size() <= 15 || validAttachment(a[15]))
+        && (a.size() <= 16 || validAttachment(a[16]))
+        && (a.size() <= 17 || validAttachment(a[17]))
+        && (a.size() <= 18 || validAttachment(a[18]))
+        && (a.size() <= 19 || validAttachment(a[19]));
+    }
+    function validLearningCreate(id) {
+      return hasGalleryAccess()
+        && request.resource.data.keys().hasOnly([
+          'title','body','category','authorUid','status','files','bytesTotal','createdAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'title','body','category','authorUid','status','files','bytesTotal','createdAt'
+        ])
+        && request.resource.data.title is string && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 150
+        && request.resource.data.body is string && request.resource.data.body.size() <= 10000
+        && request.resource.data.category in ['kindergarten','elementary','middle']
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.status == 'draft'
+        && validAttachments(request.resource.data.files)
+        && request.resource.data.bytesTotal is int
+        && request.resource.data.bytesTotal > 0
+        && request.resource.data.bytesTotal <= 20000000
+        && request.resource.data.createdAt == request.time;
+    }
+    function validGalleryImage(f) {
+      return f is map && f.keys().hasOnly(['id','mime','size'])
+        && f.keys().hasAll(['id','mime','size'])
+        && f.id is string && f.id.matches('^[A-Za-z0-9_-]{12,128}$')
+        && f.mime in ['image/webp','image/jpeg']
+        && f.size is int && f.size > 0 && f.size <= 1500000;
+    }
+    function validGalleryCreate(id) {
+      return isAdmin()
+        && request.resource.data.keys().hasOnly([
+          'title','description','authorUid','status','image','createdAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'title','description','authorUid','status','image','createdAt'
+        ])
+        && request.resource.data.title is string && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 150
+        && request.resource.data.description is string && request.resource.data.description.size() <= 3000
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.status == 'draft'
+        && validGalleryImage(request.resource.data.image)
+        && request.resource.data.createdAt == request.time;
+    }
+    function onlyPublishOwnDraft() {
+      return isActive() && resource.data.get('authorUid','') == request.auth.uid
+        && resource.data.get('status','') == 'draft'
+        && request.resource.data.status == 'published'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt'])
+        && request.resource.data.updatedAt == request.time;
+    }
     match /learningResources/{id} {
       allow get, list: if isActive();
-      allow create: if isAdmin() && validFileRecord('learning',id);
-      allow delete: if isAdmin();
+      allow create: if (isAdmin() && validFileRecord('learning',id)) || validLearningCreate(id);
+      allow update: if hasGalleryAccess() && onlyPublishOwnDraft();
+      allow delete: if isAdmin() || (hasGalleryAccess() && resource.data.get('authorUid','') == request.auth.uid);
     }
     match /galleryItems/{id} {
       allow get, list: if hasGalleryAccess();
-      allow create: if isAdmin() && validFileRecord('gallery',id);
+      allow create: if (isAdmin() && validFileRecord('gallery',id)) || validGalleryCreate(id);
+      allow update: if isAdmin() && onlyPublishOwnDraft();
       allow delete: if isAdmin();
     }
     match /officeDocs/{id} {
