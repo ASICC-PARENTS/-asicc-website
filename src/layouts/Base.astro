@@ -79,10 +79,10 @@ const current = (p: string) => rest.startsWith(p);
       </nav>
       <div class="tools">
         <a class="lang-link" href={altPath(lang, altR)} hreflang={other} lang={other} data-lang-switch={other}><span class="full">{t(lang, 'lang.switch')}</span><span class="abbr" aria-hidden="true">{other === 'fr' ? 'FR' : 'KO'}</span></a>
-        <a class="btn btn-dark btn-sm members-btn" href={href(lang, 'membres/')} data-members-lock title={lang==='ko'?'회원공간 (로그인 전)':'Espace membres (déconnecté)'}>
+        <a class="btn btn-dark btn-sm members-btn" href={href(lang, 'membres/login/')} data-members-lock data-members-login={href(lang, 'membres/login/')} data-members-home={href(lang, 'membres/')} aria-label={lang==='ko'?'로그인/회원가입':'Connexion / Inscription'} title={lang==='ko'?'로그인/회원가입':'Connexion / Inscription'}>
           <svg data-lock-closed width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
           <svg data-lock-open width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8-3"/></svg>
-          <span class="lbl">{t(lang, 'nav.members')}</span>
+          <span class="lbl" data-members-label>{lang === 'ko' ? '로그인/회원가입' : 'Connexion / Inscription'}</span>
         </a>
         <button type="button" class="menu-btn" id="menuBtn" aria-controls="nav" aria-expanded="false" aria-label={t(lang, 'nav.menu')}>
           <svg class="ic-open" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
@@ -172,13 +172,20 @@ const current = (p: string) => rest.startsWith(p);
     const membersButton = document.querySelector<HTMLAnchorElement>('[data-members-lock]');
     const closedIcon = membersButton?.querySelector<SVGElement>('[data-lock-closed]');
     const openIcon = membersButton?.querySelector<SVGElement>('[data-lock-open]');
+    const membersLabel = membersButton?.querySelector<HTMLElement>('[data-members-label]');
     const isKorean = document.documentElement.lang === 'ko';
     function setMembersLock(open:boolean){
       if(closedIcon) closedIcon.hidden = open;
       if(openIcon) openIcon.hidden = !open;
-      membersButton?.setAttribute('title',open
-        ? (isKorean?'회원공간 (로그인됨)':'Espace membres (connecté)')
-        : (isKorean?'회원공간 (로그인 전)':'Espace membres (déconnecté)'));
+      const label = open
+        ? (isKorean ? '회원공간' : 'Espace membres')
+        : (isKorean ? '로그인/회원가입' : 'Connexion / Inscription');
+      if(membersLabel) membersLabel.textContent = label;
+      if(membersButton){
+        membersButton.href = open ? membersButton.dataset.membersHome! : membersButton.dataset.membersLogin!;
+        membersButton.setAttribute('title',label);
+        membersButton.setAttribute('aria-label',label);
+      }
     }
     if(membersButton && import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true'){
       const app = getApps().find(a => a.name === 'asicc-website') ?? initializeApp(firebaseConfig,'asicc-website');

@@ -20,10 +20,25 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
         </span>
         <h1 class="h2">{L(lang, { ko: '로그인', fr: 'Se connecter' })}</h1>
         <p class="muted">{L(lang, {
-          ko: '가입 시 등록한 이메일과 비밀번호로 로그인하세요. 학습자료실은 모든 인증 회원이 이용할 수 있습니다.',
-          fr: 'Connectez-vous avec votre adresse e-mail et votre mot de passe. Les ressources pédagogiques sont accessibles à tous les membres vérifiés.'
+          ko: '가입할 때 등록한 이메일과 비밀번호로 로그인하세요.',
+          fr: 'Connectez-vous avec votre adresse e-mail et votre mot de passe.'
         })}</p>
       </div>
+
+      <aside class="member-join-info stack gap-8" aria-label={L(lang,{ko:'회원가입 및 이용 안내',fr:'Inscription et accès aux espaces membres'})}>
+        <strong>{L(lang,{
+          ko:'협회회원이 아니어도 일반회원으로 무료 가입할 수 있습니다.',
+          fr:'Vous pouvez créer gratuitement un compte de membre général, sans adhérer à l’association.'
+        })}</strong>
+        <p class="small">{L(lang,{
+          ko:'이메일 인증 후 일반회원은 학습자료실과 게시판을 열람할 수 있습니다. 게시판 글쓰기·댓글, 갤러리 및 운영진 전용 공간은 회원 등급에 따라 이용 권한이 다릅니다.',
+          fr:'Après vérification de votre adresse e-mail, les membres généraux peuvent consulter les ressources pédagogiques et lire le forum. La publication, les commentaires, la galerie et les espaces réservés à l’équipe dirigeante sont accessibles selon le statut du membre.'
+        })}</p>
+        <a class="member-join-link" href={href(lang, 'membres/signup/')}>{L(lang,{
+          ko:'일반회원 무료 가입 →',
+          fr:'Créer un compte gratuit →'
+        })}</a>
+      </aside>
 
       {!live && <p class="card small" role="status">{L(lang,{ko:"로그인 기능은 보안 점검 중입니다. 이 화면에서 계정을 사용하지 마세요.",fr:"La connexion est désactivée pendant les contrôles de sécurité."})}</p>}
       <form
@@ -75,6 +90,22 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     </div>
   </section>
 </Base>
+
+<style>
+  .member-join-info {
+    background: var(--cheongja-w, #f4f8f6);
+    border: 1px solid var(--line, #e3e8e6);
+    border-radius: 10px;
+    padding: 16px 18px;
+    overflow-wrap: anywhere;
+  }
+  .member-join-info strong { font-size: 15px; line-height: 1.6; }
+  .member-join-info p { color: var(--ink-2, #474b4a); line-height: 1.7; }
+  .member-join-link { display: inline-block; align-self: flex-start; font-weight: 600; font-size: 14px; }
+  @media(max-width: 520px){
+    .member-join-info { padding: 14px; }
+  }
+</style>
 
 <script>
   import { getApps, initializeApp } from 'firebase/app';
