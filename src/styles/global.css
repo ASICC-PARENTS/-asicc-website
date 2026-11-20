@@ -936,3 +936,55 @@ html[lang="fr"] a[href^="http"] { overflow-wrap: anywhere; }
 @media(max-width:640px){.rich-editor{padding:14px;min-height:230px}.rich-tools{gap:2px;padding:6px}.rich-tools button{min-height:32px;min-width:30px;padding:4px 6px}}
 
 .rich-tools [hidden]{display:none!important}
+
+
+/* ASICC photo layout controls — safe percentages and alignment persist with posts. */
+.photo-adjust[hidden]{display:none!important}
+.photo-adjust{border:1px solid #CDDCD5;border-radius:9px;background:#F5FAF7;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.photo-adjust-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px}
+.photo-adjust-row strong{color:#2C5248}
+.photo-adjust-row label,.photo-adjust-row>span:first-child{min-width:34px;font-weight:600}
+.photo-adjust input[type=range]{flex:1 1 160px;max-width:300px;accent-color:#407866;cursor:pointer}
+.photo-adjust output{min-width:42px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.photo-adjust-buttons{display:flex;gap:4px;flex-wrap:wrap}
+.photo-adjust-buttons button{min-height:32px;padding:5px 11px;border-radius:6px;background:white;border:1px solid #C7D7CF;color:#3F5C50;font-size:12px;cursor:pointer}
+.photo-adjust-buttons button:hover,.photo-adjust-buttons button.is-active{background:#E3F0E9;border-color:#679D87;color:#224D3D}
+.photo-adjust-buttons button:focus-visible{outline:2px solid #4D9477;outline-offset:2px}
+.rich-editor img[data-b2-key],.board-text img[data-b2-key]{display:block;max-width:100%;height:auto;object-fit:contain}
+.rich-editor img[data-photo-align="left"],.board-text img[data-photo-align="left"]{margin-left:0;margin-right:auto}
+.rich-editor img[data-photo-align="center"],.board-text img[data-photo-align="center"]{margin-left:auto;margin-right:auto}
+.rich-editor img[data-photo-align="right"],.board-text img[data-photo-align="right"]{margin-left:auto;margin-right:0}
+.rich-editor img.photo-selected{outline:3px solid #528E76;outline-offset:2px;cursor:pointer}
+.rich-editor img[data-b2-key]{cursor:pointer}
+@media(max-width:640px){.photo-adjust{padding:10px}.photo-adjust-row{gap:8px}.photo-adjust input[type=range]{flex-basis:130px}}
+
+/* ASICC forum categories: browse without entering any search term. */
+.board-category-tabs {display:flex;gap:7px;flex-wrap:wrap;margin:0 0 3px}
+.board-category-tab {appearance:none;border:1px solid #D5E4DB;background:#fff;color:#445C50;border-radius:999px;padding:8px 17px;font:inherit;font-size:13px;line-height:1.4;cursor:pointer;min-height:36px}
+.board-category-tab:hover {background:#EDF5F0}
+.board-category-tab.is-active {background:#376A5B;border-color:#376A5B;color:#fff;font-weight:600}
+.board-category-tab:focus-visible {outline:3px solid #6EAA91;outline-offset:2px}
+.board-title-wrap {display:flex;align-items:center;gap:9px;min-width:0}
+.board-title-wrap .board-title-link {flex:1;min-width:0}
+.board-category-badge {flex-shrink:0;display:inline-block;white-space:nowrap;border-radius:5px;padding:3px 7px;background:#EAF3EE;color:#3A6955;font-size:12px;line-height:1.5;font-weight:600}
+.board-category-market {background:#FFF1E7;color:#8A562C}
+.board-category-give {background:#EDF2FC;color:#496590}
+.board-category-question {background:#F6EDF8;color:#7F5684}
+.board-comment-group {border:1px solid #E1E9E4;border-radius:9px;overflow:hidden;background:#fff}
+.board-comment-entry {padding:13px 17px;display:flex;flex-direction:column;gap:5px;min-width:0}
+.board-comment-meta {font-size:12px;color:#67776E}
+.board-comment-text {white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7;margin:0}
+.board-comment-entry .board-comment-actions {align-self:flex-start;margin-top:4px}
+.board-replies {margin:0 0 5px 20px;border-left:2px solid #D9E7DE;background:#F8FBF9}
+.board-reply-entry {padding:11px 15px}
+.board-reply-form {margin-top:7px;display:flex;flex-direction:column;gap:8px}
+.board-reply-form textarea {resize:vertical;min-height:70px;width:100%}
+.board-reply-form-actions {display:flex;gap:7px}
+.board-mini-primary {background:#EAF3EE;border-color:#A5C9B7;color:#315D4A}
+@media(max-width:650px){
+  .board-title-wrap {grid-column:1/-1;flex-wrap:wrap;gap:5px 8px}
+  .board-title-wrap .board-title-link {padding:4px 0;flex-basis:70%}
+  .board-category-tabs {gap:5px}
+  .board-category-tab {padding:7px 11px;font-size:12px}
+  .board-replies {margin-left:12px}
+}

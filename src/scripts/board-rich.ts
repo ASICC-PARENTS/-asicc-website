@@ -18,6 +18,15 @@ function filterNode(node:Node):Node|null {
     if(!PHOTO_KEY_RE.test(key))return null;
     const img=document.createElement('img');img.dataset.b2Key=key;
     img.alt=(orig.getAttribute('alt')||'사진').slice(0,100);
+    // Preserve ONLY constrained size and alignment metadata, not arbitrary HTML styles.
+    const rawWidth=orig.getAttribute('data-photo-width')||'';
+    const width=Number(rawWidth);
+    if(rawWidth && Number.isInteger(width) && width>=25 && width<=100 && width%5===0){
+      img.dataset.photoWidth=String(width);
+      img.style.width=`${width}%`;
+    }
+    const align=orig.getAttribute('data-photo-align')||'';
+    if(['left','center','right'].includes(align))img.dataset.photoAlign=align;
     img.loading='lazy';return img;
   }
   const dest=document.createElement(name);
