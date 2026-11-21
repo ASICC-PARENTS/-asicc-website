@@ -9,6 +9,7 @@ const base=read('src/layouts/Base.astro');
 const css=read('src/styles/global.css');
 const rules=read('firestore.rules.PROPOSED_ONLY');
 const activity=read('src/scripts/members/activity.ts');
+const deploy=read('.github/workflows/deploy.yml');
 
 test('nested replies use direct parents, end at level 5, and render recursively',()=>{
   assert.match(board, /const MAX_COMMENT_DEPTH=5;/);
@@ -29,20 +30,19 @@ test('member dashboard separates admin shortcuts and uses requested navigation l
   assert.match(member,/\.member-staff-links\[hidden\]\s*\{display:none\}/);
 });
 
-test('administrator display has visit count, last login, collapsed audit and no obsolete filters',()=>{
-  for(const value of ['admin-today-visitors','lastSeenAt','최종 접속일','admin-deletions-panel','탈퇴 요청일'])assert.ok(admin.includes(value),value);
-  assert.ok(!admin.includes('admin-filter-to'));
-  assert.ok(!admin.includes('admin-redact-legacy'));
+test('admin dashboard offers external analytics; no fake last-activity timestamp or obsolete filters',()=>{
+  for(const value of ['Cloudflare 방문 통계 열기','Firebase 로그인 기록 확인','admin-deletions-panel','탈퇴 요청일'])assert.ok(admin.includes(value),value);
+  for(const obsolete of ['admin-today-visitors','lastSeenAt','admin-filter-to','admin-redact-legacy','recordMemberActivity'])assert.ok(!admin.includes(obsolete),obsolete);
   assert.match(admin, /addEventListener\('toggle'/);
 });
 
-test('member tracking updates only the logged-in member time with reviewed rules',()=>{
+test('visit tracking has no client Firestore writes and uses optional single Cloudflare beacon',()=>{
   assert.match(base,/members-icon-open/);
-  assert.match(base,/recordMemberActivity/);
-  assert.match(activity,/updateDoc\(member\.ref,\{lastSeenAt:serverTimestamp\(\)\}\)/);
-  assert.match(activity,/parisDay\(last\)===parisDay\(now\)/);
-  assert.match(rules,/function validSelfActivityUpdate\(uid\)/);
-  assert.match(rules,/affectedKeys\(\)\.hasOnly\(\['lastSeenAt'\]\)/);
-  assert.match(rules,/request\.resource\.data\.lastSeenAt == request\.time/);
-  assert.match(rules,/validSelfNicknameUpdate\(uid\) \|\| validSelfActivityUpdate\(uid\) \|\| validAdminMemberUpdate\(uid\)/);
+  assert.match(base,/cloudflareToken && <script is:inline defer/);
+  assert.match(base,/static\.cloudflareinsights\.com\/beacon\.min\.js/);
+  assert.match(deploy,/PUBLIC_ASICC_CLOUDFLARE_TOKEN/);
+  assert.doesNotMatch(base,/recordMemberActivity|lastSeenAt/);
+  assert.doesNotMatch(activity,/updateDoc|serverTimestamp|setDoc/);
+  assert.doesNotMatch(rules,/validSelfActivityUpdate/);
+  assert.match(rules,/allow update: if validSelfNicknameUpdate\(uid\) \|\| validAdminMemberUpdate\(uid\)/);
 });

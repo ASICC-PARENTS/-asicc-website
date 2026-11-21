@@ -55,13 +55,12 @@ test('members cannot edit others or elevate their own role; admin cannot change 
   await assertFails(updateDoc(doc(context('admin'),'members','admin'),{role:'general'}));
 });
 
-test('members can update only their own server-timestamped activity',async()=>{
-  const self=context('member');
-  await assertSucceeds(updateDoc(doc(self,'members','member'),{lastSeenAt:serverTimestamp()}));
-  await assertFails(updateDoc(doc(self,'members','member'),{lastSeenAt:new Date('2045-01-01')}));
-  await assertFails(updateDoc(doc(self,'members','member'),{lastSeenAt:serverTimestamp(),role:'admin'}));
-  await assertFails(updateDoc(doc(self,'members','editme'),{lastSeenAt:serverTimestamp()}));
-  await assertSucceeds(updateDoc(doc(context('admin'),'members','admin'),{lastSeenAt:serverTimestamp()}));
+test('member activity timestamps cannot be modified directly by any client',async()=>{
+  await assertFails(updateDoc(doc(context('member'),'members','member'),{lastSeenAt:serverTimestamp()}));
+  await assertFails(updateDoc(doc(context('member'),'members','member'),{lastSeenAt:new Date('2045-01-01')}));
+  await assertFails(updateDoc(doc(context('member'),'members','editme'),{lastSeenAt:serverTimestamp()}));
+  await assertFails(updateDoc(doc(context('admin'),'members','admin'),{lastSeenAt:serverTimestamp()}));
+  await assertFails(updateDoc(doc(context('admin'),'members','member'),{lastSeenAt:serverTimestamp()}));
 });
 
 test('new member and withdrawal acknowledgement belongs to each admin only',async()=>{

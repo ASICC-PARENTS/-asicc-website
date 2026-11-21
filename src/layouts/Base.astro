@@ -29,6 +29,7 @@ const desc = description ?? (lang === 'ko'
   : 'Site officiel de l’ASICC, association des parents de la section internationale coréenne de Courbevoie (maternelle, élémentaire, collège).');
 const site = Astro.site?.toString().replace(/\/$/, '') ?? '';
 const hideFromSearch = noindex || !SEARCH_INDEXING;
+const cloudflareToken = String(import.meta.env.PUBLIC_ASICC_CLOUDFLARE_TOKEN ?? '').trim();
 const current = (p: string) => rest.startsWith(p);
 ---
 <!doctype html>
@@ -49,6 +50,7 @@ const current = (p: string) => rest.startsWith(p);
   <meta property="og:description" content={desc}>
   <meta property="og:locale" content={lang === 'ko' ? 'ko_KR' : 'fr_FR'}>
   <link rel="icon" href={`${BASE}favicon.svg`} type="image/svg+xml">
+  {cloudflareToken && <script is:inline defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon={JSON.stringify({token:cloudflareToken})}></script>}
   <slot name="head" />
 </head>
 <body>
@@ -168,9 +170,7 @@ const current = (p: string) => rest.startsWith(p);
   <script>
     import { getApps, initializeApp } from 'firebase/app';
     import { getAuth, onAuthStateChanged } from 'firebase/auth';
-    import { getFirestore } from 'firebase/firestore';
     import { firebaseConfig } from '../firebase-config';
-    import { recordMemberActivity } from '../scripts/members/activity';
     const membersButton = document.querySelector<HTMLAnchorElement>('[data-members-lock]');
     const membersLabel = membersButton?.querySelector<HTMLElement>('[data-members-label]');
     const isKorean = document.documentElement.lang === 'ko';
@@ -196,7 +196,6 @@ const current = (p: string) => rest.startsWith(p);
       // individual member pages remains enforced separately by Firestore.
       onAuthStateChanged(auth, (user) => {
         setMembersLock(Boolean(user?.emailVerified));
-        if(user?.emailVerified)void recordMemberActivity(getFirestore(app),user.uid);
       });
       // If a user verifies their email in a different browser tab, update
       // the header when they return without requiring a full page refresh.

@@ -71,12 +71,13 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
         </p>
 
         <section class="card auth-card stack gap-8" aria-labelledby="visits-heading">
-          <h2 id="visits-heading" class="h3">{L(lang,{ko:'오늘 접속 회원',fr:'Membres connectés aujourd’hui'})}</h2>
-          <div class="row gap-12" style="align-items:baseline;flex-wrap:wrap">
-            <strong id="admin-today-visitors" class="asicc-visitor-count">—</strong>
-            <span class="small muted">{L(lang,{ko:'명 · 파리 시간 기준, 회원별 중복 제외',fr:'personnes · heure de Paris, chaque membre compté une fois'})}</span>
+          <h2 id="visits-heading" class="h3">{L(lang,{ko:'방문 통계',fr:'Statistiques de fréquentation'})}</h2>
+          <p class="small muted">{L(lang,{ko:'비회원 포함 방문 횟수와 페이지 조회수는 Cloudflare 대시보드에서 확인합니다. 홈페이지의 회원정보 DB에는 방문 기록을 저장하지 않습니다.',fr:'Les visites (y compris anonymes) et pages vues sont consultables dans Cloudflare. Aucune activité de visite n’est enregistrée dans la base de profils.'})}</p>
+          <div class="row gap-12" style="flex-wrap:wrap">
+            <a class="btn btn-ghost" href="https://dash.cloudflare.com/" target="_blank" rel="noopener noreferrer">{L(lang,{ko:'Cloudflare 방문 통계 열기',fr:'Ouvrir Cloudflare Analytics'})}</a>
+            <a class="btn btn-ghost" href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer">{L(lang,{ko:'Firebase 로그인 기록 확인',fr:'Consulter les connexions Firebase'})}</a>
           </div>
-          <p class="small muted">{L(lang,{ko:'로그인한 회원의 오늘 접속 수입니다. 익명 방문자는 포함되지 않습니다. 새로운 방문 기록은 Firebase 보안 규칙 적용 후 수집됩니다.',fr:'Nombre de membres authentifiés aujourd’hui, sans visiteurs anonymes. Le suivi nécessite les nouvelles règles Firestore.'})}</p>
+          <p class="small muted">{L(lang,{ko:'개별 회원의 마지막 로그인일은 Firebase Authentication에서 확인합니다. 서버 연동 없이 이 화면에 표시하지 않습니다.',fr:'La date de dernière connexion est consultable dans Firebase Authentication. Elle n’est pas affichée ici sans serveur sécurisé.'})}</p>
         </section>
 
         <section class="card auth-card stack gap-16" aria-labelledby="requests-heading">
@@ -229,7 +230,6 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   .asicc-admin-page #asicc-admin, .asicc-admin-page #admin-content { box-sizing:border-box; width:100%; min-width:0; }
   .asicc-admin-page #admin-content > .card.auth-card,
   .asicc-admin-page #admin-content > section.card.auth-card { max-width:none; width:100%; margin:0; box-sizing:border-box; padding:clamp(16px,1.8vw,28px); }
-  .asicc-visitor-count { font-size:clamp(2rem,3vw,3rem);font-weight:800;line-height:1.1;color:#24624d; }
   .asicc-admin-deletion-section {padding:22px;}
   .asicc-admin-deletion-section summary {cursor:pointer;}
   .asicc-admin-deletion-section[open] > p {margin:16px 0 12px;}
@@ -282,13 +282,12 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     type DocumentData
   } from 'firebase/firestore';
   import { firebaseConfig } from '../../../firebase-config';
-  import { recordMemberActivity } from '../../../scripts/members/activity';
 
   type Child = {studentName:string;school:string;grade:string};
   type Member = { id: string; name: string; nickname?:string; nicknameKey?:string; email: string; phone?: string;
     levels?: string[]; children?: Child[]; memberKind?: string; memberRelation?: string;
     role: string; status: string; createdAt?: Timestamp | number | string | null;
-    lastSeenAt?: Timestamp | number | string | null; withdrawnAt?: Timestamp | number | string | null }; 
+    withdrawnAt?: Timestamp | number | string | null }; 
   type Withdrawal = { uid: string; name: string; email: string; status: string; requestedAt?: Timestamp | number | null };
   type Upgrade = { uid: string; applicantName: string; applicantEmail: string;
     requestedRole: 'member' | 'special'; kind: string; schoolYear?: number | null;
@@ -308,7 +307,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   const withdrawals = new Map<string,Withdrawal>();
   let page = 1;
   const pageSize = 25;
-  let sortColumn: 'createdAt' | 'lastSeenAt' | 'name' | 'email' = 'createdAt';
+  let sortColumn: 'createdAt' | 'name' | 'email' = 'createdAt';
   let sortAsc = false;
   let busy = false;
 
@@ -438,14 +437,6 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       hour:'2-digit',minute:'2-digit',hour12:false
     }).format(new Date(ms));
   };
-  const parisDay=(ms:number):string=>ms?new Intl.DateTimeFormat('sv-SE',{
-    timeZone:'Europe/Paris',year:'numeric',month:'2-digit',day:'2-digit'
-  }).format(new Date(ms)):'';
-  const renderTodayVisitors=()=>{
-    const today=parisDay(Date.now());
-    const visitors=members.filter(m=>parisDay(timestamp(m.lastSeenAt))===today).length;
-    text('admin-today-visitors',String(visitors));
-  };
   const gradeLabel = (m:Member):string => {
     const r=upgradeHistory.get(m.id);
     return (m.children ?? r?.children ?? []).map(c=>[c.studentName,c.school,c.grade].filter(Boolean).join(' / ')).join(' · ') || '—';
@@ -485,7 +476,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       return !term||hay.includes(term);
     });
     result.sort((a,b)=>{
-      const v=(sortColumn==='createdAt'||sortColumn==='lastSeenAt') ? timestamp(a[sortColumn])-timestamp(b[sortColumn])
+      const v=(sortColumn==='createdAt') ? timestamp(a[sortColumn])-timestamp(b[sortColumn])
         : String(a[sortColumn]||'').localeCompare(String(b[sortColumn]||''),fr?'fr':'ko');
       return sortAsc?v:-v;
     });
@@ -513,7 +504,6 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       ['#',null],[tr('실명','Nom'),'name'],[tr('아이디(이메일)','Identifiant (e-mail)'),'email'],
       [tr('닉네임','Pseudo'),null],[tr('연락처','Téléphone'),null],
       [tr('가입 일시 (파리)','Inscrit le (Paris)'),'createdAt'],
-      [tr('최종 접속일 (파리)','Dernière connexion (Paris)'),'lastSeenAt'],
       [tr('학교급 / 학교','Niveau / école'),null],
       [tr('학생 / 학년','Élève / classe'),null],[tr('가입 구분','Catégorie'),null],
       [tr('회원 등급','Statut'),null],[tr('계정 상태','État'),null],[tr('저장','Enregistrer'),null],[tr('정보 수정','Modifier'),null]
@@ -535,7 +525,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       const m=current[i],row=document.createElement('tr');row.dataset.uid=m.id;
       td(row,String((page-1)*pageSize+i+1));
       td(row,m.name||'—','admin-name');td(row,m.email||'—');td(row,m.nickname||'—');td(row,m.phone||'—');
-      td(row,stamp(m.createdAt),'admin-small');td(row,stamp(m.lastSeenAt),'admin-small');td(row,schoolLabel(m));
+      td(row,stamp(m.createdAt),'admin-small');td(row,schoolLabel(m));
       const students=td(row,gradeLabel(m),'admin-students');students.title=gradeLabel(m);
       const enrollment=upgradeHistory.get(m.id);
       td(row,(m.memberKind ?? enrollment?.kind) ? kindLabel(m.memberKind ?? enrollment!.kind):'—');
@@ -728,7 +718,6 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     const snap=await getDocs(collection(db,'members'));
     members=snap.docs.map(s=>({id:s.id,...s.data()} as Member));
     text('admin-member-count',String(members.length));
-    renderTodayVisitors();
     renderMembers();
   }
   async function loadHistory(){
@@ -943,10 +932,6 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
         deny(tr('운영진만 접근할 수 있는 공간입니다.','Cet espace est réservé aux administrateurs.'));return;
       }
       meUid=user.uid;
-      // Include the administrator's own authenticated visit before the daily count is calculated.
-      const visitRecorded=await recordMemberActivity(db,user.uid);
-      if(!visitRecorded)showMessage(tr('접속 기록을 저장하지 못했습니다. Firebase 규칙의 lastSeenAt 허용 여부를 확인해 주세요.',
-        'Le suivi des connexions est indisponible. Vérifiez les règles Firebase (lastSeenAt).'),true);
       text('admin-who',me.data().name || user.email || 'Admin');
       const loading=el<HTMLElement>('admin-loading');if(loading)loading.hidden=true;
       const content=el<HTMLElement>('admin-content');if(content)content.hidden=false;
