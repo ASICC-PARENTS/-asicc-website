@@ -83,3 +83,34 @@ test('authors can delete their learning posts; other members cannot',async()=>{
   await assertFails(deleteDoc(doc(ctx('special'),'learningResources','learn-member')));
   await assertSucceeds(deleteDoc(doc(ctx('member'),'learningResources','learn-member')));
 });
+
+test('published resource authors can edit rich text and category, but cannot change attachments or another author\'s post',async()=>{
+  const owner=ctx('member'),outsider=ctx('special');
+  await assertSucceeds(setDoc(doc(owner,'learningResources','edit-resource'),learning('member')));
+  await assertSucceeds(updateDoc(doc(owner,'learningResources','edit-resource'),{status:'published',updatedAt:serverTimestamp()}));
+  await assertSucceeds(updateDoc(doc(owner,'learningResources','edit-resource'),{
+    title:'수정한 제목',body:'asicc-rich-v1:<p><strong>수정한 본문</strong></p>',category:'common',updatedAt:serverTimestamp()
+  }));
+  await assertFails(updateDoc(doc(outsider,'learningResources','edit-resource'),{title:'임의 수정',updatedAt:serverTimestamp()}));
+  await assertFails(updateDoc(doc(owner,'learningResources','edit-resource'),{bytesTotal:1,updatedAt:serverTimestamp()}));
+  await assertFails(updateDoc(doc(ctx('general'),'learningResources','edit-resource'),{title:'일반회원 수정',updatedAt:serverTimestamp()}));
+});
+
+test('learning comments allow contributor replies and own edits, not general members or edits by others',async()=>{
+  const member=ctx('member'),special=ctx('special'),admin=ctx('admin');
+  await assertSucceeds(setDoc(doc(member,'learningResources','comment-resource'),learning('member')));
+  await assertFails(setDoc(doc(member,'learningResources','comment-resource','comments','draft-no'),{
+    body:'미공개 자료 댓글',authorUid:'member',authorName:'member',createdAt:serverTimestamp(),updatedAt:serverTimestamp(),deleted:false
+  }));
+  await assertSucceeds(updateDoc(doc(member,'learningResources','comment-resource'),{status:'published',updatedAt:serverTimestamp()}));
+  const mkComment=(uid,body)=>({body,authorUid:uid,authorName:uid,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),deleted:false});
+  await assertFails(setDoc(doc(ctx('general'),'learningResources','comment-resource','comments','general-comment'),mkComment('general','쓰기 불가')));
+  await assertSucceeds(setDoc(doc(special,'learningResources','comment-resource','comments','abcdefghijabcdefghij'),mkComment('special','첫 번째 댓글')));
+  await assertSucceeds(setDoc(doc(member,'learningResources','comment-resource','comments','reply-comment'),mkComment('member','[ASICC_REPLY_V1:abcdefghijabcdefghij]\n답글')));
+  await assertFails(updateDoc(doc(member,'learningResources','comment-resource','comments','abcdefghijabcdefghij'),{body:'다른 사람 댓글',updatedAt:serverTimestamp()}));
+  await assertSucceeds(updateDoc(doc(special,'learningResources','comment-resource','comments','abcdefghijabcdefghij'),{body:'수정한 댓글',updatedAt:serverTimestamp()}));
+  await assertSucceeds(getDoc(doc(ctx('general'),'learningResources','comment-resource','comments','abcdefghijabcdefghij')));
+  await assertFails(deleteDoc(doc(ctx('general'),'learningResources','comment-resource','comments','abcdefghijabcdefghij')));
+  await assertSucceeds(deleteDoc(doc(admin,'learningResources','comment-resource','comments','abcdefghijabcdefghij')));
+  await assertSucceeds(deleteDoc(doc(member,'learningResources','comment-resource','comments','reply-comment')));
+});

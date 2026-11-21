@@ -365,11 +365,42 @@ function validUpgrade(uid) {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt'])
         && request.resource.data.updatedAt == request.time;
     }
+    function validLearningEdit() {
+      return hasGalleryAccess()
+        && resource.data.get('authorUid','') == request.auth.uid
+        && resource.data.get('status','') == 'published'
+        && request.resource.data.status == 'published'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','body','category','updatedAt'])
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 150
+        && request.resource.data.body is string
+        && request.resource.data.body.size() <= 10000
+        && request.resource.data.category in ['kindergarten','elementary','middle','common','other']
+        && request.resource.data.updatedAt == request.time;
+    }
     match /learningResources/{id} {
       allow get, list: if isActive();
       allow create: if (isAdmin() && validFileRecord('learning',id)) || validLearningCreate(id);
-      allow update: if hasGalleryAccess() && onlyPublishOwnDraft();
+      allow update: if (hasGalleryAccess() && onlyPublishOwnDraft()) || validLearningEdit();
       allow delete: if isAdmin() || (hasGalleryAccess() && resource.data.get('authorUid','') == request.auth.uid);
+      match /comments/{commentId} {
+        allow get, list: if isActive() && exists(/databases/$(database)/documents/learningResources/$(id))
+          && get(/databases/$(database)/documents/learningResources/$(id)).data.get('status','') == 'published';
+        allow create: if hasGalleryAccess()
+          && exists(/databases/$(database)/documents/learningResources/$(id))
+          && get(/databases/$(database)/documents/learningResources/$(id)).data.get('status','') == 'published'
+          && validCommentCreate();
+        allow update: if hasGalleryAccess()
+          && exists(/databases/$(database)/documents/learningResources/$(id))
+          && get(/databases/$(database)/documents/learningResources/$(id)).data.get('status','') == 'published'
+          && resource.data.authorUid == request.auth.uid
+          && validCommentEdit();
+        allow delete: if hasGalleryAccess()
+          && exists(/databases/$(database)/documents/learningResources/$(id))
+          && (resource.data.authorUid == request.auth.uid || isAdmin()
+            || get(/databases/$(database)/documents/learningResources/$(id)).data.authorUid == request.auth.uid);
+      }
     }
     match /galleryItems/{id} {
       allow get, list: if hasGalleryAccess();

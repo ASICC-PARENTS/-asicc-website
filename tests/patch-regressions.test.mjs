@@ -58,3 +58,14 @@ test('learning resources reuse the board list/detail layout and exclude draft da
   assert.match(worker, /'\/api\/resource'/);
   assert.match(worker, /const MAX_RESOURCE_FILES = 8;/);
 });
+
+test('learning editor reuses board sanitizer and photo editing with no post-upload refresh',()=>{
+  const learning=read('src/pages/[lang]/membres/[area].astro');
+  for(const item of ['serializeEditor(resourceEditor)','setEditorBody(resourceEditor','renderBoardBody(text,item.body)',
+    'resource-photo-adjust','resource-rich-photo','resource-photo-width','data-resource-photo-align','populateResourcePhotos',
+    'resource-comment-form','refreshResourceComments','MAX_COMMENT_DEPTH=5','nicknameOf(item.authorUid','editingResourceId'])assert.ok(learning.includes(item),item);
+  assert.match(learning,/entries=\[published,\.\.\.entries\.filter/);
+  assert.match(learning,/openResource\(published\)/);
+  assert.match(rules,/function validLearningEdit\(\)/);
+  assert.match(rules,/match \/learningResources\/\{id\} \{[\s\S]*?match \/comments\/\{commentId\}/);
+});
