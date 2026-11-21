@@ -24,21 +24,21 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
     <div id="member-error" class="card" role="alert" hidden></div>
     <div id="member-content" hidden class="stack gap-20">
       <div class="card member-topbar">
-        <div class="member-staff-links" id="member-staff-links" hidden>
-          <a class="btn btn-ghost" href={href(lang,'membres/admin/')} id="admin-shortcut" hidden>{L(lang,{ko:'회원관리',fr:'Administration'})}</a>
-          <a class="btn btn-ghost" href={href(lang,'membres/office/')} id="office-shortcut" hidden>{L(lang,{ko:'온라인 협회 사무실',fr:'Bureau privé'})}</a>
-        </div>
-        <div class="member-user-controls">
+        <div class="member-leading">
           <div class="stack gap-8 member-identity">
             <div class="row gap-8" style="align-items:center;flex-wrap:wrap"><strong id="member-name"></strong><span id="member-role" class="m-badge"></span></div>
             <span class="small muted" id="member-email"></span>
           </div>
-          <div class="member-top-actions">
-            <a class="btn btn-ghost" href={href(lang,'membres/profile/')}>{L(lang,{ko:'내 정보 관리',fr:'Mon profil'})}</a>
-            <a class="btn btn-ghost" href={href(lang,'membres/upgrade/')} id="upgrade-shortcut" hidden>{L(lang,{ko:'승급 신청',fr:'Demander un statut'})}</a>
-            <a class="btn btn-ghost" href={href(lang,'membres/suggestions/')}>{L(lang,{ko:'협회에 건의',fr:'Écrire à l’association'})}</a>
-            <button id="member-signout" type="button" class="btn btn-ghost">{L(lang,{ko:'로그아웃',fr:'Déconnexion'})}</button>
+          <div class="member-staff-links" id="member-staff-links" hidden>
+            <a class="btn btn-ghost" href={href(lang,'membres/admin/')} id="admin-shortcut" hidden>{L(lang,{ko:'회원관리',fr:'Administration'})}</a>
+            <a class="btn btn-ghost" href={href(lang,'membres/office/')} id="office-shortcut" hidden>{L(lang,{ko:'온라인 협회 사무실',fr:'Bureau privé'})}</a>
           </div>
+        </div>
+        <div class="member-top-actions">
+          <a class="btn btn-ghost" href={href(lang,'membres/profile/')}>{L(lang,{ko:'내 정보 관리',fr:'Mon profil'})}</a>
+          <a class="btn btn-ghost" href={href(lang,'membres/upgrade/')} id="upgrade-shortcut" hidden>{L(lang,{ko:'승급 신청',fr:'Demander un statut'})}</a>
+          <a class="btn btn-ghost" href={href(lang,'membres/suggestions/')}>{L(lang,{ko:'협회에 건의',fr:'Écrire à l’association'})}</a>
+          <button id="member-signout" type="button" class="btn btn-ghost">{L(lang,{ko:'로그아웃',fr:'Déconnexion'})}</button>
         </div>
       </div>
       <div class="member-three">
@@ -68,12 +68,12 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
 </Base>
 <style>
 .member-topbar {padding:20px 24px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.member-leading {display:flex;gap:18px;flex-wrap:wrap;align-items:center;min-width:0}
 .member-staff-links {display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .member-staff-links[hidden] {display:none}
-.member-user-controls {display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-left:auto;justify-content:flex-end}
-.member-identity {text-align:right;align-items:flex-end}
-.member-top-actions {display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:flex-end}
-@media(max-width:720px){.member-user-controls{width:100%;margin-left:0;justify-content:flex-start}.member-identity{text-align:left;align-items:flex-start}.member-top-actions{justify-content:flex-start}}
+.member-identity {text-align:left;align-items:flex-start;min-width:0}
+.member-top-actions {display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:flex-end;margin-left:auto}
+@media(max-width:720px){.member-leading{width:100%}.member-top-actions{margin-left:0;justify-content:flex-start}}
 .member-three {display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:16px;align-items:stretch}
 .member-panel {padding:22px;min-width:0;min-height:340px}
 .member-panel-title {display:flex;justify-content:space-between;align-items:center;gap:8px}
