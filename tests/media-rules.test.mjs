@@ -48,6 +48,13 @@ test('Firestore rejects post declared over 20MB and invalid attachments',async()
   await assertFails(setDoc(doc(ctx('member'),'learningResources','exe-file'),bad));
 });
 
+test('common and other learning resource categories are accepted for verified contributors',async()=>{
+  for(const category of ['common','other']){
+    const resource=learning('member');resource.category=category;
+    await assertSucceeds(setDoc(doc(ctx('member'),'learningResources',`learn-${category}`),resource));
+  }
+});
+
 test('school category is required and unverified oversized file lists are rejected',async()=>{
   const missing=learning('member');delete missing.category;
   await assertFails(setDoc(doc(ctx('member'),'learningResources','no-category'),missing));

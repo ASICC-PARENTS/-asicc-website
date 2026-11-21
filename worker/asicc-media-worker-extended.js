@@ -9,7 +9,7 @@
  */
 const MAX_IMAGE = 1_500_000;
 const MAX_RESOURCE_POST = 20_000_000;
-const MAX_RESOURCE_FILES = 20;
+const MAX_RESOURCE_FILES = 8;
 const SAFE_ID = /^[A-Za-z0-9_-]{12,128}$/;
 const DOC_TYPES = new Set([
   'application/pdf','image/jpeg','image/png','image/webp','text/plain',

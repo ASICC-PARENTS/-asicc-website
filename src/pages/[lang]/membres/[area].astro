@@ -12,7 +12,7 @@ const titles = {
 const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
 ---
 <Base lang={lang} rest={`membres/${area}/`} title={L(lang,titles[area])} noindex>
-  <section class="wrap m-shell">
+  <section class="wrap m-shell board-shell">
     <div class="stack gap-16" id="files-root" data-lang={lang} data-area={area} data-login-url={href(lang,'membres/login/')}>
       <a href={href(lang,'membres/')} class="small">← {L(lang,{ko:'회원공간',fr:'Espace membres'})}</a>
       <h1 class="h2">{L(lang,titles[area])}</h1>
@@ -34,28 +34,44 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
         <p id="files-status" class="small muted" aria-live="polite" role="status">{L(lang,{ko:'회원 권한 확인 중…',fr:'Vérification des droits…'})}</p>
         <div id="files-controls" hidden class="stack gap-12">
           {area==='learning' && <>
-            <div class="files-toolbar">
-              <label class="sr-only" for="files-search">{L(lang,{ko:'자료 검색',fr:'Rechercher une ressource'})}</label>
-              <input id="files-search" type="search" maxlength="120" placeholder={L(lang,{ko:'자료 제목·내용 검색',fr:'Rechercher un titre ou un texte'})}/>
+            <div class="files-toolbar board-toolbar">
+              <div class="board-search-wrap">
+                <span class="board-search-icon" aria-hidden="true">⌕</span>
+                <label class="sr-only" for="files-search">{L(lang,{ko:'자료 검색',fr:'Rechercher une ressource'})}</label>
+                <input id="files-search" type="search" maxlength="120" placeholder={L(lang,{ko:'자료 제목·내용 검색',fr:'Rechercher un titre ou un texte'})}/>
+              </div>
               <label class="sr-only" for="resource-filter">{L(lang,{ko:'학교급 필터',fr:'Filtrer par niveau scolaire'})}</label>
-              <select id="resource-filter" aria-label={L(lang,{ko:'학교급 필터',fr:'Niveau scolaire'})}>
+              <select id="resource-filter" class="sr-only" aria-label={L(lang,{ko:'학교급 필터',fr:'Niveau scolaire'})}>
                 <option value="all">{L(lang,{ko:'전체',fr:'Tous'})}</option>
                 <option value="kindergarten">{L(lang,{ko:'유치원',fr:'Maternelle'})}</option>
                 <option value="elementary">{L(lang,{ko:'초등학교',fr:'École élémentaire'})}</option>
                 <option value="middle">{L(lang,{ko:'중학교',fr:'Collège'})}</option>
+                <option value="common">{L(lang,{ko:'공통',fr:'Commun'})}</option>
+                <option value="other">{L(lang,{ko:'기타',fr:'Autres'})}</option>
               </select>
               <button id="files-open-form" type="button" class="btn btn-dark" hidden>+ {L(lang,{ko:'자료 등록',fr:'Ajouter une ressource'})}</button>
             </div>
-            <form id="learning-form" class="card files-compose stack gap-12" hidden>
+            <nav id="resource-category-tabs" class="board-category-tabs" aria-label={L(lang,{ko:'학습자료 분류',fr:'Catégories de ressources'})}>
+              <button type="button" class="board-category-tab is-active" data-resource-tab="all" aria-pressed="true">{L(lang,{ko:'전체',fr:'Tout'})}</button>
+              <button type="button" class="board-category-tab" data-resource-tab="kindergarten" aria-pressed="false">{L(lang,{ko:'유치원',fr:'Maternelle'})}</button>
+              <button type="button" class="board-category-tab" data-resource-tab="elementary" aria-pressed="false">{L(lang,{ko:'초등학교',fr:'École élémentaire'})}</button>
+              <button type="button" class="board-category-tab" data-resource-tab="middle" aria-pressed="false">{L(lang,{ko:'중학교',fr:'Collège'})}</button>
+              <button type="button" class="board-category-tab" data-resource-tab="common" aria-pressed="false">{L(lang,{ko:'공통',fr:'Commun'})}</button>
+              <button type="button" class="board-category-tab" data-resource-tab="other" aria-pressed="false">{L(lang,{ko:'기타',fr:'Autres'})}</button>
+            </nav>
+            <label id="resource-drafts-wrap" class="small muted" hidden><input type="checkbox" id="resource-show-drafts"/> {L(lang,{ko:'미완성 초안 표시 (운영진)',fr:'Afficher les brouillons incomplets (administration)'})}</label>
+            <form id="learning-form" class="card board-editor files-compose stack gap-12" hidden>
               <h2 class="h3">{L(lang,{ko:'새 학습자료 등록',fr:'Nouvelle ressource'})}</h2>
               <label for="resource-title">{L(lang,{ko:'제목',fr:'Titre'})}</label>
               <input id="resource-title" type="text" required maxlength="150"/>
               <label for="resource-category">{L(lang,{ko:'자료 분류',fr:'Niveau scolaire'})}</label>
               <select id="resource-category" required>
-                <option value="" selected disabled>{L(lang,{ko:'학교급을 선택하세요',fr:'Choisissez un niveau'})}</option>
+                <option value="" selected disabled>{L(lang,{ko:'자료 분류를 선택하세요',fr:'Choisissez une catégorie'})}</option>
                 <option value="kindergarten">{L(lang,{ko:'유치원',fr:'Maternelle'})}</option>
                 <option value="elementary">{L(lang,{ko:'초등학교',fr:'École élémentaire'})}</option>
                 <option value="middle">{L(lang,{ko:'중학교',fr:'Collège'})}</option>
+                <option value="common">{L(lang,{ko:'공통',fr:'Commun'})}</option>
+                <option value="other">{L(lang,{ko:'기타',fr:'Autres'})}</option>
               </select>
               <label for="resource-body">{L(lang,{ko:'설명',fr:'Description'})}</label>
               <textarea id="resource-body" rows="5" maxlength="10000"></textarea>
@@ -101,7 +117,22 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
             </form>
           </>}
         </div>
-        <div id="files-list" class="stack gap-12"></div>
+        {area==='learning' ? <>
+          <section id="files-list-panel" class="board-list-card" aria-label={L(lang,{ko:'학습자료 목록',fr:'Liste des ressources'})}>
+            <div class="board-table-head">
+              <span>{L(lang,{ko:'번호',fr:'N°'})}</span>
+              <span>{L(lang,{ko:'제목',fr:'Titre'})}</span>
+              <span>{L(lang,{ko:'작성자',fr:'Auteur'})}</span>
+              <span>{L(lang,{ko:'날짜',fr:'Date'})}</span>
+            </div>
+            <div id="files-list"></div>
+            <p id="files-count" class="board-count" aria-live="polite"></p>
+          </section>
+          <article id="files-detail" class="card board-detail stack gap-16" hidden>
+            <button id="files-back" type="button" class="btn btn-ghost board-back">← {L(lang,{ko:'목록으로',fr:'Retour à la liste'})}</button>
+            <div id="files-detail-content" class="stack gap-12"></div>
+          </article>
+        </> : <div id="files-list" class="stack gap-12"></div>}
       </div>
     </div>
   </section>
@@ -112,11 +143,20 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
 </Base>
 <style>
   .files-toolbar {display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
-  .files-toolbar input {flex:1 1 260px;max-width:560px;min-width:180px}
+  .files-toolbar .board-search-wrap {flex:1 1 280px;max-width:450px}
+  .files-toolbar .board-search-wrap input {width:100%;max-width:none;min-width:0}
+  #resource-drafts-wrap {align-items:center;gap:8px;cursor:pointer}
+  #resource-drafts-wrap:not([hidden]) {display:flex}
+  :global(#files-detail-content .files-post) {border:0;background:transparent;padding:0}
+  :global(#files-detail-content .files-post-body) {white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.8}
+  :global(#files-detail-content .files-attachment) {display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 14px;background:#f8faf9;border:1px solid #e1e9e4;border-radius:8px}
+  :global(#files-detail-content .files-attachment span) {min-width:0;overflow-wrap:anywhere;flex:1}
+  :global(#files-detail-content .files-mini-btn) {border:1px solid #d7dce0;background:#fff;color:inherit;padding:7px 12px;border-radius:8px;cursor:pointer}
+  @media(max-width:650px){.files-compose{padding:18px 16px}}
   .files-toolbar select {min-width:150px;max-width:100%;padding:10px 12px;border:1px solid #d7dce0;border-radius:9px;background:#fff}
   .files-compose select {width:100%;padding:10px 12px;border:1px solid #d7dce0;border-radius:9px;background:#fff}
   .files-category-label {display:inline-block;margin:0 0 6px;padding:4px 10px;background:#eef5ef;border:1px solid #d3e6d7;border-radius:999px;font-size:.8rem;width:max-content;max-width:100%}
-  .files-compose {padding:22px;max-width:800px}
+  .files-compose {padding:30px;max-width:none;width:100%}
   .files-compose input:not([type=file]),.files-compose textarea {width:100%}
   .files-post {padding:20px;border:1px solid #e0e6e8;border-radius:12px;background:#fff;min-width:0}
   .files-post h2,.files-gallery-tile h2 {margin:0;font-size:1.1rem;line-height:1.5;overflow-wrap:anywhere}
@@ -144,7 +184,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
   import { firebaseConfig } from '../../../firebase-config';
   import { BOARD_PHOTO_API } from '../../../config/board-photos';
 
-  type SchoolCategory = 'kindergarten' | 'elementary' | 'middle';
+  type SchoolCategory = 'kindergarten' | 'elementary' | 'middle' | 'common' | 'other';
   type Entry = {id:string;title?:string;body?:string;description?:string;category?:SchoolCategory;status?:string;authorUid?:string;createdAt?:{toDate?:()=>Date};files?:ResourcePart[];bytesTotal?:number;image?:ResourcePart;filename?:string;storagePath?:string;mime?:string};
   type ResourcePart = {id:string;name:string;mime:string;size:number};
   const root=document.getElementById('files-root') as HTMLElement|null;
@@ -156,15 +196,15 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
   const list=by<HTMLElement>('files-list');
   const api=BOARD_PHOTO_API.trim().replace(/\/$/,'');
   const MAX_TOTAL=20_000_000;
-  const SCHOOL_CATEGORIES:SchoolCategory[]=['kindergarten','elementary','middle'];
+  const SCHOOL_CATEGORIES:SchoolCategory[]=['kindergarten','elementary','middle','common','other'];
   const validCategory=(value:string):value is SchoolCategory=>SCHOOL_CATEGORIES.includes(value as SchoolCategory);
-  const categoryName=(cat?:string)=>cat==='kindergarten'?tr('유치원','Maternelle'):cat==='elementary'?tr('초등학교','École élémentaire'):cat==='middle'?tr('중학교','Collège'):tr('미분류','Non classé');
+  const categoryName=(cat?:string)=>cat==='kindergarten'?tr('유치원','Maternelle'):cat==='elementary'?tr('초등학교','École élémentaire'):cat==='middle'?tr('중학교','Collège'):cat==='common'?tr('공통','Commun'):cat==='other'?tr('기타','Autres'):tr('미분류','Non classé');
   const MAX_FILES=8;
   const MIME:Record<string,string>={pdf:'application/pdf',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation',txt:'text/plain',jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp'};
   const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
   const auth=getAuth(app),db=getFirestore(app),storage=getStorage(app);
   const memo=new Map<string,string>();
-  let uid='',role='',entries:Entry[]=[];
+  let uid='',role='',entries:Entry[]=[],selectedResourceId='';
   const el=(tag:string,text?:string)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;return e;};
   const note=(msg:string,bad=false)=>{if(status){status.hidden=!msg;status.textContent=msg;status.style.color=bad?'#b42318':'';}};
   const moneySize=(n:number)=>(n/1_000_000).toLocaleString(fr?'fr-FR':'ko-KR',{maximumFractionDigits:2})+' MB';
@@ -228,7 +268,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
     const q=by<HTMLInputElement>('files-search')?.value.trim().toLocaleLowerCase()||'';
     const schoolFilter=by<HTMLSelectElement>('resource-filter')?.value||'all';
     return entries.filter(e=>{
-      if(e.status==='draft'&&e.authorUid!==uid)return false;
+      if(e.status==='draft' && e.authorUid!==uid && !(isAdmin()&&by<HTMLInputElement>('resource-show-drafts')?.checked))return false;
       if(e.status&&e.status!=='draft'&&e.status!=='published')return false;
       if(area==='learning'&&schoolFilter!=='all'&&e.category!==schoolFilter)return false;
       return !q||`${e.title||''} ${e.body||''} ${e.filename||''} ${categoryName(e.category)}`.toLocaleLowerCase().includes(q);
@@ -238,20 +278,54 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
     if(!list)return;
     list.replaceChildren();
     const filtered=visibleEntries();
+    if(area==='learning'){
+      const count=by<HTMLElement>('files-count');
+      if(count)count.textContent=tr(`자료 ${filtered.length}개 · 최근 100개 기준`,`${filtered.length} ressources · parmi les 100 dernières`);
+      if(!filtered.length){
+        const empty=el('p',tr('아직 등록된 자료가 없습니다.','Aucune ressource publiée.'));
+        empty.className='board-empty';list.append(empty);
+      }
+      filtered.forEach((item,index)=>{
+        const row=el('div');row.className='board-row';
+        const number=el('span',String(filtered.length-index));number.className='board-number';
+        const subject=el('div');subject.className='board-title-wrap';
+        const badge=el('span',item.status==='draft'?tr('미완성','Brouillon'):categoryName(item.category));badge.className='board-category-badge';
+        const title=el('button',item.title||tr('제목 없음','Sans titre')) as HTMLButtonElement;
+        title.type='button';title.className='board-title-link';title.addEventListener('click',()=>openResource(item));
+        subject.append(badge,title);
+        const author=el('span',item.authorUid===uid?tr('나','Moi'):tr('회원','Membre'));author.className='board-author';
+        const date=el('span',stamp(item.createdAt));date.className='board-date';
+        row.append(number,subject,author,date);list.append(row);
+      });
+      if(selectedResourceId){
+        const selected=entries.find(e=>e.id===selectedResourceId);
+        if(selected){const detail=by<HTMLElement>('files-detail-content');detail?.replaceChildren(renderPost(selected));}
+        else backResource();
+      }
+      return;
+    }
     if(!filtered.length){list.append(el('p',tr('아직 등록된 자료가 없습니다.','Aucun contenu pour le moment.')));return;}
     if(area==='gallery'){
       const grid=el('div');grid.className='files-gallery-grid';list.append(grid);
       for(const row of filtered)grid.append(renderGallery(row));
     } else for(const row of filtered)list.append(renderPost(row));
   }
+  function openResource(item:Entry){
+    selectedResourceId=item.id;
+    by<HTMLElement>('files-detail-content')?.replaceChildren(renderPost(item));
+    show('files-controls',false);show('files-list-panel',false);show('files-detail',true);
+  }
+  function backResource(){
+    selectedResourceId='';show('files-detail',false);show('files-list-panel',true);show('files-controls',true);
+  }
   function renderPost(item:Entry){
     const card=el('article');card.className='files-post stack gap-12';
     if(area==='learning'){
-      const category=el('span',categoryName(item.category));category.className='files-category-label';card.append(category);
+      const category=el('span',categoryName(item.category));category.className='board-category-badge';card.append(category);
     }
     const title=el('h2',item.title||tr('제목 없음','Sans titre'));
     card.append(title);
-    const meta=el('p',stamp(item.createdAt)+(item.status==='draft'?' · '+tr('미완성 초안','Brouillon incomplet'):''));meta.className='small muted';card.append(meta);
+    const meta=el('p',(item.authorUid===uid?tr('나','Moi'):item.authorUid?tr('회원','Membre'):tr('기존 자료','Document existant'))+' · '+stamp(item.createdAt)+(item.status==='draft'?' · '+tr('미완성 초안','Brouillon incomplet'):''));meta.className='small muted';card.append(meta);
     if(item.body){const text=el('p',item.body);text.className='files-post-body';card.append(text);}
     if(item.status==='draft'&&item.authorUid===uid){
       const p=el('p',tr('파일 전송이 완료되지 않았습니다. 삭제 후 다시 등록해 주세요.','Transfert incomplet : supprimez ce brouillon et recommencez.'));p.className='small muted';card.append(p);
@@ -334,6 +408,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
         cleanupFailed=true;console.warn('Draft file cleanup failed',error);
       }
       await deleteDoc(doc(db,area==='learning'?'learningResources':'galleryItems',item.id));
+      if(area==='learning' && selectedResourceId===item.id)backResource();
       note(cleanupFailed
         ?tr('미완성 초안을 삭제했습니다. 저장소에 파일이 남았을 수 있으니 운영진에게 알려 주세요.','Brouillon supprimé. Un fichier peut subsister sur le stockage : contactez les administrateurs.')
         :tr('삭제했습니다.','Contenu supprimé.'));
@@ -405,7 +480,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
       if(progress)progress.value=100;
       if(progressText)progressText.textContent=tr('전송 100% · 게시 완료 처리 중…','Transfert 100 % · Publication en cours…');
       await updateDoc(record,{status:'published',updatedAt:serverTimestamp()});
-      by<HTMLFormElement>('learning-form')?.reset();show('learning-form',false);show('files-open-form',true);
+      by<HTMLFormElement>('learning-form')?.reset();closeResourceForm();
       show('resource-upload-progress',false);
       note(tr('파일 전송과 자료 등록이 완료되었습니다.','Transfert et publication terminés.'));
       await refresh().catch(error=>{
@@ -425,7 +500,8 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
       const suffix=cleanupFailed
         ?tr('미완성 초안이 남았습니다. 삭제 버튼으로 지워 주세요.','Le brouillon incomplet subsiste. Supprimez-le.')
         :tr('전송 실패한 자료는 게시되지 않았습니다.','Le document non transféré n’a pas été publié.');
-      note(`${tr('업로드 실패','Échec du transfert')}: ${detail}. ${suffix}`,true);
+      const hint=detail.includes('HTTP 404')?tr(' 자료실 파일 API가 Worker에 배포되지 않은 것 같습니다. Cloudflare Worker 설정을 확인해 주세요.',' L’API fichiers semble absente du Worker déployé. Vérifiez le déploiement Cloudflare.') : '';
+      note(`${tr('업로드 실패','Échec du transfert')}: ${detail}. ${suffix}${hint}`,true);
       await refresh().catch(console.error);
     }finally{
       resourceSubmitting=false;
@@ -473,9 +549,30 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
     finally{if(save)save.disabled=false;}
   });
   by<HTMLElement>('files-search')?.addEventListener('input',render);
-  by<HTMLSelectElement>('resource-filter')?.addEventListener('change',render);
-  by<HTMLButtonElement>('files-open-form')?.addEventListener('click',()=>{show('learning-form',true);show('files-open-form',false);});
-  by<HTMLButtonElement>('resource-cancel')?.addEventListener('click',()=>{show('learning-form',false);show('files-open-form',true);});
+  by<HTMLSelectElement>('resource-filter')?.addEventListener('change',()=>{syncResourceTabs();render();});
+  by<HTMLInputElement>('resource-show-drafts')?.addEventListener('change',render);
+  document.querySelectorAll<HTMLButtonElement>('[data-resource-tab]').forEach(button=>button.addEventListener('click',()=>{
+    const filter=by<HTMLSelectElement>('resource-filter');if(!filter)return;
+    filter.value=button.dataset.resourceTab||'all';syncResourceTabs();render();
+  }));
+  function syncResourceTabs(){
+    const value=by<HTMLSelectElement>('resource-filter')?.value||'all';
+    document.querySelectorAll<HTMLButtonElement>('[data-resource-tab]').forEach(button=>{
+      const active=button.dataset.resourceTab===value;
+      button.classList.toggle('is-active',active);button.setAttribute('aria-pressed',String(active));
+    });
+  }
+  function closeResourceForm(){
+    show('learning-form',false);show('files-open-form',true);
+    show('resource-category-tabs',true);show('files-list-panel',true);
+    const draftWrap=by<HTMLElement>('resource-drafts-wrap');if(draftWrap)draftWrap.hidden=!isAdmin();
+  }
+  by<HTMLButtonElement>('files-open-form')?.addEventListener('click',()=>{
+    show('learning-form',true);show('files-open-form',false);show('resource-category-tabs',false);
+    show('files-list-panel',false);show('resource-drafts-wrap',false);
+  });
+  by<HTMLButtonElement>('resource-cancel')?.addEventListener('click',closeResourceForm);
+  by<HTMLButtonElement>('files-back')?.addEventListener('click',backResource);
   by<HTMLButtonElement>('gallery-open-form')?.addEventListener('click',()=>{show('gallery-form',true);show('gallery-open-form',false);});
   by<HTMLButtonElement>('gallery-cancel')?.addEventListener('click',()=>{show('gallery-form',false);show('gallery-open-form',true);});
   by<HTMLButtonElement>('gallery-viewer-close')?.addEventListener('click',()=>by<HTMLDialogElement>('gallery-viewer')?.close());
@@ -490,7 +587,10 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
       uid=user.uid;role=String(snap.data().role||'');
       if(!permitted())throw Error('Role not allowed');
       show('files-controls',true);
-      if(area==='learning')show('files-open-form',canLearningPost());
+      if(area==='learning'){
+        show('files-open-form',canLearningPost());
+        show('resource-drafts-wrap',isAdmin());
+      }
       if(area==='gallery')show('gallery-open-form',isAdmin());
       note('');await refresh();
     }catch(error){console.error(error);note(tr('접근하거나 자료를 불러올 수 없습니다. 회원권한·Firestore 규칙을 확인해 주세요.','Accès ou chargement impossible. Vérifiez les droits et les règles Firestore.'),true);}

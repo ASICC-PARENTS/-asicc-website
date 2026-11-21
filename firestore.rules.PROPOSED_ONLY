@@ -326,7 +326,7 @@ function validUpgrade(uid) {
         && request.resource.data.title is string && request.resource.data.title.size() > 0
         && request.resource.data.title.size() <= 150
         && request.resource.data.body is string && request.resource.data.body.size() <= 10000
-        && request.resource.data.category in ['kindergarten','elementary','middle']
+        && request.resource.data.category in ['kindergarten','elementary','middle','common','other']
         && request.resource.data.authorUid == request.auth.uid
         && request.resource.data.status == 'draft'
         && validAttachments(request.resource.data.files)

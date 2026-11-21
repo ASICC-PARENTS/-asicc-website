@@ -46,3 +46,15 @@ test('visit tracking has no client Firestore writes and uses optional single Clo
   assert.doesNotMatch(rules,/validSelfActivityUpdate/);
   assert.match(rules,/allow update: if validSelfNicknameUpdate\(uid\) \|\| validAdminMemberUpdate\(uid\)/);
 });
+
+test('learning resources reuse the board list/detail layout and exclude draft dashboard previews',()=>{
+  const learning=read('src/pages/[lang]/membres/[area].astro');
+  const worker=read('worker/asicc-media-worker-extended.js');
+  for(const key of ['resource-category-tabs','files-list-panel','files-detail','files-back','resource-show-drafts','board-title-link'])assert.ok(learning.includes(key),key);
+  for(const value of ["'kindergarten','elementary','middle','common','other'",'data-resource-tab="common"','data-resource-tab="other"'])assert.ok(learning.includes(value),value);
+  assert.match(member, /data\.status==='published'\|\|\(!data\.status&&typeof data\.storagePath/);
+  assert.match(rules, /request\.resource\.data\.category in \['kindergarten','elementary','middle','common','other'\]/);
+  assert.match(worker, /'\/api\/resource-upload'/);
+  assert.match(worker, /'\/api\/resource'/);
+  assert.match(worker, /const MAX_RESOURCE_FILES = 8;/);
+});

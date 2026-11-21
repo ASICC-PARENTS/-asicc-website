@@ -98,8 +98,16 @@ function item(text:string,sub?:string){const n=document.createElement('div');n.c
 async function displayFeed(id:string,collectionName:string,max=5){
  const target=by(id);if(!target)return;
  try{
-   const snap=await getDocs(query(collection(db,collectionName),orderBy('createdAt','desc'),limit(collectionName==='boardPosts'?20:max)));
-   const docs=snap.docs.filter(d=>collectionName!=='boardPosts'||d.data().deleted!==true).slice(0,max);
+   const previewLimit=collectionName==='boardPosts'?20:collectionName==='learningResources'||collectionName==='galleryItems'?10:max;
+   const snap=await getDocs(query(collection(db,collectionName),orderBy('createdAt','desc'),limit(previewLimit)));
+   // A Firestore draft can exist even when its binary upload failed.
+   // The dashboard must show only completed publications (or legacy stored files).
+   const docs=snap.docs.filter(d=>{
+     const data=d.data();
+     if(collectionName==='boardPosts')return data.deleted!==true;
+     if(collectionName==='learningResources'||collectionName==='galleryItems')return data.status==='published'||(!data.status&&typeof data.storagePath==='string'&&!!data.storagePath);
+     return true;
+   }).slice(0,max);
    target.replaceChildren();
    if(!docs.length){target.textContent=tr('등록된 자료가 없습니다.','Aucun contenu.');return;}
    docs.forEach(d=>{const data=d.data();target.append(item(String(data.title||data.filename||tr('제목 없는 자료','Sans titre')).slice(0,120),collectionName==='boardPosts'?tr('게시글','Message'):String(data.mime||tr('자료','Ressource'))));});
