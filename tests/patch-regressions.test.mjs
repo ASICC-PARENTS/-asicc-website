@@ -69,3 +69,33 @@ test('learning editor reuses board sanitizer and photo editing with no post-uplo
   assert.match(rules,/function validLearningEdit\(\)/);
   assert.match(rules,/match \/learningResources\/\{id\} \{[\s\S]*?match \/comments\/\{commentId\}/);
 });
+
+
+test('recent learning preview refreshes from server after deletion and on browser history restore',()=>{
+  assert.match(member, /getDocsFromServer\(feedQuery\)/);
+  assert.match(member, /event\.persisted/);
+  assert.match(member, /displayFeed\('recent-learning','learningResources'\)/);
+});
+
+test('learning editor lists old files, stages individual removal, and uploads new files safely',()=>{
+  const learning=read('src/pages/[lang]/membres/[area].astro');
+  const worker=read('worker/asicc-media-worker-extended.js');
+  for(const value of ['resource-existing-file-list','renderExistingAttachments','removedAttachmentIds',
+    'remainingAttachments','updateAttachmentSummary','updates.files=manifest','updates.bytesTotal=total'])
+    assert.ok(learning.includes(value),value);
+  assert.match(worker, /const editing=resource&&record\.status==='published'/);
+  assert.match(worker, /deleteAll\?files\.map\(f=>f\.id\):\[fileId\]/);
+  assert.match(rules, /learningAttachmentTotal\(request\.resource\.data\.files\)/);
+});
+
+
+test('text-only learning resources are permitted and resource cleanup supports an empty manifest',()=>{
+  const learning=read('src/pages/[lang]/membres/[area].astro');
+  const worker=read('worker/asicc-media-worker-extended.js');
+  assert.doesNotMatch(learning,/첨부파일은 최소 1개를 남기거나 추가해야/);
+  assert.match(learning,/status:files.length\?'draft':'published'/);
+  assert.match(learning,/type="file" multiple accept=/);
+  assert.match(rules,/a\.size\(\) == 0 \|\| validAttachment\(a\[0\]\)/);
+  assert.match(rules,/a\.size\(\) > 0 \? a\[0\]\.size : 0/);
+  assert.doesNotMatch(worker,/if\(!record\.files\.length/);
+});

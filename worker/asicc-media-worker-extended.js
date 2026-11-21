@@ -100,7 +100,8 @@ async function firestoreRecord(req,env,collection,id){
 }
 function resourceManifest(record){
   if(!record||!Array.isArray(record.files)||record.files.length>MAX_RESOURCE_FILES)return null;
-  if(!record.files.length||!['draft','published'].includes(record.status))return null;
+  // An author may keep a published resource post with no attachments.
+  if(!['draft','published'].includes(record.status))return null;
   let sum=0;const ids=new Set();
   for(const f of record.files){
     if(!f||!SAFE_ID.test(f.id||'')||ids.has(f.id)||typeof f.name!=='string'||!f.name||f.name.length>255||
@@ -129,25 +130,38 @@ async function handleFiles(request,env,headers,url,user){
   const collection=resource?'learningResources':'galleryItems';
   const id=url.searchParams.get(resource?'postId':'itemId')||'';
   const fileId=url.searchParams.get('fileId')||'';
-  if(!SAFE_ID.test(id)||(resource&&!SAFE_ID.test(fileId)))return json({error:'Invalid record identifier'},400,headers);
+  // Omitting fileId on DELETE removes the full resource; specified IDs delete one file.
+  const deleteAll=resource&&request.method==='DELETE'&&!fileId;
+  if(!SAFE_ID.test(id)||(resource&&!deleteAll&&!SAFE_ID.test(fileId)))return json({error:'Invalid record identifier'},400,headers);
   if(!resource&&user.role!=='admin'&&user.role!=='member'&&user.role!=='special')return json({error:'Gallery is private'},403,headers);
   let record;
   try{record=await firestoreRecord(request,env,collection,id);}catch{return json({error:'Record not accessible'},403,headers);}
   const files=resource?resourceManifest(record):null;
   if(resource&&!files||!resource&&!validGalleryRecord(record))return json({error:'Invalid file manifest'},409,headers);
   const meta=resource?files.find(f=>f.id===fileId):record.image;
-  if(!meta)return json({error:'Attachment not found'},404,headers);
+  if(!meta&&request.method==='GET')return json({error:'Attachment not found'},404,headers);
   const isOwner=record.authorUid===user.uid;
   const writer=resource?isOwner&&['member','special','admin'].includes(user.role):user.role==='admin'&&isOwner;
   const remover=user.role==='admin'||writer;
   const reader=resource?true:['member','special','admin'].includes(user.role);
-  const key=`${resource?'learning':'gallery'}/${id}/${meta.id}`;
+  const key=resource?`learning/${id}/${fileId}`:`gallery/${id}/${meta.id}`;
   if(request.method==='POST'){
-    if(!writer||record.status!=='draft')return json({error:'Only the author can upload to a draft'},403,headers);
+    if(!writer)return json({error:'Only the author may upload'},403,headers);
     const mime=(request.headers.get('Content-Type')||'').split(';')[0].trim().toLowerCase();
-    if(mime!==meta.mime||Number(request.headers.get('Content-Length')||0)>meta.size)return json({error:'File does not match the manifest'},413,headers);
+    const declared=Number(request.headers.get('Content-Length')||'0');
+    const editing=resource&&record.status==='published';
+    if(editing){
+      // Upload a fresh ID first. The published manifest is updated only after success.
+      // Existing attachments are never overwritten by an edit request.
+      if(meta)return json({error:'Attachment already exists'},409,headers);
+      if(!DOC_TYPES.has(mime)||declared>MAX_RESOURCE_POST)return json({error:'File type or size not allowed'},413,headers);
+    }else{
+      if(record.status!=='draft'||!meta)return json({error:'Draft attachment required'},403,headers);
+      if(mime!==meta.mime||declared>meta.size)return json({error:'File does not match the manifest'},413,headers);
+    }
     const bytes=new Uint8Array(await request.arrayBuffer());
-    if(bytes.length!==meta.size||!validDocumentBytes(bytes,mime))return json({error:'Invalid file size or format'},415,headers);
+    if(bytes.length===0||bytes.length>MAX_RESOURCE_POST||(!editing&&bytes.length!==meta.size)||!validDocumentBytes(bytes,mime))
+      return json({error:'Invalid file size or format'},415,headers);
     try{const upstream=await b2Request(env,'PUT',key,bytes,mime);
       return upstream.ok?json({ok:true},201,headers):json({error:'Storage upload failed'},502,headers);
     }catch{return json({error:'Storage unavailable'},502,headers);}
@@ -165,7 +179,8 @@ async function handleFiles(request,env,headers,url,user){
   if(request.method==='DELETE'){
     if(!remover)return json({error:'Delete access required'},403,headers);
     try{
-      const targets=resource?files.map(f=>f.id):[meta.id];
+      // With a fileId remove only that attachment; without it remove the whole post.
+      const targets=resource?(deleteAll?files.map(f=>f.id):[fileId]):[meta.id];
       for(const target of targets){const res=await b2Request(env,'DELETE',`${resource?'learning':'gallery'}/${id}/${target}`);
         if(!res.ok&&res.status!==404)return json({error:'Storage delete failed'},502,headers);
       }

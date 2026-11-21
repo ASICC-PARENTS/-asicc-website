@@ -304,8 +304,8 @@ function validUpgrade(uid) {
     // The private media Worker independently verifies all filenames, MIME types,
     // declared lengths and actual bytes before accepting a B2 upload.
     function validAttachments(a) {
-      return a is list && a.size() >= 1 && a.size() <= 8
-        && validAttachment(a[0])
+      return a is list && a.size() <= 8
+        && (a.size() == 0 || validAttachment(a[0]))
         && (a.size() <= 1 || validAttachment(a[1]))
         && (a.size() <= 2 || validAttachment(a[2]))
         && (a.size() <= 3 || validAttachment(a[3]))
@@ -328,11 +328,13 @@ function validUpgrade(uid) {
         && request.resource.data.body is string && request.resource.data.body.size() <= 10000
         && request.resource.data.category in ['kindergarten','elementary','middle','common','other']
         && request.resource.data.authorUid == request.auth.uid
-        && request.resource.data.status == 'draft'
+        && (request.resource.data.status == 'draft'
+            || (request.resource.data.status == 'published' && request.resource.data.files.size() == 0))
         && validAttachments(request.resource.data.files)
         && request.resource.data.bytesTotal is int
-        && request.resource.data.bytesTotal > 0
+        && request.resource.data.bytesTotal >= 0
         && request.resource.data.bytesTotal <= 20000000
+        && request.resource.data.bytesTotal == learningAttachmentTotal(request.resource.data.files)
         && request.resource.data.createdAt == request.time;
     }
     function validGalleryImage(f) {
@@ -365,18 +367,34 @@ function validUpgrade(uid) {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt'])
         && request.resource.data.updatedAt == request.time;
     }
+    // Fixed 8-slot sum keeps the client-supplied bytesTotal verifiable without loops.
+    function learningAttachmentTotal(a) {
+      return (a.size() > 0 ? a[0].size : 0)
+        + (a.size() > 1 ? a[1].size : 0)
+        + (a.size() > 2 ? a[2].size : 0)
+        + (a.size() > 3 ? a[3].size : 0)
+        + (a.size() > 4 ? a[4].size : 0)
+        + (a.size() > 5 ? a[5].size : 0)
+        + (a.size() > 6 ? a[6].size : 0)
+        + (a.size() > 7 ? a[7].size : 0);
+    }
     function validLearningEdit() {
       return hasGalleryAccess()
         && resource.data.get('authorUid','') == request.auth.uid
         && resource.data.get('status','') == 'published'
         && request.resource.data.status == 'published'
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','body','category','updatedAt'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','body','category','files','bytesTotal','updatedAt'])
         && request.resource.data.title is string
         && request.resource.data.title.size() > 0
         && request.resource.data.title.size() <= 150
         && request.resource.data.body is string
         && request.resource.data.body.size() <= 10000
         && request.resource.data.category in ['kindergarten','elementary','middle','common','other']
+        && validAttachments(request.resource.data.files)
+        && request.resource.data.bytesTotal is int
+        && request.resource.data.bytesTotal >= 0
+        && request.resource.data.bytesTotal <= 20000000
+        && request.resource.data.bytesTotal == learningAttachmentTotal(request.resource.data.files)
         && request.resource.data.updatedAt == request.time;
     }
     match /learningResources/{id} {

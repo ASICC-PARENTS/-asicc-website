@@ -86,7 +86,7 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
 <script>
 import {getApps,initializeApp} from 'firebase/app';
 import {getAuth,onAuthStateChanged,signOut,getIdToken} from 'firebase/auth';
-import {getFirestore,doc,getDoc,getDocs,collection,query,orderBy,limit} from 'firebase/firestore';
+import {getFirestore,doc,getDoc,getDocs,getDocsFromServer,collection,query,orderBy,limit} from 'firebase/firestore';
 import {firebaseConfig} from '../../../firebase-config';
 const root=document.querySelector<HTMLElement>('#member-root');const fr=root?.dataset.lang==='fr';
 const tr=(ko:string,french:string)=>fr?french:ko;
@@ -99,7 +99,9 @@ async function displayFeed(id:string,collectionName:string,max=5){
  const target=by(id);if(!target)return;
  try{
    const previewLimit=collectionName==='boardPosts'?20:collectionName==='learningResources'||collectionName==='galleryItems'?10:max;
-   const snap=await getDocs(query(collection(db,collectionName),orderBy('createdAt','desc'),limit(previewLimit)));
+   const feedQuery=query(collection(db,collectionName),orderBy('createdAt','desc'),limit(previewLimit));
+   // A deletion must not remain visible because of an old local Firestore snapshot.
+   const snap=collectionName==='learningResources'?await getDocsFromServer(feedQuery):await getDocs(feedQuery);
    // A Firestore draft can exist even when its binary upload failed.
    // The dashboard must show only completed publications (or legacy stored files).
    const docs=snap.docs.filter(d=>{
@@ -113,6 +115,10 @@ async function displayFeed(id:string,collectionName:string,max=5){
    docs.forEach(d=>{const data=d.data();target.append(item(String(data.title||data.filename||tr('제목 없는 자료','Sans titre')).slice(0,120),collectionName==='boardPosts'?tr('게시글','Message'):String(data.mime||tr('자료','Ressource'))));});
  }catch(err){console.error(err);target.textContent=tr('자료를 불러오지 못했습니다.','Impossible de charger les données.');}
 }
+// Browser Back/Forward Cache may restore an old dashboard DOM without rerunning auth.
+window.addEventListener('pageshow',event=>{
+  if(event.persisted&&!by('member-content')?.hidden)void displayFeed('recent-learning','learningResources');
+});
 if(import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true')onAuthStateChanged(auth,async user=>{
  if(!user){location.replace(root?.dataset.loginUrl||'/');return;}
  try{

@@ -84,15 +84,29 @@ test('authors can delete their learning posts; other members cannot',async()=>{
   await assertSucceeds(deleteDoc(doc(ctx('member'),'learningResources','learn-member')));
 });
 
-test('published resource authors can edit rich text and category, but cannot change attachments or another author\'s post',async()=>{
+test('published resource owners can edit content and safely replace attachment metadata',async()=>{
   const owner=ctx('member'),outsider=ctx('special');
   await assertSucceeds(setDoc(doc(owner,'learningResources','edit-resource'),learning('member')));
   await assertSucceeds(updateDoc(doc(owner,'learningResources','edit-resource'),{status:'published',updatedAt:serverTimestamp()}));
   await assertSucceeds(updateDoc(doc(owner,'learningResources','edit-resource'),{
     title:'수정한 제목',body:'asicc-rich-v1:<p><strong>수정한 본문</strong></p>',category:'common',updatedAt:serverTimestamp()
   }));
+  // Keep one old file, remove another, and add one fresh file.
+  const replacement=[attachment('file_00000001',2000000),attachment('file_00000003',4500000)];
+  await assertSucceeds(updateDoc(doc(owner,'learningResources','edit-resource'),{
+    files:replacement,bytesTotal:6500000,updatedAt:serverTimestamp()
+  }));
   await assertFails(updateDoc(doc(outsider,'learningResources','edit-resource'),{title:'임의 수정',updatedAt:serverTimestamp()}));
   await assertFails(updateDoc(doc(owner,'learningResources','edit-resource'),{bytesTotal:1,updatedAt:serverTimestamp()}));
+  const disallowed=[attachment('file_00000001',2000000),attachment('file_00000003',4500000)];
+  disallowed[1].mime='application/x-msdownload';
+  await assertFails(updateDoc(doc(owner,'learningResources','edit-resource'),{files:disallowed,updatedAt:serverTimestamp()}));
+  // The author may remove the final attachment while keeping the post and comments.
+  await assertSucceeds(updateDoc(doc(owner,'learningResources','edit-resource'),{files:[],bytesTotal:0,updatedAt:serverTimestamp()}));
+  await assertSucceeds(getDoc(doc(owner,'learningResources','edit-resource')));
+  // A file can also be reattached to the text-only resource later.
+  await assertSucceeds(updateDoc(doc(owner,'learningResources','edit-resource'),{files:[attachment('file_00000004',200000)],bytesTotal:200000,updatedAt:serverTimestamp()}));
+  await assertFails(updateDoc(doc(owner,'learningResources','edit-resource'),{authorUid:'outsider',updatedAt:serverTimestamp()}));
   await assertFails(updateDoc(doc(ctx('general'),'learningResources','edit-resource'),{title:'일반회원 수정',updatedAt:serverTimestamp()}));
 });
 
@@ -113,4 +127,17 @@ test('learning comments allow contributor replies and own edits, not general mem
   await assertFails(deleteDoc(doc(ctx('general'),'learningResources','comment-resource','comments','abcdefghijabcdefghij')));
   await assertSucceeds(deleteDoc(doc(admin,'learningResources','comment-resource','comments','abcdefghijabcdefghij')));
   await assertSucceeds(deleteDoc(doc(member,'learningResources','comment-resource','comments','reply-comment')));
+});
+
+
+test('text-only learning posts publish with zero files and 0 bytes in a single create',async()=>{
+  const owner=ctx('member');
+  const textOnly={...learning('member'),files:[],bytesTotal:0,status:'published'};
+  await assertSucceeds(setDoc(doc(owner,'learningResources','text-only-post'),textOnly));
+  await assertSucceeds(updateDoc(doc(owner,'learningResources','text-only-post'),{
+    title:'첨부 없는 수정 글',updatedAt:serverTimestamp()
+  }));
+  const invalid={...learning('member'),files:[],bytesTotal:1,status:'published'};
+  await assertFails(setDoc(doc(owner,'learningResources','invalid-empty-post'),invalid));
+  await assertFails(setDoc(doc(ctx('general'),'learningResources','unauthorized-empty'),{...textOnly,authorUid:'general'}));
 });

@@ -105,11 +105,15 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
               <p id="resource-photo-help" class="small muted" role="status"></p>
               <p class="small muted">{L(lang,{ko:'서식 포함 10,000자 이내, 본문 사진 최대 10장. 사진은 자동 압축됩니다.',fr:'10 000 caractères maximum, 10 photos dans le texte, compressées automatiquement.'})}</p>
               <div id="resource-attachments-field" class="stack gap-8">
-                <label for="resource-files">{L(lang,{ko:'첨부파일 (여러 개 선택 가능)',fr:'Pièces jointes (plusieurs fichiers possibles)'})}</label>
-                <input id="resource-files" type="file" multiple required accept=".pdf,.docx,.xlsx,.pptx,.txt,.jpg,.jpeg,.png,.webp"/>
+                <div id="resource-existing-files" class="stack gap-8" hidden>
+                  <strong>{L(lang,{ko:'현재 첨부파일',fr:'Pièces jointes actuelles'})}</strong>
+                  <div id="resource-existing-file-list" class="stack gap-8"></div>
+                  <p class="small muted">{L(lang,{ko:'파일 제거는 수정 저장을 누른 뒤 적용됩니다. 제거를 취소할 수도 있습니다.',fr:'La suppression sera appliquée à l’enregistrement. Vous pouvez l’annuler.'})}</p>
+                </div>
+                <label for="resource-files">{L(lang,{ko:'추가할 첨부파일 (여러 개 선택 가능)',fr:'Ajouter des pièces jointes (sélection multiple)'})}</label>
+                <input id="resource-files" type="file" multiple accept=".pdf,.docx,.xlsx,.pptx,.txt,.jpg,.jpeg,.png,.webp"/>
                 <p id="resource-size" class="small muted" aria-live="polite">{L(lang,{ko:'게시글당 첨부파일 합계 최대 20MB',fr:'Maximum 20 Mo au total par publication'})}</p>
               </div>
-              <p id="resource-edit-files-note" class="small muted" hidden>{L(lang,{ko:'기존 첨부파일은 유지됩니다. 첨부파일을 교체하려면 새 자료로 등록해 주세요.',fr:'Les pièces jointes restent inchangées. Pour les remplacer, publiez une nouvelle ressource.'})}</p>
               <p class="small muted">{L(lang,{ko:'자료 등록을 누르면 전송이 시작됩니다. 완료될 때까지 이 화면을 닫지 마세요.',fr:'Le transfert démarre après « Publier ». Gardez cette page ouverte jusqu’à la fin.'})}</p>
               <div id="resource-upload-progress" class="stack gap-8" hidden>
                 <label for="resource-progress-bar" id="resource-progress-text">{L(lang,{ko:'파일 전송 준비 중…',fr:'Préparation du transfert…'})}</label>
@@ -214,8 +218,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
   .files-mini-btn:disabled {opacity:.6;cursor:wait}
   #resource-progress-bar {display:block;width:100%;height:15px;accent-color:#427b64}
   #resource-save:disabled,#resource-cancel:disabled {opacity:.6;cursor:wait}
-  #resource-rich-photo[hidden],#resource-rich-photo-file[hidden],#resource-attachments-field[hidden] {display:none!important}
-  #resource-edit-files-note[hidden] {display:none!important}
+  #resource-rich-photo[hidden],#resource-rich-photo-file[hidden],#resource-attachments-field[hidden],#resource-existing-files[hidden] {display:none!important}
   #gallery-viewer {max-width:min(92vw,980px);border:0;border-radius:12px;padding:12px;background:#fff}
   #gallery-viewer::backdrop {background:rgba(0,0,0,.82)}
   #gallery-viewer img {display:block;max-width:85vw;max-height:78vh;object-fit:contain}
@@ -264,6 +267,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
   const replyBody=(parentId:string,body:string)=>`[ASICC_REPLY_V1:${parentId}]\n${body}`;
   const MAX_COMMENT_DEPTH=5;
   let uid='',role='',name='',entries:Entry[]=[],selectedResourceId='',editingResourceId='';
+  const removedAttachmentIds=new Set<string>();
   const el=(tag:string,text?:string)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;return e;};
   const note=(msg:string,bad=false)=>{if(status){status.hidden=!msg;status.textContent=msg;status.style.color=bad?'#b42318':'';}};
   const moneySize=(n:number)=>(n/1_000_000).toLocaleString(fr?'fr-FR':'ko-KR',{maximumFractionDigits:2})+' MB';
@@ -420,19 +424,51 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
     if(photoHelp){photoHelp.style.color='';photoHelp.textContent=api?tr('사진은 자동 압축 후 비공개 저장소에 등록됩니다.','Photos compressées et stockées en privé.')
       :tr('사진 저장소가 연결되지 않았습니다.','Stockage des photos indisponible.');}
   }
+  function remainingAttachments(item:Entry):ResourcePart[]{
+    return (item.files||[]).filter(part=>!removedAttachmentIds.has(part.id));
+  }
+  function updateAttachmentSummary(){
+    const selected=Array.from(by<HTMLInputElement>('resource-files')?.files||[]);
+    const original=editingResourceId?entries.find(entry=>entry.id===editingResourceId):undefined;
+    const kept=original?remainingAttachments(original):[];
+    const bytes=kept.reduce((n,f)=>n+f.size,0)+selected.reduce((n,f)=>n+f.size,0);
+    const target=by<HTMLElement>('resource-size');if(!target)return;
+    target.textContent=`${tr('첨부파일 합계','Total des fichiers')}: ${kept.length+selected.length}${tr('개','')} · ${moneySize(bytes)} / 20 MB`;
+    target.style.color=bytes>MAX_TOTAL||kept.length+selected.length>MAX_FILES?'#b42318':'';
+  }
+  function renderExistingAttachments(item:Entry){
+    const target=by<HTMLElement>('resource-existing-file-list');if(!target)return;
+    target.replaceChildren();
+    for(const part of item.files||[]){
+      const row=el('div');row.className='files-attachment';
+      const removed=removedAttachmentIds.has(part.id);
+      const label=el('span',`📎 ${part.name} · ${moneySize(part.size)}`);
+      if(removed){label.style.textDecoration='line-through';label.style.opacity='0.55';}
+      const toggle=el('button',removed?tr('제거 취소','Annuler'):tr('제거','Retirer')) as HTMLButtonElement;
+      toggle.type='button';toggle.className='files-mini-btn';
+      toggle.addEventListener('click',()=>{
+        if(removedAttachmentIds.has(part.id))removedAttachmentIds.delete(part.id);
+        else removedAttachmentIds.add(part.id);
+        renderExistingAttachments(item);updateAttachmentSummary();
+      });
+      row.append(label,toggle);target.append(row);
+    }
+    if(!target.childElementCount)target.append(el('p',tr('기존 첨부파일이 없습니다.','Aucune pièce jointe existante.')));
+  }
   function editResource(item:Entry){
     if(item.authorUid!==uid||item.status!=='published'||resourceSubmitting)return;
-    editingResourceId=item.id;
+    editingResourceId=item.id;removedAttachmentIds.clear();
     show('files-detail',false);show('files-list-panel',false);show('files-controls',true);
     show('learning-form',true);show('files-open-form',false);show('resource-category-tabs',false);show('resource-drafts-wrap',false);
-    show('resource-attachments-field',false);show('resource-edit-files-note',true);show('resource-upload-progress',false);
+    show('resource-attachments-field',true);show('resource-existing-files',true);show('resource-upload-progress',false);
+    renderExistingAttachments(item);
     const heading=by<HTMLElement>('resource-form-heading');if(heading)heading.textContent=tr('학습자료 수정','Modifier la ressource');
     const save=by<HTMLButtonElement>('resource-save');if(save)save.textContent=tr('수정 저장','Enregistrer');
     const title=by<HTMLInputElement>('resource-title');if(title)title.value=item.title||'';
     const category=by<HTMLSelectElement>('resource-category');if(category)category.value=item.category||'';
     resetResourceEditor();if(resourceEditor){setEditorBody(resourceEditor,item.body||'');updatePhotoCounter();void populateResourcePhotos(resourceEditor);}
-    const files=by<HTMLInputElement>('resource-files');if(files)files.required=false;
-    title?.focus();
+    const files=by<HTMLInputElement>('resource-files');if(files){files.required=false;files.value='';}
+    updateAttachmentSummary();title?.focus();
   }
 
   async function fetchFile(path:string,name:string,mime:string,button:HTMLButtonElement){
@@ -700,7 +736,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
         : null;
       if(commentDocs&&commentDocs.size>450)throw Error(tr('댓글이 너무 많아 한 번에 삭제할 수 없습니다.','Trop de commentaires pour une suppression.'));
       try{
-        if(item.files?.length)for(const part of item.files)await media(`/api/resource?postId=${encodeURIComponent(item.id)}&fileId=${encodeURIComponent(part.id)}`,'DELETE');
+        if(item.files?.length)await media(`/api/resource?postId=${encodeURIComponent(item.id)}`,'DELETE');
         else if(item.image)await media(`/api/gallery?itemId=${encodeURIComponent(item.id)}`,'DELETE');
       }catch(error){
         // A failed upload may have created no file. Do not let its Worker error
@@ -730,7 +766,6 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
   }
   function contentType(file:File){const ext=file.name.split('.').pop()?.toLocaleLowerCase()||'';return MIME[ext]||'';}
   function validateFiles(selected:File[]){
-    if(!selected.length)throw Error(tr('첨부파일을 선택해 주세요.','Sélectionnez au moins un fichier.'));
     if(selected.length>MAX_FILES)throw Error(tr('파일은 한 게시글당 최대 8개까지입니다.','8 fichiers maximum par publication.'));
     let sum=0;
     for(const file of selected){
@@ -740,13 +775,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
     if(sum>MAX_TOTAL)throw Error(tr('첨부파일 총합이 20MB를 초과했습니다.','Le total des fichiers dépasse 20 Mo.'));
     return sum;
   }
-  by<HTMLInputElement>('resource-files')?.addEventListener('change',()=>{
-    const files=Array.from(by<HTMLInputElement>('resource-files')?.files||[]);
-    const sum=files.reduce((acc,f)=>acc+f.size,0);
-    const target=by<HTMLElement>('resource-size');if(!target)return;
-    target.textContent=`${tr('선택 파일','Fichiers sélectionnés')}: ${files.length}${tr('개','')} · ${moneySize(sum)} / 20 MB`;
-    target.style.color=sum>MAX_TOTAL?'#b42318':'';
-  });
+  by<HTMLInputElement>('resource-files')?.addEventListener('change',updateAttachmentSummary);
   let resourceSubmitting=false;
   by<HTMLFormElement>('learning-form')?.addEventListener('submit',async event=>{
     event.preventDefault();if(resourceSubmitting||!uid||!canLearningPost())return;
@@ -757,19 +786,71 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
     if(photoBusy)return note(tr('사진 전송이 끝난 후 저장해 주세요.','Attendez la fin du transfert photo.'),true);
     if(!title||title.length>150||!validCategory(category)||body.length>10000||numPhotos()>10)
       return note(tr('제목·분류·본문 길이를 확인해 주세요. (서식 포함 10,000자)','Vérifiez le titre, la catégorie et la limite de 10 000 caractères.'),true);
-    // An existing resource keeps its attached files. Editing only changes text and category.
     if(editingResourceId){
       const existing=entries.find(e=>e.id===editingResourceId);
       if(!existing||existing.authorUid!==uid||existing.status!=='published')return note(tr('수정 권한이 없습니다.','Modification refusée.'),true);
-      const editSave=by<HTMLButtonElement>('resource-save');if(editSave)editSave.disabled=true;
+      const kept=remainingAttachments(existing);
+      const newParts:ResourcePart[]=files.map(file=>({id:crypto.randomUUID(),name:file.name,mime:contentType(file),size:file.size}));
+      const manifest=[...kept,...newParts];
+      const total=manifest.reduce((sum,part)=>sum+part.size,0);
+      if(manifest.length>MAX_FILES||total>MAX_TOTAL)return note(tr('첨부파일은 최대 8개, 합계 20MB까지입니다.','Maximum 8 fichiers et 20 Mo au total.'),true);
+      try{for(const file of files)if(!contentType(file)||!file.size||file.name.length>255)throw Error(tr('추가 파일의 종류·이름·크기를 확인해 주세요.','Vérifiez les nouveaux fichiers.'));}
+      catch(error){return note(String(error),true);}
+      if(newParts.length&&!api)return note(tr('파일 서버가 연결되지 않았습니다.','Serveur de fichiers indisponible.'),true);
+      const changedAttachments=removedAttachmentIds.size>0||newParts.length>0;
+      const save=by<HTMLButtonElement>('resource-save'),cancel=by<HTMLButtonElement>('resource-cancel');
+      const progress=by<HTMLProgressElement>('resource-progress-bar'),progressText=by<HTMLElement>('resource-progress-text');
+      resourceSubmitting=true;
+      if(save){save.disabled=true;save.textContent=tr('저장 중…','Enregistrement…');}
+      if(cancel)cancel.disabled=true;
+      const uploaded:string[]=[];let metadataSaved=false;
       try{
-        await updateDoc(doc(db,'learningResources',existing.id),{title,body,category,updatedAt:serverTimestamp()});
-        const modified:Entry={...existing,title,body,category:category as SchoolCategory,updatedAt:Timestamp.now()};
+        if(newParts.length){
+          show('resource-upload-progress',true);if(progress)progress.value=0;
+          const addedBytes=files.reduce((sum,file)=>sum+file.size,0);
+          let completed=0;
+          for(let i=0;i<files.length;i++){
+            const part=newParts[i];
+            await uploadResource(`/api/resource-upload?postId=${encodeURIComponent(existing.id)}&fileId=${encodeURIComponent(part.id)}`,files[i],part.mime,sent=>{
+              const percent=Math.min(99,Math.floor((completed+sent)*100/addedBytes));
+              if(progress)progress.value=percent;
+              if(progressText)progressText.textContent=tr(`추가 파일 전송 ${i+1}/${files.length} · ${percent}%`,`Transfert ${i+1}/${files.length} · ${percent} %`);
+            });
+            uploaded.push(part.id);completed+=files[i].size;
+          }
+          if(progress)progress.value=100;
+          if(progressText)progressText.textContent=tr('전송 완료 · 수정 저장 중…','Transfert terminé · Enregistrement…');
+        }
+        const updates:Record<string,unknown>={title,body,category,updatedAt:serverTimestamp()};
+        if(changedAttachments){updates.files=manifest;updates.bytesTotal=total;}
+        await updateDoc(doc(db,'learningResources',existing.id),updates);metadataSaved=true;
+        const modified:Entry={...existing,title,body,category:category as SchoolCategory,
+          files:changedAttachments?manifest:existing.files,bytesTotal:changedAttachments?total:existing.bytesTotal,updatedAt:Timestamp.now()};
         entries=entries.map(entry=>entry.id===existing.id?modified:entry);
+        // Removed files are no longer in Firestore; delete their B2 objects now.
+        // A cleanup error must not undo a successful metadata update.
+        let cleanupError=false;
+        for(const part of (existing.files||[]).filter(f=>removedAttachmentIds.has(f.id))){
+          try{await media(`/api/resource?postId=${encodeURIComponent(existing.id)}&fileId=${encodeURIComponent(part.id)}`,'DELETE');}
+          catch(error){cleanupError=true;console.warn('Removed attachment cleanup failed',error);}
+        }
         closeResourceForm();render();openResource(modified);
-        note(tr('수정되었습니다.','Ressource modifiée.'));
-      }catch(error){console.error(error);note(`${tr('수정 실패','Échec de la modification')}: ${error instanceof Error?error.message:''}`,true);}
-      finally{if(editSave)editSave.disabled=false;}
+        note(cleanupError?tr('수정은 저장됐지만 삭제된 파일의 저장소 정리는 확인이 필요합니다.','Modification enregistrée, nettoyage du stockage à vérifier.')
+          :tr('수정되었습니다.','Ressource modifiée.'),cleanupError);
+      }catch(error){
+        console.error(error);
+        // Never delete a new attachment after Firestore has already saved its metadata.
+        if(!metadataSaved){
+          for(const fileId of uploaded){try{await media(`/api/resource?postId=${encodeURIComponent(existing.id)}&fileId=${encodeURIComponent(fileId)}`,'DELETE');}catch(cleanup){console.warn('Unpublished attachment cleanup failed',cleanup);}}
+        }
+        note(metadataSaved
+          ?tr('수정은 저장되었으나 화면 갱신에 실패했습니다. 새로고침해 주세요.','Modification enregistrée. Rechargez la page.')
+          :`${tr('수정 실패','Échec de la modification')}: ${error instanceof Error?error.message:String(error)}`,true);
+      }finally{
+        resourceSubmitting=false;show('resource-upload-progress',false);
+        if(save){save.disabled=false;save.textContent=tr('수정 저장','Enregistrer');}
+        if(cancel)cancel.disabled=false;
+      }
       return;
     }
     const save=by<HTMLButtonElement>('resource-save');
@@ -778,19 +859,20 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
     const progressText=by<HTMLElement>('resource-progress-text');
     // Title and category were validated above, before the edit branch.
     let total=0;try{total=validateFiles(files);}catch(error){return note(String(error),true);}
-    if(!api)return note(tr('비공개 파일 서버가 연결되지 않았습니다.','Le serveur de fichiers privés n’est pas configuré.'),true);
+    if(files.length&&!api)return note(tr('비공개 파일 서버가 연결되지 않았습니다.','Le serveur de fichiers privés n’est pas configuré.'),true);
     resourceSubmitting=true;
     if(save){save.disabled=true;save.textContent=tr('전송 중…','Transfert…');}
     if(cancel)cancel.disabled=true;
-    show('resource-upload-progress',true);
+    show('resource-upload-progress',files.length>0);
     if(progress)progress.value=0;
-    if(progressText)progressText.textContent=tr('파일 전송 준비 중… 0%','Préparation du transfert… 0 %');
+    if(files.length&&progressText)progressText.textContent=tr('파일 전송 준비 중… 0%','Préparation du transfert… 0 %');
     let draftId='',draftFileId='';
     try{
       const record=doc(collection(db,'learningResources'));
       const manifest:ResourcePart[]=files.map(f=>({id:crypto.randomUUID(),name:f.name,mime:contentType(f),size:f.size}));
       // Create a private draft first; a post becomes visible only on success.
-      await setDoc(record,{title,body,category,authorUid:uid,status:'draft',files:manifest,bytesTotal:total,createdAt:serverTimestamp()});
+      // Text-only posts can be published in one write; files still use a private draft.
+      await setDoc(record,{title,body,category,authorUid:uid,status:files.length?'draft':'published',files:manifest,bytesTotal:total,createdAt:serverTimestamp()});
       draftId=record.id;draftFileId=manifest[0]?.id||'';
       let completed=0;
       for(let i=0;i<files.length;i++){
@@ -804,9 +886,11 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
         await uploadResource(`/api/resource-upload?postId=${encodeURIComponent(record.id)}&fileId=${encodeURIComponent(manifest[i].id)}`,files[i],manifest[i].mime,updateProgress);
         completed+=files[i].size;
       }
-      if(progress)progress.value=100;
-      if(progressText)progressText.textContent=tr('전송 100% · 게시 완료 처리 중…','Transfert 100 % · Publication en cours…');
-      await updateDoc(record,{status:'published',updatedAt:serverTimestamp()});
+      if(files.length){
+        if(progress)progress.value=100;
+        if(progressText)progressText.textContent=tr('전송 100% · 게시 완료 처리 중…','Transfert 100 % · Publication en cours…');
+        await updateDoc(record,{status:'published',updatedAt:serverTimestamp()});
+      }
       // Publication has been confirmed by Firestore. Show the new post immediately
       // from the data already sent, without an extra query or a manual reload.
       // The stored createdAt remains the server timestamp; this is display-only.
@@ -821,7 +905,8 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
       show('resource-upload-progress',false);
       render();
       openResource(published);
-      note(tr('파일 전송과 자료 등록이 완료되었습니다.','Transfert et publication terminés.'));
+      note(files.length?tr('파일 전송과 자료 등록이 완료되었습니다.','Transfert et publication terminés.')
+        :tr('자료가 등록되었습니다.','Ressource publiée.'));
     }catch(error){
       console.error('Learning resource upload failed',error);
       let cleanupFailed=false;
@@ -898,20 +983,20 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
     });
   }
   function closeResourceForm(){
-    editingResourceId='';
+    editingResourceId='';removedAttachmentIds.clear();
     show('learning-form',false);show('files-open-form',true);
     show('resource-category-tabs',true);show('files-list-panel',true);
-    show('resource-attachments-field',true);show('resource-edit-files-note',false);show('resource-upload-progress',false);
-    const files=by<HTMLInputElement>('resource-files');if(files)files.required=true;
+    show('resource-attachments-field',true);show('resource-existing-files',false);show('resource-upload-progress',false);
+    const files=by<HTMLInputElement>('resource-files');if(files)files.required=false;
     const heading=by<HTMLElement>('resource-form-heading');if(heading)heading.textContent=tr('새 학습자료 등록','Nouvelle ressource');
     const save=by<HTMLButtonElement>('resource-save');if(save)save.textContent=tr('자료 등록','Publier');
-    by<HTMLFormElement>('learning-form')?.reset();resetResourceEditor();
+    by<HTMLFormElement>('learning-form')?.reset();resetResourceEditor();updateAttachmentSummary();
     const draftWrap=by<HTMLElement>('resource-drafts-wrap');if(draftWrap)draftWrap.hidden=!isAdmin();
   }
   by<HTMLButtonElement>('files-open-form')?.addEventListener('click',()=>{
-    editingResourceId='';resetResourceEditor();
-    const files=by<HTMLInputElement>('resource-files');if(files)files.required=true;
-    show('resource-attachments-field',true);show('resource-edit-files-note',false);
+    editingResourceId='';removedAttachmentIds.clear();resetResourceEditor();
+    const files=by<HTMLInputElement>('resource-files');if(files)files.required=false;
+    show('resource-attachments-field',true);show('resource-existing-files',false);updateAttachmentSummary();
     show('learning-form',true);show('files-open-form',false);show('resource-category-tabs',false);
     show('files-list-panel',false);show('resource-drafts-wrap',false);
   });
