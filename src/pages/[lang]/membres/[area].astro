@@ -693,6 +693,12 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
     button.disabled=true;
     let cleanupFailed=false;
     try{
+      // Check comment-read permission before deleting any stored attachment.
+      // Without the live Firestore comment rule even an empty collection query fails.
+      const commentDocs=area==='learning'
+        ? await getDocs(query(collection(db,'learningResources',item.id,'comments'),limit(451)))
+        : null;
+      if(commentDocs&&commentDocs.size>450)throw Error(tr('댓글이 너무 많아 한 번에 삭제할 수 없습니다.','Trop de commentaires pour une suppression.'));
       try{
         if(item.files?.length)for(const part of item.files)await media(`/api/resource?postId=${encodeURIComponent(item.id)}&fileId=${encodeURIComponent(part.id)}`,'DELETE');
         else if(item.image)await media(`/api/gallery?itemId=${encodeURIComponent(item.id)}`,'DELETE');
@@ -703,10 +709,8 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
         cleanupFailed=true;console.warn('Draft file cleanup failed',error);
       }
       if(area==='learning'){
-        const commentDocs=await getDocs(query(collection(db,'learningResources',item.id,'comments'),limit(451)));
-        if(commentDocs.size>450)throw Error(tr('댓글이 너무 많아 한 번에 삭제할 수 없습니다.','Trop de commentaires pour une suppression.'));
         const batch=writeBatch(db);
-        for(const comment of commentDocs.docs)batch.delete(comment.ref);
+        for(const comment of commentDocs?.docs||[])batch.delete(comment.ref);
         batch.delete(doc(db,'learningResources',item.id));await batch.commit();
         entries=entries.filter(entry=>entry.id!==item.id);
         if(selectedResourceId===item.id)backResource();render();
@@ -718,7 +722,10 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
     }catch(error){
       console.error(error);
       const detail=error instanceof Error?error.message:'';
-      note(`${tr('삭제할 수 없습니다. Firebase 규칙 또는 파일 서버 권한을 확인하세요.','Suppression impossible. Vérifiez les règles Firebase et les droits du serveur.')} ${detail}`.trim(),true);
+      const denied=(error as {code?:string})?.code==='permission-denied';
+      note(denied
+        ? tr('Firebase가 자료 또는 댓글 조회·삭제 권한을 거부했습니다. 실제 Firestore Rules에 학습자료 댓글 규칙이 게시되었는지 확인해 주세요.','Firebase refuse la lecture/suppression. Vérifiez les règles Firestore de commentaires publiées.')
+        : `${tr('삭제할 수 없습니다. Firebase 규칙 또는 파일 서버 권한을 확인하세요.','Suppression impossible. Vérifiez les règles Firebase et les droits du serveur.')} ${detail}`.trim(),true);
     }finally{button.disabled=false;}
   }
   function contentType(file:File){const ext=file.name.split('.').pop()?.toLocaleLowerCase()||'';return MIME[ext]||'';}
