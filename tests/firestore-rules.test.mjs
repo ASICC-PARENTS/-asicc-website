@@ -240,7 +240,8 @@ test('member and special can write board posts', async () => {
         title: 'example',
         body: 'hello',
         authorUid: user,
-        authorName: '기존회원',
+        // New posts must use the signed-in member's profile nickname.
+        authorName: user,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         deleted: false
@@ -521,7 +522,8 @@ test('admin may hide another member post', async () => {
         title: 'Post to be hidden',
         body: 'Original content',
         authorUid: uid.member,
-        authorName: '기존회원',
+        // The rule compares authorName with the authenticated profile nickname.
+        authorName: uid.member,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         deleted: false
@@ -569,7 +571,8 @@ test('comment owner may edit; admin cannot rewrite but may hide', async () => {
       {
         body: 'Original member comment',
         authorUid: uid.member,
-        authorName: '기존회원',
+        // The author name must match the commenter's current nickname.
+        authorName: uid.member,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         deleted: false
