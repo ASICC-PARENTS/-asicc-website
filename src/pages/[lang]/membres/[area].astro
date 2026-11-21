@@ -113,6 +113,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
                 <label for="resource-files">{L(lang,{ko:'추가할 첨부파일 (여러 개 선택 가능)',fr:'Ajouter des pièces jointes (sélection multiple)'})}</label>
                 <input id="resource-files" type="file" multiple accept=".pdf,.docx,.xlsx,.pptx,.txt,.jpg,.jpeg,.png,.webp"/>
                 <p id="resource-size" class="small muted" aria-live="polite">{L(lang,{ko:'게시글당 첨부파일 합계 최대 20MB',fr:'Maximum 20 Mo au total par publication'})}</p>
+                <ul id="resource-selected-file-names" class="small muted" style="margin:0;padding-left:20px" aria-label={L(lang,{ko:'새로 선택한 파일',fr:'Fichiers sélectionnés'})}></ul>
               </div>
               <p class="small muted">{L(lang,{ko:'자료 등록을 누르면 전송이 시작됩니다. 완료될 때까지 이 화면을 닫지 마세요.',fr:'Le transfert démarre après « Publier ». Gardez cette page ouverte jusqu’à la fin.'})}</p>
               <div id="resource-upload-progress" class="stack gap-8" hidden>
@@ -435,6 +436,15 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
     const target=by<HTMLElement>('resource-size');if(!target)return;
     target.textContent=`${tr('첨부파일 합계','Total des fichiers')}: ${kept.length+selected.length}${tr('개','')} · ${moneySize(bytes)} / 20 MB`;
     target.style.color=bytes>MAX_TOTAL||kept.length+selected.length>MAX_FILES?'#b42318':'';
+    const chosenNames=by<HTMLElement>('resource-selected-file-names');
+    if(chosenNames){
+      chosenNames.replaceChildren();
+      for(const file of selected){
+        const row=document.createElement('li');
+        row.textContent=`${file.name} · ${moneySize(file.size)}`;
+        chosenNames.append(row);
+      }
+    }
   }
   function renderExistingAttachments(item:Entry){
     const target=by<HTMLElement>('resource-existing-file-list');if(!target)return;

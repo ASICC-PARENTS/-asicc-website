@@ -44,7 +44,7 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
       <div class="member-three">
         <section class="card member-panel stack gap-12">
           <div class="member-panel-title"><h2 class="h3">{L(lang,{ko:'학습자료실',fr:'Ressources pédagogiques'})}</h2><span aria-hidden="true">📚</span></div>
-          <p class="small muted">{L(lang,{ko:'최근 등록 자료 5개',fr:'5 dernières ressources'})}</p>
+          <p id="recent-learning-count" class="small muted">{L(lang,{ko:'최근 등록 자료',fr:'Ressources récentes'})}</p>
           <div id="recent-learning" class="member-feed stack gap-8"></div>
           <a class="btn btn-ghost member-bottom-link" href={href(lang,'membres/learning/')}>{L(lang,{ko:'학습자료실 가기',fr:'Accéder aux ressources'})} →</a>
         </section>
@@ -111,9 +111,10 @@ async function displayFeed(id:string,collectionName:string,max=5){
      return true;
    }).slice(0,max);
    target.replaceChildren();
+   if(id==='recent-learning')note('recent-learning-count',tr(`최근 등록 자료 ${docs.length}개`,`${docs.length} ressources récentes`));
    if(!docs.length){target.textContent=tr('등록된 자료가 없습니다.','Aucun contenu.');return;}
    docs.forEach(d=>{const data=d.data();target.append(item(String(data.title||data.filename||tr('제목 없는 자료','Sans titre')).slice(0,120),collectionName==='boardPosts'?tr('게시글','Message'):String(data.mime||tr('자료','Ressource'))));});
- }catch(err){console.error(err);target.textContent=tr('자료를 불러오지 못했습니다.','Impossible de charger les données.');}
+ }catch(err){console.error(err);if(id==='recent-learning')note('recent-learning-count',tr('최근 등록 자료','Ressources récentes'));target.textContent=tr('자료를 불러오지 못했습니다.','Impossible de charger les données.');}
 }
 // Browser Back/Forward Cache may restore an old dashboard DOM without rerunning auth.
 window.addEventListener('pageshow',event=>{

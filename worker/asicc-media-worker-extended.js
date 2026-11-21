@@ -28,7 +28,7 @@ function json(obj,status=200,headers={}){
 function corsHeaders(req,env){
   const origin=req.headers.get('Origin')||'';
   const allowed=String(env.ALLOWED_ORIGINS||'').split(',').map(s=>s.trim()).filter(Boolean);
-  return allowed.includes(origin)?{'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Headers':'Authorization, Content-Type','Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Max-Age':'3600','Vary':'Origin'}:null;
+  return allowed.includes(origin)?{'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Headers':'Authorization, Content-Type','Access-Control-Allow-Methods':'GET, POST, DELETE, OPTIONS','Access-Control-Max-Age':'3600','Vary':'Origin'}:null;
 }
 function b64urlToBytes(s){
   const raw=atob(s.replace(/-/g,'+').replace(/_/g,'/')+'='.repeat((4-s.length%4)%4));
