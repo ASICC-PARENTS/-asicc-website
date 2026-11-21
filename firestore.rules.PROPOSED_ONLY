@@ -227,12 +227,15 @@ function validUpgrade(uid) {
         && request.resource.data.kind in ['parent','alumnus','alumni-parent','teacher','contributor']
         && (request.resource.data.requestedRole == 'member' && request.resource.data.kind == 'parent'
            || request.resource.data.requestedRole == 'special' && request.resource.data.kind in ['alumnus','alumni-parent','teacher','contributor'])
-        && (request.resource.data.startYear == null || request.resource.data.startYear is int && request.resource.data.startYear >= 2000 && request.resource.data.startYear <= 2100)
+        && (request.resource.data.get('startYear',null) == null || request.resource.data.startYear is int && request.resource.data.startYear >= 2000 && request.resource.data.startYear <= 2100)
         && (!(request.resource.data.kind in ['alumnus','alumni-parent']) || (request.resource.data.startYear is int && request.resource.data.schoolYear is int && request.resource.data.startYear <= request.resource.data.schoolYear))
-        && (request.resource.data.schoolYear == null || request.resource.data.schoolYear is int
+        && (request.resource.data.get('schoolYear',null) == null || request.resource.data.schoolYear is int
             && request.resource.data.schoolYear >= 2000 && request.resource.data.schoolYear <= 2100)
         && request.resource.data.note is string && request.resource.data.note.size() <= 500
         && validChildren(request.resource.data.get('children',[]))
+        // Parent and alumni applications require at least one verifiable student record.
+        && (!(request.resource.data.kind in ['parent','alumnus','alumni-parent'])
+            || request.resource.data.get('children',[]).size() >= 1)
         && request.resource.data.get('relation','') is string
         && request.resource.data.get('relation','').size() <= 40
         && request.resource.data.status == 'pending'

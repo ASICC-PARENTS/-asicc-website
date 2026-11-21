@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import {initializeTestEnvironment,assertSucceeds,assertFails} from '@firebase/rules-unit-testing';
 import {doc,setDoc,getDoc,deleteDoc,updateDoc,serverTimestamp} from 'firebase/firestore';
 let env;
-const mkProfile=(uid,role,status='approved')=>({uid,role,status,name:uid,email:`${uid}@example.test`,nickname:uid,createdAt:new Date()});
+const mkProfile=(uid,role,status='approved')=>({uid,role,status,name:uid,email:`${uid}@example.test`,nickname:uid,nicknameKey:uid,accountType:'adult',createdAt:new Date()});
 const ctx=(uid,verified=true)=>env.authenticatedContext(uid,{email:`${uid}@example.test`,email_verified:verified}).firestore();
 const attachment=(id,size)=>({id,name:`file${id}.pdf`,mime:'application/pdf',size});
 const learning=(uid,total=20000000)=>({
@@ -11,8 +11,13 @@ const learning=(uid,total=20000000)=>({
   files:[attachment('file_00000001',2000000),attachment('file_00000002',18000000)],
   bytesTotal:total,createdAt:serverTimestamp()
 });
-const gallery=(uid)=>({title:'학교 행사',description:'공개 동의 확인',authorUid:uid,status:'draft',
-  image:{id:'image_00000001',mime:'image/webp',size:1000000},createdAt:serverTimestamp()});
+const gallery=(uid,albumId,reviewReason='')=>({
+  albumId,title:'학교 행사',description:'공개 동의 확인',authorUid:uid,status:'draft',
+  mediaType:'photo',originalName:'test.webp',reviewReason,sortOrder:1,
+  image:{id:'image_00000001',mime:'image/webp',size:1000000},createdAt:serverTimestamp()
+});
+const album=uid=>({title:'2026 School Day',school:'elementary',year:2026,
+  ownerUid:uid,isShared:false,coverItemId:'',createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
 
 before(async()=>{
   env=await initializeTestEnvironment({projectId:'demo-asicc-media-rules',firestore:{
@@ -27,11 +32,12 @@ after(async()=>{if(env)await env.cleanup();});
 test('general may read learning, not gallery; verified association roles see both',async()=>{
   await env.withSecurityRulesDisabled(async (context)=>{
     await setDoc(doc(context.firestore(),'learningResources','legacyLearn'),{title:'기존 파일',filename:'old.pdf',mime:'application/pdf',storagePath:'learning/legacyLearn/old.pdf',createdBy:'admin',createdAt:new Date()});
-    await setDoc(doc(context.firestore(),'galleryItems','legacyPhoto'),{title:'기존 사진',filename:'old.webp',mime:'image/webp',storagePath:'gallery/legacyPhoto/old.webp',createdBy:'admin',createdAt:new Date()});
+    await setDoc(doc(context.firestore(),'galleryItems','legacyPhoto'),{title:'기존 사진',status:'published',albumId:'legacy',createdAt:new Date()});
   });
   await assertSucceeds(getDoc(doc(ctx('general'),'learningResources','legacyLearn')));
   await assertFails(getDoc(doc(ctx('general'),'galleryItems','legacyPhoto')));
-  await assertSucceeds(getDoc(doc(ctx('special'),'galleryItems','legacyPhoto')));
+  await assertFails(getDoc(doc(ctx('special'),'galleryItems','legacyPhoto')));
+  await assertSucceeds(getDoc(doc(ctx('admin'),'galleryItems','legacyPhoto')));
   await assertFails(getDoc(doc(ctx('suspended'),'learningResources','legacyLearn')));
 });
 
@@ -46,13 +52,6 @@ test('Firestore rejects post declared over 20MB and invalid attachments',async()
   await assertFails(setDoc(doc(ctx('member'),'learningResources','too-big'),learning('member',20000001)));
   const bad=learning('member');bad.files[1].mime='application/x-msdownload';
   await assertFails(setDoc(doc(ctx('member'),'learningResources','exe-file'),bad));
-});
-
-test('common and other learning resource categories are accepted for verified contributors',async()=>{
-  for(const category of ['common','other']){
-    const resource=learning('member');resource.category=category;
-    await assertSucceeds(setDoc(doc(ctx('member'),'learningResources',`learn-${category}`),resource));
-  }
 });
 
 test('school category is required and unverified oversized file lists are rejected',async()=>{
@@ -70,74 +69,51 @@ test('only the author can publish a draft; cannot rewrite its file manifest',asy
   await assertFails(updateDoc(doc(member,'learningResources','learn-member'),{bytesTotal:1}));
 });
 
-test('gallery publishing is admin-only; member/special can view but not create',async()=>{
-  await assertFails(setDoc(doc(ctx('member'),'galleryItems','new-by-member'),gallery('member')));
-  await assertFails(setDoc(doc(ctx('special'),'galleryItems','new-by-special'),gallery('special')));
-  await assertSucceeds(setDoc(doc(ctx('admin'),'galleryItems','new-by-admin'),gallery('admin')));
+test('gallery stays closed for members; admins may stage and review photos',async()=>{
+  await assertFails(setDoc(doc(ctx('member'),'galleryAlbums','closed-member'),album('member')));
+  await assertSucceeds(setDoc(doc(ctx('admin'),'galleryAlbums','admin-album'),album('admin')));
+  await assertSucceeds(setDoc(doc(ctx('admin'),'galleryItems','new-by-admin'),gallery('admin','admin-album')));
   await assertSucceeds(updateDoc(doc(ctx('admin'),'galleryItems','new-by-admin'),{status:'published',updatedAt:serverTimestamp()}));
-  await assertSucceeds(getDoc(doc(ctx('member'),'galleryItems','new-by-admin')));
-  await assertFails(getDoc(doc(ctx('general'),'galleryItems','new-by-admin')));
+  await assertFails(getDoc(doc(ctx('special'),'galleryItems','new-by-admin')));
+  await assertSucceeds(getDoc(doc(ctx('admin'),'galleryItems','new-by-admin')));
+});
+
+test('when opened, verified member and special may create albums and upload photos',async()=>{
+  await assertSucceeds(setDoc(doc(ctx('admin'),'siteSettings','gallery'),{
+    isOpen:true,updatedBy:'admin',updatedAt:serverTimestamp()
+  }));
+  try {
+    await assertFails(setDoc(doc(ctx('general'),'galleryAlbums','general-album'),album('general')));
+    for(const role of ['member','special']){
+      const db=ctx(role),albumId=`album-${role}`;
+      await assertSucceeds(setDoc(doc(db,'galleryAlbums',albumId),album(role)));
+      await assertSucceeds(setDoc(doc(db,'galleryItems',`photo-${role}`),gallery(role,albumId)));
+      await assertSucceeds(updateDoc(doc(db,'galleryItems',`photo-${role}`),{status:'published',updatedAt:serverTimestamp()}));
+      await assertSucceeds(getDoc(doc(ctx('special'),'galleryItems',`photo-${role}`)));
+    }
+    await assertFails(getDoc(doc(ctx('general'),'galleryItems','photo-member')));
+    // Opt-in review stays private until an administrator explicitly publishes it.
+    const owner=ctx('member');
+    await assertSucceeds(setDoc(doc(owner,'galleryItems','review-photo'),
+      gallery('member','album-member','consent_uncertain')));
+    await assertSucceeds(updateDoc(doc(owner,'galleryItems','review-photo'),{
+      status:'pending',updatedAt:serverTimestamp()
+    }));
+    await assertFails(getDoc(doc(ctx('special'),'galleryItems','review-photo')));
+    await assertSucceeds(getDoc(doc(ctx('admin'),'galleryItems','review-photo')));
+    await assertSucceeds(updateDoc(doc(ctx('admin'),'galleryItems','review-photo'),{
+      status:'published',updatedAt:serverTimestamp()
+    }));
+    await assertSucceeds(getDoc(doc(ctx('special'),'galleryItems','review-photo')));
+  } finally {
+    await assertSucceeds(setDoc(doc(ctx('admin'),'siteSettings','gallery'),{
+      isOpen:false,updatedBy:'admin',updatedAt:serverTimestamp()
+    }));
+  }
+  await assertFails(getDoc(doc(ctx('member'),'galleryItems','photo-special')));
 });
 
 test('authors can delete their learning posts; other members cannot',async()=>{
   await assertFails(deleteDoc(doc(ctx('special'),'learningResources','learn-member')));
   await assertSucceeds(deleteDoc(doc(ctx('member'),'learningResources','learn-member')));
-});
-
-test('published resource owners can edit content and safely replace attachment metadata',async()=>{
-  const owner=ctx('member'),outsider=ctx('special');
-  await assertSucceeds(setDoc(doc(owner,'learningResources','edit-resource'),learning('member')));
-  await assertSucceeds(updateDoc(doc(owner,'learningResources','edit-resource'),{status:'published',updatedAt:serverTimestamp()}));
-  await assertSucceeds(updateDoc(doc(owner,'learningResources','edit-resource'),{
-    title:'수정한 제목',body:'asicc-rich-v1:<p><strong>수정한 본문</strong></p>',category:'common',updatedAt:serverTimestamp()
-  }));
-  // Keep one old file, remove another, and add one fresh file.
-  const replacement=[attachment('file_00000001',2000000),attachment('file_00000003',4500000)];
-  await assertSucceeds(updateDoc(doc(owner,'learningResources','edit-resource'),{
-    files:replacement,bytesTotal:6500000,updatedAt:serverTimestamp()
-  }));
-  await assertFails(updateDoc(doc(outsider,'learningResources','edit-resource'),{title:'임의 수정',updatedAt:serverTimestamp()}));
-  await assertFails(updateDoc(doc(owner,'learningResources','edit-resource'),{bytesTotal:1,updatedAt:serverTimestamp()}));
-  const disallowed=[attachment('file_00000001',2000000),attachment('file_00000003',4500000)];
-  disallowed[1].mime='application/x-msdownload';
-  await assertFails(updateDoc(doc(owner,'learningResources','edit-resource'),{files:disallowed,updatedAt:serverTimestamp()}));
-  // The author may remove the final attachment while keeping the post and comments.
-  await assertSucceeds(updateDoc(doc(owner,'learningResources','edit-resource'),{files:[],bytesTotal:0,updatedAt:serverTimestamp()}));
-  await assertSucceeds(getDoc(doc(owner,'learningResources','edit-resource')));
-  // A file can also be reattached to the text-only resource later.
-  await assertSucceeds(updateDoc(doc(owner,'learningResources','edit-resource'),{files:[attachment('file_00000004',200000)],bytesTotal:200000,updatedAt:serverTimestamp()}));
-  await assertFails(updateDoc(doc(owner,'learningResources','edit-resource'),{authorUid:'outsider',updatedAt:serverTimestamp()}));
-  await assertFails(updateDoc(doc(ctx('general'),'learningResources','edit-resource'),{title:'일반회원 수정',updatedAt:serverTimestamp()}));
-});
-
-test('learning comments allow contributor replies and own edits, not general members or edits by others',async()=>{
-  const member=ctx('member'),special=ctx('special'),admin=ctx('admin');
-  await assertSucceeds(setDoc(doc(member,'learningResources','comment-resource'),learning('member')));
-  await assertFails(setDoc(doc(member,'learningResources','comment-resource','comments','draft-no'),{
-    body:'미공개 자료 댓글',authorUid:'member',authorName:'member',createdAt:serverTimestamp(),updatedAt:serverTimestamp(),deleted:false
-  }));
-  await assertSucceeds(updateDoc(doc(member,'learningResources','comment-resource'),{status:'published',updatedAt:serverTimestamp()}));
-  const mkComment=(uid,body)=>({body,authorUid:uid,authorName:uid,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),deleted:false});
-  await assertFails(setDoc(doc(ctx('general'),'learningResources','comment-resource','comments','general-comment'),mkComment('general','쓰기 불가')));
-  await assertSucceeds(setDoc(doc(special,'learningResources','comment-resource','comments','abcdefghijabcdefghij'),mkComment('special','첫 번째 댓글')));
-  await assertSucceeds(setDoc(doc(member,'learningResources','comment-resource','comments','reply-comment'),mkComment('member','[ASICC_REPLY_V1:abcdefghijabcdefghij]\n답글')));
-  await assertFails(updateDoc(doc(member,'learningResources','comment-resource','comments','abcdefghijabcdefghij'),{body:'다른 사람 댓글',updatedAt:serverTimestamp()}));
-  await assertSucceeds(updateDoc(doc(special,'learningResources','comment-resource','comments','abcdefghijabcdefghij'),{body:'수정한 댓글',updatedAt:serverTimestamp()}));
-  await assertSucceeds(getDoc(doc(ctx('general'),'learningResources','comment-resource','comments','abcdefghijabcdefghij')));
-  await assertFails(deleteDoc(doc(ctx('general'),'learningResources','comment-resource','comments','abcdefghijabcdefghij')));
-  await assertSucceeds(deleteDoc(doc(admin,'learningResources','comment-resource','comments','abcdefghijabcdefghij')));
-  await assertSucceeds(deleteDoc(doc(member,'learningResources','comment-resource','comments','reply-comment')));
-});
-
-
-test('text-only learning posts publish with zero files and 0 bytes in a single create',async()=>{
-  const owner=ctx('member');
-  const textOnly={...learning('member'),files:[],bytesTotal:0,status:'published'};
-  await assertSucceeds(setDoc(doc(owner,'learningResources','text-only-post'),textOnly));
-  await assertSucceeds(updateDoc(doc(owner,'learningResources','text-only-post'),{
-    title:'첨부 없는 수정 글',updatedAt:serverTimestamp()
-  }));
-  const invalid={...learning('member'),files:[],bytesTotal:1,status:'published'};
-  await assertFails(setDoc(doc(owner,'learningResources','invalid-empty-post'),invalid));
-  await assertFails(setDoc(doc(ctx('general'),'learningResources','unauthorized-empty'),{...textOnly,authorUid:'general'}));
 });

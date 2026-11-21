@@ -7,7 +7,7 @@ let env;
 const email=uid=>`${uid}@example.test`;
 const context=uid=>env.authenticatedContext(uid,{email:email(uid),email_verified:true}).firestore();
 const profile=(uid,role='general')=>({name:uid,nickname:uid,nicknameKey:uid,
-  email:email(uid),role,status:'approved',createdAt:new Date(),consent:true});
+  email:email(uid),role,status:'approved',accountType:'adult',createdAt:new Date(),consent:true});
 
 before(async()=>{
   env=await initializeTestEnvironment({projectId:'demo-asicc-admin-rules',firestore:{
@@ -19,7 +19,9 @@ before(async()=>{
       await setDoc(doc(ctx.firestore(),'members',uid),profile(uid,role));
     }
     await setDoc(doc(ctx.firestore(),'nicknames','nickold'),{uid:'nickold',nickname:'nickold',createdAt:new Date()});
-    await setDoc(doc(ctx.firestore(),'publicNames','nickold'),{nickname:'nickold',updatedAt:new Date()});
+    await setDoc(doc(ctx.firestore(),'publicNames','nickold'),{
+      nickname:'nickold',role:'member',canReceiveDM:true,updatedAt:new Date()
+    });
   });
 });
 after(async()=>{if(env)await env.cleanup();});
@@ -104,7 +106,7 @@ test('nickname cannot change without coordinated reservation and public alias up
     await tx.get(newRef);
     tx.set(newRef,{uid:'nickold',nickname:'nicknew',createdAt:serverTimestamp()});
     tx.update(memberRef,{nickname:'nicknew',nicknameKey:'nicknew'});
-    tx.set(aliasRef,{nickname:'nicknew',updatedAt:serverTimestamp()});
+    tx.set(aliasRef,{nickname:'nicknew',role:'member',canReceiveDM:true,updatedAt:serverTimestamp()});
     tx.delete(previousRef);
   }));
 });

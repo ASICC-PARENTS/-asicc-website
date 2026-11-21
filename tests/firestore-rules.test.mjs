@@ -26,6 +26,9 @@ const EMAIL = uid => `${uid}@example.test`;
 
 const profile = (uid, role, status = 'approved') => ({
   name: uid,
+  nickname: uid,
+  nicknameKey: uid,
+  accountType: 'adult',
   email: EMAIL(uid),
   role,
   status,
@@ -87,9 +90,15 @@ before(async () => {
         item('learn1', 'learning')
       ),
 
+      setDoc(doc(db, 'nicknames', 'member'), {
+        uid: 'member', nickname: 'member', createdAt: new Date()
+      }),
+      setDoc(doc(db, 'publicNames', 'member'), {
+        nickname: 'member', role: 'member', canReceiveDM: true, updatedAt: new Date()
+      }),
       setDoc(
         doc(db, 'galleryItems', 'pic1'),
-        item('pic1', 'gallery')
+        {...item('pic1', 'gallery'), status:'published', mediaType:'photo', albumId:'album-seed'}
       ),
 
       setDoc(
@@ -158,17 +167,27 @@ test('general can see learning but not gallery or office', async () => {
   );
 });
 
-test('special has identical gallery permission to member, not office', async () => {
+test('closed gallery: only admin can inspect photos; both member and special are blocked', async () => {
+  await assertSucceeds(getDoc(doc(context(uid.admin), 'galleryItems', 'pic1')));
   for (const user of [uid.member, uid.special]) {
-    const db = context(user);
+    await assertFails(getDoc(doc(context(user), 'galleryItems', 'pic1')));
+    await assertFails(getDoc(doc(context(user), 'officeDocs', 'minutes1')));
+  }
+});
 
-    await assertSucceeds(
-      getDoc(doc(db, 'galleryItems', 'pic1'))
-    );
-
-    await assertFails(
-      getDoc(doc(db, 'officeDocs', 'minutes1'))
-    );
+test('opened gallery: member and special can view equally, general remains blocked', async () => {
+  await env.withSecurityRulesDisabled(async ctx => {
+    await setDoc(doc(ctx.firestore(),'siteSettings','gallery'), {isOpen:true});
+  });
+  try {
+    for (const user of [uid.member, uid.special]) {
+      await assertSucceeds(getDoc(doc(context(user), 'galleryItems', 'pic1')));
+    }
+    await assertFails(getDoc(doc(context(uid.general), 'galleryItems', 'pic1')));
+  } finally {
+    await env.withSecurityRulesDisabled(async ctx => {
+      await setDoc(doc(ctx.firestore(),'siteSettings','gallery'), {isOpen:false});
+    });
   }
 });
 
@@ -255,14 +274,14 @@ test('new user may create only approved general member profile', async () => {
   const batch = writeBatch(db);
   batch.set(doc(db,'members',newuid),{
     name:'New user',nickname:'NewTester',nicknameKey:'newtester',email:EMAIL(newuid),
-    role:'general',status:'approved',consent:true,termsVersion:'2026-11',
+    role:'general',status:'approved',accountType:'adult',consent:true,termsVersion:'2026-11',
     termsAcceptedAt:serverTimestamp(),createdAt:serverTimestamp()
   });
   batch.set(doc(db,'nicknames','newtester'),{
     uid:newuid,nickname:'NewTester',createdAt:serverTimestamp()
   });
   batch.set(doc(db,'publicNames',newuid),{
-    nickname:'NewTester',updatedAt:serverTimestamp()
+    nickname:'NewTester',role:'general',canReceiveDM:true,updatedAt:serverTimestamp()
   });
   await assertSucceeds(batch.commit());
   const evil='evil-signup';
@@ -270,6 +289,55 @@ test('new user may create only approved general member profile', async () => {
     name:'Evil',email:EMAIL(evil),role:'admin',status:'approved',
     consent:true,createdAt:serverTimestamp()
   }));
+});
+
+test('student registration can only publish a non-messageable public alias', async () => {
+  const studentId='student-test', db=context(studentId);
+  const b=writeBatch(db);
+  b.set(doc(db,'members',studentId),{
+    name:'Student Test',nickname:'YoungGuest',nicknameKey:'youngguest',
+    email:EMAIL(studentId),role:'general',status:'approved',accountType:'student',
+    consent:true,termsVersion:'2026-11',termsAcceptedAt:serverTimestamp(),createdAt:serverTimestamp()
+  });
+  b.set(doc(db,'nicknames','youngguest'),{uid:studentId,nickname:'YoungGuest',createdAt:serverTimestamp()});
+  b.set(doc(db,'publicNames',studentId),{
+    nickname:'YoungGuest',role:'general',canReceiveDM:false,updatedAt:serverTimestamp()
+  });
+  await assertSucceeds(b.commit());
+  await assertFails(updateDoc(doc(db,'publicNames',studentId),{canReceiveDM:true,updatedAt:serverTimestamp()}));
+});
+
+test('student information and both years are mandatory for alumni upgrade requests', async () => {
+  const applicant='alumni-applicant', db=context(applicant);
+  await env.withSecurityRulesDisabled(async ctx=>{
+    await setDoc(doc(ctx.firestore(),'members',applicant),profile(applicant,'general'));
+  });
+  const ref=doc(db,'upgradeRequests',applicant);
+  const base={uid:applicant,applicantName:applicant,applicantEmail:EMAIL(applicant),
+    requestedRole:'special',kind:'alumni-parent',status:'pending',note:'Old school records',
+    relation:'mother',createdAt:serverTimestamp()};
+  await assertFails(setDoc(ref,{...base,startYear:null,schoolYear:2022,children:[
+    {studentName:'Child',school:'Primary',grade:'CM2'}]}));
+  await assertFails(setDoc(ref,{...base,startYear:2020,schoolYear:2022,children:[]}));
+  await assertSucceeds(setDoc(ref,{...base,startYear:2020,schoolYear:2022,children:[
+    {studentName:'Child',school:'Primary',grade:'CM2'}]}));
+});
+
+test('minor/student cannot send or receive private messages; general may message admin only', async () => {
+  const adminDb=context(uid.admin);
+  await assertSucceeds(setDoc(doc(adminDb,'siteSettings','messaging'),{
+    enabled:true,updatedBy:uid.admin,updatedAt:serverTimestamp()
+  }));
+  const message=(sender,recipient)=>({senderUid:sender,recipientUid:recipient,
+    body:'Hello',readAt:null,createdAt:serverTimestamp()});
+  await assertFails(setDoc(doc(context('student-test'),'privateMessages','student-out'),
+    message('student-test',uid.admin)));
+  await assertFails(setDoc(doc(context(uid.member),'privateMessages','student-in'),
+    message(uid.member,'student-test')));
+  await assertSucceeds(setDoc(doc(context(uid.general),'privateMessages','general-to-admin'),
+    message(uid.general,uid.admin)));
+  await assertFails(setDoc(doc(context(uid.general),'privateMessages','general-to-member'),
+    message(uid.general,uid.member)));
 });
 
 test('general member can file request to become association member', async () => {
@@ -283,6 +351,9 @@ test('general member can file request to become association member', async () =>
       requestedRole: 'member',
       kind: 'parent',
       schoolYear: null,
+      startYear: null,
+      relation: 'mother',
+      children: [{studentName:'Student One',school:'Primary',grade:'CM1'}],
       note: 'test',
       status: 'pending',
       createdAt: serverTimestamp()
@@ -324,6 +395,10 @@ test('admin may approve member upgrade using transaction', async () => {
 
       tx.update(memRef, {
         role: 'member'
+      });
+      tx.set(doc(db,'publicNames',uid.general), {
+        nickname: uid.general, role: 'member', canReceiveDM: true,
+        updatedAt: serverTimestamp()
       });
 
       tx.update(reqRef, {
@@ -694,6 +769,7 @@ test('duplicate nickname registration is denied', async () => {
     email: EMAIL(newuid),
     role: 'general',
     status: 'approved',
+    accountType: 'adult',
     consent: true,
     termsVersion: '2026-11',
     termsAcceptedAt: serverTimestamp(),
@@ -706,7 +782,7 @@ test('duplicate nickname registration is denied', async () => {
     createdAt: serverTimestamp()
   });
 
-  batch.set(doc(db, 'publicNames', newuid), {nickname:'NewTester',updatedAt:serverTimestamp()});
+  batch.set(doc(db, 'publicNames', newuid), {nickname:'NewTester',role:'general',canReceiveDM:true,updatedAt:serverTimestamp()});
   await assertFails(batch.commit());
 });
 
@@ -720,11 +796,11 @@ test('reserved administrator nickname cannot be registered', async () => {
   const other='impersonator';const db=context(other);const batch=writeBatch(db);
   batch.set(doc(db,'members',other),{
     name:'Bad',nickname:'ASICCAdmin',nicknameKey:'asiccadmin',email:EMAIL(other),
-    role:'general',status:'approved',consent:true,termsVersion:'2026-11',
+    role:'general',status:'approved',accountType:'adult',consent:true,termsVersion:'2026-11',
     termsAcceptedAt:serverTimestamp(),createdAt:serverTimestamp()
   });
   batch.set(doc(db,'nicknames','asiccadmin'),{uid:other,nickname:'ASICCAdmin',createdAt:serverTimestamp()});
-  batch.set(doc(db,'publicNames',other),{nickname:'ASICCAdmin',updatedAt:serverTimestamp()});
+  batch.set(doc(db,'publicNames',other),{nickname:'ASICCAdmin',role:'general',canReceiveDM:true,updatedAt:serverTimestamp()});
   await assertFails(batch.commit());
 });
 
@@ -732,13 +808,14 @@ test('member can reserve an alias atomically but cannot seize an existing one', 
   const db=context(uid.member);const member=doc(db,'members',uid.member);
   const good=writeBatch(db);
   good.update(member,{nickname:'Bonjour77',nicknameKey:'bonjour77'});
+  good.delete(doc(db,'nicknames','member'));
   good.set(doc(db,'nicknames','bonjour77'),{uid:uid.member,nickname:'Bonjour77',createdAt:serverTimestamp()});
-  good.set(doc(db,'publicNames',uid.member),{nickname:'Bonjour77',updatedAt:serverTimestamp()});
+  good.set(doc(db,'publicNames',uid.member),{nickname:'Bonjour77',role:'member',canReceiveDM:true,updatedAt:serverTimestamp()});
   await assertSucceeds(good.commit());
   const bad=writeBatch(db);
   bad.update(member,{nickname:'NewTester',nicknameKey:'newtester'});
   bad.set(doc(db,'nicknames','newtester'),{uid:uid.member,nickname:'NewTester',createdAt:serverTimestamp()});
-  bad.set(doc(db,'publicNames',uid.member),{nickname:'NewTester',updatedAt:serverTimestamp()});
+  bad.set(doc(db,'publicNames',uid.member),{nickname:'NewTester',role:'member',canReceiveDM:true,updatedAt:serverTimestamp()});
   bad.delete(doc(db,'nicknames','bonjour77'));
   await assertFails(bad.commit());
 });
@@ -747,7 +824,7 @@ test('nickname can change with reservation release and public display update', a
   const db=context(uid.member);const batch=writeBatch(db);
   batch.update(doc(db,'members',uid.member),{nickname:'Bonjour78',nicknameKey:'bonjour78'});
   batch.set(doc(db,'nicknames','bonjour78'),{uid:uid.member,nickname:'Bonjour78',createdAt:serverTimestamp()});
-  batch.set(doc(db,'publicNames',uid.member),{nickname:'Bonjour78',updatedAt:serverTimestamp()});
+  batch.set(doc(db,'publicNames',uid.member),{nickname:'Bonjour78',role:'member',canReceiveDM:true,updatedAt:serverTimestamp()});
   batch.delete(doc(db,'nicknames','bonjour77'));
   await assertSucceeds(batch.commit());
   const snap=await assertSucceeds(getDoc(doc(context(uid.special),'publicNames',uid.member)));
