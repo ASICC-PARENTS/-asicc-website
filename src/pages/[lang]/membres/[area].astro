@@ -62,9 +62,14 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
               <label for="resource-files">{L(lang,{ko:'첨부파일 (여러 개 선택 가능)',fr:'Pièces jointes (plusieurs fichiers possibles)'})}</label>
               <input id="resource-files" type="file" multiple required accept=".pdf,.docx,.xlsx,.pptx,.txt,.jpg,.jpeg,.png,.webp"/>
               <p id="resource-size" class="small muted" aria-live="polite">{L(lang,{ko:'게시글당 첨부파일 합계 최대 20MB',fr:'Maximum 20 Mo au total par publication'})}</p>
+              <p class="small muted">{L(lang,{ko:'자료 등록을 누르면 전송이 시작됩니다. 완료될 때까지 이 화면을 닫지 마세요.',fr:'Le transfert démarre après « Publier ». Gardez cette page ouverte jusqu’à la fin.'})}</p>
+              <div id="resource-upload-progress" class="stack gap-8" hidden>
+                <label for="resource-progress-bar" id="resource-progress-text">{L(lang,{ko:'파일 전송 준비 중…',fr:'Préparation du transfert…'})}</label>
+                <progress id="resource-progress-bar" max="100" value="0">0%</progress>
+              </div>
               <p class="small muted">{L(lang,{
-                ko:'PDF, Word, Excel, PowerPoint, TXT, JPG, PNG, WebP를 첨부할 수 있습니다. 한 번에 최대 20개입니다.',
-                fr:'PDF, Word, Excel, PowerPoint, TXT, JPG, PNG et WebP, jusqu’à 20 fichiers.'
+                ko:'PDF, Word, Excel, PowerPoint, TXT, JPG, PNG, WebP를 첨부할 수 있습니다. 한 번에 최대 8개입니다.',
+                fr:'PDF, Word, Excel, PowerPoint, TXT, JPG, PNG et WebP, jusqu’à 8 fichiers.'
               })}</p>
               <div class="row gap-12" style="flex-wrap:wrap">
                 <button id="resource-save" class="btn btn-dark" type="submit">{L(lang,{ko:'자료 등록',fr:'Publier'})}</button>
@@ -125,6 +130,8 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
   .files-gallery-caption p {white-space:pre-wrap;overflow-wrap:anywhere}
   .files-mini-btn {border:1px solid #d7dce0;background:white;color:inherit;padding:6px 10px;border-radius:8px;font:inherit;cursor:pointer}
   .files-mini-btn:disabled {opacity:.6;cursor:wait}
+  #resource-progress-bar {display:block;width:100%;height:15px;accent-color:#427b64}
+  #resource-save:disabled,#resource-cancel:disabled {opacity:.6;cursor:wait}
   #gallery-viewer {max-width:min(92vw,980px);border:0;border-radius:12px;padding:12px;background:#fff}
   #gallery-viewer::backdrop {background:rgba(0,0,0,.82)}
   #gallery-viewer img {display:block;max-width:85vw;max-height:78vh;object-fit:contain}
@@ -152,7 +159,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
   const SCHOOL_CATEGORIES:SchoolCategory[]=['kindergarten','elementary','middle'];
   const validCategory=(value:string):value is SchoolCategory=>SCHOOL_CATEGORIES.includes(value as SchoolCategory);
   const categoryName=(cat?:string)=>cat==='kindergarten'?tr('유치원','Maternelle'):cat==='elementary'?tr('초등학교','École élémentaire'):cat==='middle'?tr('중학교','Collège'):tr('미분류','Non classé');
-  const MAX_FILES=20;
+  const MAX_FILES=8;
   const MIME:Record<string,string>={pdf:'application/pdf',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation',txt:'text/plain',jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp'};
   const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
   const auth=getAuth(app),db=getFirestore(app),storage=getStorage(app);
@@ -173,6 +180,30 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
     const res=await fetch(api+path,{method,headers:{Authorization:`Bearer ${token}`,...(content?{'Content-Type':mime||content.type}:{})},body:content,cache:'no-store'});
     if(!res.ok){const error=await res.clone().json().catch(()=>null) as {error?:string}|null;throw Error(`HTTP ${res.status}: ${String(error?.error||'Storage error').slice(0,150)}`);}
     return res;
+  }
+  // Use one POST per file, with real browser-to-server byte progress.
+  // 100% is shown only after the Worker confirms the file was accepted.
+  async function uploadResource(path:string,file:File,mime:string,onProgress:(bytes:number)=>void){
+    const user=auth.currentUser;if(!user)throw Error('Signed out');
+    const token=await getIdToken(user);
+    return new Promise<void>((resolve,reject)=>{
+      const xhr=new XMLHttpRequest();
+      xhr.open('POST',api+path);
+      xhr.setRequestHeader('Authorization',`Bearer ${token}`);
+      xhr.setRequestHeader('Content-Type',mime);
+      xhr.upload.addEventListener('progress',event=>{
+        if(event.lengthComputable)onProgress(Math.min(file.size,event.loaded));
+      });
+      xhr.addEventListener('load',()=>{
+        if(xhr.status>=200&&xhr.status<300){onProgress(file.size);resolve();return;}
+        let cause=tr('파일 서버에서 요청을 거부했습니다.','Le serveur a refusé le transfert.');
+        try{const data=JSON.parse(xhr.responseText) as {error?:string};if(typeof data.error==='string')cause=data.error.slice(0,150);}catch{}
+        reject(Error(`HTTP ${xhr.status}: ${cause}`));
+      });
+      xhr.addEventListener('error',()=>reject(Error(tr('파일 서버에 연결할 수 없습니다.','Connexion au serveur de fichiers impossible.'))));
+      xhr.addEventListener('abort',()=>reject(Error(tr('전송이 중단되었습니다.','Transfert interrompu.'))));
+      xhr.send(file);
+    });
   }
   async function fetchFile(path:string,name:string,mime:string,button:HTMLButtonElement){
     button.disabled=true;
@@ -291,18 +322,32 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
   async function removeRecord(item:Entry,button:HTMLButtonElement){
     if(!confirm(tr('이 자료를 삭제할까요? 파일도 삭제되며 복구할 수 없습니다.','Supprimer ce contenu et son fichier définitivement ?')))return;
     button.disabled=true;
+    let cleanupFailed=false;
     try{
-      if(item.files?.length)await media(`/api/resource?postId=${encodeURIComponent(item.id)}&fileId=${encodeURIComponent(item.files[0].id)}`,'DELETE');
-      else if(item.image)await media(`/api/gallery?itemId=${encodeURIComponent(item.id)}`,'DELETE');
+      try{
+        if(item.files?.length)await media(`/api/resource?postId=${encodeURIComponent(item.id)}&fileId=${encodeURIComponent(item.files[0].id)}`,'DELETE');
+        else if(item.image)await media(`/api/gallery?itemId=${encodeURIComponent(item.id)}`,'DELETE');
+      }catch(error){
+        // A failed upload may have created no file. Do not let its Worker error
+        // prevent the author from removing the Firestore draft itself.
+        if(item.status!=='draft')throw error;
+        cleanupFailed=true;console.warn('Draft file cleanup failed',error);
+      }
       await deleteDoc(doc(db,area==='learning'?'learningResources':'galleryItems',item.id));
-      note(tr('삭제했습니다.','Contenu supprimé.'));await refresh();
-    }catch(error){console.error(error);note(tr('삭제할 수 없습니다. 파일 삭제 권한을 확인하세요.','Suppression impossible. Vérifiez les droits du stockage.'),true);}
-    finally{button.disabled=false;}
+      note(cleanupFailed
+        ?tr('미완성 초안을 삭제했습니다. 저장소에 파일이 남았을 수 있으니 운영진에게 알려 주세요.','Brouillon supprimé. Un fichier peut subsister sur le stockage : contactez les administrateurs.')
+        :tr('삭제했습니다.','Contenu supprimé.'));
+      await refresh();
+    }catch(error){
+      console.error(error);
+      const detail=error instanceof Error?error.message:'';
+      note(`${tr('삭제할 수 없습니다. Firebase 규칙 또는 파일 서버 권한을 확인하세요.','Suppression impossible. Vérifiez les règles Firebase et les droits du serveur.')} ${detail}`.trim(),true);
+    }finally{button.disabled=false;}
   }
   function contentType(file:File){const ext=file.name.split('.').pop()?.toLocaleLowerCase()||'';return MIME[ext]||'';}
   function validateFiles(selected:File[]){
     if(!selected.length)throw Error(tr('첨부파일을 선택해 주세요.','Sélectionnez au moins un fichier.'));
-    if(selected.length>MAX_FILES)throw Error(tr('파일은 한 게시글당 최대 20개까지입니다.','20 fichiers maximum par publication.'));
+    if(selected.length>MAX_FILES)throw Error(tr('파일은 한 게시글당 최대 8개까지입니다.','8 fichiers maximum par publication.'));
     let sum=0;
     for(const file of selected){
       if(!contentType(file)||!file.size||file.name.length>255)throw Error(tr('파일 종류·이름·크기를 확인해 주세요.','Vérifiez le format, le nom et la taille des fichiers.'));
@@ -318,30 +363,75 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
     target.textContent=`${tr('선택 파일','Fichiers sélectionnés')}: ${files.length}${tr('개','')} · ${moneySize(sum)} / 20 MB`;
     target.style.color=sum>MAX_TOTAL?'#b42318':'';
   });
+  let resourceSubmitting=false;
   by<HTMLFormElement>('learning-form')?.addEventListener('submit',async event=>{
-    event.preventDefault();if(!uid||!canLearningPost())return;
+    event.preventDefault();if(resourceSubmitting||!uid||!canLearningPost())return;
     const files=Array.from(by<HTMLInputElement>('resource-files')?.files||[]);
     const title=by<HTMLInputElement>('resource-title')?.value.trim()||'';
     const category=by<HTMLSelectElement>('resource-category')?.value||'';
     const body=by<HTMLTextAreaElement>('resource-body')?.value.trim()||'';
     const save=by<HTMLButtonElement>('resource-save');
+    const cancel=by<HTMLButtonElement>('resource-cancel');
+    const progress=by<HTMLProgressElement>('resource-progress-bar');
+    const progressText=by<HTMLElement>('resource-progress-text');
     if(!title||title.length>150||body.length>10000||!validCategory(category))return note(tr('제목·학교급·설명을 확인해 주세요.','Vérifiez le titre, le niveau scolaire et la description.'),true);
     let total=0;try{total=validateFiles(files);}catch(error){return note(String(error),true);}
     if(!api)return note(tr('비공개 파일 서버가 연결되지 않았습니다.','Le serveur de fichiers privés n’est pas configuré.'),true);
-    if(save)save.disabled=true;
+    resourceSubmitting=true;
+    if(save){save.disabled=true;save.textContent=tr('전송 중…','Transfert…');}
+    if(cancel)cancel.disabled=true;
+    show('resource-upload-progress',true);
+    if(progress)progress.value=0;
+    if(progressText)progressText.textContent=tr('파일 전송 준비 중… 0%','Préparation du transfert… 0 %');
+    let draftId='',draftFileId='';
     try{
       const record=doc(collection(db,'learningResources'));
       const manifest:ResourcePart[]=files.map(f=>({id:crypto.randomUUID(),name:f.name,mime:contentType(f),size:f.size}));
+      // Create a private draft first; a post becomes visible only on success.
       await setDoc(record,{title,body,category,authorUid:uid,status:'draft',files:manifest,bytesTotal:total,createdAt:serverTimestamp()});
+      draftId=record.id;draftFileId=manifest[0]?.id||'';
+      let completed=0;
       for(let i=0;i<files.length;i++){
-        note(tr(`파일 업로드 중… ${i+1}/${files.length}`,`Transfert… ${i+1}/${files.length}`));
-        await media(`/api/resource-upload?postId=${encodeURIComponent(record.id)}&fileId=${encodeURIComponent(manifest[i].id)}`,'POST',files[i],manifest[i].mime);
+        const current=i;
+        const updateProgress=(sent:number)=>{
+          const percent=Math.min(99,Math.floor((completed+sent)*100/total));
+          if(progress)progress.value=percent;
+          if(progressText)progressText.textContent=tr(`파일 전송 중 ${current+1}/${files.length} · ${percent}%`,`Transfert ${current+1}/${files.length} · ${percent} %`);
+        };
+        updateProgress(0);
+        await uploadResource(`/api/resource-upload?postId=${encodeURIComponent(record.id)}&fileId=${encodeURIComponent(manifest[i].id)}`,files[i],manifest[i].mime,updateProgress);
+        completed+=files[i].size;
       }
+      if(progress)progress.value=100;
+      if(progressText)progressText.textContent=tr('전송 100% · 게시 완료 처리 중…','Transfert 100 % · Publication en cours…');
       await updateDoc(record,{status:'published',updatedAt:serverTimestamp()});
       by<HTMLFormElement>('learning-form')?.reset();show('learning-form',false);show('files-open-form',true);
-      note(tr('학습자료가 등록되었습니다.','Ressource publiée.'));await refresh();
-    }catch(error){console.error(error);note(tr('등록 중 오류가 발생했습니다. 미완성 초안을 삭제한 후 다시 등록해 주세요.','Erreur de publication. Supprimez le brouillon incomplet et réessayez.'),true);await refresh().catch(console.error);}
-    finally{if(save)save.disabled=false;}
+      show('resource-upload-progress',false);
+      note(tr('파일 전송과 자료 등록이 완료되었습니다.','Transfert et publication terminés.'));
+      await refresh().catch(error=>{
+        console.error('Learning list refresh failed after successful publication',error);
+        note(tr('자료는 등록되었습니다. 목록이 보이지 않으면 새로고침해 주세요.','La ressource est publiée. Actualisez la page si elle ne s’affiche pas.'),true);
+      });
+    }catch(error){
+      console.error('Learning resource upload failed',error);
+      let cleanupFailed=false;
+      if(draftId){
+        // One best-effort cleanup, only when an upload failed. No retries or polling.
+        try{await media(`/api/resource?postId=${encodeURIComponent(draftId)}&fileId=${encodeURIComponent(draftFileId)}`,'DELETE');}catch{}
+        try{await deleteDoc(doc(db,'learningResources',draftId));}catch(e){cleanupFailed=true;console.warn('Draft could not be deleted',e);}
+      }
+      show('resource-upload-progress',false);
+      const detail=error instanceof Error?error.message:String(error);
+      const suffix=cleanupFailed
+        ?tr('미완성 초안이 남았습니다. 삭제 버튼으로 지워 주세요.','Le brouillon incomplet subsiste. Supprimez-le.')
+        :tr('전송 실패한 자료는 게시되지 않았습니다.','Le document non transféré n’a pas été publié.');
+      note(`${tr('업로드 실패','Échec du transfert')}: ${detail}. ${suffix}`,true);
+      await refresh().catch(console.error);
+    }finally{
+      resourceSubmitting=false;
+      if(save){save.disabled=false;save.textContent=tr('자료 등록','Publier');}
+      if(cancel)cancel.disabled=false;
+    }
   });
   async function shrinkPhoto(file:File){
     if(file.size>20_000_000||!['image/jpeg','image/png','image/webp'].includes(file.type))throw Error('Unsupported photo');
