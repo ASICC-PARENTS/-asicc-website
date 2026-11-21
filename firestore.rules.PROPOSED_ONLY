@@ -18,6 +18,14 @@ service cloud.firestore {
     }
     function isActive() { return verified() && myProfileExists() && me().status == 'approved'; }
     function isAdmin() { return isActive() && me().role == 'admin'; }
+    function galleryOpen() {
+      return exists(/databases/$(database)/documents/siteSettings/gallery)
+        && get(/databases/$(database)/documents/siteSettings/gallery).data.isOpen == true;
+    }
+    function galleryReady() { return galleryOpen() || isAdmin(); }
+    function galleryAlbum(id) {
+      return /databases/$(database)/documents/galleryAlbums/$(id);
+    }
     function hasGalleryAccess() {
       return isActive() && me().role in ['member','special','admin'];
     }
@@ -45,17 +53,18 @@ function validRegistration(uid) {
   return signedIn() && request.auth.uid == uid
     && request.resource.data.keys().hasOnly([
       'name','nickname','nicknameKey','email','role','status','consent',
-      'termsVersion','termsAcceptedAt','createdAt'
+      'termsVersion','termsAcceptedAt','createdAt','accountType'
     ])
     && request.resource.data.keys().hasAll([
       'name','nickname','nicknameKey','email','role','status','consent',
-      'termsVersion','termsAcceptedAt','createdAt'
+      'termsVersion','termsAcceptedAt','createdAt','accountType'
     ])
     && request.resource.data.name is string
     && request.resource.data.name.size() > 0
     && request.resource.data.name.size() <= 80
     && nicknameValid(request.resource.data.nickname,request.resource.data.nicknameKey)
     && request.resource.data.email == request.auth.token.email
+    && request.resource.data.accountType in ['adult','student']
     && request.resource.data.role == 'general'
     && request.resource.data.status == 'approved'
     && request.resource.data.consent == true
@@ -85,9 +94,10 @@ function validSelfNicknameUpdate(uid) {
       return isAdmin() && uid != request.auth.uid
         && changed.hasOnly([
           'role','status','name','nickname','nicknameKey','phone',
-          'levels','children','memberKind','memberRelation'
+          'levels','children','memberKind','memberRelation','accountType'
         ])
         && validRole(request.resource.data.role)
+        && request.resource.data.get('accountType','') in ['','adult','student']
         && request.resource.data.status in ['approved','suspended']
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
@@ -149,9 +159,12 @@ match /nicknames/{key} {
 match /publicNames/{uid} {
   allow get, list: if isActive();
   allow create, update: if signedIn() && (request.auth.uid == uid || isAdmin())
-    && request.resource.data.keys().hasOnly(['nickname','updatedAt'])
-    && request.resource.data.keys().hasAll(['nickname','updatedAt'])
+    && request.resource.data.keys().hasOnly(['nickname','updatedAt','role','canReceiveDM'])
+    && request.resource.data.keys().hasAll(['nickname','updatedAt','canReceiveDM'])
     && request.resource.data.updatedAt == request.time
+    && request.resource.data.canReceiveDM is bool
+    && request.resource.data.canReceiveDM == (getAfter(memberDoc(uid)).data.get('accountType','') == 'adult' && getAfter(memberDoc(uid)).data.status == 'approved')
+    && (request.resource.data.get('role','') == '' || request.resource.data.role == getAfter(memberDoc(uid)).data.role)
     && getAfter(memberDoc(uid)).data.nickname == request.resource.data.nickname
     && getAfter(memberDoc(uid)).data.nicknameKey == request.resource.data.nickname.lower();
   allow delete: if false;
@@ -214,6 +227,8 @@ function validUpgrade(uid) {
         && request.resource.data.kind in ['parent','alumnus','alumni-parent','teacher','contributor']
         && (request.resource.data.requestedRole == 'member' && request.resource.data.kind == 'parent'
            || request.resource.data.requestedRole == 'special' && request.resource.data.kind in ['alumnus','alumni-parent','teacher','contributor'])
+        && (request.resource.data.startYear == null || request.resource.data.startYear is int && request.resource.data.startYear >= 2000 && request.resource.data.startYear <= 2100)
+        && (!(request.resource.data.kind in ['alumnus','alumni-parent']) || (request.resource.data.startYear is int && request.resource.data.schoolYear is int && request.resource.data.startYear <= request.resource.data.schoolYear))
         && (request.resource.data.schoolYear == null || request.resource.data.schoolYear is int
             && request.resource.data.schoolYear >= 2000 && request.resource.data.schoolYear <= 2100)
         && request.resource.data.note is string && request.resource.data.note.size() <= 500
@@ -227,7 +242,7 @@ function validUpgrade(uid) {
       allow get: if isAdmin() || verified() && request.auth.uid == uid;
       allow list: if isAdmin();
       allow create: if request.resource.data.keys().hasOnly([
-          'uid','applicantName','applicantEmail','requestedRole','kind','schoolYear','note','children','relation','status','createdAt'
+          'uid','applicantName','applicantEmail','requestedRole','kind','schoolYear','startYear','note','children','relation','status','createdAt'
         ]) && validUpgrade(uid);
       // A rejected applicant can submit a new request; the previous review is retained.
       allow update: if (isAdmin()
@@ -237,7 +252,7 @@ function validUpgrade(uid) {
           && request.resource.data.reviewedAt == request.time)
         || (verified() && request.auth.uid == uid && resource.data.status == 'rejected'
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-             'requestedRole','kind','schoolYear','note','children','relation','status','createdAt'
+             'requestedRole','kind','schoolYear','startYear','note','children','relation','status','createdAt'
           ]) && validUpgrade(uid));
       allow delete: if isAdmin();
     }
@@ -315,6 +330,12 @@ function validUpgrade(uid) {
         && (a.size() <= 7 || validAttachment(a[7]))
         ;
     }
+    function resourceCategoryAllowed(category) {
+      return category is string && category.size() <= 24
+        && (category in ['kindergarten','elementary','middle','common','other','general']
+          || (exists(/databases/$(database)/documents/siteSettings/resourceCategories)
+            && category in get(/databases/$(database)/documents/siteSettings/resourceCategories).data.get('keys',[])));
+    }
     function validLearningCreate(id) {
       return hasGalleryAccess()
         && request.resource.data.keys().hasOnly([
@@ -326,37 +347,49 @@ function validUpgrade(uid) {
         && request.resource.data.title is string && request.resource.data.title.size() > 0
         && request.resource.data.title.size() <= 150
         && request.resource.data.body is string && request.resource.data.body.size() <= 10000
-        && request.resource.data.category in ['kindergarten','elementary','middle','common','other']
+        && resourceCategoryAllowed(request.resource.data.category)
         && request.resource.data.authorUid == request.auth.uid
-        && (request.resource.data.status == 'draft'
-            || (request.resource.data.status == 'published' && request.resource.data.files.size() == 0))
+        && request.resource.data.status == 'draft'
         && validAttachments(request.resource.data.files)
         && request.resource.data.bytesTotal is int
         && request.resource.data.bytesTotal >= 0
         && request.resource.data.bytesTotal <= 20000000
-        && request.resource.data.bytesTotal == learningAttachmentTotal(request.resource.data.files)
         && request.resource.data.createdAt == request.time;
     }
     function validGalleryImage(f) {
       return f is map && f.keys().hasOnly(['id','mime','size'])
         && f.keys().hasAll(['id','mime','size'])
         && f.id is string && f.id.matches('^[A-Za-z0-9_-]{12,128}$')
-        && f.mime in ['image/webp','image/jpeg']
-        && f.size is int && f.size > 0 && f.size <= 1500000;
+        && f.mime in ['image/webp','image/jpeg','video/mp4','video/webm']
+        && f.size is int && f.size > 0 && f.size <= 20000000
+        && ((f.mime in ['image/webp','image/jpeg'] && f.size <= 1500000)
+          || (f.mime in ['video/mp4','video/webm']));
     }
     function validGalleryCreate(id) {
-      return isAdmin()
+      let a = galleryAlbum(request.resource.data.get('albumId',''));
+      return hasGalleryAccess() && galleryReady()
         && request.resource.data.keys().hasOnly([
-          'title','description','authorUid','status','image','createdAt'
+          'albumId','title','description','authorUid','status','image','createdAt',
+          'mediaType','originalName','reviewReason','sortOrder'
         ])
         && request.resource.data.keys().hasAll([
-          'title','description','authorUid','status','image','createdAt'
+          'albumId','title','description','authorUid','status','image','createdAt',
+          'mediaType','originalName','reviewReason','sortOrder'
         ])
+        && request.resource.data.albumId is string
+        && exists(a)
+        && (get(a).data.ownerUid == request.auth.uid || get(a).data.isShared == true)
         && request.resource.data.title is string && request.resource.data.title.size() > 0
         && request.resource.data.title.size() <= 150
         && request.resource.data.description is string && request.resource.data.description.size() <= 3000
+        && request.resource.data.originalName is string && request.resource.data.originalName.size() <= 255
+        && request.resource.data.reviewReason in ['','consent_uncertain']
         && request.resource.data.authorUid == request.auth.uid
         && request.resource.data.status == 'draft'
+        && request.resource.data.mediaType in ['photo','video']
+        && ((request.resource.data.mediaType == 'photo' && request.resource.data.image.mime in ['image/webp','image/jpeg'])
+          || (request.resource.data.mediaType == 'video' && request.resource.data.image.mime in ['video/mp4','video/webm']))
+        && request.resource.data.sortOrder is number
         && validGalleryImage(request.resource.data.image)
         && request.resource.data.createdAt == request.time;
     }
@@ -366,17 +399,6 @@ function validUpgrade(uid) {
         && request.resource.data.status == 'published'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt'])
         && request.resource.data.updatedAt == request.time;
-    }
-    // Fixed 8-slot sum keeps the client-supplied bytesTotal verifiable without loops.
-    function learningAttachmentTotal(a) {
-      return (a.size() > 0 ? a[0].size : 0)
-        + (a.size() > 1 ? a[1].size : 0)
-        + (a.size() > 2 ? a[2].size : 0)
-        + (a.size() > 3 ? a[3].size : 0)
-        + (a.size() > 4 ? a[4].size : 0)
-        + (a.size() > 5 ? a[5].size : 0)
-        + (a.size() > 6 ? a[6].size : 0)
-        + (a.size() > 7 ? a[7].size : 0);
     }
     function validLearningEdit() {
       return hasGalleryAccess()
@@ -389,12 +411,9 @@ function validUpgrade(uid) {
         && request.resource.data.title.size() <= 150
         && request.resource.data.body is string
         && request.resource.data.body.size() <= 10000
-        && request.resource.data.category in ['kindergarten','elementary','middle','common','other']
+        && resourceCategoryAllowed(request.resource.data.category)
         && validAttachments(request.resource.data.files)
-        && request.resource.data.bytesTotal is int
-        && request.resource.data.bytesTotal >= 0
-        && request.resource.data.bytesTotal <= 20000000
-        && request.resource.data.bytesTotal == learningAttachmentTotal(request.resource.data.files)
+        && request.resource.data.bytesTotal is int && request.resource.data.bytesTotal >= 0 && request.resource.data.bytesTotal <= 20000000
         && request.resource.data.updatedAt == request.time;
     }
     match /learningResources/{id} {
@@ -420,11 +439,95 @@ function validUpgrade(uid) {
             || get(/databases/$(database)/documents/learningResources/$(id)).data.authorUid == request.auth.uid);
       }
     }
+    // A closed gallery denies all member access, including direct Firestore URLs.
+    // An admin can review test media before public launch.
+    match /siteSettings/{key} {
+      allow get: if isActive() && key in ['gallery','boardCategories','resourceCategories','messaging'];
+      allow list: if false;
+      allow create, update: if isAdmin()
+        && key in ['gallery','boardCategories','resourceCategories','messaging']
+        && request.resource.data.keys().hasOnly(['isOpen','items','keys','enabled','updatedBy','updatedAt'])
+        && request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.updatedAt == request.time
+        && ((key == 'gallery' && request.resource.data.isOpen is bool)
+          || (key == 'messaging' && request.resource.data.enabled is bool)
+          || (key in ['boardCategories','resourceCategories']
+             && request.resource.data.items is list && request.resource.data.items.size() <= 20
+             && request.resource.data.get('keys',[]) is list && request.resource.data.get('keys',[]).size() <= 20));
+      allow delete: if false;
+    }
+    function validAlbumCover(id) {
+      let cover = request.resource.data.get('coverItemId','');
+      return cover == '' || (cover is string
+        && cover.matches('^[A-Za-z0-9_-]{12,128}$')
+        && exists(/databases/$(database)/documents/galleryItems/$(cover))
+        && get(/databases/$(database)/documents/galleryItems/$(cover)).data.albumId == id
+        && get(/databases/$(database)/documents/galleryItems/$(cover)).data.mediaType == 'photo'
+        && get(/databases/$(database)/documents/galleryItems/$(cover)).data.status == 'published');
+    }
+    function validAlbumData() {
+      return request.resource.data.keys().hasOnly([
+          'title','school','year','ownerUid','isShared','coverItemId','createdAt','updatedAt'])
+        && request.resource.data.keys().hasAll([
+          'title','school','year','ownerUid','isShared','coverItemId','createdAt','updatedAt'])
+        && request.resource.data.title is string
+        && request.resource.data.title.size() >= 2 && request.resource.data.title.size() <= 120
+        && request.resource.data.school in ['kindergarten','elementary','middle','common']
+        && request.resource.data.year is int
+        && request.resource.data.year >= 2018 && request.resource.data.year <= 2100
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.isShared == false
+        && request.resource.data.coverItemId == ''
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+    }
+    match /galleryAlbums/{id} {
+      allow get, list: if hasGalleryAccess() && galleryReady();
+      allow create: if hasGalleryAccess() && galleryReady() && validAlbumData();
+      allow update: if hasGalleryAccess() && galleryReady() && (
+        isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'title','school','year','updatedAt','isShared','coverItemId'])
+        || (resource.data.ownerUid == request.auth.uid && resource.data.isShared == false
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','updatedAt']))
+        || (resource.data.ownerUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coverItemId','updatedAt']))
+        || (resource.data.isShared == false && request.resource.data.isShared == true
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isShared','updatedAt']))
+        // A contributor can remove their own photo as album cover before deleting/moving it.
+        || (resource.data.get('coverItemId','') != ''
+          && request.resource.data.coverItemId == ''
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coverItemId','updatedAt'])
+          && exists(/databases/$(database)/documents/galleryItems/$(resource.data.coverItemId))
+          && get(/databases/$(database)/documents/galleryItems/$(resource.data.coverItemId)).data.authorUid == request.auth.uid)
+      ) && request.resource.data.updatedAt == request.time
+      && validAlbumCover(id);
+      // A collaborator must mark a folder shared before posting. Only an admin can
+      // rename or delete a shared folder, even after its last foreign upload was removed.
+      allow delete: if isAdmin() || (hasGalleryAccess() && galleryReady()
+        && resource.data.ownerUid == request.auth.uid && resource.data.isShared == false);
+    }
     match /galleryItems/{id} {
-      allow get, list: if hasGalleryAccess();
-      allow create: if (isAdmin() && validFileRecord('gallery',id)) || validGalleryCreate(id);
-      allow update: if isAdmin() && onlyPublishOwnDraft();
-      allow delete: if isAdmin();
+      allow get, list: if isAdmin() || (hasGalleryAccess() && galleryOpen()
+        && (resource.data.status == 'published' || resource.data.authorUid == request.auth.uid));
+      allow create: if validGalleryCreate(id);
+      allow update: if hasGalleryAccess() && galleryReady()
+        && request.resource.data.updatedAt == request.time && (
+          (resource.data.authorUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'title','description','updatedAt'])
+            && request.resource.data.title is string && request.resource.data.title.size() <= 150
+            && request.resource.data.description is string && request.resource.data.description.size() <= 3000)
+          || (resource.data.authorUid == request.auth.uid && resource.data.status == 'draft'
+            && request.resource.data.status in ['pending','published']
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt']))
+          || (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'title','description','albumId','sortOrder','status','updatedAt'])
+             && request.resource.data.status in ['draft','pending','published','hidden','rejected']
+             && request.resource.data.albumId is string
+             && exists(galleryAlbum(request.resource.data.albumId)))
+        );
+      allow delete: if isAdmin() || (hasGalleryAccess() && galleryReady()
+        && resource.data.authorUid == request.auth.uid);
     }
     match /officeDocs/{id} {
       allow get, list: if isAdmin();
@@ -756,6 +859,42 @@ function validUpgrade(uid) {
       allow update, delete: if false;
     }
 
+    function isAdultAccount(uid) {
+      return exists(memberDoc(uid))
+        && get(memberDoc(uid)).data.status == 'approved'
+        && get(memberDoc(uid)).data.get('accountType','') == 'adult';
+    }
+    function messagingEnabled() {
+      return exists(/databases/$(database)/documents/siteSettings/messaging)
+        && get(/databases/$(database)/documents/siteSettings/messaging).data.enabled == true;
+    }
+    // One-to-one messages: neither minor/student nor unknown account types can
+    // send OR receive, regardless of button visibility in the UI.
+    match /privateMessages/{messageId} {
+      allow get, list: if isActive() && isAdultAccount(request.auth.uid)
+        && (resource.data.senderUid == request.auth.uid
+          || resource.data.recipientUid == request.auth.uid);
+      allow create: if isActive() && messagingEnabled() && isAdultAccount(request.auth.uid)
+        && request.resource.data.keys().hasOnly([
+          'senderUid','recipientUid','body','createdAt','readAt'])
+        && request.resource.data.keys().hasAll([
+          'senderUid','recipientUid','body','createdAt','readAt'])
+        && request.resource.data.senderUid == request.auth.uid
+        && request.resource.data.recipientUid is string
+        && request.resource.data.recipientUid != request.auth.uid
+        && isAdultAccount(request.resource.data.recipientUid)
+        && (me().role in ['member','special','admin']
+          || get(memberDoc(request.resource.data.recipientUid)).data.role == 'admin')
+        && request.resource.data.body is string && request.resource.data.body.size() >= 1
+        && request.resource.data.body.size() <= 2000
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.readAt == null;
+      allow update: if isActive() && isAdultAccount(request.auth.uid)
+        && resource.data.recipientUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt'])
+        && resource.data.readAt == null && request.resource.data.readAt == request.time;
+      allow delete: if false;
+    }
     // Anything not explicitly approved above is denied.
     match /{document=**} { allow read, write: if false; }
   }

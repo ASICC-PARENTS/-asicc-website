@@ -8,6 +8,7 @@
  * Resources: ALL attachments per Firestore post must total <=20,000,000 bytes.
  */
 const MAX_IMAGE = 1_500_000;
+const MAX_GALLERY_VIDEO = 20_000_000;
 const MAX_RESOURCE_POST = 20_000_000;
 const MAX_RESOURCE_FILES = 8;
 const SAFE_ID = /^[A-Za-z0-9_-]{12,128}$/;
@@ -121,9 +122,14 @@ function validDocumentBytes(bytes,mime){
   return bytes.length>=4&&bytes[0]===80&&bytes[1]===75&&bytes[2]===3&&bytes[3]===4;
 }
 function validGalleryRecord(record){
-  return record&&['draft','published'].includes(record.status)&&record.image&&SAFE_ID.test(record.image.id||'')&&
-    ['image/webp','image/jpeg'].includes(record.image.mime)&&
-    Number.isSafeInteger(record.image.size)&&record.image.size>0&&record.image.size<=MAX_IMAGE;
+  return record&&['draft','published','pending','hidden','rejected'].includes(record.status)&&record.image&&SAFE_ID.test(record.image.id||'')&&
+    ['image/webp','image/jpeg','video/mp4','video/webm'].includes(record.image.mime)&&
+    Number.isSafeInteger(record.image.size)&&record.image.size>0&&
+    (['video/mp4','video/webm'].includes(record.image.mime)?record.image.size<=MAX_GALLERY_VIDEO:record.image.size<=MAX_IMAGE);
+}
+async function galleryIsOpen(request,env){
+  try{const data=await firestoreRecord(request,env,'siteSettings','gallery');return data.isOpen===true;}
+  catch{return false;}
 }
 async function handleFiles(request,env,headers,url,user){
   const resource=url.pathname.includes('resource');
@@ -133,7 +139,9 @@ async function handleFiles(request,env,headers,url,user){
   // Omitting fileId on DELETE removes the full resource; specified IDs delete one file.
   const deleteAll=resource&&request.method==='DELETE'&&!fileId;
   if(!SAFE_ID.test(id)||(resource&&!deleteAll&&!SAFE_ID.test(fileId)))return json({error:'Invalid record identifier'},400,headers);
-  if(!resource&&user.role!=='admin'&&user.role!=='member'&&user.role!=='special')return json({error:'Gallery is private'},403,headers);
+  if(!resource&&user.role!=='admin'){
+    if(!['member','special'].includes(user.role)||!await galleryIsOpen(request,env))return json({error:'Gallery is currently closed'},403,headers);
+  }
   let record;
   try{record=await firestoreRecord(request,env,collection,id);}catch{return json({error:'Record not accessible'},403,headers);}
   const files=resource?resourceManifest(record):null;
@@ -141,9 +149,10 @@ async function handleFiles(request,env,headers,url,user){
   const meta=resource?files.find(f=>f.id===fileId):record.image;
   if(!meta&&request.method==='GET')return json({error:'Attachment not found'},404,headers);
   const isOwner=record.authorUid===user.uid;
-  const writer=resource?isOwner&&['member','special','admin'].includes(user.role):user.role==='admin'&&isOwner;
+  const writer=isOwner&&['member','special','admin'].includes(user.role);
   const remover=user.role==='admin'||writer;
   const reader=resource?true:['member','special','admin'].includes(user.role);
+  const isVideo=!resource&&['video/mp4','video/webm'].includes(meta?.mime);
   const key=resource?`learning/${id}/${fileId}`:`gallery/${id}/${meta.id}`;
   if(request.method==='POST'){
     if(!writer)return json({error:'Only the author may upload'},403,headers);
@@ -160,14 +169,16 @@ async function handleFiles(request,env,headers,url,user){
       if(mime!==meta.mime||declared>meta.size)return json({error:'File does not match the manifest'},413,headers);
     }
     const bytes=new Uint8Array(await request.arrayBuffer());
-    if(bytes.length===0||bytes.length>MAX_RESOURCE_POST||(!editing&&bytes.length!==meta.size)||!validDocumentBytes(bytes,mime))
+    if(bytes.length===0||bytes.length>(resource?MAX_RESOURCE_POST:MAX_GALLERY_VIDEO)||(!editing&&bytes.length!==meta.size)||
+       !(isVideo?validVideoBytes(bytes,mime):validDocumentBytes(bytes,mime)))
       return json({error:'Invalid file size or format'},415,headers);
     try{const upstream=await b2Request(env,'PUT',key,bytes,mime);
       return upstream.ok?json({ok:true},201,headers):json({error:'Storage upload failed'},502,headers);
     }catch{return json({error:'Storage unavailable'},502,headers);}
   }
   if(request.method==='GET'){
-    if(!reader||record.status!=='published'&&!isOwner)return json({error:'Not available'},403,headers);
+    if(!reader||(!resource&&record.status!=='published'&&!isOwner&&user.role!=='admin')||
+      (resource&&record.status!=='published'&&!isOwner))return json({error:'Not available'},403,headers);
     try{const upstream=await b2Request(env,'GET',key);
       if(upstream.status===404)return json({error:'File missing'},404,headers);
       if(!upstream.ok)return json({error:'Storage read failed'},502,headers);
@@ -188,6 +199,11 @@ async function handleFiles(request,env,headers,url,user){
     }catch{return json({error:'Storage delete unavailable'},502,headers);}
   }
   return json({error:'Method not allowed'},405,headers);
+}
+function validVideoBytes(bytes,mime){
+  if(mime==='video/mp4')return bytes.length>=12&&String.fromCharCode(...bytes.slice(4,8))==='ftyp';
+  if(mime==='video/webm')return bytes.length>=4&&[26,69,223,163].every((x,i)=>bytes[i]===x);
+  return false;
 }
 function isValidImage(bytes,mime){
   if(mime==='image/webp')return bytes.length>=12&&String.fromCharCode(...bytes.slice(0,4))==='RIFF'&&String.fromCharCode(...bytes.slice(8,12))==='WEBP';
@@ -226,6 +242,42 @@ async function b2Request(env,method,key,bytes=null,mime=null){
   delete requestHeaders.host;
   return fetch(endpoint+path,{method,headers:requestHeaders,...(bytes?{body:bytes}:{}),redirect:'manual'});
 }
+/** Firestore-authenticated notification. Requires Resend secret and a KV binding:
+ * RESEND_API_KEY, ASICC_NOTIFY_TO, NOTIFICATION_KV, ASICC_MAIL_FROM.
+ * Caller can only notify about their OWN recently-created request. */
+async function handleNotify(request,env,headers,user){
+  if(!env.RESEND_API_KEY||!env.NOTIFICATION_KV||!env.ASICC_NOTIFY_TO||!env.ASICC_MAIL_FROM)
+    return json({error:'Notification service is not configured'},503,headers);
+  let input;try{input=await request.json();}catch{return json({error:'Invalid JSON'},400,headers);}
+  const kind=String(input?.kind||''),id=String(input?.id||'');
+  const types={upgrade:'upgradeRequests',suggestion:'suggestions',gallery:'galleryItems',withdrawal:'memberWithdrawalRequests',name:'nameChangeRequests'};
+  if(!Object.hasOwn(types,kind)||!SAFE_ID.test(id))return json({error:'Invalid request'},400,headers);
+  let data,profile;try{
+    data=await firestoreRecord(request,env,types[kind],id);
+    profile=await firestoreRecord(request,env,'members',user.uid);
+  }catch{return json({error:'Request not readable'},403,headers);}
+  const owner=data.uid||data.authorUid||id;
+  if(owner!==user.uid)return json({error:'Not your request'},403,headers);
+  if(kind==='gallery'&&data.status!=='pending')return json({error:'Not awaiting review'},409,headers);
+  if(kind==='upgrade'&&data.status!=='pending')return json({error:'Not awaiting review'},409,headers);
+  // Requests without a createdAt are invalid. Time protection avoids abuse
+  // through repeatedly notifying about old records.
+  const cacheKey=`asicc-notice/${kind}/${id}/${data.createdAt||data.requestedAt||'1'}`;
+  if(await env.NOTIFICATION_KV.get(cacheKey))return json({ok:true,duplicate:true},200,headers);
+  const labels={upgrade:'회원 승급 신청',suggestion:'운영진 건의·문의',gallery:'갤러리 사진 검토 요청',withdrawal:'회원 탈퇴 신청',name:'실명 변경 신청'};
+  const subject=`[ASICC] ${labels[kind]} 접수`;
+  const safe=(v,max=200)=>String(v??'').replace(/[\r\n\u0000-\u001f]/g,' ').slice(0,max);
+  const lines=[`요청 유형: ${labels[kind]}`,`신청자 실명: ${safe(profile.name)}`,`가입 이메일: ${safe(profile.email)}`,`회원 등급: ${safe(profile.role)}`,`접수 일시: ${new Date().toISOString()}`,
+    `요청 ID: ${safe(id)}`,`신청 분류: ${safe(data.kind||data.category||data.requestedRole||data.reviewReason||'')}`,
+    '', '세부 내용과 학생 정보는 ASICC 운영진 관리 화면에서 확인해 주세요.'];
+  const destination=String(env.ASICC_NOTIFY_TO).split(',').map(x=>x.trim()).filter(Boolean);
+  if(!destination.length||destination.length>5)return json({error:'Invalid recipients'},503,headers);
+  const mail=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${env.RESEND_API_KEY}`,'Content-Type':'application/json'},
+    body:JSON.stringify({from:String(env.ASICC_MAIL_FROM),to:destination,subject,text:lines.join('\n')})});
+  if(!mail.ok)return json({error:'Email delivery failed'},502,headers);
+  await env.NOTIFICATION_KV.put(cacheKey,'1',{expirationTtl:60*60*24*14});
+  return json({ok:true},200,headers);
+}
 export default {
   async fetch(request,env){
     const headers=corsHeaders(request,env);
@@ -233,14 +285,15 @@ export default {
     if(request.method==='OPTIONS')return new Response(null,{status:204,headers});
     const url=new URL(request.url);
     const fileRoutes=['/api/resource-upload','/api/resource','/api/gallery-upload','/api/gallery'];
-    if(!['/api/upload','/api/photo',...fileRoutes].includes(url.pathname))return json({error:'Not found'},404,headers);
+    if(!['/api/upload','/api/photo','/api/notify',...fileRoutes].includes(url.pathname))return json({error:'Not found'},404,headers);
     if(!['GET','POST','DELETE'].includes(request.method))return json({error:'Method not allowed'},405,headers);
     if(request.method==='DELETE'&&!['/api/resource','/api/gallery'].includes(url.pathname))return json({error:'Method not allowed'},405,headers);
     if(request.method==='GET'&&!['/api/photo','/api/resource','/api/gallery'].includes(url.pathname))return json({error:'Method not allowed'},405,headers);
-    if(request.method==='POST'&&!['/api/upload','/api/resource-upload','/api/gallery-upload'].includes(url.pathname))return json({error:'Method not allowed'},405,headers);
+    if(request.method==='POST'&&!['/api/upload','/api/notify','/api/resource-upload','/api/gallery-upload'].includes(url.pathname))return json({error:'Method not allowed'},405,headers);
     let user;
     try{user=await verifiedMember(request,env);}
     catch(e){return json({error:'Membership verification failed'},401,headers);}
+    if(url.pathname==='/api/notify')return handleNotify(request,env,headers,user);
     if(fileRoutes.includes(url.pathname))return handleFiles(request,env,headers,url,user);
     if(request.method==='POST'){
       if(!['member','special','admin'].includes(user.role))return json({error:'Write access required'},403,headers);

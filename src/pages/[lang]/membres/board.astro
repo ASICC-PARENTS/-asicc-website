@@ -10,7 +10,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
     <div class="stack gap-16" id="board-root" data-lang={lang} data-login-url={href(lang,'membres/login/')}>
       <a href={href(lang,'membres/')} class="small">← {L(lang,{ko:'회원공간',fr:'Espace membres'})}</a>
       <h1 class="h2">{L(lang,{ko:'회원 소통 게시판',fr:'Forum des membres'})}</h1>
-      <p class="muted">{L(lang,{ko:'일반회원은 읽기, 협회회원·특별회원·운영진은 글쓰기와 댓글이 가능합니다.',fr:'Les membres généraux peuvent consulter les messages. La publication et les commentaires sont réservés aux membres de l’association, aux membres spéciaux et aux administrateurs.'})}</p>
+      <p class="muted">{L(lang,{ko:'일반회원은 읽기, 정회원·특별회원·운영진은 글쓰기와 댓글이 가능합니다.',fr:'Les membres généraux peuvent consulter les messages. La publication et les commentaires sont réservés aux membres de l’association, aux membres spéciaux et aux administrateurs.'})}</p>
       <details class="card" style="padding:14px"><summary>{L(lang,{ko:'게시판 이용 규칙',fr:'Règles du forum'})}</summary><p class="small muted" style="margin-top:10px">{L(lang,{ko:'비방·괴롭힘·고의적 분란 조장·허위정보·개인정보 공개·스팸을 금지합니다. 운영진은 위반 게시물을 숨기거나 삭제하고 계정의 이용 권한을 제한할 수 있습니다. 이의제기는 contact@asicc-parents.fr로 문의해 주세요.',fr:'Les attaques, le harcèlement, les provocations délibérées, les fausses informations, la divulgation de données et les spams sont interdits. La modération peut masquer ou supprimer des contenus et limiter les accès. Recours : contact@asicc-parents.fr.'})}</p></details>
       {!live && <div class="card auth-card" role="status">{L(lang,{ko:'게시판은 보안 점검 중으로 아직 공개되지 않았습니다.',fr:'Le forum est désactivé pendant les vérifications de sécurité.'})}</div>}
       <div id="board-app" hidden={!live} class="stack gap-16">
@@ -28,6 +28,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
               <option value="free">{L(lang,{ko:'자유',fr:'Libre'})}</option>
               <option value="give">{L(lang,{ko:'무료나눔',fr:'Dons'})}</option>
               <option value="market">{L(lang,{ko:'중고거래',fr:'Occasion'})}</option>
+              <option value="info">{L(lang,{ko:'정보',fr:'Informations'})}</option>
               <option value="question">{L(lang,{ko:'질문',fr:'Questions'})}</option>
             </select>
             <button id="board-write-toggle" type="button" class="btn btn-dark" hidden>+ {L(lang,{ko:'글쓰기',fr:'Écrire un message'})}</button>
@@ -37,6 +38,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
             <button class="board-category-tab" type="button" data-board-tab="free" aria-pressed="false">{L(lang,{ko:'자유',fr:'Libre'})}</button>
             <button class="board-category-tab" type="button" data-board-tab="give" aria-pressed="false">{L(lang,{ko:'무료나눔',fr:'Dons'})}</button>
             <button class="board-category-tab" type="button" data-board-tab="market" aria-pressed="false">{L(lang,{ko:'중고거래',fr:'Occasion'})}</button>
+            <button class="board-category-tab" type="button" data-board-tab="info" aria-pressed="false">{L(lang,{ko:'정보',fr:'Informations'})}</button>
             <button class="board-category-tab" type="button" data-board-tab="question" aria-pressed="false">{L(lang,{ko:'질문',fr:'Questions'})}</button>
           </nav>
           <form id="post-form" class="card board-editor stack gap-12" hidden>
@@ -46,6 +48,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
               <option value="free">{L(lang,{ko:'자유',fr:'Libre'})}</option>
               <option value="give">{L(lang,{ko:'무료나눔',fr:'Don gratuit'})}</option>
               <option value="market">{L(lang,{ko:'중고거래',fr:'Vente d’occasion'})}</option>
+              <option value="info">{L(lang,{ko:'정보',fr:'Information'})}</option>
               <option value="question">{L(lang,{ko:'질문',fr:'Question'})}</option>
             </select>
             <label for="post-title">{L(lang,{ko:'제목',fr:'Titre'})}</label>
@@ -140,19 +143,23 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
   type TimestampLike = { toDate?:()=>Date };
   type BoardData = { id:string;title:string;body:string;authorUid:string;authorName:string;deleted:boolean;createdAt?:TimestampLike;updatedAt?:TimestampLike };
   type CommentData = { id:string;body:string;authorUid:string;authorName:string;deleted:boolean;createdAt?:TimestampLike;updatedAt?:TimestampLike };
-  type Category = 'free'|'give'|'market'|'question';
-  const CATEGORY_KO:Record<Category,string>={free:'자유',give:'무료나눔',market:'중고거래',question:'질문'};
-  const CATEGORY_FR:Record<Category,string>={free:'Libre',give:'Don gratuit',market:'Occasion',question:'Question'};
-  const categoryNames=Object.keys(CATEGORY_KO) as Category[];
-  // Store category in title so the existing restrictive Firestore create/update rules stay unchanged.
+  type Category = string;
+  const CATEGORY_KO:Record<Category,string>={free:'자유',give:'무료나눔',market:'중고거래',info:'정보',question:'질문'};
+  const CATEGORY_FR:Record<Category,string>={free:'Libre',give:'Don gratuit',market:'Occasion',info:'Information',question:'Question'};
+  let categoryNames=Object.keys(CATEGORY_KO) as Category[];
+  // Category IDs remain stable even if an administrator renames their labels.
+  // This preserves the existing restrictive boardPosts Firestore schema.
   const titleInfo=(stored:string):{category:Category;title:string}=>{
-    const found=/^\[(자유|무료나눔|중고거래|질문)\]\s+/.exec(stored);
-    if(!found)return {category:'free',title:stored};
-    const category=categoryNames.find(key=>CATEGORY_KO[key]===found[1])||'free';
-    return {category,title:stored.slice(found[0].length)};
+    const stable=/^\[cat:([a-z][a-z0-9-]{1,23})\]\s+/.exec(stored);
+    if(stable)return {category:stable[1],title:stored.slice(stable[0].length)};
+    // Legacy label-based titles are still readable. No existing member migration needed.
+    const legacy=/^\[([^\]\n]{1,28})\]\s+/.exec(stored);
+    if(!legacy)return {category:'free',title:stored};
+    const category=categoryNames.find(key=>CATEGORY_KO[key]===legacy[1])||'free';
+    return {category,title:stored.slice(legacy[0].length)};
   };
-  const storedTitle=(category:Category,title:string)=>`[${CATEGORY_KO[category]}] ${title}`;
-  const categoryLabel=(category:Category)=>fr?CATEGORY_FR[category]:CATEGORY_KO[category];
+  const storedTitle=(category:Category,title:string)=>`[cat:${category}] ${title}`;
+  const categoryLabel=(category:Category)=>fr?(CATEGORY_FR[category]||category):(CATEGORY_KO[category]||category);
   // Reply's parent ID is encoded in body; the current comment Firestore schema has no parentId field.
   const REPLY_PREFIX=/^\[ASICC_REPLY_V1:([A-Za-z0-9]{20})\]\n/;
   const replyInfo=(body:string)=>{
@@ -185,14 +192,17 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
   const dateLabel=(created?:TimestampLike,updated?:TimestampLike)=>`${stamp(created)}${wasEdited(created,updated)?tr(' · 수정됨',' · modifié'):''}`;
   const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
   const auth=getAuth(app), db=getFirestore(app);
-  const aliases=new Map<string,Promise<string>>();
-  const nicknameOf=(authorUid:string):Promise<string>=>{
-    if(!authorUid)return Promise.resolve(tr('회원','Membre'));
-    if(!aliases.has(authorUid))aliases.set(authorUid,getDoc(doc(db,'publicNames',authorUid)).then(snap=>
-      snap.exists()&&typeof snap.data().nickname==='string'?snap.data().nickname:tr('기존 회원','Ancien membre')
-    ).catch(()=>tr('기존 회원','Ancien membre')));
+  const aliases=new Map<string,Promise<{nickname:string;role:string}>>();
+  const publicInfo=(authorUid:string):Promise<{nickname:string;role:string}>=>{
+    if(!authorUid)return Promise.resolve({nickname:tr('회원','Membre'),role:'general'});
+    if(!aliases.has(authorUid))aliases.set(authorUid,getDoc(doc(db,'publicNames',authorUid)).then(snap=>({
+      nickname:snap.exists()&&typeof snap.data().nickname==='string'?snap.data().nickname:tr('기존 회원','Ancien membre'),
+      role:snap.exists()&&typeof snap.data().role==='string'?snap.data().role:''
+    })).catch(()=>({nickname:tr('기존 회원','Ancien membre'),role:''})));
     return aliases.get(authorUid)!;
   };
+  const nicknameOf=(id:string)=>publicInfo(id).then(x=>x.nickname);
+  const roleName=(r:string)=>({general:tr('일반회원','Membre général'),member:tr('정회원','Membre régulier'),special:tr('특별회원','Membre spécial'),admin:tr('운영진','Administrateur')} as Record<string,string>)[r]||tr('회원','Membre');
   let uid='',name='',role='',posts:BoardData[]=[],selected:BoardData|null=null;
   let editingPostId:string|null=null, photoBusy=false;
   let photoCaret:Range|null=null;
@@ -401,8 +411,27 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       const author=el('span',tr('회원','Membre'));author.className='board-author';
       const date=el('span',stamp(post.createdAt));date.className='board-date';
       row.append(number,subject,author,date);list.append(row);
-      void nicknameOf(post.authorUid).then(nick=>{if(row.isConnected)author.textContent=nick;});
+      void publicInfo(post.authorUid).then(info=>{if(row.isConnected){author.textContent=info.nickname+' · '+roleName(info.role);}});
     });
+  }
+  async function reportBoardEntry(kind:'post'|'comment',postId:string,commentId?:string){
+    const reason=prompt(tr('운영진에게 전달할 신고 사유를 입력해 주세요.','Motif du signalement destiné aux administrateurs :'));
+    if(reason===null)return;
+    const text=reason.trim();if(!text||text.length>1500)return notify(tr('신고 사유를 입력해 주세요.','Indiquez un motif.'),true);
+    try{
+      const request=doc(collection(db,'suggestions'));
+      await setDoc(request,{
+        uid,category:'confidential',subject:kind==='post'?tr('게시글 신고','Signalement de publication'):tr('댓글 신고','Signalement de commentaire'),
+        body:`${kind==='post'?'게시글':'댓글'} ID: ${postId}${commentId?' / '+commentId:''}\n신고 내용: ${text}`,
+        status:'received',createdAt:serverTimestamp()
+      });
+      if(photoApi)try{
+        const token=await getIdToken(auth.currentUser!);
+        const response=await fetch(photoApi+'/api/notify',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({kind:'suggestion',id:request.id})});
+        if(!response.ok)console.warn('Report email notification pending:',response.status);
+      }catch(error){console.warn('Report email not connected',error);}
+      notify(tr('운영진에게 신고가 접수되었습니다.','Signalement transmis aux administrateurs.'));
+    }catch(error){console.error(error);notify(tr('신고 접수에 실패했습니다.','Échec du signalement.'),true);}
   }
   async function openPost(post:BoardData){
     clearNotice();
@@ -415,7 +444,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       title.append(badge,document.createTextNode(plainTitle));
     }
     if(body){renderBoardBody(body,post.body);void populatePhotos(body);}
-    if(meta){meta.textContent=dateLabel(post.createdAt,post.updatedAt);void nicknameOf(post.authorUid).then(nick=>{if(selected?.id===post.id)meta.textContent=`${nick} · ${dateLabel(post.createdAt,post.updatedAt)}`;});}
+    if(meta){meta.textContent=dateLabel(post.createdAt,post.updatedAt);void publicInfo(post.authorUid).then(info=>{if(selected?.id===post.id)meta.textContent=`${info.nickname} · ${roleName(info.role)} · ${dateLabel(post.createdAt,post.updatedAt)}`;});}
     actions?.replaceChildren();
     
     if(!post.deleted){
@@ -445,6 +474,11 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       }
     }
 
+    if(!post.deleted&&post.authorUid!==uid){
+      const report=el('button',tr('신고','Signaler')) as HTMLButtonElement;
+      report.type='button';report.className='board-mini-btn';
+      report.addEventListener('click',()=>void reportBoardEntry('post',post.id));actions?.append(report);
+    }
     show('comment-form',canWrite()&&!post.deleted);await refreshComments(post.id);
   }
   function back(){clearNotice();selected=null;show('post-detail',false);show('post-form',false);show('board-list-panel',true);show('board-toolbar',true);show('board-category-tabs',true);}
@@ -526,7 +560,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
 
       await batch.commit();
       back();
-      await refreshPosts();
+      await loadBoardCategories();await refreshPosts();
       notify(tr('게시글이 삭제되었습니다.','Message supprimé.'));
     }catch(e){
       console.error(e);
@@ -589,11 +623,16 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
     const wrap=el('div');wrap.className=`board-comment-entry${isReply?' board-reply-entry':''}`;
     wrap.dataset.depth=String(depth);
     const meta=el('div',`${kind} · ${dateLabel(c.createdAt,c.updatedAt)}`);meta.className='board-comment-meta small muted';
-    void nicknameOf(c.authorUid).then(nick=>{if(meta.isConnected)meta.textContent=`${kind} · ${nick} · ${dateLabel(c.createdAt,c.updatedAt)}`;});
+    void publicInfo(c.authorUid).then(info=>{if(meta.isConnected)meta.textContent=`${kind} · ${info.nickname} · ${roleName(info.role)} · ${dateLabel(c.createdAt,c.updatedAt)}`;});
     const body=el('p',detail.text);body.className='board-comment-text';
     if(orphan){const note=el('p',tr('연결된 상위 댓글·답글을 찾을 수 없습니다.','Le commentaire parent est introuvable.'));note.className='small muted';wrap.append(note);}
     wrap.append(meta,body);
     const btns=el('div');btns.className='board-comment-actions';
+    if(!c.deleted&&c.authorUid!==uid){
+      const report=el('button',tr('신고','Signaler')) as HTMLButtonElement;
+      report.type='button';report.className='board-mini-btn';
+      report.addEventListener('click',()=>void reportBoardEntry('comment',postId,c.id));btns.append(report);
+    }
     // A fifth-level reply has no further reply action; edits and deletion remain available.
     if(canWrite()&&!c.deleted&&depth<MAX_COMMENT_DEPTH){
       const reply=el('button',tr('답글','Répondre')) as HTMLButtonElement;
@@ -703,6 +742,28 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       }
     }catch(error){console.error(error);notify(tr('댓글을 불러오지 못했습니다.','Impossible de charger les commentaires.'),true);}
   }
+  // Categories are maintained in the admin screen, without code edits.
+  async function loadBoardCategories(){
+    try{
+      const snap=await getDoc(doc(db,'siteSettings','boardCategories'));
+      const raw=snap.exists()?snap.data().items:null;
+      if(!Array.isArray(raw)||!raw.length)return;
+      const categories=raw.filter((x):x is {id:string;ko:string;fr:string}=>
+        !!x&&typeof x.id==='string'&&/^[a-z][a-z0-9-]{1,23}$/.test(x.id)&&typeof x.ko==='string'&&typeof x.fr==='string').slice(0,20);
+      if(!categories.length)return;
+      categoryNames=categories.map(x=>x.id);
+      categories.forEach(x=>{CATEGORY_KO[x.id]=x.ko;CATEGORY_FR[x.id]=x.fr;});
+      const filter=by<HTMLSelectElement>('board-category-filter'),compose=by<HTMLSelectElement>('post-category'),tabs=by<HTMLElement>('board-category-tabs');
+      if(filter){filter.replaceChildren();const all=el('option',tr('전체 분류','Toutes les catégories')) as HTMLOptionElement;all.value='all';filter.append(all);}
+      compose?.replaceChildren();tabs?.replaceChildren();
+      if(tabs){const all=el('button',tr('전체','Tout')) as HTMLButtonElement;all.type='button';all.dataset.boardTab='all';all.className='board-category-tab is-active';all.setAttribute('aria-pressed','true');tabs.append(all);}
+      categories.forEach(x=>{
+        for(const sel of [filter,compose]){if(!sel)continue;const opt=el('option',categoryLabel(x.id)) as HTMLOptionElement;opt.value=x.id;sel.append(opt);}
+        if(tabs){const b=el('button',categoryLabel(x.id)) as HTMLButtonElement;b.type='button';b.dataset.boardTab=x.id;b.className='board-category-tab';b.setAttribute('aria-pressed','false');tabs.append(b);}
+      });
+      if(tabs&&filter){tabs.querySelectorAll<HTMLButtonElement>('[data-board-tab]').forEach(b=>b.addEventListener('click',()=>{filter.value=b.dataset.boardTab||'all';updateCategoryTabs();renderPosts();}));}
+    }catch(e){console.warn('Category defaults retained',e);}
+  }
   if(import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true') onAuthStateChanged(auth,async user=>{
     if(!user){location.replace(root?.dataset.loginUrl||'/');return;}
     try{
@@ -712,7 +773,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       if(!snap.exists()||snap.data().status!=='approved')throw Error('profile');
       uid=user.uid;role=snap.data().role;name=snap.data().nickname||'기존회원';
       show('board-content',true);show('post-form',false);show('board-write-toggle',canWrite());notify(tr('게시판을 열었습니다.','Forum ouvert.'));
-      await refreshPosts();
+      await loadBoardCategories();await refreshPosts();
     }catch(e){console.error(e);notify(tr('접근 권한이 없습니다. 인증 후 로그인해 주세요.','Accès refusé. Vérifiez votre compte.'),true);}
   });
   by<HTMLInputElement>('board-search')?.addEventListener('input',renderPosts);

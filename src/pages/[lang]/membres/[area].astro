@@ -1,7 +1,7 @@
 ---
 import Base from '../../../layouts/Base.astro';
 import { href, L, type Lang } from '../../../i18n/ui';
-export const getStaticPaths = () => ['ko', 'fr'].flatMap(lang => ['learning','gallery','office'].map(area => ({params:{lang,area}})));
+export const getStaticPaths = () => ['ko', 'fr'].flatMap(lang => ['learning','office'].map(area => ({params:{lang,area}})));
 const lang = Astro.params.lang as Lang;
 const area = Astro.params.area as 'learning'|'gallery'|'office';
 const titles = {
@@ -18,10 +18,10 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
       <h1 class="h2">{L(lang,titles[area])}</h1>
       <p class="muted">
         {area==='learning' ? L(lang,{
-          ko:'가입된 모든 회원이 자료를 열람·다운로드할 수 있습니다. 협회회원·특별회원·운영진은 자료를 등록할 수 있으며, 게시글당 첨부파일 총합은 20MB까지입니다.',
+          ko:'가입된 모든 회원이 자료를 열람·다운로드할 수 있습니다. 정회원·특별회원·운영진은 자료를 등록할 수 있으며, 게시글당 첨부파일 총합은 20MB까지입니다.',
           fr:'Tous les membres inscrits peuvent consulter et télécharger les ressources. Les membres, membres spéciaux et administrateurs peuvent publier, avec 20 Mo de pièces jointes par publication.'
         }) : area==='gallery' ? L(lang,{
-          ko:'협회회원·특별회원·운영진 전용 비공개 사진공간입니다. 사진 등록은 운영진만 가능합니다.',
+          ko:'정회원·특별회원·운영진 전용 비공개 사진공간입니다. 사진 등록은 운영진만 가능합니다.',
           fr:'Galerie privée réservée aux membres de l’association, membres spéciaux et administrateurs. Seuls les administrateurs peuvent publier.'
         }) : L(lang,{
           ko:'운영진만 접근 가능한 비공개 문서 공간입니다.',fr:'Espace documentaire confidentiel, réservé aux administrateurs.'
@@ -48,6 +48,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
                 <option value="middle">{L(lang,{ko:'중학교',fr:'Collège'})}</option>
                 <option value="common">{L(lang,{ko:'공통',fr:'Commun'})}</option>
                 <option value="other">{L(lang,{ko:'기타',fr:'Autres'})}</option>
+                <option value="general">{L(lang,{ko:'일반',fr:'Général'})}</option>
               </select>
               <button id="files-open-form" type="button" class="btn btn-dark" hidden>+ {L(lang,{ko:'자료 등록',fr:'Ajouter une ressource'})}</button>
             </div>
@@ -57,6 +58,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
               <button type="button" class="board-category-tab" data-resource-tab="elementary" aria-pressed="false">{L(lang,{ko:'초등학교',fr:'École élémentaire'})}</button>
               <button type="button" class="board-category-tab" data-resource-tab="middle" aria-pressed="false">{L(lang,{ko:'중학교',fr:'Collège'})}</button>
               <button type="button" class="board-category-tab" data-resource-tab="common" aria-pressed="false">{L(lang,{ko:'공통',fr:'Commun'})}</button>
+              <button type="button" class="board-category-tab" data-resource-tab="general" aria-pressed="false">{L(lang,{ko:'일반',fr:'Général'})}</button>
               <button type="button" class="board-category-tab" data-resource-tab="other" aria-pressed="false">{L(lang,{ko:'기타',fr:'Autres'})}</button>
             </nav>
             <label id="resource-drafts-wrap" class="small muted" hidden><input type="checkbox" id="resource-show-drafts"/> {L(lang,{ko:'미완성 초안 표시 (운영진)',fr:'Afficher les brouillons incomplets (administration)'})}</label>
@@ -72,6 +74,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
                 <option value="middle">{L(lang,{ko:'중학교',fr:'Collège'})}</option>
                 <option value="common">{L(lang,{ko:'공통',fr:'Commun'})}</option>
                 <option value="other">{L(lang,{ko:'기타',fr:'Autres'})}</option>
+                <option value="general">{L(lang,{ko:'일반',fr:'Général'})}</option>
               </select>
               <label for="resource-body">{L(lang,{ko:'내용',fr:'Contenu'})}</label>
               <div class="rich-tools" role="toolbar" aria-label={L(lang,{ko:'글 편집 도구',fr:'Outils de mise en forme'})}>
@@ -233,7 +236,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
   import { BOARD_PHOTO_API } from '../../../config/board-photos';
   import { renderBoardBody, setEditorBody, serializeEditor, boardText, photoKeys, insertPhoto } from '../../../scripts/board-rich';
 
-  type SchoolCategory = 'kindergarten' | 'elementary' | 'middle' | 'common' | 'other';
+  type SchoolCategory = 'kindergarten' | 'elementary' | 'middle' | 'common' | 'other' | 'general';
   type Entry = {id:string;title?:string;body?:string;description?:string;category?:SchoolCategory;status?:string;authorUid?:string;createdAt?:{toDate?:()=>Date};updatedAt?:{toDate?:()=>Date};files?:ResourcePart[];bytesTotal?:number;image?:ResourcePart;filename?:string;storagePath?:string;mime?:string};
   type ResourceComment = {id:string;body:string;authorUid:string;authorName:string;deleted:boolean;createdAt?:{toDate?:()=>Date};updatedAt?:{toDate?:()=>Date}};
   type ResourcePart = {id:string;name:string;mime:string;size:number};
@@ -246,23 +249,31 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
   const list=by<HTMLElement>('files-list');
   const api=BOARD_PHOTO_API.trim().replace(/\/$/,'');
   const MAX_TOTAL=20_000_000;
-  const SCHOOL_CATEGORIES:SchoolCategory[]=['kindergarten','elementary','middle','common','other'];
+  const SCHOOL_CATEGORIES:SchoolCategory[]=['kindergarten','elementary','middle','common','other','general'];
   const validCategory=(value:string):value is SchoolCategory=>SCHOOL_CATEGORIES.includes(value as SchoolCategory);
-  const categoryName=(cat?:string)=>cat==='kindergarten'?tr('유치원','Maternelle'):cat==='elementary'?tr('초등학교','École élémentaire'):cat==='middle'?tr('중학교','Collège'):cat==='common'?tr('공통','Commun'):cat==='other'?tr('기타','Autres'):tr('미분류','Non classé');
+  const RESOURCE_LABELS:Record<string,string>={};
+  const categoryName=(cat?:string)=>RESOURCE_LABELS[cat||'']|| (cat==='kindergarten'?tr('유치원','Maternelle'):cat==='elementary'?tr('초등학교','École élémentaire'):cat==='middle'?tr('중학교','Collège'):cat==='common'?tr('공통','Commun'):cat==='other'?tr('기타','Autres'):cat==='general'?tr('일반','Général'):tr('미분류','Non classé'));
   const MAX_FILES=8;
   const MIME:Record<string,string>={pdf:'application/pdf',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation',txt:'text/plain',jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp'};
   const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
   const auth=getAuth(app),db=getFirestore(app),storage=getStorage(app);
   const memo=new Map<string,string>();
   const photoMemo=new Map<string,string>();
-  const aliases=new Map<string,Promise<string>>();
-  const nicknameOf=(authorUid:string):Promise<string>=>{
-    if(!authorUid)return Promise.resolve(tr('기존 자료','Document existant'));
-    if(!aliases.has(authorUid))aliases.set(authorUid,getDoc(doc(db,'publicNames',authorUid)).then(snap=>
-      snap.exists()&&typeof snap.data().nickname==='string'?snap.data().nickname:tr('기존 회원','Ancien membre')
-    ).catch(()=>tr('기존 회원','Ancien membre')));
+  type PublicAuthor={nickname:string;role:string};
+  const aliases=new Map<string,Promise<PublicAuthor>>();
+  const memberRoleLabel=(value:string)=>({
+    general:tr('일반회원','Membre général'),member:tr('정회원','Membre régulier'),
+    special:tr('특별회원','Membre spécial'),admin:tr('운영진','Administrateur')
+  } as Record<string,string>)[value]||tr('회원','Membre');
+  const publicAuthor=(authorUid:string):Promise<PublicAuthor>=>{
+    if(!authorUid)return Promise.resolve({nickname:tr('기존 자료','Document existant'),role:''});
+    if(!aliases.has(authorUid))aliases.set(authorUid,getDoc(doc(db,'publicNames',authorUid)).then(snap=>({
+      nickname:snap.exists()&&typeof snap.data().nickname==='string'?snap.data().nickname:tr('회원','Membre'),
+      role:snap.exists()&&typeof snap.data().role==='string'?snap.data().role:''
+    })).catch(()=>({nickname:tr('회원','Membre'),role:''})));
     return aliases.get(authorUid)!;
   };
+  const authorLabel=(v:PublicAuthor)=>v.nickname+' · '+memberRoleLabel(v.role);
   const REPLY_PREFIX=/^\[ASICC_REPLY_V1:([A-Za-z0-9]{20})\]\n/;
   const replyInfo=(body:string)=>{const matched=REPLY_PREFIX.exec(body);return {parentId:matched?.[1]||null,text:matched?body.slice(matched[0].length):body};};
   const replyBody=(parentId:string,body:string)=>`[ASICC_REPLY_V1:${parentId}]\n${body}`;
@@ -530,7 +541,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
         title.type='button';title.className='board-title-link';title.addEventListener('click',()=>openResource(item));
         subject.append(badge,title);
         const author=el('span',tr('회원','Membre'));author.className='board-author';
-        void nicknameOf(item.authorUid||'').then(nick=>{if(row.isConnected)author.textContent=nick;});
+        void publicAuthor(item.authorUid||'').then(authorInfo=>{if(row.isConnected)author.textContent=authorLabel(authorInfo);});
         const date=el('span',stamp(item.createdAt));date.className='board-date';
         row.append(number,subject,author,date);list.append(row);
       });
@@ -566,7 +577,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
     const title=el('h2',item.title||tr('제목 없음','Sans titre'));
     card.append(title);
     const meta=el('p',tr('회원','Membre')+' · '+stamp(item.createdAt)+(item.status==='draft'?' · '+tr('미완성 초안','Brouillon incomplet'):''));meta.className='small muted';card.append(meta);
-    void nicknameOf(item.authorUid||'').then(nick=>{if(card.isConnected)meta.textContent=nick+' · '+stamp(item.createdAt)+(item.status==='draft'?' · '+tr('미완성 초안','Brouillon incomplet'):'');});
+    void publicAuthor(item.authorUid||'').then(authorInfo=>{if(card.isConnected)meta.textContent=authorLabel(authorInfo)+' · '+stamp(item.createdAt)+(item.status==='draft'?' · '+tr('미완성 초안','Brouillon incomplet'):'');});
     if(item.body){const text=el('div');text.className='files-post-body board-text';renderBoardBody(text,item.body);card.append(text);void populateResourcePhotos(text);}
     if(item.status==='draft'&&item.authorUid===uid){
       const p=el('p',tr('파일 전송이 완료되지 않았습니다. 삭제 후 다시 등록해 주세요.','Transfert incomplet : supprimez ce brouillon et recommencez.'));p.className='small muted';card.append(p);
@@ -610,7 +621,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
     const kind=tr(isReply?'답글':'댓글',isReply?'Réponse':'Commentaire');
     const wrap=el('div');wrap.className=`board-comment-entry${isReply?' board-reply-entry':''}`;
     const meta=el('div',`${kind} · ${stamp(comment.createdAt)}`);meta.className='board-comment-meta small muted';
-    void nicknameOf(comment.authorUid).then(nick=>{if(wrap.isConnected)meta.textContent=`${kind} · ${nick} · ${stamp(comment.createdAt)}`;});
+    void publicAuthor(comment.authorUid).then(authorInfo=>{if(wrap.isConnected)meta.textContent=`${kind} · ${authorLabel(authorInfo)} · ${stamp(comment.createdAt)}`;});
     if(orphan){const missing=el('p',tr('상위 댓글을 찾을 수 없습니다.','Commentaire parent introuvable.'));missing.className='small muted';wrap.append(missing);}
     const body=el('p',comment.deleted?tr('관리자가 숨긴 댓글입니다.','Commentaire masqué.'):info.text);body.className='board-comment-text';
     wrap.append(meta,body);
@@ -978,6 +989,34 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
     }catch(error){console.error(error);note(tr('등록 실패. 미완성 사진 항목을 삭제하고 다시 시도해 주세요.','Échec de la publication. Supprimez le brouillon incomplet.'),true);await refresh().catch(console.error);}
     finally{if(save)save.disabled=false;}
   });
+  async function loadResourceCategories(){
+    try{
+      const snap=await getDoc(doc(db,'siteSettings','resourceCategories'));
+      const data=snap.data()?.items;
+      if(!Array.isArray(data)||!data.length)return;
+      const items=data.filter((x):x is {id:string;ko:string;fr:string}=>
+        !!x&&typeof x.id==='string'&&/^[a-z][a-z0-9-]{1,23}$/.test(x.id)
+        &&typeof x.ko==='string'&&typeof x.fr==='string').slice(0,20);
+      if(!items.length)return;
+      SCHOOL_CATEGORIES.splice(0,SCHOOL_CATEGORIES.length,...items.map(x=>x.id as SchoolCategory));
+      for(const item of items)RESOURCE_LABELS[item.id]=fr?item.fr:item.ko;
+      const filter=by<HTMLSelectElement>('resource-filter');
+      const choose=by<HTMLSelectElement>('resource-category');
+      const tabs=by<HTMLElement>('resource-category-tabs');
+      filter?.replaceChildren();choose?.replaceChildren();tabs?.replaceChildren();
+      if(filter){const all=document.createElement('option');all.value='all';all.textContent=tr('전체','Tout');filter.append(all);}
+      if(choose){const prompt=document.createElement('option');prompt.value='';prompt.textContent=tr('자료 분류를 선택하세요','Choisir une catégorie');prompt.disabled=true;prompt.selected=true;choose.append(prompt);}
+      if(tabs){const all=document.createElement('button');all.type='button';all.className='board-category-tab is-active';all.dataset.resourceTab='all';all.setAttribute('aria-pressed','true');all.textContent=tr('전체','Tout');tabs.append(all);}
+      for(const item of items){
+        const label=categoryName(item.id);
+        for(const control of [filter,choose]){if(!control)continue;const o=document.createElement('option');o.value=item.id;o.textContent=label;control.append(o);}
+        if(tabs){const b=document.createElement('button');b.type='button';b.className='board-category-tab';b.dataset.resourceTab=item.id;b.setAttribute('aria-pressed','false');b.textContent=label;tabs.append(b);}
+      }
+      tabs?.querySelectorAll<HTMLButtonElement>('[data-resource-tab]').forEach(button=>button.addEventListener('click',()=>{
+        if(filter)filter.value=button.dataset.resourceTab||'all';syncResourceTabs();render();
+      }));
+    }catch(e){console.warn('Resource category defaults retained',e);}
+  }
   by<HTMLElement>('files-search')?.addEventListener('input',render);
   by<HTMLSelectElement>('resource-filter')?.addEventListener('change',()=>{syncResourceTabs();render();});
   by<HTMLInputElement>('resource-show-drafts')?.addEventListener('change',render);
@@ -1023,12 +1062,13 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
       if(!user.emailVerified)throw Error('Unverified');
       const snap=await getDoc(doc(db,'members',user.uid));
       if(!snap.exists()||snap.data().status!=='approved')throw Error('Inactive');
-      uid=user.uid;role=String(snap.data().role||'');name=String(snap.data().nickname||'기존회원');aliases.set(uid,Promise.resolve(name));
+      uid=user.uid;role=String(snap.data().role||'');name=String(snap.data().nickname||'기존회원');aliases.set(uid,Promise.resolve({nickname:name,role}));
       if(!permitted())throw Error('Role not allowed');
       show('files-controls',true);
       if(area==='learning'){
         show('files-open-form',canLearningPost());
         show('resource-drafts-wrap',isAdmin());
+        await loadResourceCategories();
       }
       if(area==='gallery')show('gallery-open-form',isAdmin());
       note('');await refresh();

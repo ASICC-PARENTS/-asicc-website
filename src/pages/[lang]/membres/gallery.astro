@@ -1,0 +1,92 @@
+---
+import Base from '../../../layouts/Base.astro';
+import {langPaths,href,L,type Lang} from '../../../i18n/ui';
+export const getStaticPaths=langPaths;
+const lang=Astro.params.lang as Lang;
+const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
+---
+<Base lang={lang} rest="membres/gallery/" title={L(lang,{ko:'ASICC 갤러리',fr:'Galerie ASICC'})} noindex>
+  <section class="wrap m-shell gallery-main">
+    <div id="gallery-root" class="stack gap-16" data-lang={lang} data-login-url={href(lang,'membres/login/')}>
+      <a href={href(lang,'membres/')} class="small">← {L(lang,{ko:'회원공간',fr:'Espace membres'})}</a>
+      <h1 class="h2">{L(lang,{ko:'사진·동영상 갤러리',fr:'Galerie photos et vidéos'})}</h1>
+      {!live && <p class="card gallery-lock">{L(lang,{ko:'갤러리는 초상권 보호 정책 협의가 완료될 때까지 비공개입니다. 운영진 회의 후 오픈할 예정입니다.',fr:'La galerie reste privée jusqu’à la validation de la politique relative au droit à l’image.'})}</p>}
+      <p id="gallery-status" class="small muted" role="status" aria-live="polite" hidden={!live}>{L(lang,{ko:'권한을 확인하고 있습니다…',fr:'Vérification des accès…'})}</p>
+      <section id="gallery-closed" class="card gallery-lock" hidden>
+        <h2 class="h3">{L(lang,{ko:'갤러리를 준비하고 있습니다',fr:'Galerie en préparation'})}</h2>
+        <p>{L(lang,{ko:'학생 및 학부모의 초상권 보호 정책을 운영진 회의에서 협의 중입니다. 정책 확정 후 갤러리를 공개할 예정입니다.',fr:'Les modalités de protection du droit à l’image sont en cours de discussion. La galerie ouvrira après validation.'})}</p>
+      </section>
+      <div id="gallery-app" hidden class="stack gap-16">
+        <section id="gallery-admin-banner" class="card" hidden>
+          <strong>{L(lang,{ko:'운영진 전용 비공개 시험 화면',fr:'Espace de test privé réservé à l’administration'})}</strong>
+          <p class="small muted">{L(lang,{ko:'갤러리는 비공개 시험 상태입니다. 실제 학생 사진을 등록하지 말고 테스트 파일만 사용해 주세요. 현재 저장소는 Backblaze B2이며 Google Drive 자동 보관은 연결·실행되지 않습니다.',fr:'La galerie est fermée. Utilisez uniquement des fichiers de test. L’archivage Google Drive n’est pas encore connecté.'})}</p>
+        </section>
+        <div class="row gap-12" style="flex-wrap:wrap;align-items:center">
+          <label class="stack gap-8"><span>{L(lang,{ko:'학교 구분',fr:'Établissement'})}</span><select id="album-school-filter"><option value="all">{L(lang,{ko:'전체',fr:'Tous'})}</option><option value="kindergarten">{L(lang,{ko:'유치원',fr:'Maternelle'})}</option><option value="elementary">{L(lang,{ko:'초등학교',fr:'Élémentaire'})}</option><option value="middle">{L(lang,{ko:'중학교',fr:'Collège'})}</option><option value="common">{L(lang,{ko:'공통 행사',fr:'Événements communs'})}</option></select></label>
+          <label class="stack gap-8"><span>{L(lang,{ko:'연도',fr:'Année'})}</span><select id="album-year-filter"><option value="all">{L(lang,{ko:'전체',fr:'Toutes'})}</option></select></label>
+          <label class="stack gap-8"><span>{L(lang,{ko:'행사 검색',fr:'Rechercher un événement'})}</span><input id="album-search" type="search" maxlength="80" placeholder={L(lang,{ko:'행사 앨범 이름',fr:'Nom de l’album'})}/></label>
+          <button id="album-new-toggle" type="button" class="btn btn-dark">{L(lang,{ko:'+ 새 행사 앨범',fr:'+ Nouvel album'})}</button>
+        </div>
+        <form id="album-new-form" class="card stack gap-12 gallery-form" hidden>
+          <h2 class="h3">{L(lang,{ko:'행사 앨범 생성',fr:'Créer un album'})}</h2>
+          <label>{L(lang,{ko:'행사·앨범 이름',fr:'Nom de l’événement'})}<input id="album-title" required maxlength="120" /></label>
+          <label>{L(lang,{ko:'학교 구분',fr:'Établissement'})}<select id="album-school" required><option value="kindergarten">{L(lang,{ko:'유치원',fr:'Maternelle'})}</option><option value="elementary">{L(lang,{ko:'초등학교',fr:'Élémentaire'})}</option><option value="middle">{L(lang,{ko:'중학교',fr:'Collège'})}</option><option value="common">{L(lang,{ko:'공통 행사',fr:'Événements communs'})}</option></select></label>
+          <label>{L(lang,{ko:'촬영·행사 연도',fr:'Année de l’événement'})}<input id="album-year" type="number" required min="2018" max="2100" value="2026" /></label>
+          <div class="row gap-12"><button class="btn btn-dark" type="submit">{L(lang,{ko:'앨범 만들기',fr:'Créer'})}</button><button id="album-new-cancel" class="btn btn-ghost" type="button">{L(lang,{ko:'취소',fr:'Annuler'})}</button></div>
+        </form>
+        <div id="album-list" class="gallery-album-grid"></div>
+        <section id="album-detail" hidden class="stack gap-16">
+          <div class="card gallery-detail-head">
+            <button class="btn btn-ghost" id="album-back" type="button">← {L(lang,{ko:'앨범 목록',fr:'Tous les albums'})}</button>
+            <h2 id="album-active-title" class="h3"></h2><p id="album-active-meta" class="small muted"></p>
+            <div id="album-actions" class="row gap-8" style="flex-wrap:wrap"></div>
+          </div>
+          <form id="media-upload-form" class="card gallery-form stack gap-12">
+            <h3 class="h3">{L(lang,{ko:'사진·동영상 등록',fr:'Ajouter des photos et vidéos'})}</h3>
+            <p class="small muted">{L(lang,{ko:'여러 개를 함께 선택해도 사진과 동영상은 각각 하나의 항목으로 표시됩니다. 다른 사람의 얼굴이 포함된 경우 게시 동의 여부를 확인해 주세요.',fr:'Vous pouvez sélectionner plusieurs fichiers, chacun étant présenté séparément. Vérifiez les autorisations des personnes reconnaissables.'})}</p>
+            <label>{L(lang,{ko:'파일 선택 (사진 여러 장·영상 포함)',fr:'Sélectionner les fichiers'})}<input type="file" id="gallery-files" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" multiple required /></label>
+            <div id="gallery-file-review" class="stack gap-8"></div>
+            <p class="small muted">{L(lang,{ko:'현재 갤러리 파일은 비공개 Backblaze B2에만 저장됩니다. 사진은 웹용으로 축소되며 원본은 별도 보관되지 않습니다. 동영상은 파일당 20MB 이하의 MP4·WebM만 지원합니다. Google Drive는 Goodstack 승인 전까지 연결하지 않습니다.',fr:'Les fichiers sont stockés uniquement dans le stockage privé Backblaze B2. Les photos sont optimisées, sans sauvegarde des originaux ; vidéos MP4/WebM de 20 Mo maximum. Google Drive ne sera pas connecté avant validation Goodstack.'})}</p>
+            <button id="gallery-submit" class="btn btn-dark" type="submit">{L(lang,{ko:'선택한 파일 등록',fr:'Ajouter les fichiers'})}</button>
+          </form>
+          <section id="gallery-bulk-tools" class="card stack gap-8" style="padding:14px" hidden>
+            <strong>{L(lang,{ko:'운영진 사진 일괄 관리',fr:'Actions groupées'})}</strong>
+            <div class="row gap-8" style="flex-wrap:wrap;align-items:center">
+              <select id="gallery-target-album" aria-label={L(lang,{ko:'이동 대상 앨범',fr:'Album de destination'})}></select>
+              <button type="button" class="btn btn-ghost" id="gallery-bulk-move">{L(lang,{ko:'선택 사진 이동',fr:'Déplacer la sélection'})}</button>
+              <button type="button" class="btn btn-ghost" id="gallery-bulk-approve">{L(lang,{ko:'선택 사진 승인',fr:'Approuver la sélection'})}</button>
+              <button type="button" class="btn btn-ghost" id="gallery-bulk-hide">{L(lang,{ko:'선택 사진 비공개',fr:'Masquer la sélection'})}</button>
+            </div>
+          </section>
+          <div id="gallery-items" class="gallery-photo-grid"></div>
+        </section>
+      </div>
+    </div>
+  </section>
+  <dialog id="gallery-lightbox" aria-label={L(lang,{ko:'사진·동영상 확대 보기',fr:'Visionneuse de galerie'})}>
+    <div class="row gap-8" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
+      <div class="row gap-8">
+        <button id="gallery-lightbox-prev" class="btn btn-ghost" type="button">← {L(lang,{ko:'이전',fr:'Précédent'})}</button>
+        <button id="gallery-lightbox-next" class="btn btn-ghost" type="button">{L(lang,{ko:'다음',fr:'Suivant'})} →</button>
+      </div>
+      <button id="gallery-lightbox-close" class="btn btn-ghost" type="button">✕ {L(lang,{ko:'닫기',fr:'Fermer'})}</button>
+    </div>
+    <div id="gallery-lightbox-media"></div>
+  </dialog>
+</Base>
+<style>
+.gallery-lock{padding:35px;max-width:800px}.gallery-lock[hidden],#gallery-app[hidden],#album-detail[hidden]{display:none}
+.gallery-main select,.gallery-main input:not([type=file]){padding:10px;border:1px solid #d6dee2;border-radius:9px;max-width:100%;box-sizing:border-box;background:white}
+.gallery-main label{display:grid;gap:7px;min-width:155px}.gallery-album-grid[hidden]{display:none}.gallery-album-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,225px),1fr));gap:14px}
+:global(.gallery-album-card){border:1px solid #d8e0e4;border-radius:12px;background:#fff;padding:18px;display:grid;gap:12px;align-content:start;cursor:pointer;text-align:left;min-height:150px;overflow-wrap:anywhere}
+:global(.gallery-album-card:hover){background:#f7fafb}
+.gallery-detail-head{padding:18px}.gallery-form{padding:20px;max-width:800px}.gallery-photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,215px),1fr));gap:16px}
+:global(.gallery-media-card){overflow:hidden;border:1px solid #d6dee2;border-radius:12px;background:#fff}
+:global(.gallery-media-card img),:global(.gallery-media-card video){width:100%;height:180px;object-fit:cover;display:block;background:#e8edf0;cursor:zoom-in}
+:global(.gallery-media-caption){padding:12px;display:grid;gap:8px;overflow-wrap:anywhere}
+:global(.gallery-review-line){display:flex;gap:12px;align-items:center;justify-content:space-between;border:1px solid #d6dee2;padding:10px;border-radius:9px;flex-wrap:wrap}
+#gallery-lightbox{border:0;border-radius:12px;padding:18px;max-width:95vw;max-height:92vh}#gallery-lightbox::backdrop{background:rgba(0,0,0,.85)}
+:global(.gallery-album-cover){display:block;width:100%;height:132px;object-fit:cover;border-radius:8px;margin-bottom:8px}
+#gallery-lightbox-media img,#gallery-lightbox-media video{max-width:85vw;max-height:76vh;object-fit:contain}
+</style>
+<script>import '../../../scripts/members/gallery';</script>

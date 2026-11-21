@@ -80,6 +80,32 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
           <p class="small muted">{L(lang,{ko:'개별 회원의 마지막 로그인일은 Firebase Authentication에서 확인합니다. 서버 연동 없이 이 화면에 표시하지 않습니다.',fr:'La date de dernière connexion est consultable dans Firebase Authentication. Elle n’est pas affichée ici sans serveur sécurisé.'})}</p>
         </section>
 
+        <section class="card auth-card stack gap-16" aria-labelledby="operations-heading">
+          <h2 id="operations-heading" class="h3">{L(lang,{ko:'홈페이지 운영 설정',fr:'Paramètres opérationnels du site'})}</h2>
+          <p class="small muted">{L(lang,{ko:'일반적인 갤러리 공개·쪽지·게시판 분류는 코드를 수정하지 않고 여기에서 변경합니다. 보안 규칙 자체는 직접 편집하지 않습니다.',fr:'Gérez les catégories, la galerie et la messagerie sans modifier le code. Les règles de sécurité restent protégées.'})}</p>
+          <div class="stack gap-8" style="border:1px solid #dce0e7;border-radius:10px;padding:16px">
+            <label class="row gap-12" style="align-items:center"><input type="checkbox" id="ops-gallery-open"/> <strong>{L(lang,{ko:'갤러리 회원 공개',fr:'Ouvrir la galerie aux membres'})}</strong></label>
+            <p class="small muted">{L(lang,{ko:'기본은 비공개입니다. 공개하면 일반 등록된 사진과 운영진이 승인한 사진이 정회원·특별회원·운영진에게 표시됩니다. 현재 파일은 Backblaze B2에만 저장되고 Google Drive 원본 자동 보관은 실행되지 않습니다. 초상권 정책 확정 전에는 공개하지 마세요.',fr:'Fermée par défaut. Les photos directement publiées ou approuvées seront visibles aux membres autorisés. Les fichiers restent sur Backblaze B2 ; aucune sauvegarde Google Drive. Ne pas ouvrir avant la validation des règles relatives au droit à l’image.'})}</p>
+            <label class="row gap-12" style="align-items:center"><input type="checkbox" id="ops-messaging-open"/> <strong>{L(lang,{ko:'성인 회원 쪽지 기능 활성화',fr:'Activer la messagerie pour les adultes'})}</strong></label>
+            <button type="button" class="btn btn-dark" id="ops-save-toggles" style="align-self:flex-start">{L(lang,{ko:'공개·쪽지 설정 저장',fr:'Enregistrer les paramètres'})}</button>
+          </div>
+          <div class="stack gap-12" style="border:1px solid #dce0e7;border-radius:10px;padding:16px">
+            <h3 class="h3">{L(lang,{ko:'게시판 분류 관리',fr:'Catégories du forum'})}</h3>
+            <p class="small muted">{L(lang,{ko:'한 줄에 ID | 한국어 | Français 순서로 입력. 기존 게시물의 분류 ID는 변경하지 마세요.',fr:'Une ligne : ID | coréen | français. Ne modifiez pas les identifiants existants.'})}</p>
+            <textarea id="ops-board-categories" rows="7" spellcheck="false"></textarea>
+            <button id="ops-save-board-categories" type="button" class="btn btn-ghost" style="align-self:flex-start">{L(lang,{ko:'게시판 분류 저장',fr:'Enregistrer les catégories du forum'})}</button>
+            <h3 class="h3">{L(lang,{ko:'학습자료실 분류 관리',fr:'Catégories des ressources'})}</h3>
+            <textarea id="ops-resource-categories" rows="7" spellcheck="false"></textarea>
+            <button id="ops-save-resource-categories" type="button" class="btn btn-ghost" style="align-self:flex-start">{L(lang,{ko:'학습자료 분류 저장',fr:'Enregistrer les catégories des ressources'})}</button>
+          </div>
+          <p id="ops-status" role="status" class="small muted"></p>
+          <div class="row gap-12" style="flex-wrap:wrap"><a class="btn btn-ghost" href={href(lang,'membres/gallery/')}>{L(lang,{ko:'갤러리 관리·사진 승인 열기',fr:'Gestion et validation des médias'})}</a><a class="btn btn-ghost" href={href(lang,'membres/messages/')}>{L(lang,{ko:'회원 쪽지함 열기',fr:'Messagerie'})}</a></div>
+        </section>
+        <section class="card auth-card stack gap-12" aria-labelledby="ops-inbox-heading">
+          <h2 id="ops-inbox-heading" class="h3">{L(lang,{ko:'통합 처리 대기 요약',fr:'Résumé des demandes à traiter'})}</h2>
+          <p class="small muted">{L(lang,{ko:'회원 승급·건의·사진 승인 요청을 한곳에서 확인하고 각 업무 화면으로 이동합니다.',fr:'Demandes de statut, suggestions et validation des photos.'})}</p>
+          <div id="ops-inbox" class="stack gap-8"></div>
+        </section>
         <section class="card auth-card stack gap-16" aria-labelledby="requests-heading">
           <div class="row gap-16" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
             <h2 id="requests-heading" class="h3">{L(lang, { ko: '승급 승인 대기', fr: 'Demandes à examiner' })}</h2>
@@ -98,7 +124,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
             <span id="admin-member-count" class="m-badge"></span>
           </div>
           <p class="small muted">{L(lang, {
-            ko: '정식 협회회원과 특별회원은 동일한 접근권한을 갖습니다. 다른 운영진을 지정할 때는 신중하게 확인하세요.',
+            ko: '정식 정회원과 특별회원은 동일한 접근권한을 갖습니다. 다른 운영진을 지정할 때는 신중하게 확인하세요.',
             fr: 'Membres et membres spéciaux ont le même accès. Vérifiez soigneusement toute nomination d’administrateur.'
           })}</p>
           <div class="asicc-admin-toolbar">
@@ -109,7 +135,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
               <select id="admin-filter-role">
                 <option value="all">{L(lang,{ko:'전체',fr:'Tous'})}</option>
                 <option value="general">{L(lang,{ko:'일반회원',fr:'Membre général'})}</option>
-                <option value="member">{L(lang,{ko:'협회회원',fr:'Membre'})}</option>
+                <option value="member">{L(lang,{ko:'정회원',fr:'Membre'})}</option>
                 <option value="special">{L(lang,{ko:'특별회원',fr:'Membre spécial'})}</option>
                 <option value="admin">{L(lang,{ko:'운영진',fr:'Administrateur'})}</option>
               </select>
@@ -154,6 +180,13 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
                 <label class="stack gap-8"><span>{L(lang,{ko:'실명',fr:'Nom réel'})}</span><input id="admin-edit-name" maxlength="80" required /></label>
                 <label class="stack gap-8"><span>{L(lang,{ko:'닉네임',fr:'Pseudo'})}</span><input id="admin-edit-nickname" maxlength="24" minlength="2" required /></label>
                 <label class="stack gap-8"><span>{L(lang,{ko:'연락처',fr:'Téléphone'})}</span><input id="admin-edit-phone" type="tel" maxlength="40" /></label>
+                <label class="stack gap-8"><span>{L(lang,{ko:'계정 유형 (쪽지 안전 확인)',fr:'Type de compte (messagerie)'})}</span>
+                  <select id="admin-edit-account-type">
+                    <option value="">{L(lang,{ko:'미확인 — 쪽지 차단',fr:'Non confirmé — bloqué'})}</option>
+                    <option value="adult">{L(lang,{ko:'성인',fr:'Adulte'})}</option>
+                    <option value="student">{L(lang,{ko:'학생 본인 (쪽지 금지)',fr:'Élève — messagerie interdite'})}</option>
+                  </select>
+                </label>
                 <label class="stack gap-8"><span>{L(lang,{ko:'가입 구분',fr:'Catégorie'})}</span>
                   <select id="admin-edit-kind">
                     <option value="">{L(lang,{ko:'미설정',fr:'Non renseigné'})}</option>
@@ -285,7 +318,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
 
   type Child = {studentName:string;school:string;grade:string};
   type Member = { id: string; name: string; nickname?:string; nicknameKey?:string; email: string; phone?: string;
-    levels?: string[]; children?: Child[]; memberKind?: string; memberRelation?: string;
+    levels?: string[]; children?: Child[]; memberKind?: string; memberRelation?: string; accountType?: string;
     role: string; status: string; createdAt?: Timestamp | number | string | null;
     withdrawnAt?: Timestamp | number | string | null }; 
   type Withdrawal = { uid: string; name: string; email: string; status: string; requestedAt?: Timestamp | number | null };
@@ -343,7 +376,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   };
   const roleLabel = (role: string) => ({
     general: tr('일반회원', 'Membre général'),
-    member: tr('협회회원', 'Membre de l’association'),
+    member: tr('정회원', 'Membre de l’association'),
     special: tr('특별회원', 'Membre spécial'),
     admin: tr('운영진', 'Administrateur')
   } as Record<string,string>)[role] || role;
@@ -407,6 +440,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
           if (!memberSnap.exists() || memberSnap.data().role !== 'general'
               || memberSnap.data().status !== 'approved') throw Error('profile-changed');
           tx.update(memberRef, { role: freshRole });
+          if(memberSnap.data().nickname)tx.set(doc(db,'publicNames',item.uid),{nickname:memberSnap.data().nickname,role:freshRole,canReceiveDM:memberSnap.data().accountType==='adult'&&memberSnap.data().status==='approved',updatedAt:serverTimestamp()});
         }
         tx.update(requestRef, {
           status: approve ? 'approved' : 'rejected',
@@ -594,6 +628,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     const input=(id:string,value:string)=>{const e=el<HTMLInputElement>(id);if(e)e.value=value;};
     input('admin-edit-name',member.name||'');input('admin-edit-nickname',member.nickname||'');
     input('admin-edit-phone',member.phone||'');input('admin-edit-relation',member.memberRelation??upgradeHistory.get(member.id)?.relation??'');
+    const account=el<HTMLSelectElement>('admin-edit-account-type');if(account)account.value=member.accountType||'';
     const kind=el<HTMLSelectElement>('admin-edit-kind');if(kind)kind.value=member.memberKind??upgradeHistory.get(member.id)?.kind??'';
     dialog.querySelectorAll<HTMLInputElement>('input[name="admin-level"]').forEach(e=>e.checked=(member.levels||[]).includes(e.value));
     const box=childBox();if(box)box.replaceChildren();
@@ -612,6 +647,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     const nicknameKey=nickname.toLowerCase();
     const phone=val('admin-edit-phone');const memberRelation=val('admin-edit-relation');
     const memberKind=el<HTMLSelectElement>('admin-edit-kind')?.value||'';
+    const accountType=el<HTMLSelectElement>('admin-edit-account-type')?.value||'';
     const levels=[...document.querySelectorAll<HTMLInputElement>('#admin-edit-dialog input[name="admin-level"]')]
       .filter(e=>e.checked).map(e=>e.value);
     const children:Child[]=[];
@@ -630,11 +666,12 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       editorError(tr('학생은 최대 5명이며, 입력한 학생의 이름·학교·학년을 모두 기입해 주세요.',
         'Maximum 5 élèves, avec nom, établissement et classe pour chacun.'));return;
     }
-    const desired={name,phone,levels,children,memberKind,memberRelation};
+    const desired={name,phone,levels,children,memberKind,memberRelation,accountType};
     const old={name:member.name||'',phone:member.phone||'',levels:member.levels||[],
       children:member.children??upgradeHistory.get(member.id)?.children??[],
       memberKind:member.memberKind??upgradeHistory.get(member.id)?.kind??'',
-      memberRelation:member.memberRelation??upgradeHistory.get(member.id)?.relation??''};
+      memberRelation:member.memberRelation??upgradeHistory.get(member.id)?.relation??'',
+      accountType:member.accountType||''};
     const nicknameChanged=nicknameKey!==(member.nicknameKey||member.nickname?.toLowerCase()||'');
     if(JSON.stringify(desired)===JSON.stringify(old)&&!nicknameChanged){
       showMessage(tr('변경된 내용이 없습니다.','Aucune modification.'));closeMemberEditor();return;
@@ -656,11 +693,18 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
           const update={...desired,nickname,nicknameKey};
           tx.update(memberRef,update);
           tx.set(newNickRef,{uid:member.id,nickname,createdAt:serverTimestamp()});
-          tx.set(doc(db,'publicNames',member.id),{nickname,updatedAt:serverTimestamp()});
+          tx.set(doc(db,'publicNames',member.id),{nickname,role:original.role,canReceiveDM:accountType==='adult'&&original.status==='approved',updatedAt:serverTimestamp()});
           if(oldKey&&oldKey!==nicknameKey)tx.delete(doc(db,'nicknames',oldKey));
         });
       }else{
-        await updateDoc(memberRef,desired);
+        // Keep public DM eligibility in sync with the administrator's verified account type.
+        const batch=writeBatch(db);
+        batch.update(memberRef,desired);
+        batch.set(doc(db,'publicNames',member.id),{
+          nickname:member.nickname,role:member.role,
+          canReceiveDM:accountType==='adult'&&member.status==='approved',updatedAt:serverTimestamp()
+        });
+        await batch.commit();
       }
       saved=true;
       closeMemberEditor();
@@ -695,7 +739,10 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     busy=true;roleSelect.disabled=true;statusSelect.disabled=true;
     let saved=false;
     try{
-      await updateDoc(doc(db,'members',member.id),{role,status});
+      const memberBatch=writeBatch(db);
+      memberBatch.update(doc(db,'members',member.id),{role,status});
+      if(member.nickname)memberBatch.set(doc(db,'publicNames',member.id),{nickname:member.nickname,role,canReceiveDM:member.accountType==='adult'&&status==='approved',updatedAt:serverTimestamp()});
+      await memberBatch.commit();
       saved=true;
       showMessage(tr('회원 등급 및 계정 상태 수정이 완료되었습니다.','Le statut et l’état du compte ont été mis à jour.'));
       try{await loadMembers(true);}catch(refreshError){
@@ -983,3 +1030,4 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   });
   el<HTMLButtonElement>('admin-notification-ack')?.addEventListener('click',()=>void acknowledgeNotifications());
 </script>
+<script>import '../../../scripts/members/admin-ops';</script>

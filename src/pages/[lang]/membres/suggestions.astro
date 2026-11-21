@@ -34,6 +34,7 @@ import {getApps,initializeApp} from 'firebase/app';
 import {getAuth,onAuthStateChanged,getIdToken} from 'firebase/auth';
 import {getFirestore,doc,collection,getDoc,getDocs,setDoc,serverTimestamp,query,where} from 'firebase/firestore';
 import {firebaseConfig} from '../../../firebase-config';
+import {BOARD_PHOTO_API} from '../../../config/board-photos';
 const root=document.querySelector<HTMLElement>('#suggest-root');const fr=root?.dataset.lang==='fr';
 const tr=(ko:string,french:string)=>fr?french:ko;
 const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
@@ -67,7 +68,9 @@ by('suggest-form')?.addEventListener('submit',async e=>{
  if(!subject||!body)return;
  const btn=document.querySelector<HTMLButtonElement>('#suggest-form button');if(btn)btn.disabled=true;
  try{
-  await setDoc(doc(collection(db,'suggestions')),{uid,category,subject,body,status:'received',createdAt:serverTimestamp()});
+  const ref=doc(collection(db,'suggestions'));
+  await setDoc(ref,{uid,category,subject,body,status:'received',createdAt:serverTimestamp()});
+  try{const endpoint=BOARD_PHOTO_API.trim().replace(/\/$/,'');if(endpoint)await fetch(endpoint+'/api/notify',{method:'POST',headers:{Authorization:'Bearer '+await getIdToken(auth.currentUser!), 'Content-Type':'application/json'},body:JSON.stringify({kind:'suggestion',id:ref.id})});}catch(error){console.warn('Email not configured',error);}
   (by('suggest-form') as HTMLFormElement).reset();say(tr('접수되었습니다.','Demande reçue.'));await load();
  }catch(err){console.error(err);say(tr('접수하지 못했습니다.','Échec de l’envoi.'),true);}
  finally{if(btn)btn.disabled=false;}
