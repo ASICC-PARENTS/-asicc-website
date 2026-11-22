@@ -1,4 +1,5 @@
 import {test,before,after} from 'node:test';
+import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {initializeTestEnvironment,assertSucceeds,assertFails} from '@firebase/rules-unit-testing';
 import {doc,getDoc,getDocs,collection,setDoc,updateDoc,deleteDoc,runTransaction,serverTimestamp} from 'firebase/firestore';
@@ -96,7 +97,7 @@ test('nickname cannot change without coordinated reservation and public alias up
     await tx.get(newRef);
     tx.set(newRef,{uid:'nickold',nickname:'nicknew',createdAt:serverTimestamp()});
     tx.update(memberRef,{nickname:'nicknew',nicknameKey:'nicknew'});
-    tx.set(aliasRef,{nickname:'nicknew',updatedAt:serverTimestamp()});
+    tx.set(aliasRef,{nickname:'nicknew',role:'member',canReceiveDM:false,updatedAt:serverTimestamp()});
     tx.delete(previousRef);
   }));
 });
@@ -145,10 +146,14 @@ test('staging banners are isolated from public production banner documents',asyn
   const data={enabled:true,link:'news/2026-11-22-bazaar/',eyebrow_ko:'',eyebrow_fr:'',
     title_ko:'바자회',title_fr:'Bazar',body_ko:'준비 중',body_fr:'Bientôt',
     status_ko:'',status_fr:'',button_ko:'보기',button_fr:'Voir',updatedBy:'admin',updatedAt:serverTimestamp()};
-  await assertSucceeds(setDoc(doc(context('admin'),'publicHomeBannersTest','bazaar'),data));
   const guest=env.unauthenticatedContext().firestore();
+  const prodRef=doc(guest,'publicHomeBanners','bazaar');
+  const prodBefore=await assertSucceeds(getDoc(prodRef));
+  await assertSucceeds(setDoc(doc(context('admin'),'publicHomeBannersTest','bazaar'),data));
   const staging=await assertSucceeds(getDoc(doc(guest,'publicHomeBannersTest','bazaar')));
-  const production=await assertSucceeds(getDoc(doc(guest,'publicHomeBanners','bazaar')));
-  if(!staging.exists()||production.exists())throw Error('staging should not replace production');
+  const prodAfter=await assertSucceeds(getDoc(prodRef));
+  assert.equal(staging.exists(),true,'the staging banner should exist');
+  assert.equal(prodAfter.exists(),prodBefore.exists(),'staging must not create or delete production');
+  if(prodBefore.exists())assert.deepEqual(prodAfter.data(),prodBefore.data(),'staging must not change production content');
   await assertFails(setDoc(doc(context('member'),'publicHomeBannersTest','bazaar'),{...data,updatedBy:'member'}));
 });
