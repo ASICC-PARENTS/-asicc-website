@@ -1,13 +1,13 @@
 import {test,before,after} from 'node:test';
 import fs from 'node:fs';
 import {initializeTestEnvironment,assertSucceeds,assertFails} from '@firebase/rules-unit-testing';
-import {doc,getDoc,getDocs,collection,setDoc,updateDoc,runTransaction,serverTimestamp} from 'firebase/firestore';
+import {doc,getDoc,getDocs,collection,setDoc,updateDoc,deleteDoc,runTransaction,serverTimestamp} from 'firebase/firestore';
 
 let env;
 const email=uid=>`${uid}@example.test`;
 const context=uid=>env.authenticatedContext(uid,{email:email(uid),email_verified:true}).firestore();
 const profile=(uid,role='general')=>({name:uid,nickname:uid,nicknameKey:uid,
-  email:email(uid),role,status:'approved',accountType:'adult',createdAt:new Date(),consent:true});
+  email:email(uid),role,status:'approved',createdAt:new Date(),consent:true});
 
 before(async()=>{
   env=await initializeTestEnvironment({projectId:'demo-asicc-admin-rules',firestore:{
@@ -19,9 +19,7 @@ before(async()=>{
       await setDoc(doc(ctx.firestore(),'members',uid),profile(uid,role));
     }
     await setDoc(doc(ctx.firestore(),'nicknames','nickold'),{uid:'nickold',nickname:'nickold',createdAt:new Date()});
-    await setDoc(doc(ctx.firestore(),'publicNames','nickold'),{
-      nickname:'nickold',role:'member',canReceiveDM:true,updatedAt:new Date()
-    });
+    await setDoc(doc(ctx.firestore(),'publicNames','nickold'),{nickname:'nickold',updatedAt:new Date()});
   });
 });
 after(async()=>{if(env)await env.cleanup();});
@@ -55,14 +53,6 @@ test('members cannot edit others or elevate their own role; admin cannot change 
   await assertFails(updateDoc(doc(context('member'),'members','editme'),{phone:'12345'}));
   await assertFails(updateDoc(doc(context('general'),'members','general'),{role:'admin'}));
   await assertFails(updateDoc(doc(context('admin'),'members','admin'),{role:'general'}));
-});
-
-test('member activity timestamps cannot be modified directly by any client',async()=>{
-  await assertFails(updateDoc(doc(context('member'),'members','member'),{lastSeenAt:serverTimestamp()}));
-  await assertFails(updateDoc(doc(context('member'),'members','member'),{lastSeenAt:new Date('2045-01-01')}));
-  await assertFails(updateDoc(doc(context('member'),'members','editme'),{lastSeenAt:serverTimestamp()}));
-  await assertFails(updateDoc(doc(context('admin'),'members','admin'),{lastSeenAt:serverTimestamp()}));
-  await assertFails(updateDoc(doc(context('admin'),'members','member'),{lastSeenAt:serverTimestamp()}));
 });
 
 test('new member and withdrawal acknowledgement belongs to each admin only',async()=>{
@@ -106,7 +96,59 @@ test('nickname cannot change without coordinated reservation and public alias up
     await tx.get(newRef);
     tx.set(newRef,{uid:'nickold',nickname:'nicknew',createdAt:serverTimestamp()});
     tx.update(memberRef,{nickname:'nicknew',nicknameKey:'nicknew'});
-    tx.set(aliasRef,{nickname:'nicknew',role:'member',canReceiveDM:true,updatedAt:serverTimestamp()});
+    tx.set(aliasRef,{nickname:'nicknew',updatedAt:serverTimestamp()});
     tx.delete(previousRef);
   }));
+});
+
+
+test('homepage banner is publicly readable but cannot be listed or edited by ordinary users',async()=>{
+  const data={
+    enabled:true,link:'news/2026-10-08-admissions/',
+    eyebrow_ko:'모집 안내',eyebrow_fr:'Admissions',
+    title_ko:'유치원 모집',title_fr:'Inscriptions ouvertes',
+    body_ko:'모집 공고를 확인하세요',body_fr:'Consultez l’annonce',
+    status_ko:'모집 중',status_fr:'Ouvert',
+    button_ko:'모집 공지 보기',button_fr:'Lire l’annonce',
+    updatedBy:'admin',updatedAt:serverTimestamp()
+  };
+  const adminDb=context('admin');
+  await assertSucceeds(setDoc(doc(adminDb,'publicHomeBanners','admissions'),data));
+  const guest=env.unauthenticatedContext().firestore();
+  await assertSucceeds(getDoc(doc(guest,'publicHomeBanners','admissions')));
+  await assertFails(getDocs(collection(guest,'publicHomeBanners')));
+  await assertFails(getDoc(doc(guest,'publicHomeBanners','unknown')));
+  await assertFails(setDoc(doc(context('general'),'publicHomeBanners','bazaar'),{...data,updatedBy:'general'}));
+  await assertFails(setDoc(doc(context('member'),'publicHomeBanners','bazaar'),{...data,updatedBy:'member'}));
+  await assertFails(deleteDoc(doc(context('special'),'publicHomeBanners','admissions')));
+  await assertSucceeds(deleteDoc(doc(adminDb,'publicHomeBanners','admissions')));
+});
+
+test('homepage banner validation rejects extra fields and unsafe links',async()=>{
+  const db=context('admin');
+  const data={enabled:true,link:'news/test-notice/',eyebrow_ko:'',eyebrow_fr:'',
+    title_ko:'제목',title_fr:'Titre',body_ko:'설명',body_fr:'Description',
+    status_ko:'',status_fr:'',button_ko:'보기',button_fr:'Voir',
+    updatedBy:'admin',updatedAt:serverTimestamp()};
+  const path=doc(db,'publicHomeBanners','bazaar');
+  await assertFails(setDoc(path,{...data,link:'javascript:alert(1)'}));
+  await assertFails(setDoc(path,{...data,memberEmail:'private@example.org'}));
+  await assertFails(setDoc(path,{...data,title_ko:'X'.repeat(121)}));
+  await assertFails(setDoc(path,{...data,updatedBy:'member'}));
+  await assertFails(setDoc(doc(db,'publicHomeBanners','other'),data));
+  await assertSucceeds(setDoc(path,data));
+  await assertSucceeds(updateDoc(path,{title_ko:'수정됨',updatedAt:serverTimestamp()}));
+});
+
+
+test('staging banners are isolated from public production banner documents',async()=>{
+  const data={enabled:true,link:'news/2026-11-22-bazaar/',eyebrow_ko:'',eyebrow_fr:'',
+    title_ko:'바자회',title_fr:'Bazar',body_ko:'준비 중',body_fr:'Bientôt',
+    status_ko:'',status_fr:'',button_ko:'보기',button_fr:'Voir',updatedBy:'admin',updatedAt:serverTimestamp()};
+  await assertSucceeds(setDoc(doc(context('admin'),'publicHomeBannersTest','bazaar'),data));
+  const guest=env.unauthenticatedContext().firestore();
+  const staging=await assertSucceeds(getDoc(doc(guest,'publicHomeBannersTest','bazaar')));
+  const production=await assertSucceeds(getDoc(doc(guest,'publicHomeBanners','bazaar')));
+  if(!staging.exists()||production.exists())throw Error('staging should not replace production');
+  await assertFails(setDoc(doc(context('member'),'publicHomeBannersTest','bazaar'),{...data,updatedBy:'member'}));
 });

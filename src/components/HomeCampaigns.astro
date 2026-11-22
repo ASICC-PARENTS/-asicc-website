@@ -1,60 +1,129 @@
 ---
-import { L, type Lang } from '../i18n/ui';
+import { L, href, type Lang } from '../i18n/ui';
 import campaigns from '../data/cms/home-campaigns.json';
 interface Props { lang: Lang; }
 const { lang } = Astro.props;
-const { bazaar, donation } = campaigns;
-// HelloAsso remains inactive until the association provides its actual campaign URL.
-const helloassoUrl = donation.helloassoUrl.trim();
-const helloassoReady = /^https:\/\/www\.helloasso\.com\//i.test(helloassoUrl);
+const { bazaar, admissions, donation } = campaigns;
+// Static, CMS-controlled fallbacks are visible even before Firebase loads.
+// Administrators may temporarily override the two editorial banners in Firestore.
+const editorial = [
+  { id: 'bazaar', data: bazaar, className: 'bazaar-banner', decoration: '🎁' },
+  { id: 'admissions', data: admissions, className: 'admissions-banner', decoration: '📚' },
+];
+const editorialHref = (v: string) => v.startsWith('https://') ? v : href(lang,v);
+const donationReady = (v: string) => /^https:\/\/www\.helloasso\.com\//i.test(v);
 ---
-{(bazaar.enabled || donation.enabled) && <section class="wrap home-campaigns" aria-label={L(lang,{ko:'ASICC 진행 행사와 후원 안내',fr:'Événements et soutien à l’ASICC'})}>
-  {bazaar.enabled && <article class="campaign-banner bazaar-banner">
-    <div class="campaign-content">
-      <span class="campaign-kicker">{L(lang,bazaar.eyebrow)}</span>
-      <h2>{L(lang,bazaar.title)}</h2>
-      <p>{L(lang,bazaar.body)}</p>
-      <span class="campaign-state"><span aria-hidden="true">●</span> {L(lang,bazaar.status)}</span>
-    </div>
-    <div class="campaign-decoration" aria-hidden="true">🎁</div>
-  </article>}
+<section class="wrap home-campaigns" aria-label={L(lang,{ko:'ASICC 공지와 후원 안내',fr:'Actualités et soutien à l’ASICC'})}>
+  <div class="editorial-banners">
+    {editorial.map(({id,data,className,decoration}) => <article class={`campaign-banner ${className}`} data-editorial-banner={id} hidden={!data.enabled}>
+      <div class="campaign-content">
+        <span class="campaign-kicker" data-field="eyebrow">{L(lang,data.eyebrow)}</span>
+        <h2 data-field="title">{L(lang,data.title)}</h2>
+        <p data-field="body">{L(lang,data.body)}</p>
+        <span class="campaign-state" data-status-wrap><span aria-hidden="true">●</span> <span data-field="status">{L(lang,data.status)}</span></span>
+        <a data-field="link" class="btn campaign-link" href={editorialHref(data.link)} target={data.link.startsWith('https://')?'_blank':undefined} rel={data.link.startsWith('https://')?'noopener noreferrer':undefined}>
+          <span data-field="button">{L(lang,data.button)}</span> <span aria-hidden="true">→</span>
+        </a>
+      </div>
+      <div class="campaign-decoration" aria-hidden="true">{decoration}</div>
+    </article>)}
+  </div>
   {donation.enabled && <article class="campaign-banner support-banner">
     <div class="campaign-content">
       <span class="campaign-kicker">{L(lang,donation.eyebrow)}</span>
       <h2>{L(lang,donation.title)}</h2>
       <p>{L(lang,donation.body)}</p>
-      {helloassoReady && <a class="btn btn-dark support-button" href={helloassoUrl} target="_blank" rel="noopener noreferrer">{L(lang,{ko:'HelloAsso에서 후원하기',fr:'Faire un don sur HelloAsso'})} ↗</a>}
+      <div class="support-actions">
+        {donationReady(donation.membershipUrl) && <a class="btn support-fee-button" href={donation.membershipUrl} target="_blank" rel="noopener noreferrer">{L(lang,{ko:'연회비 납부하기',fr:'Payer la cotisation'})} ↗</a>}
+        {donationReady(donation.donationUrl) && <a class="btn btn-dark support-donate-button" href={donation.donationUrl} target="_blank" rel="noopener noreferrer">{L(lang,{ko:'자유 후원하기',fr:'Faire un don libre'})} ↗</a>}
+      </div>
       <div class="bank-transfer">
         <strong>{L(lang,donation.bankLabel)}</strong>
         <span class="bank-holder">{donation.bankName}</span>
         <code>{donation.iban}</code>
       </div>
-      {!helloassoReady && <span class="support-pending">{L(lang,{ko:'HelloAsso 온라인 후원은 연결 준비 중입니다.',fr:'Le don en ligne via HelloAsso sera bientôt disponible.'})}</span>}
     </div>
   </article>}
-</section>}
+</section>
+<script>
+  import { getApps, initializeApp } from 'firebase/app';
+  import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
+  import { firebaseConfig } from '../firebase-config';
+  import { BASE } from '../config';
+  // Public read only: never download member records or require a login on the home page.
+  const app = getApps().find(a => a.name === 'asicc-website') ?? initializeApp(firebaseConfig,'asicc-website');
+  const db = getFirestore(app);
+  // Keep pre-publication tests from changing the public homepage immediately.
+  const bannerCollection = /^(www\.)?asicc-parents\.fr$/i.test(location.hostname)
+    ? 'publicHomeBanners' : 'publicHomeBannersTest';
+  const validLink = (link: unknown): link is string => typeof link === 'string'
+    && link.length <= 500 && (/^news\/[a-z0-9/_-]+\/$/.test(link) || /^https:\/\/[^\s]+$/.test(link));
+  for (const key of ['bazaar','admissions'] as const) {
+    const banner = document.querySelector<HTMLElement>(`[data-editorial-banner="${key}"]`);
+    if (!banner) continue;
+    onSnapshot(doc(db,bannerCollection,key), snap => {
+      // Removing the admin override falls back to the bundled CMS values after reload.
+      if (!snap.exists()) { if (banner.dataset.override === 'true') window.location.reload(); return; }
+      const item=snap.data();
+      if (!validLink(item.link) || typeof item.enabled !== 'boolean') return;
+      const lang = location.pathname.startsWith(BASE+'fr/') ? 'fr' : 'ko';
+      for (const field of ['eyebrow','title','body','button','status'] as const) {
+        const value=item[`${field}_${lang}`];
+        const node=banner.querySelector<HTMLElement>(`[data-field="${field}"]`);
+        if(typeof value!=='string' || !node) return;
+        node.textContent=value;
+      }
+      const link=banner.querySelector<HTMLAnchorElement>('[data-field="link"]');
+      if (link) {
+        link.href = item.link.startsWith('https://') ? item.link : `${BASE}${lang}/${item.link}`;
+        if (item.link.startsWith('https://')) { link.target='_blank';link.rel='noopener noreferrer'; }
+        else {link.removeAttribute('target');link.removeAttribute('rel');}
+      }
+      const state=banner.querySelector<HTMLElement>('[data-status-wrap]');
+      if(state)state.hidden=!item[`status_${lang}`];
+      banner.hidden = !item.enabled;
+      banner.dataset.override='true';
+    }, () => {/* Static CMS fallback remains available before rules are published. */});
+  }
+</script>
 <style>
-.home-campaigns { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr); gap:18px; padding-top:24px; }
-.campaign-banner { position:relative; display:flex; border-radius:10px; padding:28px 30px; min-width:0; overflow:hidden; }
-.campaign-content { position:relative; z-index:1; display:flex; flex-direction:column; align-items:flex-start; gap:10px; min-width:0; width:100%; }
+.home-campaigns { display:grid; grid-template-columns:minmax(0,1.28fr) minmax(0,1fr); gap:18px; padding-top:24px; align-items:stretch; }
+.editorial-banners { display:grid; grid-template-columns:minmax(0,1fr); gap:14px; min-width:0; }
+.campaign-banner { position:relative; display:flex; border-radius:10px; padding:22px 26px; min-width:0; overflow:hidden; }
+.campaign-banner[hidden],.campaign-state[hidden] { display:none; }
+.campaign-content { position:relative; z-index:1; display:flex; flex-direction:column; align-items:flex-start; gap:8px; min-width:0; width:100%; }
 .campaign-kicker { font-family:var(--strong); font-size:11px; font-weight:600; letter-spacing:.08em; line-height:1.5; }
-.campaign-banner h2 { font-family:var(--serif); font-size:clamp(21px,2.15vw,27px); line-height:1.4; overflow-wrap:anywhere; }
-.campaign-banner p { font-size:14.5px; line-height:1.7; max-width:56ch; }
-.bazaar-banner { background:#F7EDE3; border:1px solid #EFD4BE; color:#57351F; min-height:248px; }
-.bazaar-banner .campaign-kicker { color:#98592F; }
-.bazaar-banner h2, .bazaar-banner p { max-width:calc(100% - 72px); }
-.campaign-decoration { position:absolute; right:20px; bottom:28px; font-size:78px; transform:rotate(-8deg); opacity:.9; line-height:1; }
-.campaign-state { display:inline-flex; gap:8px; align-items:center; padding:6px 11px; border-radius:999px; font-size:12.5px; background:#FFF7F0; border:1px solid #EFD7C2; font-weight:600; }
-.campaign-state span { color:#C57946; font-size:9px; }
-.support-banner { background:#EBF4F0; border:1px solid #BFD6CD; color:#204C40; }
+.campaign-banner h2 { font-family:var(--serif); font-size:clamp(19px,2vw,25px); line-height:1.35; overflow-wrap:anywhere; }
+.campaign-banner p { font-size:14px; line-height:1.6; max-width:52ch; }
+.bazaar-banner { background:linear-gradient(115deg,#FFF2DF,#FFE1C9); border:1px solid #EAB58C; color:#57351F; }
+.bazaar-banner .campaign-kicker { color:#95401D; }
+.admissions-banner { background:linear-gradient(115deg,#EEF6FF,#DDEBFA); border:1px solid #A8C7E5; color:#29435B; }
+.admissions-banner .campaign-kicker { color:#194F81; background:#D1E4F8; border:1px solid #ACCEE9; padding:3px 9px; border-radius:999px; letter-spacing:.025em; }
+.campaign-banner:not(.support-banner) h2,.campaign-banner:not(.support-banner) p { max-width:calc(100% - 54px); }
+.campaign-decoration { position:absolute; right:12px; bottom:17px; font-size:55px; transform:rotate(-8deg); opacity:.55; line-height:1; }
+.campaign-state { display:inline-flex; gap:7px; align-items:center; max-width:100%; padding:5px 10px; border-radius:999px; font-size:12px; line-height:1.5; background:rgba(255,255,255,.8); border:1px solid rgba(0,0,0,.10); font-weight:650; overflow-wrap:anywhere; }
+.campaign-state > span:first-child { color:#C57946; font-size:9px; }
+.campaign-link { margin-top:auto; padding:9px 16px; font-size:13px; border:1px solid transparent; border-radius:9px; font-weight:700; text-decoration:none; }
+.bazaar-banner .campaign-link { background:#B94D30; border-color:#B94D30; color:#fff; }
+.bazaar-banner .campaign-link:hover { background:#963B22; border-color:#963B22; color:#fff; }
+.admissions-banner .campaign-link { background:#285F98; border-color:#285F98; color:#fff; }
+.admissions-banner .campaign-link:hover { background:#1B4978; border-color:#1B4978; color:#fff; }
+.admissions-banner .campaign-state { background:#F9FCFF; border-color:#B8D3EB; color:#234E79; }
+.campaign-link:focus-visible { outline:3px solid #1B4978; outline-offset:3px; }
+.support-banner { background:#EBF4F0; border:1px solid #BFD6CD; color:#204C40; padding:26px; }
 .support-banner .campaign-kicker { color:#3D7964; }
 .support-banner p { color:#456057; }
-.bank-transfer { display:flex; flex-wrap:wrap; gap:4px 10px; align-items:baseline; width:100%; border-top:1px solid #CADFD7; margin-top:8px; padding-top:12px; font-size:13px; }
+.support-actions { display:flex; flex-wrap:wrap; gap:8px; width:100%; margin-top:10px; }
+.support-actions a { flex:1 1 165px; display:inline-flex; justify-content:center; align-items:center; text-align:center; font-size:13px; line-height:1.4; padding:11px 12px; white-space:normal; border-radius:9px; text-decoration:none; }
+.support-actions .support-fee-button { color:#fff; background:#34465C; border:1px solid #34465C; font-weight:700; }
+.support-actions .support-fee-button:hover { background:#223246; border-color:#223246; color:#fff; }
+.support-actions .support-donate-button { background:#28614F; border:1px solid #28614F; color:#fff; font-weight:700; }
+.support-actions .support-donate-button:hover { background:#1C4A3C; border-color:#1C4A3C; color:#fff; }
+.support-actions a:focus-visible { outline:3px solid #204C40; outline-offset:3px; }
+.bank-transfer { display:flex; flex-wrap:wrap; gap:4px 10px; align-items:baseline; width:100%; border-top:1px solid #CADFD7; margin-top:auto; padding-top:12px; font-size:13px; }
 .bank-transfer strong { font-weight:700; flex:1 0 100%; }
 .bank-holder { font-weight:600; }
 .bank-transfer code { display:block; width:100%; font-size:12.5px; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; letter-spacing:.015em; word-break:break-word; overflow-wrap:anywhere; user-select:all; }
-.support-pending { font-size:12px; color:#45665A; }
-.support-button { margin-top:4px; }
-@media(max-width:800px) { .home-campaigns { grid-template-columns:minmax(0,1fr); gap:12px; } .campaign-banner { min-height:0; padding:24px; } .bazaar-banner { min-height:220px; } }
-@media(max-width:430px) { .campaign-banner { padding:20px; } .bazaar-banner h2,.bazaar-banner p { max-width:100%; } .campaign-decoration { opacity:.17; right:14px; bottom:10px; } }
+@media(max-width:800px) { .home-campaigns { grid-template-columns:minmax(0,1fr); gap:12px; } .campaign-banner { min-height:0; padding:21px; } .support-banner { min-height:220px; } }
+@media(max-width:430px) { .campaign-banner { padding:18px; } .campaign-banner:not(.support-banner) h2,.campaign-banner:not(.support-banner) p { max-width:100%; } .campaign-decoration { opacity:.13; right:14px; bottom:10px; } .support-actions a { flex:1 1 100%; } }
 </style>

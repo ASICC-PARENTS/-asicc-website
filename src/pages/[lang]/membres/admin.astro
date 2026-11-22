@@ -1,6 +1,7 @@
 ---
 import Base from '../../../layouts/Base.astro';
 import { langPaths, href, L, type Lang } from '../../../i18n/ui';
+import homeCampaigns from '../../../data/cms/home-campaigns.json';
 export const getStaticPaths = langPaths;
 const lang = Astro.params.lang as Lang;
 const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
@@ -43,6 +44,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
             </div>
             <div class="row gap-12" style="flex-wrap:wrap">
               <a class="btn btn-ghost" href={href(lang, 'membres/')}>{L(lang, { ko: '회원공간', fr: 'Espace membres' })}</a>
+              <a href="#admin-home-banners" class="btn btn-ghost">{L(lang,{ko:'메인 배너 관리',fr:'Bannières d’accueil'})}</a>
               <button type="button" class="btn btn-ghost" id="admin-refresh">{L(lang, { ko: '새로고침', fr: 'Actualiser' })}</button>
             </div>
           </div>
@@ -244,6 +246,36 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
           <p class="small muted">{L(lang,{ko:'삭제된 본문은 보관하지 않고 처리자·사유·시각만 조회합니다.',fr:'Les textes supprimés ne sont pas conservés ; seul le journal minimal est affiché.'})}</p>
           <div id="admin-deletion-logs" class="stack gap-8"></div>
         </details>
+        <section class="card auth-card stack gap-16" id="admin-home-banners" aria-labelledby="admin-banners-heading">
+          <div class="row gap-12" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
+            <h2 id="admin-banners-heading" class="h3">{L(lang,{ko:'메인 홈페이지 배너 관리',fr:'Gestion des bannières d’accueil'})}</h2>
+            <a href="https://app.pagescms.org/" target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-sm">{L(lang,{ko:'CMS에서도 편집',fr:'Modifier dans le CMS'})} ↗</a>
+          </div>
+          <p class="small muted">{L(lang,{ko:'여기에서 저장하면 홈페이지에 즉시 반영됩니다. CMS에서 수정한 내용은 배포 후 기본값으로 적용됩니다. 관리자 수정값이 있으면 관리자 수정값이 우선하며, ‘CMS 기본값 복원’을 누르면 CMS 내용으로 돌아갑니다. 테스트 홈페이지와 공식 홈페이지의 관리자 수정값은 서로 분리됩니다.',fr:'Les modifications enregistrées ici sont publiées immédiatement. Le CMS définit les valeurs de base après déploiement ; une modification administrateur est prioritaire jusqu’au retour aux valeurs du CMS. Les modifications du site de test sont séparées du site public.'})}</p>
+          {([['bazaar',homeCampaigns.bazaar],['admissions',homeCampaigns.admissions]] as const).map(([key,item]) => <form class="asicc-banner-form stack gap-12" data-banner-editor={key}>
+            <div class="row gap-12" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
+              <h3 class="h3">{key==='bazaar'?L(lang,{ko:'바자회 배너',fr:'Bannière du bazar'}):L(lang,{ko:'신규 모집 배너',fr:'Bannière des admissions'})}</h3>
+              <span data-banner-status class="small muted">{L(lang,{ko:'CMS 기본값',fr:'Valeur du CMS'})}</span>
+            </div>
+            <label class="row gap-8" style="align-items:center"><input type="checkbox" name="enabled" checked={item.enabled} /> {L(lang,{ko:'메인 화면에 표시',fr:'Afficher sur la page d’accueil'})}</label>
+            <div class="asicc-banner-grid">
+              {([['eyebrow','상단 작은 제목','Surtitre'],['title','큰 제목','Titre'],['body','본문 설명','Description'],['status','상태 문구','État / précision'],['button','버튼 문구','Libellé du bouton']] as const).map(([field,ko,fr]) => <div class="asicc-banner-lang-pair">
+                <label class="small muted">{L(lang,{ko,fr})}</label>
+                <label class="stack gap-4"><span class="small">한국어</span>{field==='body' ? <textarea rows="3" name={`${field}_ko`} maxlength="600">{item[field].ko}</textarea> : <input type="text" name={`${field}_ko`} value={item[field].ko} maxlength={field==='title'?'120':field==='eyebrow'?'100':field==='status'?'100':'60'}/>}</label>
+                <label class="stack gap-4"><span class="small">Français</span>{field==='body' ? <textarea rows="3" name={`${field}_fr`} maxlength="600">{item[field].fr}</textarea> : <input type="text" name={`${field}_fr`} value={item[field].fr} maxlength={field==='title'?'120':field==='eyebrow'?'100':field==='status'?'100':'60'}/>}</label>
+              </div>)}
+            </div>
+            <label class="stack gap-6"><span>{L(lang,{ko:'바로가기 주소',fr:'Lien du bouton'})}</span>
+              <input name="link" type="text" value={item.link} maxlength="500" required placeholder="news/2026-10-08-admissions/"/>
+              <span class="small muted">{L(lang,{ko:'내부 공지: news/글주소/ · 외부 링크: https://... (게시 완료된 공지만 연결하세요)',fr:'Article interne : news/identifiant/ · lien externe : https://... (article publié uniquement)'})}</span>
+            </label>
+            <div class="row gap-12" style="flex-wrap:wrap;align-items:center">
+              <button type="submit" class="btn btn-dark" data-banner-save>{L(lang,{ko:'저장',fr:'Enregistrer'})}</button>
+              <button type="button" class="btn btn-ghost" data-banner-reset>{L(lang,{ko:'CMS 기본값 복원',fr:'Restaurer le CMS'})}</button>
+              <span data-banner-message class="small" role="status" aria-live="polite"></span>
+            </div>
+          </form>)}
+        </section>
         <div class="card auth-card stack gap-8">
           <h2 class="h3">{L(lang, { ko: '콘텐츠 관리 안내', fr: 'Gestion du contenu' })}</h2>
           <p class="small muted">{L(lang, {
@@ -291,6 +323,13 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   :global(.asicc-admin-actions) { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:10px; }
   :global(.asicc-admin-muted) { font-size:.88rem; color:var(--muted,#64748b); overflow-wrap:anywhere; }
   .asicc-admin-notification { border:1px solid #c09b56; border-radius:14px; padding:20px; background:rgba(250,238,216,.35); }
+  .asicc-banner-form { padding:20px; border:1px solid #dbe4df; border-radius:12px; background:#f9fbfa; min-width:0; }
+  .asicc-banner-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px 16px; }
+  .asicc-banner-lang-pair { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  .asicc-banner-lang-pair > .muted { grid-column:1/-1; font-weight:700; }
+  .asicc-banner-form input[type="text"], .asicc-banner-form textarea { width:100%; min-width:0; box-sizing:border-box; }
+  @media (max-width:950px) { .asicc-banner-grid { grid-template-columns:minmax(0,1fr); } }
+  @media (max-width:520px) { .asicc-banner-lang-pair { grid-template-columns:minmax(0,1fr); } }
   .asicc-admin-notification[hidden] { display:none; }
   .asicc-admin-toolbar { display:grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,170px),1fr)); gap:12px; align-items:end; }
   .asicc-admin-toolbar input,.asicc-admin-toolbar select { width:100%; min-width:0; }
@@ -321,6 +360,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     type DocumentData
   } from 'firebase/firestore';
   import { firebaseConfig } from '../../../firebase-config';
+  import bannerDefaults from '../../../data/cms/home-campaigns.json';
   import {dmAllowed,validBirthDate,adulthoodDate,ageOn} from '../../../scripts/members/member-access';
 
   type Child = {studentName:string;school:string;grade:string};
@@ -341,6 +381,8 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     ?? initializeApp(firebaseConfig, 'asicc-website');
   const auth = getAuth(app);
   const db = getFirestore(app);
+  const bannerCollection = /^(www\.)?asicc-parents\.fr$/i.test(location.hostname)
+    ? 'publicHomeBanners' : 'publicHomeBannersTest';
   let meUid = '';
   let members: Member[] = [];
   let globalDMEnabled=false;
@@ -1055,6 +1097,91 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       detail.style.marginTop='10px';entry.append(detail);target.append(entry);
     });
   }
+  // Two editable editorial banners: administrators save a public, validated Firestore
+  // override; Pages CMS remains the deploy-time default. Deleting the override
+  // restores CMS data without modifying any GitHub files.
+  type BannerKey = 'bazaar' | 'admissions';
+  const bannerKeys:BannerKey[]=['bazaar','admissions'];
+  const bannerFields=['eyebrow','title','body','status','button'] as const;
+  const validBannerLink=(link:string)=> /^news\/[a-z0-9/_-]+\/$/.test(link) || /^https:\/\/[^\s]+$/.test(link);
+  const bannerEditor=(key:BannerKey)=>document.querySelector<HTMLFormElement>(`[data-banner-editor="${key}"]`);
+  function fillBannerEditor(key:BannerKey,data:Record<string,unknown>|null){
+    const form=bannerEditor(key);if(!form)return;
+    const defaults=bannerDefaults[key];
+    const getText=(field:(typeof bannerFields)[number],loc:'ko'|'fr')=>data?String(data[`${field}_${loc}`]??''):defaults[field][loc];
+    const enabled=form.elements.namedItem('enabled') as HTMLInputElement|null;
+    if(enabled)enabled.checked=data?data.enabled===true:defaults.enabled;
+    for(const field of bannerFields)for(const loc of ['ko','fr'] as const){
+      const input=form.elements.namedItem(`${field}_${loc}`) as HTMLInputElement|HTMLTextAreaElement|null;
+      if(input)input.value=getText(field,loc);
+    }
+    const link=form.elements.namedItem('link') as HTMLInputElement|null;
+    if(link)link.value=data?String(data.link??''):defaults.link;
+    const status=form.querySelector<HTMLElement>('[data-banner-status]');
+    if(status)status.textContent=data?tr('관리자 수정값 적용 중','Modification administrateur active'):tr('CMS 기본값','Valeur du CMS');
+    const reset=form.querySelector<HTMLButtonElement>('[data-banner-reset]');if(reset)reset.disabled=!data;
+  }
+  function bannerFeedback(key:BannerKey,message:string,error=false){
+    const node=bannerEditor(key)?.querySelector<HTMLElement>('[data-banner-message]');
+    if(node){node.textContent=message;node.style.color=error?'#b42318':'#067647';}
+  }
+  async function loadBannerEditors(){
+    if(!meUid)return;
+    await Promise.all(bannerKeys.map(async key=>{
+      try{
+        const snap=await getDoc(doc(db,bannerCollection,key));
+        fillBannerEditor(key,snap.exists()?snap.data():null);
+        bannerFeedback(key,'');
+      }catch(error){
+        console.error('ASICC banner read',key,error);
+        bannerFeedback(key,tr('배너 저장소를 읽지 못했습니다. Firebase 규칙을 확인해 주세요.','Lecture impossible. Vérifiez les règles Firebase.'),true);
+      }
+    }));
+  }
+  async function saveBanner(key:BannerKey,event:SubmitEvent){
+    event.preventDefault();if(!meUid)return;
+    const form=bannerEditor(key);if(!form)return;
+    const button=form.querySelector<HTMLButtonElement>('[data-banner-save]');
+    const fd=new FormData(form);
+    const link=String(fd.get('link')??'').trim();
+    const data:Record<string,unknown>={enabled:fd.has('enabled'),link,updatedBy:meUid,updatedAt:serverTimestamp()};
+    if(link.length>500||!validBannerLink(link)){
+      bannerFeedback(key,tr('링크는 news/글주소/ 또는 https:// 로 시작해야 합니다.','Utilisez news/identifiant/ ou une URL https://.'),true);return;
+    }
+    for(const field of bannerFields)for(const loc of ['ko','fr'] as const){
+      const value=String(fd.get(`${field}_${loc}`)??'').trim();
+      const max=field==='body'?600:field==='title'?120:field==='status'?100:field==='eyebrow'?100:60;
+      if(value.length>max||((field==='title'||field==='button')&&!value)){
+        bannerFeedback(key,tr('제목·버튼 문구를 입력하고 글자 수를 확인해 주세요.','Vérifiez le titre, le bouton et la longueur des textes.'),true);return;
+      }
+      data[`${field}_${loc}`]=value;
+    }
+    if(button)button.disabled=true;
+    bannerFeedback(key,tr('저장 중…','Enregistrement…'));
+    try{
+      await setDoc(doc(db,bannerCollection,key),data);
+      bannerFeedback(key,tr('변경사항이 저장되었습니다.','Modifications enregistrées.'));
+      showMessage(tr('홈페이지 배너가 저장되었습니다.','Bannière d’accueil enregistrée.'));
+      await loadBannerEditors();
+      bannerFeedback(key,tr('변경사항이 저장되었습니다.','Modifications enregistrées.'));
+    }catch(error){console.error('ASICC banner save',error);bannerFeedback(key,tr('저장 실패: Firebase 배너 규칙을 확인해 주세요.','Échec : vérifiez les règles Firebase.'),true);}
+    finally{if(button)button.disabled=false;}
+  }
+  async function resetBanner(key:BannerKey){
+    if(!meUid||!confirm(tr('관리자 수정값을 삭제하고 CMS 기본값으로 돌아갈까요?','Supprimer la personnalisation et restaurer les valeurs du CMS ?')))return;
+    const button=bannerEditor(key)?.querySelector<HTMLButtonElement>('[data-banner-reset]');if(button)button.disabled=true;
+    try{
+      await deleteDoc(doc(db,bannerCollection,key));
+      fillBannerEditor(key,null);
+      bannerFeedback(key,tr('CMS 기본값으로 복원되었습니다.','Valeurs du CMS restaurées.'));
+      showMessage(tr('배너 기본값을 복원했습니다.','Bannière restaurée.'));
+    }catch(error){console.error('ASICC banner reset',error);bannerFeedback(key,tr('복원하지 못했습니다.','Restauration impossible.'),true);}
+    finally{if(button)button.disabled=false;}
+  }
+  for(const key of bannerKeys){
+    bannerEditor(key)?.addEventListener('submit',event=>void saveBanner(key,event));
+    bannerEditor(key)?.querySelector<HTMLButtonElement>('[data-banner-reset]')?.addEventListener('click',()=>void resetBanner(key));
+  }
   if (import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true") onAuthStateChanged(auth, async user => {
     if(!user) {window.location.replace(root?.dataset.loginUrl || '/');return;}
     try {
@@ -1070,6 +1197,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       const content=el<HTMLElement>('admin-content');if(content)content.hidden=false;
       await Promise.all([loadRequests(),loadMembers(true),loadHistory(),loadWithdrawals(),loadNameRequests(),loadSuggestions(),loadHiddenArchives()]);
       await loadNotifications();
+      await loadBannerEditors();
     } catch(error) {
       console.error('ASICC admin access:',error);
       deny(tr('관리자 화면을 불러올 수 없습니다. Firebase 규칙을 확인해 주세요.',
@@ -1093,7 +1221,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     if(busy)return;
     const requests=[loadRequests(),loadMembers(true),loadHistory(),loadWithdrawals(),loadNameRequests(),loadSuggestions(),loadHiddenArchives()];
     if(el<HTMLDetailsElement>('admin-deletions-panel')?.open)requests.push(loadDeletionLogs());
-    void Promise.all(requests).then(()=>loadNotifications()).catch(error=>{
+    void Promise.all(requests).then(()=>Promise.all([loadNotifications(),loadBannerEditors()])).catch(error=>{
       console.error('ASICC refresh:',error);
       showMessage(tr('새로고침 중 오류가 발생했습니다.','Erreur pendant l’actualisation.'),true);
     });

@@ -984,6 +984,50 @@ function validUpgrade(uid) {
           && resource.data.get('recipientDeletedAt',null) == null && request.resource.data.recipientDeletedAt == request.time));
       allow delete: if false;
     }
+    // Public homepage editorial banners. Only the two fixed documents are readable
+    // without login. No private member data or arbitrary content collections exposed.
+    function validBannerText(field, limit) {
+      return field is string && field.size() <= limit;
+    }
+    function validEditorialBanner() {
+      let v = request.resource.data;
+      return v.keys().hasOnly([
+        'enabled','link','eyebrow_ko','eyebrow_fr','title_ko','title_fr',
+        'body_ko','body_fr','status_ko','status_fr','button_ko','button_fr',
+        'updatedAt','updatedBy'
+      ]) && v.keys().hasAll([
+        'enabled','link','eyebrow_ko','eyebrow_fr','title_ko','title_fr',
+        'body_ko','body_fr','status_ko','status_fr','button_ko','button_fr',
+        'updatedAt','updatedBy'
+      ])
+        && v.enabled is bool
+        && validBannerText(v.link, 500)
+        && (v.link.matches('^news/[a-z0-9/_-]+/$') || v.link.matches('^https://[^\\s]+$'))
+        && validBannerText(v.eyebrow_ko,100) && validBannerText(v.eyebrow_fr,100)
+        && validBannerText(v.title_ko,120) && v.title_ko.size()>0
+        && validBannerText(v.title_fr,120) && v.title_fr.size()>0
+        && validBannerText(v.body_ko,600) && validBannerText(v.body_fr,600)
+        && validBannerText(v.status_ko,100) && validBannerText(v.status_fr,100)
+        && validBannerText(v.button_ko,60) && v.button_ko.size()>0
+        && validBannerText(v.button_fr,60) && v.button_fr.size()>0
+        && v.updatedAt == request.time
+        && v.updatedBy == request.auth.uid;
+    }
+    match /publicHomeBanners/{bannerId} {
+      allow get: if bannerId in ['bazaar','admissions'];
+      allow list: if false;
+      allow create, update: if bannerId in ['bazaar','admissions'] && isAdmin() && validEditorialBanner();
+      allow delete: if bannerId in ['bazaar','admissions'] && isAdmin();
+    }
+
+    // Staging homepage banner overrides stay separate from the production domain.
+    match /publicHomeBannersTest/{bannerId} {
+      allow get: if bannerId in ['bazaar','admissions'];
+      allow list: if false;
+      allow create, update: if bannerId in ['bazaar','admissions'] && isAdmin() && validEditorialBanner();
+      allow delete: if bannerId in ['bazaar','admissions'] && isAdmin();
+    }
+
     // Anything not explicitly approved above is denied.
     match /{document=**} { allow read, write: if false; }
   }
