@@ -7,6 +7,7 @@ on:
       - 'tests/asicc-round9-policy.test.mjs'
       - 'tests/asicc-round10-regressions.test.mjs'
       - 'tests/asicc-round11-regressions.test.mjs'
+      - 'tests/patch-regressions.test.mjs'
       - 'src/scripts/members/mailbox-view.ts'
       - 'src/scripts/members/display-date.ts'
       - 'src/scripts/members/dm-policy.ts'
