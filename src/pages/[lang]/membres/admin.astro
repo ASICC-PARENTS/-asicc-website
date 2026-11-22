@@ -6,7 +6,7 @@ export const getStaticPaths = langPaths;
 const lang = Astro.params.lang as Lang;
 const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
 ---
-<Base lang={lang} rest="membres/admin/" title={L(lang, { ko: 'ASICC 관리자 화면', fr: 'Administration ASICC' })} noindex>
+<Base lang={lang} rest="membres/admin/" title={L(lang, { ko: 'ASICC 홈페이지 운영센터', fr: 'Centre de gestion du site ASICC' })} noindex>
   <section class="wrap m-shell asicc-admin-page">
     <div id="asicc-admin" class="stack gap-24"
       data-lang={lang}
@@ -14,10 +14,10 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       data-member-url={href(lang, 'membres/')}>
       <div class="stack gap-12">
         <span class="m-badge" style="align-self:flex-start">{L(lang, { ko: '관리자 전용', fr: 'Accès administrateur' })}</span>
-        <h1 class="h2">{L(lang, { ko: 'ASICC 회원관리', fr: 'Gestion des membres ASICC' })}</h1>
+        <h1 class="h2">{L(lang, { ko: '홈페이지 운영센터', fr: 'Centre de gestion du site' })}</h1>
         <p class="muted">{L(lang, {
-          ko: '회원 가입·승급 심사, 실명 변경 신청, 비공개 건의, 계정 이용 제한을 관리합니다.',
-          fr: 'Examinez les statuts, corrections de nom, suggestions confidentielles et accès des membres.'
+          ko: '회원 승인·신청 처리, 게시판·메인 배너 및 홈페이지 운영 설정을 관리합니다.',
+          fr: 'Gérez les membres, les demandes, les publications, les bannières et les paramètres du site.'
         })}</p>
       </div>
 
@@ -31,6 +31,15 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       </div>
 
       <div id="admin-content" class="stack gap-24" hidden>
+<nav class="asicc-admin-space-switch" aria-label={L(lang,{ko:'공간 선택',fr:'Choix de l’espace'})}>
+  <a class="asicc-admin-space-tab" href={href(lang,'membres/')}>{L(lang,{ko:'회원공간',fr:'Espace membres'})}</a>
+  <a class="asicc-admin-space-tab is-active" aria-current="page" href={href(lang,'membres/admin/')}>{L(lang,{ko:'관리자 공간',fr:'Espace administrateur'})}</a>
+</nav>
+<div class="card auth-card asicc-admin-space-menu">
+  <a class="btn btn-dark" aria-current="page" href={href(lang,'membres/admin/')}>{L(lang,{ko:'홈페이지 운영센터',fr:'Centre de gestion du site'})}</a>
+  <a class="btn btn-ghost" href={href(lang,'membres/office/')}>{L(lang,{ko:'온라인 협회 사무실',fr:'Bureau de l’association'})}</a>
+  <a class="btn btn-ghost" href="https://app.pagescms.org/" target="_blank" rel="noopener noreferrer">{L(lang,{ko:'홈페이지 CMS 열기',fr:'Ouvrir le CMS'})} ↗</a>
+</div>
         <div class="card auth-card stack gap-12">
           <div class="row gap-16" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
             <div class="stack gap-8">
@@ -38,7 +47,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
               <span class="small muted">{L(lang, { ko: '관리자 인증 완료 · 본인 확인 완료', fr: 'Administrateur authentifié · Identité vérifiée' })}</span>
             </div>
             <div class="row gap-12" style="flex-wrap:wrap">
-              <a class="btn btn-ghost" href={href(lang, 'membres/')}>{L(lang, { ko: '회원공간', fr: 'Espace membres' })}</a>
+              
               <a href="#admin-home-banners" class="btn btn-ghost">{L(lang,{ko:'메인 배너 관리',fr:'Bannières d’accueil'})}</a>
               <button type="button" class="btn btn-ghost" id="admin-refresh">{L(lang, { ko: '새로고침', fr: 'Actualiser' })}</button>
             </div>
@@ -81,6 +90,15 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
             <p class="small muted">{L(lang,{ko:'승인·거절 기능은 이곳에서 계속 사용할 수 있습니다.',fr:'Les approbations et refus restent disponibles ici.'})}</p>
             <div id="admin-requests" class="stack gap-12"></div>
           </details>
+<details id="admin-name-requests-panel" class="asicc-admin-upgrade-detail">
+  <summary id="name-requests-heading">{L(lang,{ko:'실명 변경 신청 확인·처리',fr:'Traiter les demandes de correction du nom'})}</summary>
+  <div id="admin-name-requests" class="stack gap-12"></div>
+</details>
+<details id="admin-suggestions-panel" class="asicc-admin-upgrade-detail">
+  <summary id="suggestions-heading">{L(lang,{ko:'비공개 건의 확인·처리',fr:'Traiter les suggestions privées'})}</summary>
+  <div id="admin-suggestions" class="stack gap-12"></div>
+</details>
+
         </section>
         <section class="card auth-card stack gap-16" aria-labelledby="members-heading">
           <div class="row gap-16" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
@@ -204,14 +222,8 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
           <p class="small muted">{L(lang,{ko:'삭제된 본문은 보관하지 않고 처리자·사유·시각만 조회합니다.',fr:'Les textes supprimés ne sont pas conservés ; seul le journal minimal est affiché.'})}</p>
           <div id="admin-deletion-logs" class="stack gap-8"></div>
         </details>
-        <section class="card stack gap-16" style="padding:22px" aria-labelledby="name-requests-heading">
-          <h2 id="name-requests-heading" class="h3">{L(lang,{ko:'실명 변경 신청',fr:'Demandes de correction du nom'})}</h2>
-          <div id="admin-name-requests" class="stack gap-12"></div>
-        </section>
-        <section class="card stack gap-16" style="padding:22px" aria-labelledby="suggestions-heading">
-          <h2 id="suggestions-heading" class="h3">{L(lang,{ko:'협회 비공개 건의함',fr:'Boîte de suggestions privées'})}</h2>
-          <div id="admin-suggestions" class="stack gap-12"></div>
-        </section>
+        
+        
         <section class="card auth-card stack gap-16" aria-labelledby="operations-heading">
           <h2 id="operations-heading" class="h3">{L(lang,{ko:'홈페이지 운영 설정',fr:'Paramètres opérationnels du site'})}</h2>
           <p class="small muted">{L(lang,{ko:'일반적인 갤러리 공개·쪽지·게시판 분류는 코드를 수정하지 않고 여기에서 변경합니다. 보안 규칙 자체는 직접 편집하지 않습니다.',fr:'Gérez les catégories, la galerie et la messagerie sans modifier le code. Les règles de sécurité restent protégées.'})}</p>
@@ -250,7 +262,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
           <p class="small muted">{L(lang,{ko:'여기에서 저장하면 홈페이지에 즉시 반영됩니다. CMS에서 수정한 내용은 배포 후 기본값으로 적용됩니다. 관리자 수정값이 있으면 관리자 수정값이 우선하며, ‘CMS 기본값 복원’을 누르면 CMS 내용으로 돌아갑니다. 테스트 홈페이지와 공식 홈페이지의 관리자 수정값은 서로 분리됩니다.',fr:'Les modifications enregistrées ici sont publiées immédiatement. Le CMS définit les valeurs de base après déploiement ; une modification administrateur est prioritaire jusqu’au retour aux valeurs du CMS. Les modifications du site de test sont séparées du site public.'})}</p>
           {([['bazaar',homeCampaigns.bazaar],['admissions',homeCampaigns.admissions]] as const).map(([key,item]) => <form class="asicc-banner-form stack gap-12" data-banner-editor={key}>
             <div class="row gap-12" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
-              <h3 class="h3">{key==='bazaar'?L(lang,{ko:'바자회 배너',fr:'Bannière du bazar'}):L(lang,{ko:'신규 모집 배너',fr:'Bannière des admissions'})}</h3>
+              <h3 class="h3">{key==='bazaar'?L(lang,{ko:'배너 1',fr:'Bannière 1'}):L(lang,{ko:'배너 2',fr:'Bannière 2'})}</h3>
               <span data-banner-status class="small muted">{L(lang,{ko:'CMS 기본값',fr:'Valeur du CMS'})}</span>
             </div>
             <label class="row gap-8" style="align-items:center"><input type="checkbox" name="enabled" checked={item.enabled} /> {L(lang,{ko:'메인 화면에 표시',fr:'Afficher sur la page d’accueil'})}</label>
@@ -278,6 +290,10 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
 </Base>
 
 <style>
+.asicc-admin-space-switch {display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-bottom:1px solid #dce5e3;padding:0 0 12px}
+.asicc-admin-space-tab {display:inline-flex;align-items:center;justify-content:center;padding:10px 16px;min-height:40px;border:1px solid #d6e1db;border-radius:9px;color:inherit;text-decoration:none;font-size:14px;font-weight:650}
+.asicc-admin-space-tab.is-active {background:#e7f1ed;border-color:#9cbeb0;color:#245543;font-weight:750}
+.asicc-admin-space-menu {display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   /* 관리자 전용 페이지는 기본 .wrap(1200px) 및 .auth-card(520px) 제한을 해제합니다.
      일반 로그인/프로필 페이지는 이 변경의 영향을 받지 않습니다. */
   .asicc-admin-page { box-sizing:border-box; width:100%; max-width:none; margin:0 auto; padding-inline:clamp(16px,2.2vw,48px); }
