@@ -31,6 +31,7 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
           </div>
           <div class="member-staff-links" id="member-staff-links" hidden>
             <a class="btn btn-ghost" href={href(lang,'membres/admin/')} id="admin-shortcut" hidden>{L(lang,{ko:'회원관리',fr:'Administration'})}</a>
+            <a class="btn btn-ghost" href="https://app.pagescms.org/" target="_blank" rel="noopener noreferrer" id="cms-shortcut" hidden>{L(lang,{ko:'홈페이지 CMS 열기',fr:'Ouvrir le CMS du site'})}</a>
             <a class="btn btn-ghost" href={href(lang,'membres/office/')} id="office-shortcut" hidden>{L(lang,{ko:'온라인 협회 사무실',fr:'Bureau privé'})}</a>
           </div>
         </div>
@@ -137,6 +138,7 @@ if(import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true')onAuthStateChanged(auth
    if(role!=='general'&&(!dmAllowed(data)||messaging?.data()?.enabled!==true)){const status=by('member-dashboard-status');if(status)status.textContent=tr('현재 쪽지 기능을 이용할 수 없습니다. 이용을 원하시는 경우 운영진에게 문의해 주세요.','La messagerie est indisponible. Contactez l’administration.');}
    const upgrade=by('upgrade-shortcut');if(upgrade)upgrade.hidden=role!=='general';
    const admin=by('admin-shortcut');if(admin)admin.hidden=role!=='admin';
+   const cms=by('cms-shortcut');if(cms)cms.hidden=role!=='admin';
    const office=by('office-shortcut');if(office)office.hidden=role!=='admin';
    const staffLinks=by('member-staff-links');if(staffLinks)staffLinks.hidden=role!=='admin';
    note('board-privilege',full?tr('읽기·글쓰기·댓글 가능','Lecture, publication et commentaires'):tr('읽기 가능 · 글쓰기는 🔒 잠금','Lecture autorisée · publication verrouillée 🔒'));

@@ -87,43 +87,45 @@ const donationReady = (v: string) => /^https:\/\/www\.helloasso\.com\//i.test(v)
   }
 </script>
 <style>
-.home-campaigns { display:grid; grid-template-columns:minmax(0,1.28fr) minmax(0,1fr); gap:18px; padding-top:24px; align-items:stretch; }
-.editorial-banners { display:grid; grid-template-columns:minmax(0,1fr); gap:14px; min-width:0; }
-.campaign-banner { position:relative; display:flex; border-radius:10px; padding:22px 26px; min-width:0; overflow:hidden; }
+/* Keep the existing vertical position. The three banners share one CSS grid row
+   so they always have equal height; content can expand the row when translated. */
+.home-campaigns { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; padding-top:24px; align-items:stretch; }
+.editorial-banners { display:contents; }
+.campaign-banner { position:relative; display:flex; min-width:0; min-height:278px; border-radius:10px; padding:19px 18px; overflow:hidden; box-sizing:border-box; }
 .campaign-banner[hidden],.campaign-state[hidden] { display:none; }
 .campaign-content { position:relative; z-index:1; display:flex; flex-direction:column; align-items:flex-start; gap:8px; min-width:0; width:100%; }
-.campaign-kicker { font-family:var(--strong); font-size:11px; font-weight:600; letter-spacing:.08em; line-height:1.5; }
-.campaign-banner h2 { font-family:var(--serif); font-size:clamp(19px,2vw,25px); line-height:1.35; overflow-wrap:anywhere; }
-.campaign-banner p { font-size:14px; line-height:1.6; max-width:52ch; }
+.campaign-kicker { font-family:var(--strong); font-size:10px; font-weight:700; letter-spacing:.045em; line-height:1.45; }
+.campaign-banner h2 { font-family:var(--serif); font-size:clamp(17px,1.65vw,21px); line-height:1.3; overflow-wrap:anywhere; }
+.campaign-banner p { font-size:12.5px; line-height:1.55; max-width:52ch; overflow-wrap:anywhere; }
 .bazaar-banner { background:linear-gradient(115deg,#FFF2DF,#FFE1C9); border:1px solid #EAB58C; color:#57351F; }
 .bazaar-banner .campaign-kicker { color:#95401D; }
 .admissions-banner { background:linear-gradient(115deg,#EEF6FF,#DDEBFA); border:1px solid #A8C7E5; color:#29435B; }
-.admissions-banner .campaign-kicker { color:#194F81; background:#D1E4F8; border:1px solid #ACCEE9; padding:3px 9px; border-radius:999px; letter-spacing:.025em; }
-.campaign-banner:not(.support-banner) h2,.campaign-banner:not(.support-banner) p { max-width:calc(100% - 54px); }
-.campaign-decoration { position:absolute; right:12px; bottom:17px; font-size:55px; transform:rotate(-8deg); opacity:.55; line-height:1; }
-.campaign-state { display:inline-flex; gap:7px; align-items:center; max-width:100%; padding:5px 10px; border-radius:999px; font-size:12px; line-height:1.5; background:rgba(255,255,255,.8); border:1px solid rgba(0,0,0,.10); font-weight:650; overflow-wrap:anywhere; }
-.campaign-state > span:first-child { color:#C57946; font-size:9px; }
-.campaign-link { margin-top:auto; padding:9px 16px; font-size:13px; border:1px solid transparent; border-radius:9px; font-weight:700; text-decoration:none; }
+.admissions-banner .campaign-kicker { color:#194F81; background:#D1E4F8; border:1px solid #ACCEE9; padding:3px 7px; border-radius:999px; letter-spacing:0; }
+.campaign-decoration { position:absolute; right:10px; bottom:11px; font-size:32px; transform:rotate(-8deg); opacity:.27; line-height:1; pointer-events:none; }
+.campaign-state { display:inline-flex; gap:6px; align-items:center; max-width:100%; padding:5px 8px; border-radius:999px; font-size:11px; line-height:1.45; background:rgba(255,255,255,.84); border:1px solid rgba(0,0,0,.10); font-weight:650; overflow-wrap:anywhere; }
+.campaign-state > span:first-child { color:#C57946; font-size:8px; }
+.campaign-link { margin-top:auto; padding:9px 11px; font-size:12px; border:1px solid transparent; border-radius:8px; font-weight:700; text-decoration:none; }
 .bazaar-banner .campaign-link { background:#B94D30; border-color:#B94D30; color:#fff; }
 .bazaar-banner .campaign-link:hover { background:#963B22; border-color:#963B22; color:#fff; }
 .admissions-banner .campaign-link { background:#285F98; border-color:#285F98; color:#fff; }
 .admissions-banner .campaign-link:hover { background:#1B4978; border-color:#1B4978; color:#fff; }
 .admissions-banner .campaign-state { background:#F9FCFF; border-color:#B8D3EB; color:#234E79; }
 .campaign-link:focus-visible { outline:3px solid #1B4978; outline-offset:3px; }
-.support-banner { background:#EBF4F0; border:1px solid #BFD6CD; color:#204C40; padding:26px; }
+.support-banner { background:#EBF4F0; border:1px solid #BFD6CD; color:#204C40; }
 .support-banner .campaign-kicker { color:#3D7964; }
-.support-banner p { color:#456057; }
-.support-actions { display:flex; flex-wrap:wrap; gap:8px; width:100%; margin-top:10px; }
-.support-actions a { flex:1 1 165px; display:inline-flex; justify-content:center; align-items:center; text-align:center; font-size:13px; line-height:1.4; padding:11px 12px; white-space:normal; border-radius:9px; text-decoration:none; }
+.support-banner p { color:#345F50; }
+.support-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; width:100%; margin-top:4px; }
+.support-actions a { min-width:0; display:flex; justify-content:center; align-items:center; text-align:center; font-size:11.5px; line-height:1.35; padding:10px 6px; border-radius:8px; text-decoration:none; overflow-wrap:anywhere; }
 .support-actions .support-fee-button { color:#fff; background:#34465C; border:1px solid #34465C; font-weight:700; }
 .support-actions .support-fee-button:hover { background:#223246; border-color:#223246; color:#fff; }
 .support-actions .support-donate-button { background:#28614F; border:1px solid #28614F; color:#fff; font-weight:700; }
 .support-actions .support-donate-button:hover { background:#1C4A3C; border-color:#1C4A3C; color:#fff; }
 .support-actions a:focus-visible { outline:3px solid #204C40; outline-offset:3px; }
-.bank-transfer { display:flex; flex-wrap:wrap; gap:4px 10px; align-items:baseline; width:100%; border-top:1px solid #CADFD7; margin-top:auto; padding-top:12px; font-size:13px; }
+/* Keep the bank account visible, not in a popover or disclosure. */
+.bank-transfer { display:flex; flex-wrap:wrap; gap:4px 8px; align-items:baseline; width:100%; border-top:1px solid #CADFD7; margin-top:auto; padding-top:11px; font-size:11px; }
 .bank-transfer strong { font-weight:700; flex:1 0 100%; }
-.bank-holder { font-weight:600; }
-.bank-transfer code { display:block; width:100%; font-size:12.5px; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; letter-spacing:.015em; word-break:break-word; overflow-wrap:anywhere; user-select:all; }
-@media(max-width:800px) { .home-campaigns { grid-template-columns:minmax(0,1fr); gap:12px; } .campaign-banner { min-height:0; padding:21px; } .support-banner { min-height:220px; } }
-@media(max-width:430px) { .campaign-banner { padding:18px; } .campaign-banner:not(.support-banner) h2,.campaign-banner:not(.support-banner) p { max-width:100%; } .campaign-decoration { opacity:.13; right:14px; bottom:10px; } .support-actions a { flex:1 1 100%; } }
+.bank-holder { font-weight:650; overflow-wrap:anywhere; }
+.bank-transfer code { display:block; width:100%; font-size:10.5px; line-height:1.5; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; letter-spacing:0; word-break:break-word; overflow-wrap:anywhere; user-select:all; }
+@media(max-width:740px) { .home-campaigns { grid-template-columns:minmax(0,1fr); gap:12px; } .campaign-banner { min-height:210px; padding:19px; } .campaign-banner h2 { font-size:21px; } .campaign-banner p { font-size:13px; } .campaign-decoration { opacity:.18; } .support-banner { min-height:245px; } .support-actions a { font-size:13px; } .bank-transfer code { font-size:12px; } }
+@media(max-width:400px) { .campaign-banner { padding:17px; } .support-actions { grid-template-columns:1fr; } }
 </style>

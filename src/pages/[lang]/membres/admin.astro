@@ -31,16 +31,11 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       </div>
 
       <div id="admin-content" class="stack gap-24" hidden>
-        <section class="card auth-card stack gap-12" aria-labelledby="ops-inbox-heading">
-          <h2 id="ops-inbox-heading" class="h3">{L(lang,{ko:'통합 처리 대기 요약',fr:'Résumé des demandes à traiter'})}</h2>
-          <p class="small muted">{L(lang,{ko:'회원 승급·건의·사진 승인 요청을 한곳에서 확인하고 각 업무 화면으로 이동합니다.',fr:'Demandes de statut, suggestions et validation des photos.'})}</p>
-          <div id="ops-inbox" class="stack gap-8"></div>
-        </section>
         <div class="card auth-card stack gap-12">
           <div class="row gap-16" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
             <div class="stack gap-8">
               <strong id="admin-who"></strong>
-              <span class="small muted">{L(lang, { ko: '관리자 인증 완료', fr: 'Accès administrateur confirmé' })}</span>
+              <span class="small muted">{L(lang, { ko: '관리자 인증 완료 · 본인 확인 완료', fr: 'Administrateur authentifié · Identité vérifiée' })}</span>
             </div>
             <div class="row gap-12" style="flex-wrap:wrap">
               <a class="btn btn-ghost" href={href(lang, 'membres/')}>{L(lang, { ko: '회원공간', fr: 'Espace membres' })}</a>
@@ -77,52 +72,16 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
           {L(lang,{ko:'새로운 회원 가입이나 탈퇴 요청이 없습니다.',fr:'Aucune nouvelle inscription ni demande de départ.'})}
         </p>
 
-        <section class="card auth-card stack gap-8" aria-labelledby="visits-heading">
-          <h2 id="visits-heading" class="h3">{L(lang,{ko:'방문 통계',fr:'Statistiques de fréquentation'})}</h2>
-          <p class="small muted">{L(lang,{ko:'비회원 포함 방문 횟수와 페이지 조회수는 Cloudflare 대시보드에서 확인합니다. 홈페이지의 회원정보 DB에는 방문 기록을 저장하지 않습니다.',fr:'Les visites (y compris anonymes) et pages vues sont consultables dans Cloudflare. Aucune activité de visite n’est enregistrée dans la base de profils.'})}</p>
-          <div class="row gap-12" style="flex-wrap:wrap">
-            <a class="btn btn-ghost" href="https://dash.cloudflare.com/" target="_blank" rel="noopener noreferrer">{L(lang,{ko:'Cloudflare 방문 통계 열기',fr:'Ouvrir Cloudflare Analytics'})}</a>
-            <a class="btn btn-ghost" href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer">{L(lang,{ko:'Firebase 로그인 기록 확인',fr:'Consulter les connexions Firebase'})}</a>
-          </div>
-          <p class="small muted">{L(lang,{ko:'개별 회원의 마지막 로그인일은 Firebase Authentication에서 확인합니다. 서버 연동 없이 이 화면에 표시하지 않습니다.',fr:'La date de dernière connexion est consultable dans Firebase Authentication. Elle n’est pas affichée ici sans serveur sécurisé.'})}</p>
+        <section class="card auth-card stack gap-12" aria-labelledby="ops-inbox-heading">
+          <h2 id="ops-inbox-heading" class="h3">{L(lang,{ko:'통합 처리 대기 요약',fr:'Résumé des demandes à traiter'})}</h2>
+          <p class="small muted">{L(lang,{ko:'회원 승급·건의·사진 승인 요청을 한곳에서 확인하고 각 업무 화면으로 이동합니다.',fr:'Demandes de statut, suggestions et validation des photos.'})}</p>
+          <div id="ops-inbox" class="stack gap-8"></div>
+          <details id="admin-upgrade-requests" class="asicc-admin-upgrade-detail">
+            <summary id="requests-heading">{L(lang,{ko:'승급 신청 확인·처리',fr:'Examiner les demandes de statut'})} <span id="admin-pending-count" class="m-badge" aria-label={L(lang,{ko:'대기 건수',fr:'Nombre en attente'})}></span></summary>
+            <p class="small muted">{L(lang,{ko:'승인·거절 기능은 이곳에서 계속 사용할 수 있습니다.',fr:'Les approbations et refus restent disponibles ici.'})}</p>
+            <div id="admin-requests" class="stack gap-12"></div>
+          </details>
         </section>
-
-        <section class="card auth-card stack gap-16" aria-labelledby="operations-heading">
-          <h2 id="operations-heading" class="h3">{L(lang,{ko:'홈페이지 운영 설정',fr:'Paramètres opérationnels du site'})}</h2>
-          <p class="small muted">{L(lang,{ko:'일반적인 갤러리 공개·쪽지·게시판 분류는 코드를 수정하지 않고 여기에서 변경합니다. 보안 규칙 자체는 직접 편집하지 않습니다.',fr:'Gérez les catégories, la galerie et la messagerie sans modifier le code. Les règles de sécurité restent protégées.'})}</p>
-          <div class="stack gap-8" style="border:1px solid #dce0e7;border-radius:10px;padding:16px">
-            <label class="row gap-12" style="align-items:center"><input type="checkbox" id="ops-gallery-open"/> <strong>{L(lang,{ko:'갤러리 회원 공개',fr:'Ouvrir la galerie aux membres'})}</strong></label>
-            <p class="small muted">{L(lang,{ko:'기본은 비공개입니다. 공개하면 일반 등록된 사진과 관리자가 승인한 사진이 정회원·특별회원·관리자에게 표시됩니다. 현재 파일은 Backblaze B2에만 저장되고 Google Drive 원본 자동 보관은 실행되지 않습니다. 초상권 정책 확정 전에는 공개하지 마세요.',fr:'Fermée par défaut. Les photos directement publiées ou approuvées seront visibles aux membres autorisés. Les fichiers restent sur Backblaze B2 ; aucune sauvegarde Google Drive. Ne pas ouvrir avant la validation des règles relatives au droit à l’image.'})}</p>
-            <button type="button" class="btn btn-dark" id="ops-save-gallery" style="align-self:flex-start">{L(lang,{ko:'갤러리 공개 설정 저장',fr:'Enregistrer la galerie'})}</button>
-            <label class="row gap-12" style="align-items:center"><input type="checkbox" id="ops-messaging-open"/> <strong>{L(lang,{ko:'회원 쪽지 기능 전체 활성화',fr:'Activer la messagerie des membres'})}</strong></label>
-            <button type="button" class="btn btn-dark" id="ops-save-toggles" style="align-self:flex-start">{L(lang,{ko:'쪽지 설정 저장',fr:'Enregistrer la messagerie'})}</button>
-            <button type="button" class="btn btn-ghost" id="admin-dm-initialise" disabled style="align-self:flex-start">{L(lang,{ko:'기존 회원 쪽지 일괄 활성화 (최초 1회)',fr:'Activer la messagerie des membres existants (une seule fois)'})}</button>
-            <p id="admin-dm-initialise-state" class="small muted" role="status"></p>
-          </div>
-          <div class="stack gap-12" style="border:1px solid #dce0e7;border-radius:10px;padding:16px">
-            <h3 class="h3">{L(lang,{ko:'게시판 분류 관리',fr:'Catégories du forum'})}</h3>
-            <p class="small muted">{L(lang,{ko:'한 줄에 ID | 한국어 | Français 순서로 입력. 기존 게시물의 분류 ID는 변경하지 마세요.',fr:'Une ligne : ID | coréen | français. Ne modifiez pas les identifiants existants.'})}</p>
-            <textarea id="ops-board-categories" rows="7" spellcheck="false"></textarea>
-            <button id="ops-save-board-categories" type="button" class="btn btn-ghost" style="align-self:flex-start">{L(lang,{ko:'게시판 분류 저장',fr:'Enregistrer les catégories du forum'})}</button>
-            <h3 class="h3">{L(lang,{ko:'학습자료실 분류 관리',fr:'Catégories des ressources'})}</h3>
-            <textarea id="ops-resource-categories" rows="7" spellcheck="false"></textarea>
-            <button id="ops-save-resource-categories" type="button" class="btn btn-ghost" style="align-self:flex-start">{L(lang,{ko:'학습자료 분류 저장',fr:'Enregistrer les catégories des ressources'})}</button>
-          </div>
-          <p id="ops-status" role="status" class="small muted"></p>
-          <div class="row gap-12" style="flex-wrap:wrap"><a class="btn btn-ghost" href={href(lang,'membres/gallery/')}>{L(lang,{ko:'갤러리 관리',fr:'Gérer la galerie'})}</a><a class="btn btn-ghost" href={href(lang,'membres/gallery/')+'?view=review'}>{L(lang,{ko:'검토 대기 사진',fr:'Médias à vérifier'})}</a><a class="btn btn-ghost" href={href(lang,'membres/messages/')}>{L(lang,{ko:'회원 쪽지함 열기',fr:'Messagerie'})}</a></div>
-        </section>
-        <section class="card auth-card stack gap-16" aria-labelledby="requests-heading">
-          <div class="row gap-16" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
-            <h2 id="requests-heading" class="h3">{L(lang, { ko: '승급 승인 대기', fr: 'Demandes à examiner' })}</h2>
-            <span id="admin-pending-count" class="m-badge"></span>
-          </div>
-          <p class="small muted">{L(lang, {
-            ko: '승인 시 신청 결과와 회원 등급을 하나의 트랜잭션으로 저장합니다.',
-            fr: 'Chaque approbation met à jour la demande et le statut dans une seule transaction.'
-          })}</p>
-          <div id="admin-requests" class="stack gap-12"></div>
-        </section>
-
         <section class="card auth-card stack gap-16" aria-labelledby="members-heading">
           <div class="row gap-16" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
             <h2 id="members-heading" class="h3">{L(lang, { ko: '회원 등급 및 계정 관리', fr: 'Comptes et statuts des membres' })}</h2>
@@ -228,13 +187,12 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
           </dialog>
         </section>
 
-        <section class="card stack gap-16" style="padding:22px" aria-labelledby="name-requests-heading">
-          <h2 id="name-requests-heading" class="h3">{L(lang,{ko:'실명 변경 신청',fr:'Demandes de correction du nom'})}</h2>
-          <div id="admin-name-requests" class="stack gap-12"></div>
-        </section>
-        <section class="card stack gap-16" style="padding:22px" aria-labelledby="suggestions-heading">
-          <h2 id="suggestions-heading" class="h3">{L(lang,{ko:'협회 비공개 건의함',fr:'Boîte de suggestions privées'})}</h2>
-          <div id="admin-suggestions" class="stack gap-12"></div>
+        <section class="card auth-card stack gap-12" aria-labelledby="admin-board-management-heading">
+          <h2 id="admin-board-management-heading" class="h3">{L(lang,{ko:'게시판 관리',fr:'Gestion du forum'})}</h2>
+            <h3 class="h3">{L(lang,{ko:'게시판 분류 관리',fr:'Catégories du forum'})}</h3>
+            <p class="small muted">{L(lang,{ko:'한 줄에 ID | 한국어 | Français 순서로 입력. 기존 게시물의 분류 ID는 변경하지 마세요.',fr:'Une ligne : ID | coréen | français. Ne modifiez pas les identifiants existants.'})}</p>
+            <textarea id="ops-board-categories" rows="7" spellcheck="false"></textarea>
+            <button id="ops-save-board-categories" type="button" class="btn btn-ghost" style="align-self:flex-start">{L(lang,{ko:'게시판 분류 저장',fr:'Enregistrer les catégories du forum'})}</button>
         </section>
         <section class="card stack gap-12" style="padding:22px" aria-labelledby="hidden-heading">
           <h2 id="hidden-heading" class="h3">{L(lang,{ko:'숨김 글·댓글 관리 / 복구',fr:'Contenus masqués / restauration'})}</h2>
@@ -246,6 +204,44 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
           <p class="small muted">{L(lang,{ko:'삭제된 본문은 보관하지 않고 처리자·사유·시각만 조회합니다.',fr:'Les textes supprimés ne sont pas conservés ; seul le journal minimal est affiché.'})}</p>
           <div id="admin-deletion-logs" class="stack gap-8"></div>
         </details>
+        <section class="card stack gap-16" style="padding:22px" aria-labelledby="name-requests-heading">
+          <h2 id="name-requests-heading" class="h3">{L(lang,{ko:'실명 변경 신청',fr:'Demandes de correction du nom'})}</h2>
+          <div id="admin-name-requests" class="stack gap-12"></div>
+        </section>
+        <section class="card stack gap-16" style="padding:22px" aria-labelledby="suggestions-heading">
+          <h2 id="suggestions-heading" class="h3">{L(lang,{ko:'협회 비공개 건의함',fr:'Boîte de suggestions privées'})}</h2>
+          <div id="admin-suggestions" class="stack gap-12"></div>
+        </section>
+        <section class="card auth-card stack gap-16" aria-labelledby="operations-heading">
+          <h2 id="operations-heading" class="h3">{L(lang,{ko:'홈페이지 운영 설정',fr:'Paramètres opérationnels du site'})}</h2>
+          <p class="small muted">{L(lang,{ko:'일반적인 갤러리 공개·쪽지·게시판 분류는 코드를 수정하지 않고 여기에서 변경합니다. 보안 규칙 자체는 직접 편집하지 않습니다.',fr:'Gérez les catégories, la galerie et la messagerie sans modifier le code. Les règles de sécurité restent protégées.'})}</p>
+          <div class="stack gap-8" style="border:1px solid #dce0e7;border-radius:10px;padding:16px">
+            <label class="row gap-12" style="align-items:center"><input type="checkbox" id="ops-gallery-open"/> <strong>{L(lang,{ko:'갤러리 회원 공개',fr:'Ouvrir la galerie aux membres'})}</strong></label>
+            <p class="small muted">{L(lang,{ko:'기본은 비공개입니다. 공개하면 일반 등록된 사진과 관리자가 승인한 사진이 정회원·특별회원·관리자에게 표시됩니다. 현재 파일은 Backblaze B2에만 저장되고 Google Drive 원본 자동 보관은 실행되지 않습니다. 초상권 정책 확정 전에는 공개하지 마세요.',fr:'Fermée par défaut. Les photos directement publiées ou approuvées seront visibles aux membres autorisés. Les fichiers restent sur Backblaze B2 ; aucune sauvegarde Google Drive. Ne pas ouvrir avant la validation des règles relatives au droit à l’image.'})}</p>
+            <button type="button" class="btn btn-dark" id="ops-save-gallery" style="align-self:flex-start">{L(lang,{ko:'갤러리 공개 설정 저장',fr:'Enregistrer la galerie'})}</button>
+            <label class="row gap-12" style="align-items:center"><input type="checkbox" id="ops-messaging-open"/> <strong>{L(lang,{ko:'회원 쪽지 기능 전체 활성화',fr:'Activer la messagerie des membres'})}</strong></label>
+            <button type="button" class="btn btn-dark" id="ops-save-toggles" style="align-self:flex-start">{L(lang,{ko:'쪽지 설정 저장',fr:'Enregistrer la messagerie'})}</button>
+            <button type="button" class="btn btn-ghost" id="admin-dm-initialise" disabled style="align-self:flex-start">{L(lang,{ko:'기존 회원 쪽지 일괄 활성화 (최초 1회)',fr:'Activer la messagerie des membres existants (une seule fois)'})}</button>
+            <p id="admin-dm-initialise-state" class="small muted" role="status"></p>
+          </div>
+          <div class="stack gap-12" style="border:1px solid #dce0e7;border-radius:10px;padding:16px">
+            <h3 class="h3">{L(lang,{ko:'학습자료실 분류 관리',fr:'Catégories des ressources'})}</h3>
+            <textarea id="ops-resource-categories" rows="7" spellcheck="false"></textarea>
+            <button id="ops-save-resource-categories" type="button" class="btn btn-ghost" style="align-self:flex-start">{L(lang,{ko:'학습자료 분류 저장',fr:'Enregistrer les catégories des ressources'})}</button>
+          </div>
+          <p id="ops-status" role="status" class="small muted"></p>
+          <div class="row gap-12" style="flex-wrap:wrap"><a class="btn btn-ghost" href={href(lang,'membres/gallery/')}>{L(lang,{ko:'갤러리 관리',fr:'Gérer la galerie'})}</a><a class="btn btn-ghost" href={href(lang,'membres/gallery/')+'?view=review'}>{L(lang,{ko:'검토 대기 사진',fr:'Médias à vérifier'})}</a><a class="btn btn-ghost" href={href(lang,'membres/messages/')}>{L(lang,{ko:'회원 쪽지함 열기',fr:'Messagerie'})}</a></div>
+        </section>
+        <section class="card auth-card stack gap-8" aria-labelledby="visits-heading">
+          <h2 id="visits-heading" class="h3">{L(lang,{ko:'방문 통계',fr:'Statistiques de fréquentation'})}</h2>
+          <p class="small muted">{L(lang,{ko:'비회원 포함 방문 횟수와 페이지 조회수는 Cloudflare 대시보드에서 확인합니다. 홈페이지의 회원정보 DB에는 방문 기록을 저장하지 않습니다.',fr:'Les visites (y compris anonymes) et pages vues sont consultables dans Cloudflare. Aucune activité de visite n’est enregistrée dans la base de profils.'})}</p>
+          <div class="row gap-12" style="flex-wrap:wrap">
+            <a class="btn btn-ghost" href="https://dash.cloudflare.com/" target="_blank" rel="noopener noreferrer">{L(lang,{ko:'Cloudflare 방문 통계 열기',fr:'Ouvrir Cloudflare Analytics'})}</a>
+            <a class="btn btn-ghost" href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer">{L(lang,{ko:'Firebase 로그인 기록 확인',fr:'Consulter les connexions Firebase'})}</a>
+          </div>
+          <p class="small muted">{L(lang,{ko:'개별 회원의 마지막 로그인일은 Firebase Authentication에서 확인합니다. 서버 연동 없이 이 화면에 표시하지 않습니다.',fr:'La date de dernière connexion est consultable dans Firebase Authentication. Elle n’est pas affichée ici sans serveur sécurisé.'})}</p>
+        </section>
+
         <section class="card auth-card stack gap-16" id="admin-home-banners" aria-labelledby="admin-banners-heading">
           <div class="row gap-12" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
             <h2 id="admin-banners-heading" class="h3">{L(lang,{ko:'메인 홈페이지 배너 관리',fr:'Gestion des bannières d’accueil'})}</h2>
@@ -271,23 +267,11 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
             </label>
             <div class="row gap-12" style="flex-wrap:wrap;align-items:center">
               <button type="submit" class="btn btn-dark" data-banner-save>{L(lang,{ko:'저장',fr:'Enregistrer'})}</button>
-              <button type="button" class="btn btn-ghost" data-banner-reset>{L(lang,{ko:'CMS 기본값 복원',fr:'Restaurer le CMS'})}</button>
+              <button type="button" class="btn btn-ghost" data-banner-reset disabled>{L(lang,{ko:'CMS 기본값 복원',fr:'Restaurer le CMS'})}</button>
               <span data-banner-message class="small" role="status" aria-live="polite"></span>
             </div>
           </form>)}
         </section>
-        <div class="card auth-card stack gap-8">
-          <h2 class="h3">{L(lang, { ko: '콘텐츠 관리 안내', fr: 'Gestion du contenu' })}</h2>
-          <p class="small muted">{L(lang, {
-            ko: '공지·입학안내 등 공개 홈페이지 편집은 기존 CMS에서 계속합니다. 학습자료·갤러리·협회사무실의 파일 관리자 화면은 이후 연결합니다.',
-            fr: 'Les pages publiques restent gérées dans le CMS existant. La gestion des fichiers privés sera ajoutée séparément.'
-          })}</p>
-          <a class="btn btn-ghost" href="https://app.pagescms.org/" target="_blank" rel="noopener noreferrer">{L(lang,{ko:'홈페이지 CMS 열기',fr:'Ouvrir le CMS du site'})}</a>
-          <p class="small muted">{L(lang, {
-            ko: '주의: 화면을 숨기는 것만으로 자료가 보호되지 않습니다. Firestore·Storage 서버 보안 규칙이 반드시 적용되어야 합니다.',
-            fr: 'Attention : masquer une page ne protège pas les données. Les règles de sécurité serveur restent indispensables.'
-          })}</p>
-        </div>
       </div>
     </div>
   </section>
@@ -317,6 +301,9 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   .asicc-admin-child-row input { box-sizing:border-box; width:100%; }
   .asicc-admin-child-row button { white-space:nowrap; }
   @media(max-width:720px) { .asicc-admin-child-row { grid-template-columns:1fr; } }
+  .asicc-admin-upgrade-detail {border-top:1px solid #e4e7ec; padding-top:12px; margin-top:6px;}
+  .asicc-admin-upgrade-detail summary {cursor:pointer; font-weight:700; display:flex; flex-wrap:wrap; align-items:center; gap:12px;}
+  .asicc-admin-upgrade-detail[open] #admin-requests {margin-top:12px;}
   .asicc-admin-empty { margin:0; padding:13px 17px; color:#345c4a; background:#eff7f1; border:1px solid #d5e8db; border-radius:9px; }
   :global(.asicc-admin-record) { border: 1px solid #dce0e7; border-radius: 12px; padding:16px; }
   :global(.asicc-admin-fields) { display:grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,175px),1fr)); gap:12px; align-items:end; }
@@ -356,7 +343,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   import { getAuth, onAuthStateChanged, getIdToken } from 'firebase/auth';
   import {
     getFirestore, doc, getDoc, getDocs, getDocsFromServer, query, collection, where,
-    limit, updateDoc, runTransaction, serverTimestamp, writeBatch, setDoc, Timestamp,
+    limit, updateDoc, runTransaction, serverTimestamp, writeBatch, setDoc, deleteDoc, getDocFromServer, Timestamp,
     type DocumentData
   } from 'firebase/firestore';
   import { firebaseConfig } from '../../../firebase-config';
@@ -446,6 +433,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     const requests = snaps.docs.map(s => s.data() as Upgrade);
     requests.forEach(req=>upgradeHistory.set(req.uid,req));
     text('admin-pending-count', String(requests.length));
+    const queue=el<HTMLDetailsElement>('admin-upgrade-requests');if(queue&&requests.length)queue.open=true;
     container.replaceChildren();
     if (!requests.length) {
       container.append(panel('small muted',tr('대기 중인 신청이 없습니다.','Aucune demande en attente.')));
@@ -1125,16 +1113,28 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     const node=bannerEditor(key)?.querySelector<HTMLElement>('[data-banner-message]');
     if(node){node.textContent=message;node.style.color=error?'#b42318':'#067647';}
   }
+  function bannerErrorMessage(error:unknown,action:'read'|'write') {
+    const code=(error as {code?:string}|null)?.code ?? '';
+    if(code==='permission-denied') return tr(
+      `Firebase 접근이 거부됐습니다. Firebase Console → Firestore Database → 규칙에서 ${bannerCollection}/bazaar 및 /admissions 접근 규칙을 적용했는지 확인해 주세요. GitHub 보안 검사 통과만으로 실제 Firebase 규칙이 배포되지는 않습니다.`,
+      `Accès Firebase refusé. Vérifiez les règles Firestore pour ${bannerCollection}/bazaar et /admissions dans la console Firebase. Les tests GitHub ne déploient pas les règles.`);
+    if(code==='unavailable'||code==='deadline-exceeded')return tr(
+      'Firebase 서버에 연결할 수 없습니다. 네트워크 상태를 확인하고 잠시 후 다시 시도해 주세요.',
+      'Connexion Firebase indisponible. Vérifiez le réseau et réessayez.');
+    return action==='read'
+      ? tr('배너 설정을 불러오지 못했습니다. 개발자 콘솔의 오류를 확인해 주세요.','Impossible de lire les bannières. Consultez la console du navigateur.')
+      : tr('배너를 저장하지 못했습니다. 개발자 콘솔의 오류를 확인해 주세요.','Impossible d’enregistrer la bannière. Consultez la console du navigateur.');
+  }
   async function loadBannerEditors(){
     if(!meUid)return;
     await Promise.all(bannerKeys.map(async key=>{
       try{
-        const snap=await getDoc(doc(db,bannerCollection,key));
+        const snap=await getDocFromServer(doc(db,bannerCollection,key));
         fillBannerEditor(key,snap.exists()?snap.data():null);
         bannerFeedback(key,'');
       }catch(error){
         console.error('ASICC banner read',key,error);
-        bannerFeedback(key,tr('배너 저장소를 읽지 못했습니다. Firebase 규칙을 확인해 주세요.','Lecture impossible. Vérifiez les règles Firebase.'),true);
+        bannerFeedback(key,bannerErrorMessage(error,'read'),true);
       }
     }));
   }
@@ -1164,7 +1164,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       showMessage(tr('홈페이지 배너가 저장되었습니다.','Bannière d’accueil enregistrée.'));
       await loadBannerEditors();
       bannerFeedback(key,tr('변경사항이 저장되었습니다.','Modifications enregistrées.'));
-    }catch(error){console.error('ASICC banner save',error);bannerFeedback(key,tr('저장 실패: Firebase 배너 규칙을 확인해 주세요.','Échec : vérifiez les règles Firebase.'),true);}
+    }catch(error){console.error('ASICC banner save',error);bannerFeedback(key,bannerErrorMessage(error,'write'),true);}
     finally{if(button)button.disabled=false;}
   }
   async function resetBanner(key:BannerKey){
@@ -1175,7 +1175,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       fillBannerEditor(key,null);
       bannerFeedback(key,tr('CMS 기본값으로 복원되었습니다.','Valeurs du CMS restaurées.'));
       showMessage(tr('배너 기본값을 복원했습니다.','Bannière restaurée.'));
-    }catch(error){console.error('ASICC banner reset',error);bannerFeedback(key,tr('복원하지 못했습니다.','Restauration impossible.'),true);}
+    }catch(error){console.error('ASICC banner reset',error);bannerFeedback(key,bannerErrorMessage(error,'write'),true);}
     finally{if(button)button.disabled=false;}
   }
   for(const key of bannerKeys){
@@ -1205,6 +1205,14 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     }
   });
 
+  // Opening the consolidated queue from its summary shortcut must reveal the
+  // existing approve/reject controls, not only jump to a collapsed heading.
+  el<HTMLElement>('ops-inbox')?.addEventListener('click',event=>{
+    const target=event.target as HTMLElement|null;
+    if(target?.closest('a[href="#requests-heading"]')){
+      const queue=el<HTMLDetailsElement>('admin-upgrade-requests');if(queue)queue.open=true;
+    }
+  });
   el<HTMLFormElement>('admin-edit-form')?.addEventListener('submit',event=>void saveMemberDetails(event));
   el<HTMLButtonElement>('admin-edit-cancel')?.addEventListener('click',closeMemberEditor);
   el<HTMLButtonElement>('admin-edit-add-child')?.addEventListener('click',()=>addChildInput());
