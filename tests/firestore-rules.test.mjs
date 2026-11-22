@@ -282,7 +282,7 @@ test('new user may create only approved general member profile', async () => {
     uid:newuid,nickname:'NewTester',createdAt:serverTimestamp()
   });
   batch.set(doc(db,'publicNames',newuid),{
-    nickname:'NewTester',role:'general',canReceiveDM:true,updatedAt:serverTimestamp()
+    nickname:'NewTester',role:'general',canReceiveDM:false,updatedAt:serverTimestamp()
   });
   await assertSucceeds(batch.commit());
   const evil='evil-signup';
@@ -324,7 +324,7 @@ test('student information and both years are mandatory for alumni upgrade reques
     {studentName:'Child',school:'Primary',grade:'CM2'}]}));
 });
 
-test('minor/student cannot send or receive private messages; general may message admin only', async () => {
+test('minor/student and general accounts cannot send or receive private messages', async () => {
   const adminDb=context(uid.admin);
   await assertSucceeds(setDoc(doc(adminDb,'siteSettings','messaging'),{
     enabled:true,updatedBy:uid.admin,updatedAt:serverTimestamp()
@@ -335,7 +335,7 @@ test('minor/student cannot send or receive private messages; general may message
     message('student-test',uid.admin)));
   await assertFails(setDoc(doc(context(uid.member),'privateMessages','student-in'),
     message(uid.member,'student-test')));
-  await assertSucceeds(setDoc(doc(context(uid.general),'privateMessages','general-to-admin'),
+  await assertFails(setDoc(doc(context(uid.general),'privateMessages','general-to-admin'),
     message(uid.general,uid.admin)));
   await assertFails(setDoc(doc(context(uid.general),'privateMessages','general-to-member'),
     message(uid.general,uid.member)));
@@ -785,7 +785,7 @@ test('duplicate nickname registration is denied', async () => {
     createdAt: serverTimestamp()
   });
 
-  batch.set(doc(db, 'publicNames', newuid), {nickname:'NewTester',role:'general',canReceiveDM:true,updatedAt:serverTimestamp()});
+  batch.set(doc(db, 'publicNames', newuid), {nickname:'NewTester',role:'general',canReceiveDM:false,updatedAt:serverTimestamp()});
   await assertFails(batch.commit());
 });
 
@@ -803,7 +803,7 @@ test('reserved administrator nickname cannot be registered', async () => {
     termsAcceptedAt:serverTimestamp(),createdAt:serverTimestamp()
   });
   batch.set(doc(db,'nicknames','asiccadmin'),{uid:other,nickname:'ASICCAdmin',createdAt:serverTimestamp()});
-  batch.set(doc(db,'publicNames',other),{nickname:'ASICCAdmin',role:'general',canReceiveDM:true,updatedAt:serverTimestamp()});
+  batch.set(doc(db,'publicNames',other),{nickname:'ASICCAdmin',role:'general',canReceiveDM:false,updatedAt:serverTimestamp()});
   await assertFails(batch.commit());
 });
 
@@ -903,97 +903,62 @@ test('admin may anonymize historical authorName without rewriting the body', asy
   await assertFails(updateDoc(doc(context(uid.special),'boardPosts','post1'),{authorName:'other',updatedAt:serverTimestamp()}));
 });
 
-// Independent age-control fixtures so earlier test order is not required.
-test('age-confirmed adult alumni may message, minors remain blocked, manual off overrides age', async()=>{
-  const adminDb=context(uid.admin);
-  await assertSucceeds(setDoc(doc(adminDb,'siteSettings','messaging'),{enabled:true,updatedBy:uid.admin,updatedAt:serverTimestamp()}));
-  const adult='adultalumni',minor='minoralumni',unconfirmed='unconfirmedstudent';
+// Round 9: automatic age policy, explicit admin override, immutable roles, and global switch.
+test('adult students auto-enable from birth date; minors default off; only admin may override', async()=>{
+  const db=context(uid.admin);
+  await assertSucceeds(setDoc(doc(db,'siteSettings','messaging'),{enabled:true,updatedBy:uid.admin,updatedAt:serverTimestamp()}));
+  const ids=['adult-alumni9','minor-alumni9','missing-age9','legacy-parent9','legacy-admin9','general9','suspended9'];
   await env.withSecurityRulesDisabled(async c=>{
-    for(const [id,birthDate,adultAt] of [[adult,'2000-01-01',new Date('2018-01-01T00:00:00Z')],[minor,'2015-01-01',new Date('2033-01-01T00:00:00Z')],[unconfirmed,'2000-01-01',null]]) {
-      await setDoc(doc(c.firestore(),'members',id),{...profile(id,'special'),accountType:'student',birthDate,adultAt,dmMode:'auto'});
-    }
+    const f=c.firestore(); const items=[
+      {...profile(ids[0],'special'),accountType:'student',birthDate:'2000-01-01'},
+      {...profile(ids[1],'special'),accountType:'student',birthDate:'2015-01-01'},
+      {...profile(ids[2],'member'),accountType:'student'},
+      {...profile(ids[3],'special'),accountType:'',memberKind:'alumni-parent'},
+      {...profile(ids[4],'admin'),accountType:''},profile(ids[5],'general'),profile(ids[6],'special','suspended')];
+    for(let i=0;i<ids.length;i++)await setDoc(doc(f,'members',ids[i]),items[i]);
   });
-  const message=(senderUid,recipientUid)=>({senderUid,recipientUid,body:'Age test',readAt:null,createdAt:serverTimestamp()});
-  await assertSucceeds(setDoc(doc(context(adult),'privateMessages','adult-alumni-out'),message(adult,uid.member)));
-  await assertSucceeds(setDoc(doc(context(uid.member),'privateMessages','adult-alumni-in'),message(uid.member,adult)));
-  await assertFails(setDoc(doc(context(minor),'privateMessages','minor-alumni-out'),message(minor,uid.member)));
-  await assertFails(setDoc(doc(context(uid.member),'privateMessages','minor-alumni-in'),message(uid.member,minor)));
-  await assertFails(setDoc(doc(context(unconfirmed),'privateMessages','unconfirmed-out'),message(unconfirmed,uid.member)));
-  await assertFails(updateDoc(doc(context(minor),'members',minor),{adultAt:new Date('2010-01-01'),dmMode:'on'}));
-  await assertFails(updateDoc(doc(adminDb,'members',minor),{dmMode:'on'}));
-  await assertFails(setDoc(doc(context(minor),'privateMessages','minor-on-out'),message(minor,uid.member)));
-  await assertSucceeds(updateDoc(doc(adminDb,'members',adult),{dmMode:'off'}));
-  await assertFails(setDoc(doc(context(adult),'privateMessages','adult-off-out'),message(adult,uid.member)));
-  await assertFails(setDoc(doc(context(uid.member),'privateMessages','adult-off-in'),message(uid.member,adult)));
-  await assertSucceeds(updateDoc(doc(adminDb,'members',adult),{dmMode:'auto'}));
-  await assertSucceeds(setDoc(doc(context(adult),'privateMessages','adult-reenabled'),message(adult,uid.member)));
-  await assertFails(getDoc(doc(context(uid.member),'members',minor)));
-});
-
-// Round 8: keep the previous default-deny checks above, and test both the
-// actual administrator transaction and the narrowly scoped exception.
-test('admin-approved minor project access is atomic, scoped, and can be revoked', async()=>{
-  const adminDb=context(uid.admin);
-  const minorIds=['project-a-one','project-a-two','project-b-one','project-not-verified'];
-  await env.withSecurityRulesDisabled(async c=>{
-    for(const id of minorIds)await setDoc(doc(c.firestore(),'members',id),{
-      ...profile(id,'special'),accountType:'student',birthDate:'2014-01-01',
-      adultAt:id==='project-not-verified'?null:new Date('2032-01-01T00:00:00Z'),dmMode:'auto'
-    });
-  });
-  const message=(senderUid,recipientUid)=>({senderUid,recipientUid,body:'Project message',readAt:null,createdAt:serverTimestamp()});
-  const send=(from,to,id)=>setDoc(doc(context(from),'privateMessages',id),message(from,to));
+  const [adult,minor,unknown,parent,admin,general,suspended]=ids;
   const check=(from,to)=>getDoc(doc(context(from),'messageAccess',to));
-  const grant=async(id,group)=>{
-    const batch=writeBatch(adminDb);batch.update(doc(adminDb,'members',id),{dmMode:'on',dmProject:group,dmUpdatedBy:uid.admin,dmUpdatedAt:serverTimestamp()});
-    batch.set(doc(adminDb,'publicNames',id),{nickname:id,role:'special',canReceiveDM:true,updatedAt:serverTimestamp()});return batch.commit();
-  };
-  await assertSucceeds(setDoc(doc(adminDb,'siteSettings','messaging'),{enabled:true,updatedBy:uid.admin,updatedAt:serverTimestamp()}));
-  await assertFails(check(minorIds[0],uid.admin));
-  await assertFails(send(minorIds[0],uid.admin,'project-before-grant'));
-  await assertFails(updateDoc(doc(context(minorIds[0]),'members',minorIds[0]),{dmMode:'on',dmProject:'ALPHA',dmUpdatedBy:minorIds[0],dmUpdatedAt:serverTimestamp()}));
-  await assertFails(updateDoc(doc(adminDb,'members',minorIds[0]),{dmMode:'on',dmProject:'ALPHA'})); // grant audit required
-  await assertFails(grant(minorIds[3],'ALPHA')); // no verified age
-  await assertSucceeds(grant(minorIds[0],'ALPHA'));
-  await assertSucceeds(grant(minorIds[1],'ALPHA'));
-  await assertSucceeds(grant(minorIds[2],'BETA'));
-  await assertSucceeds(check(minorIds[0],minorIds[1]));
-  await assertSucceeds(send(minorIds[0],minorIds[1],'project-same'));
-  await assertSucceeds(send(minorIds[1],minorIds[0],'project-reply'));
-  await assertSucceeds(check(uid.admin,minorIds[0]));
-  await assertSucceeds(send(uid.admin,minorIds[0],'project-admin-in'));
-  await assertSucceeds(send(minorIds[0],uid.admin,'project-admin-out'));
-  await assertFails(check(minorIds[0],minorIds[2]));
-  await assertFails(send(minorIds[0],minorIds[2],'project-cross'));
-  await assertFails(send(uid.member,minorIds[0],'project-adult-in'));
-  await assertFails(send(minorIds[0],uid.member,'project-adult-out'));
-  await assertFails(getDoc(doc(context(minorIds[2]),'privateMessages','project-same')));
-  await assertFails(setDoc(doc(context(uid.admin),'messageAccess',minorIds[0]),{allowed:true}));
-  await assertFails(getDocs(collection(context(uid.admin),'messageAccess')));
-  await assertFails(getDoc(doc(context(minorIds[1]),'members',minorIds[0])));
-  await assertSucceeds(updateDoc(doc(context(minorIds[1]),'privateMessages','project-same'),{readAt:serverTimestamp()}));
-  const off=writeBatch(adminDb);off.update(doc(adminDb,'members',minorIds[0]),{dmMode:'off',dmProject:'',dmUpdatedBy:uid.admin,dmUpdatedAt:serverTimestamp()});
-  off.set(doc(adminDb,'publicNames',minorIds[0]),{nickname:minorIds[0],role:'special',canReceiveDM:false,updatedAt:serverTimestamp()});await assertSucceeds(off.commit());
-  await assertFails(check(minorIds[0],minorIds[1]));
-  await assertFails(send(uid.admin,minorIds[0],'project-revoked'));
-  await assertFails(getDoc(doc(context(minorIds[0]),'privateMessages','project-same')));
-  await assertSucceeds(setDoc(doc(adminDb,'siteSettings','messaging'),{enabled:false,updatedBy:uid.admin,updatedAt:serverTimestamp()}));
-  await assertFails(check(uid.admin,minorIds[1]));
-  await assertFails(send(uid.admin,minorIds[1],'project-global-off'));
-  await assertSucceeds(setDoc(doc(adminDb,'siteSettings','messaging'),{enabled:true,updatedBy:uid.admin,updatedAt:serverTimestamp()}));
+  const send=(from,to,id)=>setDoc(doc(context(from),'privateMessages',id),{senderUid:from,recipientUid:to,body:'Round nine',readAt:null,createdAt:serverTimestamp()});
+  const mode=(id,dmMode)=>updateDoc(doc(db,'members',id),{dmMode,dmUpdatedBy:uid.admin,dmUpdatedAt:serverTimestamp()});
+  await assertSucceeds(check(adult,parent));await assertSucceeds(check(admin,parent));
+  await assertSucceeds(send(admin,adult,'dm9-legacy-admin'));
+  await assertFails(check(minor,admin));await assertFails(check(admin,minor));
+  await assertFails(check(unknown,admin));await assertFails(check(general,admin));await assertFails(check(admin,general));
+  await assertFails(check(admin,suspended));
+  await assertFails(updateDoc(doc(context(minor),'members',minor),{dmMode:'on',dmUpdatedBy:minor,dmUpdatedAt:serverTimestamp()}));
+  await assertFails(updateDoc(doc(db,'members',minor),{dmMode:'on'}));
+  await assertSucceeds(mode(minor,'on'));await assertSucceeds(mode(unknown,'on'));
+  await assertSucceeds(send(minor,admin,'dm9-minor-admin'));await assertSucceeds(send(admin,minor,'dm9-admin-minor'));
+  await assertSucceeds(check(unknown,admin));
+  await assertSucceeds(updateDoc(doc(context(minor),'privateMessages','dm9-admin-minor'),{readAt:serverTimestamp()}));
+  await assertFails(getDoc(doc(context(parent),'privateMessages','dm9-admin-minor')));
+  await assertFails(getDoc(doc(context(minor),'members',parent)));
+  await assertSucceeds(mode(minor,'off'));await assertFails(check(admin,minor));
+  await assertFails(getDoc(doc(context(minor),'privateMessages','dm9-admin-minor')));
+  await assertSucceeds(mode(adult,'off'));await assertFails(check(adult,parent));
+  await assertSucceeds(mode(adult,'auto'));await assertSucceeds(check(adult,parent));
+  await assertSucceeds(updateDoc(doc(context(admin),'members',admin),{dmMode:'on',dmUpdatedBy:admin,dmUpdatedAt:serverTimestamp()}));
+  await assertFails(updateDoc(doc(context(admin),'members',admin),{dmMode:'on',role:'general',dmUpdatedBy:admin,dmUpdatedAt:serverTimestamp()}));
+  await assertFails(updateDoc(doc(context(admin),'members',admin),{email:'other@example.test',dmMode:'on',dmUpdatedBy:admin,dmUpdatedAt:serverTimestamp()}));
+  await assertFails(setDoc(doc(db,'messageAccess',minor),{allowed:true}));
+  await assertFails(getDocs(collection(db,'messageAccess')));
+  await assertSucceeds(setDoc(doc(db,'siteSettings','messaging'),{enabled:false,updatedBy:uid.admin,updatedAt:serverTimestamp()}));
+  await assertFails(check(admin,parent));await assertFails(send(admin,parent,'dm9-global-off'));
+  await assertSucceeds(setDoc(doc(db,'siteSettings','messaging'),{enabled:true,updatedBy:uid.admin,updatedAt:serverTimestamp()}));
 });
 
-test('existing admin may confirm own adult account for messaging, but may not change own role or identity',async()=>{
-  const id='legacy-admin-dm';
-  await env.withSecurityRulesDisabled(async c=>{const p=profile(id,'admin');delete p.accountType;await setDoc(doc(c.firestore(),'members',id),p);});
-  const db=context(id),ref=doc(db,'members',id);
-  const update={accountType:'adult',dmMode:'on',dmUpdatedBy:id,dmUpdatedAt:serverTimestamp()};
-  await assertFails(getDoc(doc(db,'messageAccess',uid.member)));
-  await assertFails(updateDoc(ref,{...update,role:'general'}));
-  await assertFails(updateDoc(ref,{...update,email:'fake@example.test'}));
-  await assertSucceeds(updateDoc(ref,update));
-  await assertSucceeds(getDoc(doc(db,'messageAccess',uid.member)));
-  await assertSucceeds(setDoc(doc(db,'privateMessages','legacy-admin-message'),{senderUid:id,recipientUid:uid.member,body:'Hello',readAt:null,createdAt:serverTimestamp()}));
-  await assertSucceeds(updateDoc(ref,{dmMode:'off',dmUpdatedBy:id,dmUpdatedAt:serverTimestamp()}));
-  await assertFails(getDoc(doc(db,'messageAccess',uid.member)));
+test('initialization marker is staff-only and immutable, initial activation does not alter other fields',async()=>{
+  const db=context(uid.admin),marker=doc(db,'siteSettings','dmRound9');
+  const data={updatedBy:uid.admin,updatedAt:serverTimestamp()};
+  await assertFails(getDoc(doc(context(uid.member),'siteSettings','dmRound9')));
+  await assertFails(setDoc(doc(context(uid.member),'siteSettings','dmRound9'),{updatedBy:uid.member,updatedAt:serverTimestamp()}));
+  await assertSucceeds(runTransaction(db,async tx=>{
+    const before=await tx.get(marker);assert.equal(before.exists(),false);
+    tx.update(doc(db,'members',uid.admin),{dmMode:'on',dmUpdatedBy:uid.admin,dmUpdatedAt:serverTimestamp()});
+    tx.set(marker,data);
+  }));
+  await assertFails(setDoc(marker,data));await assertFails(deleteDoc(marker));
+  await assertSucceeds(updateDoc(doc(db,'members',uid.admin),{dmMode:'off',dmUpdatedBy:uid.admin,dmUpdatedAt:serverTimestamp()}));
+  await assertSucceeds(updateDoc(doc(db,'members',uid.admin),{dmMode:'auto',dmUpdatedBy:uid.admin,dmUpdatedAt:serverTimestamp()}));
 });

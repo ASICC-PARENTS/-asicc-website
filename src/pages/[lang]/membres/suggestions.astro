@@ -40,7 +40,8 @@ const tr=(ko:string,french:string)=>fr?french:ko;
 const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
 const auth=getAuth(app),db=getFirestore(app);
 let uid='';const by=(id:string)=>document.getElementById(id) as HTMLElement|null;
-const say=(s:string,bad=false)=>{const el=by('suggest-status');if(el){el.textContent=s;el.style.color=bad?'#b42318':'#067647';}};
+import {toastResult} from '../../../scripts/members/toast';
+const say=(s:string,bad=false)=>{const el=by('suggest-status');if(el){el.textContent=s;el.style.color=bad?'#b42318':'#067647';}toastResult(s,bad);};
 async function load(){
  const box=by('suggest-list');if(!box||!uid)return;
  try{

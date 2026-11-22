@@ -283,7 +283,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
           consent:true,termsVersion:'2026-11',termsAcceptedAt:serverTimestamp(),createdAt:serverTimestamp()
         });
         batch.set(doc(db,'nicknames',nicknameKey),{uid:createdUser.uid,nickname,createdAt:serverTimestamp()});
-        batch.set(doc(db,'publicNames',createdUser.uid),{nickname,role:'general',canReceiveDM:accountType==='adult',updatedAt:serverTimestamp()});
+        batch.set(doc(db,'publicNames',createdUser.uid),{nickname,role:'general',canReceiveDM:false,updatedAt:serverTimestamp()});
         try{await batch.commit();}
         catch(e){
           console.error('ASICC profile/nickname reservation error:',e);

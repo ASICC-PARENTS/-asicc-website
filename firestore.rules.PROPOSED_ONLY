@@ -96,16 +96,13 @@ function validSelfNicknameUpdate(uid) {
       return isAdmin() && uid != request.auth.uid
         && changed.hasOnly([
           'role','status','name','nickname','nicknameKey','phone',
-          'levels','children','memberKind','memberRelation','accountType','birthDate','adultAt','dmMode','dmProject','dmUpdatedBy','dmUpdatedAt'
+          'levels','children','memberKind','memberRelation','accountType','birthDate','adultAt','dmMode','dmUpdatedBy','dmUpdatedAt'
         ])
         && validRole(request.resource.data.role)
         && request.resource.data.get('accountType','') in ['','adult','student']
         && request.resource.data.get('dmMode','auto') in ['auto','on','off']
         && (!changed.hasAny(['dmUpdatedBy','dmUpdatedAt']) || (request.resource.data.dmUpdatedBy == request.auth.uid && request.resource.data.dmUpdatedAt == request.time))
-        && (request.resource.data.get('dmProject','') == '' || validDmProject(request.resource.data.dmProject))
-        && (!changed.hasAny(['dmMode','dmProject','birthDate','adultAt','accountType']) || request.resource.data.get('dmMode','auto') != 'on' || dmAllowedFor(request.resource.data))
-        && (!changed.hasAny(['dmMode','dmProject','birthDate','adultAt','accountType']) || !projectExceptionFor(request.resource.data)
-          || (request.resource.data.dmUpdatedBy == request.auth.uid && request.resource.data.dmUpdatedAt == request.time))
+        && (!changed.hasAny(['dmMode']) || (request.resource.data.dmUpdatedBy == request.auth.uid && request.resource.data.dmUpdatedAt == request.time))
         && (request.resource.data.get('birthDate','') == '' || validBirthDate(request.resource.data.birthDate))
         && (resource.data.get('birthDate','') == '' || request.resource.data.get('birthDate','') != '')
         && (request.resource.data.get('adultAt',null) == null || (request.resource.data.adultAt is timestamp && validBirthDate(request.resource.data.get('birthDate',''))))
@@ -142,22 +139,9 @@ function validSelfNicknameUpdate(uid) {
     function validAdminMessagingUpdate(uid) {
       let next = request.resource.data;
       let changed = next.diff(resource.data).affectedKeys();
-      return isAdmin() && request.auth.uid != uid
-        && resource.data.status == 'approved'
-        && changed.hasOnly(['dmMode','dmProject','dmUpdatedBy','dmUpdatedAt'])
-        && next.get('dmMode','auto') in ['auto','on','off']
-        && (next.get('dmProject','') == '' || validDmProject(next.dmProject))
-        && (next.get('dmMode','auto') != 'on' || dmAllowedFor(next))
-        && next.dmUpdatedBy == request.auth.uid && next.dmUpdatedAt == request.time;
-    }
-    function validAdminOwnMessaging(uid) {
-      let next = request.resource.data;
-      let changed = next.diff(resource.data).affectedKeys();
-      return isAdmin() && request.auth.uid == uid
-        && resource.data.get('accountType','') in ['','adult'] && resource.data.get('birthDate','') == ''
-        && changed.hasOnly(['accountType','dmMode','dmUpdatedBy','dmUpdatedAt'])
-        && (next.get('accountType','') == 'adult' || (resource.data.get('accountType','') == '' && next.get('accountType','') == '' && next.get('dmMode','auto') == 'off'))
-        && next.get('birthDate','') == ''
+      return isAdmin() && resource.data.status == 'approved'
+        && resource.data.role in ['member','special','admin']
+        && changed.hasOnly(['dmMode','dmUpdatedBy','dmUpdatedAt'])
         && next.get('dmMode','auto') in ['auto','on','off']
         && next.dmUpdatedBy == request.auth.uid && next.dmUpdatedAt == request.time;
     }
@@ -166,7 +150,7 @@ function validSelfNicknameUpdate(uid) {
       allow get: if signedIn() && request.auth.uid == uid || isAdmin();
       allow list: if isAdmin();
       allow create: if validRegistration(uid);
-      allow update: if validAdminOwnMessaging(uid) || validAdminMessagingUpdate(uid) || validSelfNicknameUpdate(uid) || validAdminMemberUpdate(uid);
+      allow update: if validAdminMessagingUpdate(uid) || validSelfNicknameUpdate(uid) || validAdminMemberUpdate(uid);
       allow delete: if false;
     }
 
@@ -479,6 +463,14 @@ function validUpgrade(uid) {
     }
     // A closed gallery denies all member access, including direct Firestore URLs.
     // An admin can review test media before public launch.
+    match /siteSettings/dmRound9 {
+      allow get: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasOnly(['updatedBy','updatedAt'])
+        && request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.updatedAt == request.time;
+      allow update, delete, list: if false;
+    }
     match /siteSettings/{key} {
       allow get: if isActive() && key in ['gallery','boardCategories','resourceCategories','messaging'];
       allow list: if false;
@@ -900,33 +892,32 @@ function validUpgrade(uid) {
     }
 
     function validBirthDate(value) {
-      return value is string && value.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$');
+      return value is string && value.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$')
+        && int(value[0:4]) >= 1900
+        && timestamp.date(int(value[0:4]),int(value[5:7]),int(value[8:10])) <= request.time;
     }
-    function verifiedAdultFor(p) {
-      return (p.get('accountType','') == 'adult' && p.get('birthDate','') == '')
-        || (p.get('accountType','') in ['student','adult'] && validBirthDate(p.get('birthDate',''))
-          && p.get('adultAt',null) is timestamp && p.adultAt <= request.time);
-    }
-    function validDmProject(v) { return v is string && v.matches('^[A-Za-z0-9_-]{1,40}$'); }
-    function projectExceptionFor(p) {
-      return p.get('dmMode','auto') == 'on' && p.get('accountType','') == 'student'
-        && p.role in ['member','special'] && validBirthDate(p.get('birthDate',''))
-        && p.get('adultAt',null) is timestamp && p.adultAt > request.time
-        && validDmProject(p.get('dmProject',''));
+    function birthDateAdult(p) {
+      let parts = p.get('birthDate','').split('-');
+      return validBirthDate(p.get('birthDate',''))
+        && (request.time.year() - int(parts[0]) > 18
+          || (request.time.year() - int(parts[0]) == 18
+            && (request.time.month() > int(parts[1])
+              || (request.time.month() == int(parts[1]) && request.time.day() >= int(parts[2])))));
     }
     function dmAllowedFor(p) {
-      return p.status == 'approved' && p.get('dmMode','auto') != 'off'
-        && (verifiedAdultFor(p) || projectExceptionFor(p));
+      return p.status == 'approved' && p.role in ['member','special','admin']
+        && p.get('dmMode','auto') != 'off'
+        && (p.get('dmMode','auto') == 'on' || p.role == 'admin'
+          || ((p.get('accountType','') == 'student' || p.get('memberKind','') == 'alumnus'
+              || p.get('memberRelation','') == 'student' || p.get('birthDate','') != '')
+            ? birthDateAdult(p)
+            : (p.get('accountType','') == 'adult' || p.get('memberKind','') in ['parent','alumni-parent','teacher','contributor'])));
     }
     function isDmAccount(uid) {
       return exists(memberDoc(uid)) && dmAllowedFor(get(memberDoc(uid)).data);
     }
     function allowedMessagePair(sender, recipient) {
-      return (sender.role == 'admin' && verifiedAdultFor(sender))
-        || (recipient.role == 'admin' && verifiedAdultFor(recipient))
-        || (sender.role in ['member','special'] && recipient.role in ['member','special']
-          && ((verifiedAdultFor(sender) && verifiedAdultFor(recipient))
-            || (projectExceptionFor(sender) && projectExceptionFor(recipient) && sender.dmProject == recipient.dmProject)));
+      return sender.role in ['member','special','admin'] && recipient.role in ['member','special','admin'];
     }
     function canSendTo(uid) {
       return isActive() && messagingEnabled() && uid != request.auth.uid
@@ -942,8 +933,7 @@ function validUpgrade(uid) {
       allow get: if canSendTo(uid);
       allow list, create, update, delete: if false;
     }
-    // Private messages: default block for minors; verified project participants
-    // can communicate only with verified adult admins and their own approved group.
+    // Private messages: approved non-general accounts only; server enforces explicit admin override and automatic age policy.
     match /privateMessages/{messageId} {
       allow get, list: if isActive() && messagingEnabled() && isDmAccount(request.auth.uid)
         && (resource.data.senderUid == request.auth.uid

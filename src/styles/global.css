@@ -1000,3 +1000,7 @@ html[lang="fr"] a[href^="http"] { overflow-wrap: anywhere; }
 
 .asicc-author-menu summary{list-style:none;cursor:pointer}.asicc-author-menu summary::-webkit-details-marker{display:none}.asicc-author-menu a{display:block;background:#fff;border:1px solid #ccd8d4;padding:5px 8px;border-radius:6px;margin-top:4px;font-size:12px;color:#205744;white-space:nowrap}.asicc-author-menu a:focus-visible{outline:2px solid #478b69}
 .board-title-wrap:has(.resource-comments-link){flex-wrap:wrap}.resource-comments-link{font-size:12px;color:#205744;text-decoration:underline;background:transparent;border:0;cursor:pointer;padding:3px 0;flex-basis:100%;text-align:left}
+
+.asicc-toast-global{position:fixed;z-index:3000;top:clamp(12px,3vh,32px);right:clamp(12px,3vw,32px);width:max-content;max-width:min(440px,calc(100vw - 24px));display:flex;align-items:center;gap:12px;padding:13px 16px;background:#edf7f0;border:1px solid #8ab99d;color:#215d3b;border-radius:10px;box-shadow:0 5px 24px #0002;font-size:14px;overflow-wrap:anywhere}
+.asicc-toast-global[hidden]{display:none!important}.asicc-toast-global[data-error="true"]{background:#fff1f0;border-color:#e6aaa6;color:#971b1b}.asicc-toast-global button{background:none;border:0;color:inherit;font-size:22px;cursor:pointer;line-height:1;padding:4px;margin-inline-start:auto}
+.asicc-author-menu summary{display:flex;gap:5px;font-weight:600}.asicc-author-menu summary:hover{color:#205744}.asicc-author-menu a{font-weight:600}

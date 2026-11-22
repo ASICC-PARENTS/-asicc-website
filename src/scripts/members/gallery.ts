@@ -7,6 +7,7 @@ import { getAuth, onAuthStateChanged, getIdToken } from 'firebase/auth';
 import { getFirestore, doc, collection, getDoc, getDocs, query, where, setDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { firebaseConfig } from '../../firebase-config';
 import {BOARD_PHOTO_API} from '../../config/board-photos';
+import {toastResult} from './toast';
 import {displayAuthor,dmAllowed,syncOwnAlias,type PublicAuthor} from './member-access';
 
 type School='kindergarten'|'elementary'|'middle'|'common';
@@ -18,7 +19,7 @@ const by=<T extends HTMLElement>(id:string)=>document.getElementById(id) as T|nu
 const fr=root?.dataset.lang==='fr';const tr=(ko:string,french:string)=>fr?french:ko;
 const t=(id:string,v:string)=>{const e=by<HTMLElement>(id);if(e)e.textContent=v;};
 const show=(id:string,visible:boolean)=>{const e=by<HTMLElement>(id);if(e)e.hidden=!visible;};
-const msg=(v:string,fail=false)=>{const n=by<HTMLElement>('gallery-status');if(n){n.hidden=false;n.textContent=v;n.style.color=fail?'#aa1d1d':'';}};
+const msg=(v:string,fail=false)=>{const n=by<HTMLElement>('gallery-status');if(n){n.hidden=false;n.textContent=v;n.style.color=fail?'#aa1d1d':'';}toastResult(v,fail);};
 const node=(tag:string,content?:string)=>{const n=document.createElement(tag);if(content!==undefined)n.textContent=content;return n;};
 const button=(label:string,handler:()=>void)=>{const b=node('button',label) as HTMLButtonElement;b.type='button';b.className='btn btn-ghost';b.addEventListener('click',handler);return b;};
 const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
@@ -43,7 +44,7 @@ function authorName(id:string){
 const canPost=()=>!preview&&['member','special','admin'].includes(role);
 const admin=()=>role==='admin'&&!preview;
 const visibleMedia=(p:Photo)=>view==='review'?admin()&&p.status==='pending':preview?p.status==='published':admin()||p.status==='published'||p.authorUid===uid;
-const paintAuthor=(target:HTMLElement,id:string,info:PublicAuthor)=>displayAuthor(target,info,id,uid,preview?'member':role,!preview&&viewerDM,fr,'../messages/');
+const paintAuthor=(target:HTMLElement,id:string,info:PublicAuthor)=>displayAuthor(target,info,id,uid,preview?'member':role,!preview&&viewerDM,fr,'../messages/','',db);
 const schoolName=(s:School)=>({kindergarten:tr('유치원','Maternelle'),elementary:tr('초등학교','Élémentaire'),middle:tr('중학교','Collège'),common:tr('공통 행사','Événements communs')})[s]||s;
 const dateText=(ts?:{toDate?:()=>Date})=>ts?.toDate?.()?.toLocaleDateString(fr?'fr-FR':'ko-KR')||'';
 const getMedia=async (path:string,method='GET',payload?:Blob,mime?:string)=>{
@@ -177,7 +178,7 @@ async function openAlbum(album:Album){
 async function renameAlbum(album:Album){
   if(!await noOtherMembers(album))return;
   const name=prompt(tr('새 앨범 이름을 입력하세요.','Nouveau nom de l’album'),album.title)?.trim();if(!name||name===album.title||name.length>120)return;
-  try{await updateDoc(doc(db,'galleryAlbums',album.id),{title:name,updatedAt:serverTimestamp()});await refresh();}catch(e){console.error(e);msg(tr('앨범 이름을 변경할 권한이 없습니다.','Modification non autorisée.'),true);}
+  try{await updateDoc(doc(db,'galleryAlbums',album.id),{title:name,updatedAt:serverTimestamp()});msg(tr('앨범 이름이 저장되었습니다.','Nom enregistré.'));await refresh();}catch(e){console.error(e);msg(tr('앨범 이름을 변경할 권한이 없습니다.','Modification non autorisée.'),true);}
 }
 async function noOtherMembers(album:Album){
   if(admin())return true;
@@ -197,7 +198,7 @@ async function removeAlbum(album:Album){
     for(const d of snap.docs.filter(d=>d.data().albumId===album.id)){const item={id:d.id,...d.data()} as Photo;
       await getMedia(filePath(item),'DELETE');await deleteDoc(doc(db,'galleryItems',item.id));
     }
-    await deleteDoc(doc(db,'galleryAlbums',album.id));selected=null;show('album-detail',false);await refresh();
+    await deleteDoc(doc(db,'galleryAlbums',album.id));selected=null;show('album-detail',false);msg(tr('앨범이 삭제되었습니다.','Album supprimé.'));await refresh();
   }catch(e){console.error(e);msg(tr('일부 파일 또는 앨범을 삭제하지 못했습니다. 관리자에게 문의해 주세요.','Suppression incomplète. Contactez un administrateur.'),true);}
 }
 async function mergeAlbum(album:Album){
@@ -229,7 +230,7 @@ async function unlockAlbum(album:Album){
       msg(tr('다른 회원의 사진 또는 동영상이 남아 있어 잠금을 해제할 수 없습니다.','Des médias déposés par d’autres membres sont encore présents.'),true);return;
     }
     if(!confirm(tr('다른 회원의 자료가 없는 것을 확인했습니다. 앨범 생성자의 이름 변경·삭제 권한을 되돌릴까요?','Aucun média d’un tiers : rétablir les droits du créateur ?')))return;
-    await updateDoc(doc(db,'galleryAlbums',album.id),{isShared:false,updatedAt:serverTimestamp()});await refresh();
+    await updateDoc(doc(db,'galleryAlbums',album.id),{isShared:false,updatedAt:serverTimestamp()});msg(tr('공유 설정이 저장되었습니다.','Partage enregistré.'));await refresh();
   }catch(e){console.error(e);msg(tr('공유 상태를 확인하지 못했습니다.','Impossible de vérifier le statut de partage.'),true);}
 }
 function albumSelect(album:Album,field:'school'|'year'){
@@ -237,7 +238,7 @@ function albumSelect(album:Album,field:'school'|'year'){
   const select=node('select') as HTMLSelectElement;
   const values=field==='school'?['kindergarten','elementary','middle','common']:Array.from({length:Math.max(new Date().getFullYear(),album.year)-2018+1},(_,i)=>String(Math.max(new Date().getFullYear(),album.year)-i));
   for(const v of values){const opt=node('option',field==='school'?schoolName(v as School):v) as HTMLOptionElement;opt.value=v;select.append(opt);}select.value=String(album[field]);
-  const save=button(tr('저장','Enregistrer'),async()=>{if(!admin())return;save.disabled=true;try{await updateDoc(doc(db,'galleryAlbums',album.id),{[field]:field==='year'?Number(select.value):select.value,updatedAt:serverTimestamp()});await refresh();}catch(e){console.error(e);msg(tr('앨범을 수정하지 못했습니다.','Modification impossible.'),true);}finally{save.disabled=false;}});
+  const save=button(tr('저장','Enregistrer'),async()=>{if(!admin())return;save.disabled=true;try{await updateDoc(doc(db,'galleryAlbums',album.id),{[field]:field==='year'?Number(select.value):select.value,updatedAt:serverTimestamp()});msg(tr('앨범 정보가 저장되었습니다.','Album enregistré.'));await refresh();}catch(e){console.error(e);msg(tr('앨범을 수정하지 못했습니다.','Modification impossible.'),true);}finally{save.disabled=false;}});
   group.append(select,save);return group;
 }
 const mediaBtn=(caption:string,onClick:()=>void)=>{const b=button(caption,onClick);b.classList.add('btn-sm');return b;};
@@ -259,15 +260,14 @@ function renderPhotos(append=false){
     if(photo.description)caption.append(node('p',photo.description));
     const author=node('span',tr('등록자 확인 중','Chargement de l’auteur'));author.className='small muted';caption.append(author);
     void authorName(photo.authorUid).then(label=>{if(card.isConnected)paintAuthor(author,photo.authorUid,label);});
-    if(photo.status!=='published'){const tag=node('span',({pending:tr('승인 대기 · 비공개','En attente'),hidden:tr('비공개','Masqué'),rejected:tr('반려됨','Refusé'),draft:tr('업로드 중','En transfert')})[photo.status]||'');tag.className=photo.status==='pending'?'asicc-gallery-pending':'small muted';caption.append(tag);}
+    if(photo.status!=='published'){const tag=node('span',({pending:tr('승인 대기 · 비공개','En attente'),hidden:tr('비공개','Masqué'),rejected:tr('비공개','Masqué'),draft:tr('업로드 중','En transfert')})[photo.status]||'');tag.className=photo.status==='pending'?'asicc-gallery-pending':'small muted';caption.append(tag);}
     const actions=node('div');actions.className='row gap-8';actions.style.flexWrap='wrap';
     if(!preview&&(photo.authorUid===uid||admin())){
       actions.append(mediaBtn(tr('설명 수정','Modifier'),()=>void editPhoto(photo)),mediaBtn(tr('삭제','Supprimer'),()=>void deletePhoto(photo)));
     }
     if(admin()){
-      if(photo.status!=='published'&&photo.status!=='draft')actions.append(mediaBtn(tr('승인·공개','Approuver'),()=>void changePhotoStatus(photo,'published')));
-      if(photo.status==='published')actions.append(mediaBtn(tr('비공개','Masquer'),()=>void changePhotoStatus(photo,'hidden')));
-      if(photo.status==='pending')actions.append(mediaBtn(tr('반려','Refuser'),()=>void changePhotoStatus(photo,'rejected')));
+      if(photo.status!=='published'&&photo.status!=='draft')actions.append(mediaBtn(tr('공개','Publier'),()=>void changePhotoStatus(photo,'published')));
+      if(['published','pending'].includes(photo.status))actions.append(mediaBtn(tr('비공개','Masquer'),()=>void changePhotoStatus(photo,'hidden')));
       actions.append(mediaBtn(tr('저장된 파일 다운로드','Télécharger le fichier stocké'),()=>void downloadPhoto(photo)));
       if(selected&&photo.mediaType==='photo'&&photo.status==='published')actions.append(mediaBtn(tr('앨범 대표 사진으로 지정','Choisir comme couverture'),()=>void setAlbumCover(photo)));
       actions.append(mediaBtn(tr('앨범 이동','Déplacer'),()=>void movePhoto(photo)));
@@ -318,7 +318,7 @@ async function clearCoverReference(photo:Photo){
 }
 async function setAlbumCover(photo:Photo){
   if(!selected||(selected.ownerUid!==uid&&!admin())||photo.albumId!==selected.id||photo.mediaType!=='photo'||photo.status!=='published')return;
-  try{await updateDoc(doc(db,'galleryAlbums',selected.id),{coverItemId:photo.id,updatedAt:serverTimestamp()});await refresh();}
+  try{await updateDoc(doc(db,'galleryAlbums',selected.id),{coverItemId:photo.id,updatedAt:serverTimestamp()});msg(tr('대표 사진이 저장되었습니다.','Couverture enregistrée.'));await refresh();}
   catch(error){console.error(error);msg(tr('대표 사진을 지정하지 못했습니다.','Impossible de choisir la couverture.'),true);}
 }
 async function downloadPhoto(photo:Photo){
@@ -332,14 +332,17 @@ async function downloadPhoto(photo:Photo){
   }catch(e){console.error(e);msg(tr('파일 다운로드에 실패했습니다.','Téléchargement impossible.'),true);}
 }
 async function editPhoto(photo:Photo){const description=prompt(tr('사진 설명','Description'),photo.description||'');if(description===null||description.length>3000)return;
-  try{await updateDoc(doc(db,'galleryItems',photo.id),{description,updatedAt:serverTimestamp()});await refreshPhotos();}catch(e){console.error(e);msg(tr('수정할 수 없습니다.','Modification refusée.'),true);}
+  try{await updateDoc(doc(db,'galleryItems',photo.id),{description,updatedAt:serverTimestamp()});msg(tr('사진 설명이 저장되었습니다.','Description enregistrée.'));await refreshPhotos();}catch(e){console.error(e);msg(tr('수정할 수 없습니다.','Modification refusée.'),true);}
 }
-async function changePhotoStatus(photo:Photo,state:Photo['status']){
-  if(!admin()||state==='published'&&photo.status==='draft')return;if(!confirm(tr('사진 공개 상태를 변경할까요?','Modifier la visibilité du média ?')))return;
-  try{if(state!=='published')await clearCoverReference(photo);await updateDoc(doc(db,'galleryItems',photo.id),{status:state,updatedAt:serverTimestamp()});await refreshPhotos();}catch(e){console.error(e);msg(tr('공개 상태를 변경하지 못했습니다.','Changement d’état refusé.'),true);}
+async function changePhotoStatus(photo:Photo,state:'published'|'hidden'){
+  if(busy||!admin()||photo.status==='draft')return;
+  if(!confirm(state==='published'?tr('이 사진을 공개하시겠습니까?','Publier ce média ?'):tr('이 사진을 회원에게 보이지 않도록 비공개하시겠습니까?','Masquer ce média pour les membres ?')))return;
+  busy=true;try{if(state==='hidden')await clearCoverReference(photo);await updateDoc(doc(db,'galleryItems',photo.id),{status:state,updatedAt:serverTimestamp()});
+    msg(state==='published'?tr('사진이 공개되었습니다.','Média publié.'):tr('사진이 비공개되었습니다.','Média masqué.'));await refreshPhotos();
+  }catch(e){console.error(e);msg(tr('공개 상태를 변경하지 못했습니다.','Changement d’état refusé.'),true);}finally{busy=false;}
 }
-async function deletePhoto(photo:Photo){if(!confirm(tr('이 파일을 삭제할까요? 보관 원본에 관한 별도 개인정보 요청은 운영진에게 전달해 주세요.','Supprimer ce fichier ? Pour l’archivage, contactez l’administration.')))return;
-  try{await clearCoverReference(photo);await getMedia(filePath(photo),'DELETE');await deleteDoc(doc(db,'galleryItems',photo.id));await refreshPhotos();}catch(e){console.error(e);msg(tr('삭제에 실패했습니다.','Suppression impossible.'),true);}
+async function deletePhoto(photo:Photo){if(busy||!confirm(tr('이 사진 또는 동영상을 삭제하시겠습니까?','Supprimer ce média ?')))return;
+  busy=true;try{await clearCoverReference(photo);await getMedia(filePath(photo),'DELETE');await deleteDoc(doc(db,'galleryItems',photo.id));msg(tr('삭제되었습니다.','Média supprimé.'));await refreshPhotos();}catch(e){console.error(e);msg(tr('삭제에 실패했습니다.','Suppression impossible.'),true);}finally{busy=false;}
 }
 async function movePhoto(photo:Photo){if(!admin())return;
   const dest=by<HTMLSelectElement>('gallery-target-album')?.value||'';
@@ -350,14 +353,14 @@ async function movePhoto(photo:Photo){if(!admin())return;
       await updateDoc(doc(db,'galleryAlbums',dest),{isShared:true,updatedAt:serverTimestamp()});destination.isShared=true;
     }
     await clearCoverReference(photo);
-    await updateDoc(doc(db,'galleryItems',photo.id),{albumId:dest,updatedAt:serverTimestamp()});await refreshPhotos();
+    await updateDoc(doc(db,'galleryItems',photo.id),{albumId:dest,updatedAt:serverTimestamp()});msg(tr('사진 이동이 완료되었습니다.','Déplacement terminé.'));await refreshPhotos();
   }catch(e){console.error(e);msg(tr('사진을 이동하지 못했습니다.','Déplacement impossible.'),true);}
 }
 async function changeOrder(photo:Photo,step:number){if(!admin())return;const idx=photos.findIndex(x=>x.id===photo.id),other=photos[idx+step];if(idx<0||!other)return;
   try{const a=photo.sortOrder??idx,b=other.sortOrder??idx+step;
     await updateDoc(doc(db,'galleryItems',photo.id),{sortOrder:b,updatedAt:serverTimestamp()});
     await updateDoc(doc(db,'galleryItems',other.id),{sortOrder:a,updatedAt:serverTimestamp()});
-    await refreshPhotos();
+    msg(tr('사진 순서가 저장되었습니다.','Ordre enregistré.'));await refreshPhotos();
   }catch(e){console.error(e);msg(tr('순서를 변경하지 못했습니다.','Impossible de changer l’ordre.'),true);}
 }
 async function shrink(file:File){
@@ -430,9 +433,10 @@ by<HTMLFormElement>('album-new-form')?.addEventListener('submit',async e=>{e.pre
   const title=by<HTMLInputElement>('album-title')?.value.trim()||'',school=by<HTMLSelectElement>('album-school')?.value as School;
   const year=Number(by<HTMLInputElement>('album-year')?.value);
   if(title.length<2||title.length>120||!['kindergarten','elementary','middle','common'].includes(school)||year<2018||year>2100||!Number.isInteger(year))return msg(tr('앨범 이름과 연도·학교를 확인해 주세요.','Vérifiez le nom, l’école et l’année.'),true);
+  busy=true;const submit=(e.currentTarget as HTMLFormElement).querySelector<HTMLButtonElement>('button[type=submit]');if(submit)submit.disabled=true;
   try{const record=doc(collection(db,'galleryAlbums'));await setDoc(record,{title,school,year,ownerUid:uid,isShared:false,coverItemId:'',createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
-    by<HTMLFormElement>('album-new-form')?.reset();show('album-new-form',false);await refresh();await openAlbum(albums.find(a=>a.id===record.id)!);
-  }catch(e){console.error(e);msg(tr('앨범을 만들 수 없습니다.','Impossible de créer l’album.'),true);}
+    by<HTMLFormElement>('album-new-form')?.reset();show('album-new-form',false);msg(tr('앨범 등록이 완료되었습니다.','Album créé.'));await refresh();const created=albums.find(a=>a.id===record.id);if(created)await openAlbum(created);
+  }catch(e){console.error(e);msg(tr('앨범을 만들 수 없습니다.','Impossible de créer l’album.'),true);}finally{busy=false;if(submit)submit.disabled=false;}
 });
 by<HTMLFormElement>('media-upload-form')?.addEventListener('submit',e=>{e.preventDefault();void upload();});
 const uploadPreviewUrls:string[]=[];

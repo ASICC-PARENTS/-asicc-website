@@ -3,23 +3,24 @@ import {getAuth,onAuthStateChanged,getIdToken} from 'firebase/auth';
 import {getFirestore,collection,doc,getDoc,getDocs,query,where,addDoc,updateDoc,serverTimestamp,onSnapshot} from 'firebase/firestore';
 import {firebaseConfig} from '../../firebase-config';
 import {BOARD_PHOTO_API} from '../../config/board-photos';
-import {dmAllowed,syncOwnAlias,canContact,projectException} from './member-access';
+import {dmAllowed,syncOwnAlias,canContact} from './member-access';
 const root=document.querySelector<HTMLElement>('#message-root');
 const fr=root?.dataset.lang==='fr';const tr=(ko:string,french:string)=>fr?french:ko;
 const by=<T extends HTMLElement>(id:string)=>document.getElementById(id) as T|null;
 const show=(id:string,v:boolean)=>{const n=by<HTMLElement>(id);if(n)n.hidden=!v;};
-const say=(msg:string,bad=false)=>{const n=by<HTMLElement>('message-state');if(n){n.textContent=msg;n.style.color=bad?'#b42318':'';}};
+import {toastResult} from './toast';
+const say=(msg:string,bad=false)=>{const n=by<HTMLElement>('message-state');if(n){n.textContent=msg;n.style.color=bad?'#b42318':'';}toastResult(msg,bad);};
 const node=(tag:string,content?:string)=>{const n=document.createElement(tag);if(content!==undefined)n.textContent=content;return n;};
 const app=getApps().find(x=>x.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
 const auth=getAuth(app),db=getFirestore(app);let uid='',role='';
-let recipients:{uid:string;nickname:string;role:string;canReceiveDM:boolean}[]=[];let selectedAllowed=false,checkSerial=0,sending=false,projectLimited=false;
+let recipients:{uid:string;nickname:string;role:string;canReceiveDM:boolean}[]=[];let selectedAllowed=false,checkSerial=0,sending=false;
 const names=new Map<string,string>();
 const knownName=(id:string)=>names.get(id)||tr('회원','Membre');
 const openedMessages=new Set<string>();
 function fillRecipients(){const select=by<HTMLSelectElement>('message-recipient');if(!select)return;
   const q=by<HTMLInputElement>('message-search')?.value.toLocaleLowerCase().trim()||'';const current=select.value;
   select.replaceChildren();const opt=node('option',tr('회원 선택','Sélectionner un membre')) as HTMLOptionElement;opt.value='';select.append(opt);
-  for(const x of recipients.filter(x=>x.uid!==uid&&(role==='admin'||role==='general'&&x.role==='admin'||['member','special'].includes(role)&&['member','special','admin'].includes(x.role))&&x.nickname.toLocaleLowerCase().includes(q)).slice(0,200)){
+  for(const x of recipients.filter(x=>x.uid!==uid&&x.nickname.toLocaleLowerCase().includes(q)).slice(0,200)){
     const o=node('option',x.nickname) as HTMLOptionElement;o.value=x.uid;select.append(o);
   }
   if([...select.options].some(o=>o.value===current))select.value=current;
@@ -83,27 +84,24 @@ if(import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true')onAuthStateChanged(auth
   if(!user){location.replace(root?.dataset.loginUrl||'/');return;}
   try{await user.reload();await getIdToken(user,true);if(!user.emailVerified)throw Error('unverified');
     const me=await getDoc(doc(db,'members',user.uid));if(!me.exists()||me.data().status!=='approved')throw Error('inactive');
-    uid=user.uid;role=me.data().role;projectLimited=projectException(me.data());
-    if(!dmAllowed(me.data())){show('message-minor',true);show('message-content',false);say(tr('개인 쪽지 이용이 비활성화된 계정입니다. 운영진에게 문의해 주세요.','Compte élève ou type inconnu : messagerie indisponible.'));return;}
+    uid=user.uid;role=me.data().role;
+    if(!dmAllowed(me.data())){show('message-minor',true);show('message-content',false);say(tr('개인 쪽지 이용이 비활성화된 계정입니다. 운영진에게 문의해 주세요.','Messagerie indisponible. Contactez l’administration.'));return;}
     await syncOwnAlias(db,uid,me.data()).catch(console.warn);
     const setting=await getDoc(doc(db,'siteSettings','messaging'));
     if(!setting.exists()||setting.data().enabled!==true){say(tr('쪽지 기능은 운영진이 준비 중입니다.','Messagerie en préparation.'));return;}
     const dir=await getDocs(collection(db,'publicNames'));
-    recipients=dir.docs.map(d=>({uid:d.id,nickname:String(d.data().nickname||''),role:String(d.data().role||''),canReceiveDM:d.data().canReceiveDM===true})).filter(x=>!!x.nickname&&x.canReceiveDM);
+    recipients=dir.docs.map(d=>({uid:d.id,nickname:String(d.data().nickname||''),role:String(d.data().role||''),canReceiveDM:d.data().canReceiveDM===true})).filter(x=>!!x.nickname&&x.uid!==uid);
     for(const entry of dir.docs){if(typeof entry.data().nickname==='string')names.set(entry.id,entry.data().nickname);}
     if(role==='admin'){
       const active=await getDocs(collection(db,'members'));
-      recipients=active.docs.map(d=>({uid:d.id,nickname:String(d.data().nickname||d.data().name||''),role:String(d.data().role||''),canReceiveDM:dmAllowed(d.data())})).filter(x=>!!x.nickname&&x.canReceiveDM);
+      recipients=active.docs.map(d=>({uid:d.id,nickname:String(d.data().nickname||''),role:String(d.data().role||''),canReceiveDM:dmAllowed(d.data())})).filter(x=>!!x.nickname&&x.canReceiveDM);
       for(const r of recipients)names.set(r.uid,r.nickname);
     }
-    if(projectLimited){
-      // The project code remains private. Filter contacts using the server's pair checks.
-      const candidates=recipients.filter(x=>x.uid!==uid&&['member','special','admin'].includes(x.role));const eligible:typeof recipients=[];
-      for(let start=0;start<candidates.length;start+=10){const slice=candidates.slice(start,start+10);const flags=await Promise.all(slice.map(x=>canContact(db,x.uid)));eligible.push(...slice.filter((_,i)=>flags[i]));}
-      recipients=eligible;
-    }
+    const candidates=recipients.filter(x=>x.uid!==uid);const eligible:typeof recipients=[];
+    for(let start=0;start<candidates.length;start+=10){const slice=candidates.slice(start,start+10);const flags=await Promise.all(slice.map(x=>canContact(db,x.uid).catch(()=>false)));eligible.push(...slice.filter((_,i)=>flags[i]));}
+    recipients=eligible;
     const requested=new URLSearchParams(location.search).get('to');if(requested){const i=recipients.findIndex(x=>x.uid===requested);if(i>0)recipients.unshift(recipients.splice(i,1)[0]);}fillRecipients();const select=by<HTMLSelectElement>('message-recipient');if(requested&&select&&[...select.options].some(o=>o.value===requested)){select.value=requested;void checkRecipient();by<HTMLTextAreaElement>('message-body')?.focus();}else if(requested)say(tr('이 회원에게 쪽지를 보낼 수 없습니다.','Destinataire indisponible.'),true);show('message-content',true);
-    by<HTMLElement>('message-advice')!.textContent=projectLimited?tr('프로젝트 승인 범위 내에서만 쪽지를 주고받을 수 있습니다.','Échanges limités au projet approuvé et aux administrateurs.'):role==='general'?tr('일반회원은 운영진에게만 발송할 수 있습니다. 운영진의 닉네임을 선택해 주세요.','Les membres généraux peuvent écrire uniquement aux administrateurs.'):tr('허용된 회원 간 연락에만 사용해 주세요.','Réservé aux échanges entre contacts autorisés.');
+    by<HTMLElement>('message-advice')!.textContent=tr('허용된 회원 간 연락에만 사용해 주세요.','Réservé aux échanges entre contacts autorisés.');
     await refresh();if(!new URLSearchParams(location.search).get('to')||by<HTMLSelectElement>('message-recipient')?.value)say('');
     const stop=onSnapshot(query(collection(db,'privateMessages'),where('recipientUid','==',uid)),()=>{void refresh().catch(console.warn);},error=>{console.warn(error);if(error.code==='permission-denied'){by('message-inbox')?.replaceChildren();by('message-sent')?.replaceChildren();show('message-content',false);show('message-minor',true);say(tr('쪽지 권한이 변경되었습니다. 새로고침해 주세요.','Vos droits ont changé. Rechargez la page.'),true);}});window.addEventListener('pagehide',stop,{once:true});
   }catch(e){console.error(e);say(tr('쪽지함을 불러오지 못했습니다.','Messagerie inaccessible.'),true);}

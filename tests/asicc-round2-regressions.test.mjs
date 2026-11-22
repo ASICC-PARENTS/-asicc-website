@@ -35,7 +35,7 @@ test('gallery upload self-publishes after successful storage; shared album permi
 test('private messages block unapproved accounts and enforce actual contact permissions server side',()=>{
   assert.match(rules,/function isDmAccount\(uid\)/);
   assert.match(rules,/canSendTo\(request\.resource\.data\.recipientUid\)/);
-  assert.match(rules,/projectExceptionFor\(sender\) && projectExceptionFor\(recipient\) && sender\.dmProject == recipient\.dmProject/);
+  assert.match(rules,/sender\.role in \['member','special','admin'\] && recipient\.role in \['member','special','admin'\]/);
   assert.match(messages,/!dmAllowed\(me\.data\(\)\)/);
   assert.match(admin,/admin-edit-account-type/);
 });

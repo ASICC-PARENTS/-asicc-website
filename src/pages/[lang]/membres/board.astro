@@ -176,7 +176,8 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
   const fr=root?.dataset.lang==='fr';
   const tr=(ko:string,french:string)=>fr?french:ko;
   const status=by<HTMLElement>('board-status');
-  const notify=(v:string,bad=false)=>{if(status){status.textContent=v;status.hidden=!v;status.style.color=bad?'#b42318':'';}};
+  import {toastResult} from '../../../scripts/members/toast';
+const notify=(v:string,bad=false)=>{if(status){status.textContent=v;status.hidden=!v;status.style.color=bad?'#b42318':'';}toastResult(v,bad);};
   const clearNotice=()=>notify('');
   const el=(tag:string,text?:string)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;return node;};
   const stamp=(v?:TimestampLike)=>{
@@ -413,7 +414,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       const author=el('span',tr('회원','Membre'));author.className='board-author';
       const date=el('span',stamp(post.createdAt));date.className='board-date';
       row.append(number,subject,author,date);list.append(row);
-      void publicInfo(post.authorUid).then(info=>{if(row.isConnected){displayAuthor(author,info,post.authorUid,uid,role,viewerDM,fr,messageUrl);}});
+      void publicInfo(post.authorUid).then(info=>{if(row.isConnected){displayAuthor(author,info,post.authorUid,uid,role,viewerDM,fr,messageUrl,'',db);}});
     });
   }
   async function reportBoardEntry(kind:'post'|'comment',postId:string,commentId?:string){
@@ -446,7 +447,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       title.append(badge,document.createTextNode(plainTitle));
     }
     if(body){renderBoardBody(body,post.body);void populatePhotos(body);}
-    if(meta){meta.textContent=dateLabel(post.createdAt,post.updatedAt);void publicInfo(post.authorUid).then(info=>{if(selected?.id===post.id)displayAuthor(meta,info,post.authorUid,uid,role,viewerDM,fr,messageUrl,dateLabel(post.createdAt,post.updatedAt));});}
+    if(meta){meta.textContent=dateLabel(post.createdAt,post.updatedAt);void publicInfo(post.authorUid).then(info=>{if(selected?.id===post.id)displayAuthor(meta,info,post.authorUid,uid,role,viewerDM,fr,messageUrl,dateLabel(post.createdAt,post.updatedAt),db);});}
     actions?.replaceChildren();
     
     if(!post.deleted){
@@ -494,7 +495,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       const batch=writeBatch(db);
       batch.set(doc(db,'hiddenPosts',post.id),{title:post.title,body:post.body,authorUid:post.authorUid,hiddenBy:uid,hiddenAt:serverTimestamp()});
       batch.update(doc(db,'boardPosts',post.id),{deleted:true,title:'[숨김 처리된 게시글]',body:'[숨김 처리된 게시글]',updatedAt:serverTimestamp()});
-      await batch.commit();back();await refreshPosts();
+      await batch.commit();back();notify(tr('게시글 숨김 처리가 완료되었습니다.','Message masqué.'));await refreshPosts();
     }
     catch(e){console.error(e);notify(tr('숨김 처리 실패','Impossible de masquer.'),true);}
   }
@@ -625,7 +626,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
     const wrap=el('div');wrap.className=`board-comment-entry${isReply?' board-reply-entry':''}`;
     wrap.dataset.depth=String(depth);
     const meta=el('div',`${kind} · ${dateLabel(c.createdAt,c.updatedAt)}`);meta.className='board-comment-meta small muted';
-    void publicInfo(c.authorUid).then(info=>{if(meta.isConnected)displayAuthor(meta,info,c.authorUid,uid,role,viewerDM,fr,messageUrl,`${kind} · ${dateLabel(c.createdAt,c.updatedAt)}`);});
+    void publicInfo(c.authorUid).then(info=>{if(meta.isConnected)displayAuthor(meta,info,c.authorUid,uid,role,viewerDM,fr,messageUrl,`${kind} · ${dateLabel(c.createdAt,c.updatedAt)}`,db);});
     const body=el('p',detail.text);body.className='board-comment-text';
     if(orphan){const note=el('p',tr('연결된 상위 댓글·답글을 찾을 수 없습니다.','Le commentaire parent est introuvable.'));note.className='small muted';wrap.append(note);}
     wrap.append(meta,body);
@@ -661,7 +662,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
           submit.disabled=true;
           try{
             await setDoc(doc(collection(db,'boardPosts',postId,'comments')),{body:encoded,authorUid:uid,authorName:name,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),deleted:false});
-            await refreshComments(postId);
+            notify(tr('답글이 등록되었습니다.','Réponse publiée.'));await refreshComments(postId);
           }catch(error){console.error(error);notify(tr('답글 등록 실패','Échec de la réponse.'),true);submit.disabled=false;}
         });
       });btns.append(reply);
@@ -674,7 +675,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
         if(updated===null)return;
         const text=updated.trim(),encoded=detail.parentId?replyBody(detail.parentId,text):text;
         if(!text||encoded.length>2000)return notify(tr('글자 수를 확인하세요.','Contenu trop long.'),true);
-        try{await updateDoc(doc(db,'boardPosts',postId,'comments',c.id),{body:encoded,updatedAt:serverTimestamp()});await refreshComments(postId);}
+        try{await updateDoc(doc(db,'boardPosts',postId,'comments',c.id),{body:encoded,updatedAt:serverTimestamp()});notify(tr('댓글 수정이 완료되었습니다.','Commentaire modifié.'));await refreshComments(postId);}
         catch(error){console.error(error);notify(tr('수정 실패','Échec de la modification.'),true);}
       });btns.append(edit);
     }
@@ -687,7 +688,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
           const batch=writeBatch(db);
           batch.set(doc(db,'hiddenComments',`${postId}_${c.id}`),{postId,commentId:c.id,body:c.body,authorUid:c.authorUid,hiddenBy:uid,hiddenAt:serverTimestamp()});
           batch.update(doc(db,'boardPosts',postId,'comments',c.id),{body:'[숨김 처리된 댓글]',deleted:true,updatedAt:serverTimestamp()});
-          await batch.commit();await refreshComments(postId);
+          await batch.commit();notify(tr('숨김 처리가 완료되었습니다.','Commentaire masqué.'));await refreshComments(postId);
         }catch(error){console.error(error);notify(tr('숨김 실패','Impossible de masquer.'),true);}
       });btns.append(hide);
     }
@@ -810,8 +811,8 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
     const body=serializeEditor(editor),plain=boardText(body).trim(),pics=photoKeys(editor);
     if(!plainTitle||title.length>120||(!plain&&!pics.length)||body.length>5000||numPhotos()>10)
       return notify(tr('제목·내용 또는 길이를 확인하세요. (서식 포함 5,000자)','Vérifiez le titre, le contenu et la limite de 5 000 caractères.'),true);
-    const btn=by<HTMLButtonElement>('post-save');if(btn)btn.disabled=true;
-    try{
+    const btn=by<HTMLButtonElement>('post-save');if(btn?.disabled)return;const old=btn?.textContent;if(btn){btn.disabled=true;btn.textContent=tr('저장 중…','Enregistrement…');}
+    let saved=false;try{
       const editing=posts.find(p=>p.id===editingPostId);
       if(editing){
         if(!canEdit(editing.authorUid))return notify(tr('수정 권한이 없습니다.','Modification refusée.'),true);
@@ -819,12 +820,12 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       }else{
         await setDoc(doc(collection(db,'boardPosts')),{title,body,authorUid:uid,authorName:name,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),deleted:false});
       }
-      const editedId=editingPostId;resetEditor();show('post-form',false);
+      saved=true;const editedId=editingPostId;resetEditor();show('post-form',false);
       await refreshPosts();const result=posts.find(p=>p.id===editedId);
       if(result)await openPost(result);else back();
       notify(tr('저장되었습니다.','Message enregistré.'));
-    }catch(error){console.error(error);notify(tr('저장에 실패했습니다.','Échec de l’enregistrement.'),true);}
-    finally{if(btn)btn.disabled=false;}
+    }catch(error){console.error(error);notify(saved?tr('저장은 완료되었지만 화면 갱신에 실패했습니다.','Message enregistré, actualisation impossible.'):tr('저장에 실패했습니다.','Échec de l’enregistrement.'),true);}
+    finally{if(btn){btn.disabled=false;btn.textContent=old||tr('저장','Enregistrer');}}
   });
   // Browser native editing commands are used only for trusted toolbar actions.
   document.querySelectorAll<HTMLButtonElement>('#post-form [data-format]').forEach(button=>{
@@ -887,7 +888,8 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
   by<HTMLFormElement>('comment-form')?.addEventListener('submit',async e=>{
     e.preventDefault();if(!canWrite()||!selected)return;const body=by<HTMLTextAreaElement>('comment-body')?.value.trim()||'';
     if(!body||body.length>2000)return notify(tr('댓글을 확인하세요.','Vérifiez le commentaire.'),true);
-    try{await setDoc(doc(collection(db,'boardPosts',selected.id,'comments')),{body,authorUid:uid,authorName:name,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),deleted:false});by<HTMLFormElement>('comment-form')?.reset();await refreshComments(selected.id);}
-    catch(e){console.error(e);notify(tr('댓글 등록 실패','Impossible de publier le commentaire.'),true);}
+    const button=(e.currentTarget as HTMLFormElement).querySelector<HTMLButtonElement>('button[type=submit]');if(button?.disabled)return;if(button)button.disabled=true;
+    try{await setDoc(doc(collection(db,'boardPosts',selected.id,'comments')),{body,authorUid:uid,authorName:name,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),deleted:false});by<HTMLFormElement>('comment-form')?.reset();notify(tr('댓글이 등록되었습니다.','Commentaire publié.'));await refreshComments(selected.id);}
+    catch(e){console.error(e);notify(tr('댓글 등록 실패','Impossible de publier le commentaire.'),true);}finally{if(button)button.disabled=false;}
   });
 </script>

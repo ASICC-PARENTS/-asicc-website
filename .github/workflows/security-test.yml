@@ -4,6 +4,8 @@ on:
     branches: [test-cms-fr]
     paths:
       - 'tests/firestore-rules.test.mjs'
+      - 'tests/asicc-round9-policy.test.mjs'
+      - 'src/scripts/members/dm-policy.ts'
       - 'firestore.rules.PROPOSED_ONLY'
       - 'firebase.test.json'
       - '.github/workflows/security-test.yml'
@@ -25,6 +27,8 @@ jobs:
           java-version: '21'
       - name: Install project dependencies
         run: npm ci
+      - name: Run DM policy tests
+        run: node --experimental-strip-types --test tests/asicc-round9-policy.test.mjs
       - name: Install rules testing library
         run: npm install --no-save @firebase/rules-unit-testing@4.0.1
       - name: Run Firestore rules tests with emulator (NO PRODUCTION ACCESS)

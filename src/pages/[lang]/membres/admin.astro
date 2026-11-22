@@ -30,6 +30,11 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       </div>
 
       <div id="admin-content" class="stack gap-24" hidden>
+        <section class="card auth-card stack gap-12" aria-labelledby="ops-inbox-heading">
+          <h2 id="ops-inbox-heading" class="h3">{L(lang,{ko:'통합 처리 대기 요약',fr:'Résumé des demandes à traiter'})}</h2>
+          <p class="small muted">{L(lang,{ko:'회원 승급·건의·사진 승인 요청을 한곳에서 확인하고 각 업무 화면으로 이동합니다.',fr:'Demandes de statut, suggestions et validation des photos.'})}</p>
+          <div id="ops-inbox" class="stack gap-8"></div>
+        </section>
         <div class="card auth-card stack gap-12">
           <div class="row gap-16" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
             <div class="stack gap-8">
@@ -89,6 +94,8 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
             <button type="button" class="btn btn-dark" id="ops-save-gallery" style="align-self:flex-start">{L(lang,{ko:'갤러리 공개 설정 저장',fr:'Enregistrer la galerie'})}</button>
             <label class="row gap-12" style="align-items:center"><input type="checkbox" id="ops-messaging-open"/> <strong>{L(lang,{ko:'회원 쪽지 기능 전체 활성화',fr:'Activer la messagerie des membres'})}</strong></label>
             <button type="button" class="btn btn-dark" id="ops-save-toggles" style="align-self:flex-start">{L(lang,{ko:'쪽지 설정 저장',fr:'Enregistrer la messagerie'})}</button>
+            <button type="button" class="btn btn-ghost" id="admin-dm-initialise" disabled style="align-self:flex-start">{L(lang,{ko:'기존 회원 쪽지 일괄 활성화 (최초 1회)',fr:'Activer la messagerie des membres existants (une seule fois)'})}</button>
+            <p id="admin-dm-initialise-state" class="small muted" role="status"></p>
           </div>
           <div class="stack gap-12" style="border:1px solid #dce0e7;border-radius:10px;padding:16px">
             <h3 class="h3">{L(lang,{ko:'게시판 분류 관리',fr:'Catégories du forum'})}</h3>
@@ -101,11 +108,6 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
           </div>
           <p id="ops-status" role="status" class="small muted"></p>
           <div class="row gap-12" style="flex-wrap:wrap"><a class="btn btn-ghost" href={href(lang,'membres/gallery/')}>{L(lang,{ko:'갤러리 관리',fr:'Gérer la galerie'})}</a><a class="btn btn-ghost" href={href(lang,'membres/gallery/')+'?view=review'}>{L(lang,{ko:'검토 대기 사진',fr:'Médias à vérifier'})}</a><a class="btn btn-ghost" href={href(lang,'membres/messages/')}>{L(lang,{ko:'회원 쪽지함 열기',fr:'Messagerie'})}</a></div>
-        </section>
-        <section class="card auth-card stack gap-12" aria-labelledby="ops-inbox-heading">
-          <h2 id="ops-inbox-heading" class="h3">{L(lang,{ko:'통합 처리 대기 요약',fr:'Résumé des demandes à traiter'})}</h2>
-          <p class="small muted">{L(lang,{ko:'회원 승급·건의·사진 승인 요청을 한곳에서 확인하고 각 업무 화면으로 이동합니다.',fr:'Demandes de statut, suggestions et validation des photos.'})}</p>
-          <div id="ops-inbox" class="stack gap-8"></div>
         </section>
         <section class="card auth-card stack gap-16" aria-labelledby="requests-heading">
           <div class="row gap-16" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
@@ -181,17 +183,15 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
                 <label class="stack gap-8"><span>{L(lang,{ko:'실명',fr:'Nom réel'})}</span><input id="admin-edit-name" maxlength="80" required /></label>
                 <label class="stack gap-8"><span>{L(lang,{ko:'닉네임',fr:'Pseudo'})}</span><input id="admin-edit-nickname" maxlength="24" minlength="2" required /></label>
                 <label class="stack gap-8"><span>{L(lang,{ko:'연락처',fr:'Téléphone'})}</span><input id="admin-edit-phone" type="tel" maxlength="40" /></label>
-                <label class="stack gap-8"><span>{L(lang,{ko:'계정 유형 (쪽지 안전 확인)',fr:'Type de compte (messagerie)'})}</span>
+                <label class="stack gap-8"><span>{L(lang,{ko:'계정 유형',fr:'Type de compte (messagerie)'})}</span>
                   <select id="admin-edit-account-type">
-                    <option value="">{L(lang,{ko:'미확인 — 쪽지 차단',fr:'Non confirmé — bloqué'})}</option>
+                    <option value="">{L(lang,{ko:'미확인',fr:'Non confirmé'})}</option>
                     <option value="adult">{L(lang,{ko:'성인',fr:'Adulte'})}</option>
                     <option value="student">{L(lang,{ko:'재학생·졸업·전학생 본인',fr:'Élève / ancien élève'})}</option>
                   </select>
                 </label>
                 <label class="stack gap-8"><span>{L(lang,{ko:'생년월일 (학생 본인)',fr:'Date de naissance (élève)'})}</span><input id="admin-edit-birth" type="date" min="1900-01-01"/><span id="admin-edit-age" class="small muted"></span></label>
-                <label class="stack gap-8"><span>{L(lang,{ko:'생년월일 확인',fr:'Vérification de l’âge'})}</span><span><input id="admin-edit-birth-verified" type="checkbox"/> {L(lang,{ko:'운영진이 생년월일을 확인함',fr:'Date vérifiée par l’administration'})}</span></label>
-                <label class="stack gap-8"><span>{L(lang,{ko:'쪽지 기능 활성화',fr:'Accès à la messagerie'})}</span><select id="admin-edit-dm-mode"><option value="auto">{L(lang,{ko:'자동 (성인 및 회원 등급 기준)',fr:'Automatique (âge et rôle)'})}</option><option value="on">{L(lang,{ko:'활성화 (미성년자는 프로젝트 예외 승인)',fr:'Activer (dérogation projet pour mineurs)'})}</option><option value="off">{L(lang,{ko:'비활성화',fr:'Désactiver'})}</option></select><span id="admin-edit-dm-state" class="small muted"></span></label>
-                <label class="stack gap-8"><span>{L(lang,{ko:'미성년자 프로젝트 코드 (예외 허용 시)',fr:'Code projet pour mineur (dérogation)'})}</span><input id="admin-edit-dm-project" maxlength="40" placeholder="PROJET-01"/><span class="small muted">{L(lang,{ko:'보호자 동의를 확인한 프로젝트 참여 학생에게 동일한 코드를 지정하세요. 해당 학생들은 같은 코드의 승인된 학생 및 운영진과만 쪽지를 주고받을 수 있습니다. (영문·숫자·하이픈·밑줄)',fr:'Après accord parental, attribuez le même code aux participants autorisés. Les mineurs peuvent communiquer uniquement avec les membres autorisés du même projet et les administrateurs. (lettres latines, chiffres, tirets, tirets bas)'})}</span></label>
+                <label class="stack gap-8"><span>{L(lang,{ko:'쪽지 기능 활성화',fr:'Accès à la messagerie'})}</span><select id="admin-edit-dm-mode"><option value="auto">{L(lang,{ko:'자동 (성인 및 회원 등급 기준)',fr:'Automatique (âge et rôle)'})}</option><option value="on">{L(lang,{ko:'활성화 (ON)',fr:'Activer (ON)'})}</option><option value="off">{L(lang,{ko:'비활성화',fr:'Désactiver'})}</option></select><span id="admin-edit-dm-state" class="small muted"></span></label>
                 <label class="stack gap-8"><span>{L(lang,{ko:'가입 구분',fr:'Catégorie'})}</span>
                   <select id="admin-edit-kind">
                     <option value="">{L(lang,{ko:'미설정',fr:'Non renseigné'})}</option>
@@ -272,7 +272,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   .asicc-admin-deletion-section summary {cursor:pointer;}
   .asicc-admin-deletion-section[open] > p {margin:16px 0 12px;}
   .asicc-admin-deletion-section[open] > div {margin-top:12px;}
-  .asicc-admin-toast { position:fixed; z-index:2000; right:clamp(12px,3vw,36px); bottom:clamp(18px,5vh,55px); max-width:min(440px,calc(100vw - 24px)); padding:15px 17px; background:#eaf6ed; border:1px solid #7fb791; color:#12512f; border-radius:12px; box-shadow:0 10px 35px rgba(0,0,0,.18); display:flex; align-items:center; gap:14px; font-weight:650; }
+  .asicc-admin-toast { position:fixed; z-index:2000; right:clamp(12px,3vw,36px); top:clamp(18px,5vh,55px); max-width:min(440px,calc(100vw - 24px)); padding:15px 17px; background:#eaf6ed; border:1px solid #7fb791; color:#12512f; border-radius:12px; box-shadow:0 10px 35px rgba(0,0,0,.18); display:flex; align-items:center; gap:14px; font-weight:650; }
   .asicc-admin-toast[hidden] { display:none; }
   .asicc-admin-toast[data-error="true"] { background:#fff1f0; border-color:#e6aaa6; color:#971b1b; }
   .asicc-admin-toast button { border:none; background:transparent; color:inherit; font:inherit; font-size:1.5rem; cursor:pointer; padding:0 4px; }
@@ -315,16 +315,16 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   import { getApps, initializeApp } from 'firebase/app';
   import { getAuth, onAuthStateChanged, getIdToken } from 'firebase/auth';
   import {
-    getFirestore, doc, getDoc, getDocs, query, collection, where,
+    getFirestore, doc, getDoc, getDocs, getDocsFromServer, query, collection, where,
     limit, updateDoc, runTransaction, serverTimestamp, writeBatch, setDoc, Timestamp,
     type DocumentData
   } from 'firebase/firestore';
   import { firebaseConfig } from '../../../firebase-config';
-  import {dmAllowed,verifiedAdult,projectException,validProject,validBirthDate,adulthoodDate,ageOn} from '../../../scripts/members/member-access';
+  import {dmAllowed,validBirthDate,adulthoodDate,ageOn} from '../../../scripts/members/member-access';
 
   type Child = {studentName:string;school:string;grade:string};
   type Member = { id: string; name: string; nickname?:string; nicknameKey?:string; email: string; phone?: string;
-    levels?: string[]; children?: Child[]; memberKind?: string; memberRelation?: string; accountType?: string; birthDate?:string; adultAt?:Timestamp|null; dmMode?:string; dmProject?:string;
+    levels?: string[]; children?: Child[]; memberKind?: string; memberRelation?: string; accountType?: string; birthDate?:string; adultAt?:Timestamp|null; dmMode?:string;
     role: string; status: string; createdAt?: Timestamp | number | string | null;
     withdrawnAt?: Timestamp | number | string | null }; 
   type Withdrawal = { uid: string; name: string; email: string; status: string; requestedAt?: Timestamp | number | null };
@@ -368,6 +368,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     const toast=el<HTMLElement>('admin-toast');if(toast)toast.hidden=true;
     if(toastTimeout)clearTimeout(toastTimeout);toastTimeout=null;
   });
+  window.addEventListener('asicc-ops-toast',event=>{const d=(event as CustomEvent<{message:string;error:boolean}>).detail;showMessage(d.message,d.error);});
   const deny = (message: string) => {
     const loading = el<HTMLElement>('admin-loading'); if (loading) loading.hidden = true;
     const denied = el<HTMLElement>('admin-denied'); if (denied) denied.hidden = false;
@@ -609,43 +610,52 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     for(const [value,label] of [['auto',tr('자동','Auto')],['on','ON'],['off','OFF']]){const o=document.createElement('option');o.value=value;o.textContent=label;select.append(o);}
     select.value=m.dmMode||'auto';
     const save=actionButton(tr('쪽지 설정 저장','Enregistrer'),()=>void saveMessagingMode(m,select,save));save.className='btn btn-ghost btn-sm admin-row-action';
-    select.disabled=m.status!=='approved';save.disabled=select.disabled;cell.append(select,save);
-    if(projectException(m))cell.append(panel('admin-small',tr(`프로젝트: ${m.dmProject}`,`Projet : ${m.dmProject}`)));
-    if(m.id!==meUid&&effective){const a=document.createElement('a');a.href='../messages/?to='+encodeURIComponent(m.id);a.className='btn btn-ghost btn-sm';a.textContent=tr('쪽지 보내기','Envoyer un message');cell.append(a);}
-    if(m.id===meUid&&!m.accountType){cell.append(panel('admin-small',tr('운영진 본인은 ON 또는 자동을 저장할 때 성인 여부를 확인할 수 있습니다.','Confirmez votre majorité en enregistrant ON ou Auto.')));}
+    select.disabled=m.status!=='approved'||m.role==='general';save.disabled=select.disabled;cell.append(select,save);
+    if(m.id!==meUid&&effective){const a=document.createElement('a');a.href='../messages/?to='+encodeURIComponent(m.id);a.className='btn btn-ghost btn-sm';a.textContent=tr('✉ 쪽지 보내기','✉ Envoyer un message');cell.append(a);}
   }
   async function saveMessagingMode(member:Member,select:HTMLSelectElement,button:HTMLButtonElement){
-    if(busy||member.status!=='approved')return;
+    if(busy||member.status!=='approved'||member.role==='general')return;
     const dmMode=select.value;if(!['auto','on','off'].includes(dmMode))return;
-    let accountType=member.accountType||'',dmProject=dmMode==='on'?member.dmProject||'':'';
-    if(member.id===meUid&&!accountType&&!member.birthDate&&dmMode!=='off'){
-      if(!confirm(tr('본인은 만 18세 이상임을 확인합니다.','Je confirme être majeur(e).'))){select.value=member.dmMode||'auto';return;}
-      accountType='adult';
-    }
-    if(dmMode==='on'&&!verifiedAdult({...member,accountType})){
-      if(member.accountType!=='student'||!member.birthDate||!member.adultAt||!['member','special'].includes(member.role)){
-        showMessage(tr('학생의 생년월일 확인 또는 성인 계정 확인을 먼저 회원 정보 수정에서 진행해 주세요.','Vérifiez d’abord le type de compte ou la date de naissance dans la fiche du membre.'),true);select.value=member.dmMode||'auto';return;
-      }
-      const code=prompt(tr('보호자 동의가 확인된 프로젝트의 코드(같은 프로젝트 학생 모두에게 동일하게 입력)를 입력해 주세요.','Saisissez le code commun du projet après accord parental.'),dmProject||'');
-      if(code===null){select.value=member.dmMode||'auto';return;}dmProject=code.trim();
-      if(!validProject(dmProject)||!confirm(tr('보호자 동의를 확인했으며, 해당 학생이 같은 프로젝트의 승인 학생 및 운영진과 쪽지를 교환하는 것을 허용합니다.','Je confirme l’accord parental et autorise les échanges avec le même projet et les administrateurs.'))){select.value=member.dmMode||'auto';showMessage(tr('프로젝트 코드 또는 승인 여부를 확인해 주세요.','Vérifiez le code et l’autorisation.'),true);return;}
-    }else if(dmMode!=='on'||verifiedAdult({...member,accountType}))dmProject='';
-    if(member.id===meUid&&member.birthDate){showMessage(tr('생년월일이 등록된 운영진의 권한은 다른 운영진에게 요청해 주세요.','Pour un administrateur dont la date est enregistrée, demandez à un autre administrateur.'),true);select.value=member.dmMode||'auto';return;}
-    busy=true;select.disabled=true;button.disabled=true;
+    const originalLabel=button.textContent;busy=true;select.disabled=true;button.disabled=true;button.textContent=tr('저장 중…','Enregistrement…');
     try{
       await runTransaction(db,async tx=>{
         const ref=doc(db,'members',member.id),snap=await tx.get(ref);if(!snap.exists())throw Error('member-missing');const fresh=snap.data();
-        // Never apply a project approval to a profile whose age/identity has changed.
-        if(fresh.status!=='approved'||fresh.role!==member.role||(fresh.accountType||'')!==(member.accountType||'')||(fresh.birthDate||'')!==(member.birthDate||'')||(fresh.adultAt?.toMillis?.()||0)!==(member.adultAt?.toMillis?.()||0)||(fresh.dmMode||'auto')!==(member.dmMode||'auto')||(fresh.dmProject||'')!==(member.dmProject||''))throw Error('profile-changed');
-        const update=member.id===meUid?{accountType,dmMode,dmUpdatedBy:meUid,dmUpdatedAt:serverTimestamp()}:{dmMode,dmProject,dmUpdatedBy:meUid,dmUpdatedAt:serverTimestamp()};
-        const desired={...fresh,...update};if(dmMode==='on'&&!dmAllowed(desired))throw Error('invalid-permission');
+        if(fresh.status!=='approved'||fresh.role==='general'||(fresh.dmMode||'auto')!==(member.dmMode||'auto'))throw Error('profile-changed');
+        const update={dmMode,dmUpdatedBy:meUid,dmUpdatedAt:serverTimestamp()};
         tx.update(ref,update);
-        if(fresh.nickname&&fresh.nicknameKey===fresh.nickname.toLowerCase())tx.set(doc(db,'publicNames',member.id),{nickname:fresh.nickname,role:fresh.role,canReceiveDM:dmAllowed(desired),updatedAt:serverTimestamp()});
+        if(fresh.nickname&&fresh.nicknameKey===fresh.nickname.toLowerCase())tx.set(doc(db,'publicNames',member.id),{nickname:fresh.nickname,role:fresh.role,canReceiveDM:dmAllowed({...fresh,...update}),updatedAt:serverTimestamp()});
       });
-      showMessage(tr('회원 쪽지 설정을 저장했습니다.','Accès à la messagerie enregistré.'));try{await loadMembers(true);}catch(e){console.error(e);showMessage(tr('설정은 저장했지만 명단 갱신에 실패했습니다. 새로고침해 주세요.','Accès enregistré, mais actualisation impossible. Rechargez la liste.'),true);}
-    }catch(e){console.error(e);showMessage(tr('쪽지 설정을 저장하지 못했습니다. 회원정보를 새로고침한 뒤 확인해 주세요.','Enregistrement impossible. Actualisez les informations.'),true);select.value=member.dmMode||'auto';}
-    finally{busy=false;select.disabled=false;button.disabled=false;}
+      showMessage(dmMode==='on'?(globalDMEnabled?tr('쪽지 기능이 활성화되었습니다.','Messagerie activée.'):tr('개인 쪽지 ON 설정이 저장되었습니다. 전체 쪽지 설정은 OFF입니다.','Accès individuel enregistré. La messagerie globale est désactivée.')):dmMode==='off'?tr('쪽지 기능이 비활성화되었습니다.','Messagerie désactivée.'):tr('자동 설정이 저장되었습니다.','Réglage automatique enregistré.'));
+      try{await loadMembers(true);}catch(e){console.error(e);showMessage(tr('설정은 저장했지만 명단 갱신에 실패했습니다. 새로고침해 주세요.','Accès enregistré, mais actualisation impossible. Rechargez la liste.'),true);}
+    }catch(e){console.error(e);showMessage(tr('쪽지 설정을 저장하지 못했습니다.','Enregistrement impossible.'),true);select.value=member.dmMode||'auto';}
+    finally{busy=false;select.disabled=false;button.disabled=false;button.textContent=originalLabel;}
   }
+  async function loadInitialisation(){
+    const b=el<HTMLButtonElement>('admin-dm-initialise');if(!b)return;
+    try{const mark=await getDoc(doc(db,'siteSettings','dmRound9'));b.disabled=mark.exists();text('admin-dm-initialise-state',mark.exists()?tr('기존 회원 초기화 완료','Initialisation terminée'):tr('일반회원 및 이용 정지 계정은 제외됩니다. 이후 개별 설정은 유지됩니다.','Les membres généraux et suspendus sont exclus. Les réglages ultérieurs sont conservés.'));}
+    catch(e){console.error(e);b.disabled=true;text('admin-dm-initialise-state',tr('초기화 상태를 읽지 못했습니다. 새 규칙을 확인해 주세요.','État indisponible. Vérifiez les règles.'));}
+  }
+  el<HTMLButtonElement>('admin-dm-initialise')?.addEventListener('click',async()=>{
+    const b=el<HTMLButtonElement>('admin-dm-initialise')!;if(busy||b.disabled)return;busy=true;b.disabled=true;b.textContent=tr('저장 중…','Enregistrement…');
+    try{
+      const snapshot=await getDocsFromServer(collection(db,'members'));
+      const refs=snapshot.docs.filter(d=>d.data().status==='approved'&&['member','special','admin'].includes(d.data().role)).map(d=>d.ref);
+      if(refs.length>400)throw Error('too-many-members');
+      const marker=doc(db,'siteSettings','dmRound9');
+      await runTransaction(db,async tx=>{
+        const mark=await tx.get(marker);if(mark.exists())throw Error('already-initialised');
+        const fresh=await Promise.all(refs.map(ref=>tx.get(ref)));
+        for(const p of fresh){if(p.exists()&&p.data().status==='approved'&&['member','special','admin'].includes(p.data().role))tx.update(p.ref,{dmMode:'on',dmUpdatedBy:meUid,dmUpdatedAt:serverTimestamp()});}
+        tx.set(doc(db,'siteSettings','messaging'),{enabled:true,updatedBy:meUid,updatedAt:serverTimestamp()});
+        tx.set(marker,{updatedBy:meUid,updatedAt:serverTimestamp()});
+      });
+      const toggle=el<HTMLInputElement>('ops-messaging-open');if(toggle)toggle.checked=true;
+      window.dispatchEvent(new CustomEvent('asicc-messaging-setting',{detail:true}));
+      showMessage(tr('기존 회원 쪽지 초기화가 저장되었습니다.','Initialisation des membres enregistrée.'));
+      await loadMembers(true).catch(console.warn);
+    }catch(e){console.error(e);showMessage(tr('초기화하지 못했습니다. 이미 완료되었거나 Firebase 규칙을 확인해야 합니다.','Initialisation impossible ou déjà effectuée.'),true);}
+    finally{busy=false;b.textContent=tr('기존 회원 쪽지 일괄 활성화 (최초 1회)','Activer la messagerie des membres existants (une seule fois)');await loadInitialisation();}
+  });
 
   const validNickname=(value:string):boolean=>{
     const n=value.normalize('NFKC');
@@ -661,14 +671,12 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     const birthDate=el<HTMLInputElement>('admin-edit-birth')?.value||'';const age=ageOn(birthDate);
     const ageLabel=el<HTMLElement>('admin-edit-age');if(ageLabel)ageLabel.textContent=age===null?tr('생년월일 미확인','Âge non confirmé'):tr(`만 ${age}세 · ${age>=18?'성인':'미성년자'}`,`${age} ans · ${age>=18?'majeur':'mineur'}`);
     const accountType=el<HTMLSelectElement>('admin-edit-account-type')?.value||'';
-    const verified=el<HTMLInputElement>('admin-edit-birth-verified')?.checked;
     const dmMode=el<HTMLSelectElement>('admin-edit-dm-mode')?.value||'auto';
-    const dmProject=el<HTMLInputElement>('admin-edit-dm-project')?.value.trim()||'';
-    const allowed=dmAllowed({status:editingMember?.status,role:editingMember?.role,accountType,birthDate,adultAt:verified&&validBirthDate(birthDate)?Timestamp.fromDate(adulthoodDate(birthDate)):null,dmMode,dmProject});
+    const allowed=dmAllowed({status:editingMember?.status,role:editingMember?.role,accountType,birthDate,dmMode,memberKind:el<HTMLSelectElement>('admin-edit-kind')?.value,memberRelation:el<HTMLInputElement>('admin-edit-relation')?.value});
     const state=el<HTMLElement>('admin-edit-dm-state');if(state)state.textContent=allowed?tr('쪽지 이용 가능 (등급 제한 및 전체 설정 적용)','Messagerie autorisée selon le rôle et le réglage global'):tr('쪽지 이용 불가','Messagerie désactivée');
   }
-  el<HTMLInputElement>('admin-edit-birth')?.addEventListener('change',()=>{el<HTMLInputElement>('admin-edit-birth-verified')!.checked=false;updateAgeDisplay();});
-  for(const id of ['admin-edit-birth-verified','admin-edit-account-type','admin-edit-dm-mode','admin-edit-dm-project'])el<HTMLElement>(id)?.addEventListener('change',updateAgeDisplay);
+  el<HTMLInputElement>('admin-edit-birth')?.addEventListener('change',updateAgeDisplay);
+  for(const id of ['admin-edit-account-type','admin-edit-dm-mode','admin-edit-kind','admin-edit-relation'])el<HTMLElement>(id)?.addEventListener('change',updateAgeDisplay);
   const childBox=()=>el<HTMLElement>('admin-edit-children');
   function addChildInput(child:Child={studentName:'',school:'',grade:''}){
     const box=childBox();if(!box||box.children.length>=5)return;
@@ -696,11 +704,9 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     input('admin-edit-name',member.name||'');input('admin-edit-nickname',member.nickname||'');
     input('admin-edit-phone',member.phone||'');input('admin-edit-relation',member.memberRelation??upgradeHistory.get(member.id)?.relation??'');
     const account=el<HTMLSelectElement>('admin-edit-account-type');if(account)account.value=member.accountType||'';
-    input('admin-edit-birth',member.birthDate||'');input('admin-edit-dm-project',member.dmProject||'');
-    el<HTMLInputElement>('admin-edit-birth-verified')!.checked=!!member.adultAt;
-    el<HTMLSelectElement>('admin-edit-dm-mode')!.value=member.dmMode||'auto';
-    updateAgeDisplay();
-    const kind=el<HTMLSelectElement>('admin-edit-kind');if(kind)kind.value=member.memberKind??upgradeHistory.get(member.id)?.kind??'';
+    input('admin-edit-birth',member.birthDate||'');
+    const dmControl=el<HTMLSelectElement>('admin-edit-dm-mode')!;dmControl.value=member.dmMode||'auto';dmControl.disabled=member.role==='general';
+    const kind=el<HTMLSelectElement>('admin-edit-kind');if(kind)kind.value=member.memberKind??upgradeHistory.get(member.id)?.kind??'';updateAgeDisplay();
     dialog.querySelectorAll<HTMLInputElement>('input[name="admin-level"]').forEach(e=>e.checked=(member.levels||[]).includes(e.value));
     const box=childBox();if(box)box.replaceChildren();
     const students=member.children??upgradeHistory.get(member.id)?.children??[];
@@ -738,24 +744,18 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
         'Maximum 5 élèves, avec nom, établissement et classe pour chacun.'));return;
     }
     const birthDate=el<HTMLInputElement>('admin-edit-birth')?.value||'';
-    const verified=el<HTMLInputElement>('admin-edit-birth-verified')?.checked===true;
     const dmMode=el<HTMLSelectElement>('admin-edit-dm-mode')?.value||'auto';
-    if((accountType==='student'||birthDate||verified)&&!validBirthDate(birthDate)){editorError(tr('생년월일을 확인해 주세요.','Vérifiez la date de naissance.'));return;}
+    if((accountType==='student'||birthDate)&&!validBirthDate(birthDate)){editorError(tr('생년월일을 확인해 주세요.','Vérifiez la date de naissance.'));return;}
     if(member.birthDate&&!birthDate){editorError(tr('기존 생년월일을 임의로 삭제할 수 없습니다.','La date existante ne peut pas être effacée.'));return;}
-    const adultAt=verified?Timestamp.fromDate(adulthoodDate(birthDate)):null;
-    const ageInfo={status:'approved',role:member.role,accountType,birthDate,adultAt,dmMode};
-    const dmProject=dmMode==='on'&&!verifiedAdult(ageInfo)?(el<HTMLInputElement>('admin-edit-dm-project')?.value.trim()||''):'';
-    const access={...ageInfo,dmProject};
-    if(dmMode==='on'&&!dmAllowed(access)){editorError(tr('성인 확인 또는 미성년 학생의 생년월일 확인·프로젝트 코드가 필요합니다.','Vérifiez la majorité ou la date et le code projet du mineur.'));return;}
-    const desired={name,phone,levels,children,memberKind,memberRelation,accountType,birthDate,adultAt,dmMode,...(dmProject||member.dmProject?{dmProject}:{})};
-    const dmChanged=accountType!==(member.accountType||'')||birthDate!==(member.birthDate||'')||(adultAt?.toMillis()||0)!==(member.adultAt?.toMillis()||0)||dmMode!==(member.dmMode||'auto')||dmProject!==(member.dmProject||'');
-    if(dmChanged&&projectException(access)&&!confirm(tr('보호자 동의를 확인했고 같은 프로젝트의 승인 학생 및 운영진과의 쪽지를 허용합니까?','Confirmez-vous l’accord parental et les échanges limités au projet et aux administrateurs ?')))return;
+    const adultAt=validBirthDate(birthDate)?Timestamp.fromDate(adulthoodDate(birthDate)):null;
+    const desired={name,phone,levels,children,memberKind,memberRelation,accountType,birthDate,adultAt,dmMode};
+    const dmChanged=accountType!==(member.accountType||'')||birthDate!==(member.birthDate||'')||(adultAt?.toMillis()||0)!==(member.adultAt?.toMillis()||0)||dmMode!==(member.dmMode||'auto');
     const accessAudit=dmChanged?{dmUpdatedBy:meUid,dmUpdatedAt:serverTimestamp()}:{};
     const old={name:member.name||'',phone:member.phone||'',levels:member.levels||[],
       children:member.children??upgradeHistory.get(member.id)?.children??[],
       memberKind:member.memberKind??upgradeHistory.get(member.id)?.kind??'',
       memberRelation:member.memberRelation??upgradeHistory.get(member.id)?.relation??'',
-      accountType:member.accountType||'',birthDate:member.birthDate||'',adultAt:member.adultAt||null,dmMode:member.dmMode||'auto',...(member.dmProject?{dmProject:member.dmProject}:{})};
+      accountType:member.accountType||'',birthDate:member.birthDate||'',adultAt:member.adultAt||null,dmMode:member.dmMode||'auto'};
     const nicknameChanged=nicknameKey!==(member.nicknameKey||member.nickname?.toLowerCase()||'');
     if(JSON.stringify(desired)===JSON.stringify(old)&&!nicknameChanged){
       showMessage(tr('변경된 내용이 없습니다.','Aucune modification.'));closeMemberEditor();return;
@@ -851,6 +851,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     members=snap.docs.map(s=>({id:s.id,...s.data()} as Member));
     text('admin-member-count',String(members.length));
     renderMembers();
+    void loadInitialisation();
   }
   async function loadHistory(){
     const snap=await getDocs(collection(db,'upgradeRequests'));

@@ -6,7 +6,7 @@ import {firebaseConfig} from '../../firebase-config';
 const root=document.getElementById('asicc-admin');const fr=root?.dataset.lang==='fr';
 const tr=(ko:string,french:string)=>fr?french:ko;
 const by=<T extends HTMLElement>(id:string)=>document.getElementById(id) as T|null;
-const say=(v:string,bad=false)=>{const n=by<HTMLElement>('ops-status');if(n){n.textContent=v;n.style.color=bad?'#b42318':'';}};
+const say=(v:string,bad=false)=>{const n=by<HTMLElement>('ops-status');if(n){n.textContent=v;n.style.color=bad?'#b42318':'';}window.dispatchEvent(new CustomEvent('asicc-ops-toast',{detail:{message:v,error:bad}}));};
 const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
 const auth=getAuth(app),db=getFirestore(app);
 let uid='',admin=false;
@@ -47,24 +47,27 @@ async function saveCategories(kind:'board'|'resource'){
   if(!admin)return;
   const id=kind==='board'?'boardCategories':'resourceCategories';
   const control=kind==='board'?'ops-board-categories':'ops-resource-categories';
+  const button=by<HTMLButtonElement>(kind==='board'?'ops-save-board-categories':'ops-save-resource-categories');if(!button||button.disabled)return;const old=button.textContent;button.disabled=true;button.textContent=tr('저장 중…','Enregistrement…');
   try{
     const items=parse(by<HTMLTextAreaElement>(control)?.value||'');
     if(kind==='resource'&&items.some(x=>['common','general'].includes(x.id)))throw Error('공통·일반 분류는 제외하고 기타를 사용해 주세요.');
     if(kind==='board'&&(!items.some(x=>x.id==='info')||!items.some(x=>x.id==='question')))throw Error('정보 또는 질문 분류를 유지해 주세요.');
     await setDoc(doc(db,'siteSettings',id),{items,keys:items.map(x=>x.id),updatedBy:uid,updatedAt:serverTimestamp()});
     say(tr('분류 설정을 저장했습니다. 회원 화면을 새로고침하면 반영됩니다.','Catégories enregistrées. Actualisez le site.'));
-  }catch(e){console.error(e);say(tr('형식 또는 권한 오류: ','Erreur : ')+String(e),true);}
+  }catch(e){console.error(e);say(tr('형식 또는 권한 오류: ','Erreur : ')+String(e),true);}finally{button.disabled=false;button.textContent=old;}
 }
 by<HTMLButtonElement>('ops-save-board-categories')?.addEventListener('click',()=>void saveCategories('board'));
 by<HTMLButtonElement>('ops-save-resource-categories')?.addEventListener('click',()=>void saveCategories('resource'));
 by<HTMLButtonElement>('ops-save-gallery')?.addEventListener('click',async()=>{
   if(!admin)return;const isOpen=by<HTMLInputElement>('ops-gallery-open')?.checked===true;
   if(isOpen&&!confirm(tr('갤러리를 회원에게 공개합니다. 초상권 정책 확정과 원본 보관 준비를 확인했나요?','Confirmez-vous l’ouverture de la galerie après vérification des autorisations ?')))return;
-  try{await setDoc(doc(db,'siteSettings','gallery'),{isOpen,updatedBy:uid,updatedAt:serverTimestamp()});say(tr('갤러리 설정을 저장했습니다.','Galerie enregistrée.'));}catch(e){console.error(e);say(tr('저장 실패: Firebase 규칙을 확인하세요.','Enregistrement impossible.'),true);}
+  const button=by<HTMLButtonElement>('ops-save-gallery');if(!button||button.disabled)return;const old=button.textContent;button.disabled=true;button.textContent=tr('저장 중…','Enregistrement…');
+  try{await setDoc(doc(db,'siteSettings','gallery'),{isOpen,updatedBy:uid,updatedAt:serverTimestamp()});say(tr('갤러리 설정을 저장했습니다.','Galerie enregistrée.'));}catch(e){console.error(e);say(tr('저장 실패: Firebase 규칙을 확인하세요.','Enregistrement impossible.'),true);}finally{button.disabled=false;button.textContent=old;}
 });
 by<HTMLButtonElement>('ops-save-toggles')?.addEventListener('click',async()=>{
   if(!admin)return;const enabled=by<HTMLInputElement>('ops-messaging-open')?.checked===true;
-  try{await setDoc(doc(db,'siteSettings','messaging'),{enabled,updatedBy:uid,updatedAt:serverTimestamp()});window.dispatchEvent(new CustomEvent('asicc-messaging-setting',{detail:enabled}));say(tr('쪽지 설정을 저장했습니다.','Messagerie enregistrée.'));}catch(e){console.error(e);say(tr('저장 실패: Firebase 규칙을 확인하세요.','Enregistrement impossible.'),true);}
+  const button=by<HTMLButtonElement>('ops-save-toggles');if(!button||button.disabled)return;const old=button.textContent;button.disabled=true;button.textContent=tr('저장 중…','Enregistrement…');
+  try{await setDoc(doc(db,'siteSettings','messaging'),{enabled,updatedBy:uid,updatedAt:serverTimestamp()});window.dispatchEvent(new CustomEvent('asicc-messaging-setting',{detail:enabled}));say(tr('쪽지 설정을 저장했습니다.','Messagerie enregistrée.'));}catch(e){console.error(e);say(tr('저장 실패: Firebase 규칙을 확인하세요.','Enregistrement impossible.'),true);}finally{button.disabled=false;button.textContent=old;}
 });
 async function showInbox(){
   const target=by<HTMLElement>('ops-inbox');if(!target)return;
