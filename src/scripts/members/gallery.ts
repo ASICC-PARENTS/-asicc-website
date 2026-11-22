@@ -1,3 +1,4 @@
+import {formatParisDate} from './display-date';
 /** ASICC event gallery: member self-publishing, admin review queue and moderation.
  * Gallery is CLOSED until an administrator explicitly changes siteSettings/gallery.
  * Files are always fetched through the authenticated private B2 Worker.
@@ -46,7 +47,7 @@ const admin=()=>role==='admin'&&!preview;
 const visibleMedia=(p:Photo)=>view==='review'?admin()&&p.status==='pending':preview?p.status==='published':admin()||p.status==='published'||p.authorUid===uid;
 const paintAuthor=(target:HTMLElement,id:string,info:PublicAuthor)=>displayAuthor(target,info,id,uid,preview?'member':role,!preview&&viewerDM,fr,'../messages/','',db);
 const schoolName=(s:School)=>({kindergarten:tr('유치원','Maternelle'),elementary:tr('초등학교','Élémentaire'),middle:tr('중학교','Collège'),common:tr('공통 행사','Événements communs')})[s]||s;
-const dateText=(ts?:{toDate?:()=>Date})=>ts?.toDate?.()?.toLocaleDateString(fr?'fr-FR':'ko-KR')||'';
+const dateText=(ts?:{toDate?:()=>Date})=>formatParisDate(ts);
 const getMedia=async (path:string,method='GET',payload?:Blob,mime?:string)=>{
   if(!api)throw Error('Private file server missing');
   const user=auth.currentUser;if(!user)throw Error('Please sign in');
@@ -99,7 +100,7 @@ async function openAllPhotos(){
   if(view==='review'&&!admin())return;
   const epoch=++viewEpoch;clearMedia();by<HTMLElement>('album-list')?.replaceChildren();selected=null;photos=[];selectedPhotoIds.clear();show('album-list',false);show('album-detail',true);show('media-upload-form',false);show('album-new-form',false);show('gallery-bulk-tools',admin());
   by<HTMLElement>('album-actions')?.replaceChildren();by<HTMLElement>('gallery-items')?.replaceChildren();show('gallery-more',false);
-  t('album-active-title',view==='review'?tr('검토 대기 사진','Médias à vérifier'):tr('전체 보기','Tous les médias'));
+  t('album-active-title',view==='review'?tr('검토 대기','À vérifier'):tr('전체','Tous les médias'));
   t('album-active-meta',tr('사진을 불러오는 중…','Chargement…'));fillTarget();
   try{const records=await loadVisiblePhotos();if(epoch!==viewEpoch)return;
     const filtered=new Set(albums.filter(filtersMatch).map(a=>a.id));
@@ -241,7 +242,7 @@ function albumSelect(album:Album,field:'school'|'year'){
   const save=button(tr('저장','Enregistrer'),async()=>{if(!admin())return;save.disabled=true;try{await updateDoc(doc(db,'galleryAlbums',album.id),{[field]:field==='year'?Number(select.value):select.value,updatedAt:serverTimestamp()});msg(tr('앨범 정보가 저장되었습니다.','Album enregistré.'));await refresh();}catch(e){console.error(e);msg(tr('앨범을 수정하지 못했습니다.','Modification impossible.'),true);}finally{save.disabled=false;}});
   group.append(select,save);return group;
 }
-const mediaBtn=(caption:string,onClick:()=>void)=>{const b=button(caption,onClick);b.classList.add('btn-sm');return b;};
+const mediaBtn=(caption:string,onClick:()=>void)=>{const b=button(caption,onClick);b.classList.add('btn-sm');if(caption===tr('삭제','Supprimer'))b.classList.add('member-danger');return b;};
 function renderPhotos(append=false){
   const list=by<HTMLElement>('gallery-items');if(!list)return;
   if(!append){list.replaceChildren();renderedCount=0;moreObserver?.disconnect();}
@@ -268,13 +269,13 @@ function renderPhotos(append=false){
     if(admin()){
       if(photo.status!=='published'&&photo.status!=='draft')actions.append(mediaBtn(tr('공개','Publier'),()=>void changePhotoStatus(photo,'published')));
       if(['published','pending'].includes(photo.status))actions.append(mediaBtn(tr('비공개','Masquer'),()=>void changePhotoStatus(photo,'hidden')));
-      actions.append(mediaBtn(tr('저장된 파일 다운로드','Télécharger le fichier stocké'),()=>void downloadPhoto(photo)));
-      if(selected&&photo.mediaType==='photo'&&photo.status==='published')actions.append(mediaBtn(tr('앨범 대표 사진으로 지정','Choisir comme couverture'),()=>void setAlbumCover(photo)));
+      actions.append(mediaBtn(tr('다운로드','Télécharger'),()=>void downloadPhoto(photo)));
+      if(selected&&photo.mediaType==='photo'&&photo.status==='published')actions.append(mediaBtn(tr('대표 사진 지정','Choisir comme couverture'),()=>void setAlbumCover(photo)));
       actions.append(mediaBtn(tr('앨범 이동','Déplacer'),()=>void movePhoto(photo)));
       if(selected)actions.append(mediaBtn('↑',()=>void changeOrder(photo,-1)),mediaBtn('↓',()=>void changeOrder(photo,1)));
     }
     if(!preview&&!admin()&&selected?.ownerUid===uid&&photo.mediaType==='photo'&&photo.status==='published'){
-      actions.append(mediaBtn(tr('앨범 대표 사진으로 지정','Choisir comme couverture'),()=>void setAlbumCover(photo)));
+      actions.append(mediaBtn(tr('대표 사진 지정','Choisir comme couverture'),()=>void setAlbumCover(photo)));
     }
     if(actions.children.length)caption.append(actions);
     card.append(caption);list.append(card);

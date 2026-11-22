@@ -12,7 +12,7 @@ const lang = Astro.props.pageLang as Lang;
 const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
 ---
 <Base lang={lang} rest="membres/" title={L(lang,{ko:'ASICC 회원공간',fr:'Espace membres ASICC'})} noindex>
-<section class="wrap m-shell">
+<section class="wrap m-shell member-ui">
   <div id="member-root" data-lang={lang} data-login-url={href(lang,'membres/login/')} class="stack gap-24">
     <div class="stack gap-8">
       <span class="m-badge" style="align-self:flex-start">ASICC · ESPACE MEMBRES</span>
@@ -37,7 +37,7 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
         <div class="member-top-actions">
           <a class="btn btn-ghost" href={href(lang,'membres/profile/')}>{L(lang,{ko:'내 정보 관리',fr:'Mon profil'})}</a>
           <a class="btn btn-ghost" href={href(lang,'membres/upgrade/')} id="upgrade-shortcut" hidden>{L(lang,{ko:'승급 신청',fr:'Demander un statut'})}</a>
-          <a class="btn btn-ghost" id="member-messages-shortcut" href={href(lang,'membres/messages/')}>{L(lang,{ko:'쪽지함',fr:'Messages privés'})} <span data-asicc-unread class="asicc-unread" hidden aria-live="polite"></span></a>
+          <a class="btn btn-ghost" id="member-messages-shortcut" href={href(lang,'membres/messages/')}>{L(lang,{ko:'쪽지함',fr:'Messagerie'})} <span data-asicc-unread class="asicc-unread" hidden aria-live="polite"></span></a>
           <a class="btn btn-ghost" href={href(lang,'membres/suggestions/')}>{L(lang,{ko:'협회에 건의',fr:'Écrire à l’association'})}</a>
           <button id="member-signout" type="button" class="btn btn-ghost">{L(lang,{ko:'로그아웃',fr:'Déconnexion'})}</button>
         </div>
@@ -47,19 +47,19 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
           <div class="member-panel-title"><h2 class="h3">{L(lang,{ko:'학습자료실',fr:'Ressources pédagogiques'})}</h2><span aria-hidden="true">📚</span></div>
           <p id="recent-learning-count" class="small muted">{L(lang,{ko:'최근 등록 자료',fr:'Ressources récentes'})}</p>
           <div id="recent-learning" class="member-feed stack gap-8"></div>
-          <a class="btn btn-ghost member-bottom-link" href={href(lang,'membres/learning/')}>{L(lang,{ko:'학습자료실 가기',fr:'Accéder aux ressources'})} →</a>
+          <a class="btn btn-ghost member-bottom-link" href={href(lang,'membres/learning/')}>{L(lang,{ko:'학습자료실',fr:'Ressources pédagogiques'})} →</a>
         </section>
         <section class="card member-panel stack gap-12">
           <div class="member-panel-title"><h2 class="h3">{L(lang,{ko:'회원게시판',fr:'Forum des membres'})}</h2><span aria-hidden="true">💬</span></div>
           <p id="board-privilege" class="small muted"></p>
           <div id="recent-posts" class="member-feed stack gap-8"></div>
-          <a class="btn btn-ghost member-bottom-link" href={href(lang,'membres/board/')}>{L(lang,{ko:'회원게시판 가기',fr:'Accéder au forum'})} →</a>
+          <a class="btn btn-ghost member-bottom-link" href={href(lang,'membres/board/')}>{L(lang,{ko:'회원게시판',fr:'Forum des membres'})} →</a>
         </section>
         <section class="card member-panel stack gap-12">
           <div class="member-panel-title"><h2 class="h3">{L(lang,{ko:'갤러리',fr:'Galerie'})}</h2><span aria-hidden="true">🖼️</span></div>
           <p class="small muted">{L(lang,{ko:'초상권 관리 기준을 협의 중입니다. 갤러리 공개 전까지 이용할 수 없습니다.',fr:'Galerie en préparation : politique de droit à l’image en cours.'})}</p>
           <div id="recent-gallery" class="member-feed stack gap-8"></div>
-          <a id="gallery-link" class="btn btn-ghost member-bottom-link" href={href(lang,'membres/gallery/')}>{L(lang,{ko:'갤러리 가기',fr:'Accéder à la galerie'})} →</a>
+          <a id="gallery-link" class="btn btn-ghost member-bottom-link" href={href(lang,'membres/gallery/')}>{L(lang,{ko:'갤러리',fr:'Galerie'})} →</a>
         </section>
       </div>
       <p id="member-dashboard-status" class="small muted" role="status" aria-live="polite"></p>

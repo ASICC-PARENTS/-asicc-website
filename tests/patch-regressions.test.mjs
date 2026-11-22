@@ -26,7 +26,7 @@ test('existing board rich editor, photo logic, moderation and hard-delete logs r
 });
 
 test('member dashboard separates admin shortcuts and uses requested navigation labels',()=>{
-  for(const value of ['member-staff-links','admin-shortcut','office-shortcut','학습자료실 가기','회원게시판 가기','갤러리 가기'])assert.ok(member.includes(value),value);
+  for(const value of ['member-staff-links','admin-shortcut','office-shortcut',"ko:'학습자료실'","ko:'회원게시판'","ko:'갤러리'"])assert.ok(member.includes(value),value);
   assert.match(member,/\.member-staff-links\[hidden\]\s*\{display:none\}/);
 });
 

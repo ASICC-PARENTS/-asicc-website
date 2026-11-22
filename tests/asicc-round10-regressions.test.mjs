@@ -18,10 +18,10 @@ test('composer has full-width textarea, small action buttons, local result',()=>
  assert.match(msg,/result\('message-send-result',tr\('쪽지가 발송되었습니다\.'/);
  assert.doesNotMatch(msg,/toastResult/);
 });
-test('inbox directly displays safe text and offers reply and recipient-only deletion',()=>{
+test('inbox expandable detail displays safe text and offers reply and recipient-only deletion',()=>{
  assert.match(msg,/const body=node\('p',item.body\)/);assert.doesNotMatch(msg,/createElement\('details'\)|reportMessage|innerHTML/);
  assert.match(msg,/openCompose\(partner,\{kind:'reply',post:item.id,comment:''\}\)/);
- assert.match(msg,/recipientDeletedAt:serverTimestamp\(\)/);assert.match(msg,/!incoming\|\|!x.recipientDeletedAt/);
+ assert.match(msg,/recipientDeletedAt:serverTimestamp\(\)/);assert.match(read('src/scripts/members/mailbox-view.ts'),/!incoming\|\|!x.recipientDeletedAt/);
  assert.match(rules,/resource.data.recipientUid == request.auth.uid\s*&& \(\(/);
  assert.match(rules,/hasOnly\(\['recipientDeletedAt'\]\)/);
 });

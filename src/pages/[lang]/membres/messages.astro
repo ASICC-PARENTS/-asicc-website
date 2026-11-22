@@ -11,11 +11,11 @@ export function getStaticPaths() {
 const lang = Astro.props.pageLang as Lang;
 const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
 ---
-<Base lang={lang} rest="membres/messages/" title={L(lang,{ko:'회원 쪽지함',fr:'Messages privés'})} noindex>
+<Base lang={lang} rest="membres/messages/" title={L(lang,{ko:'쪽지함',fr:'Messagerie'})} noindex>
   <section class="wrap m-shell">
-    <div id="message-root" data-lang={lang} data-login-url={href(lang,'membres/login/')} class="stack gap-16" style="max-width:900px;margin:auto">
+    <div id="message-root" data-lang={lang} data-login-url={href(lang,'membres/login/')} class="stack gap-16 member-ui" style="max-width:1100px;margin:auto">
       <a href={href(lang,'membres/')} class="small">← {L(lang,{ko:'회원공간',fr:'Espace membres'})}</a>
-      <h1 class="h2">{L(lang,{ko:'회원 간 쪽지',fr:'Messagerie privée'})}</h1>
+      <h1 class="h2">{L(lang,{ko:'쪽지함',fr:'Messagerie'})}</h1>
       <p id="message-state" class="small muted" role="status">{L(lang,{ko:'계정 유형과 권한을 확인하는 중입니다…',fr:'Vérification du compte…'})}</p>
       {!live && <p>{L(lang,{ko:'회원 기능이 준비 중입니다.',fr:'Fonction indisponible.'})}</p>}
       <section id="message-minor" class="card" style="padding:24px" hidden>
@@ -31,13 +31,22 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
           <div class="message-compose-actions"><button type="button" id="message-cancel" class="btn btn-ghost">{L(lang,{ko:'닫기',fr:'Fermer'})}</button><button type="submit" class="btn btn-dark" disabled>{L(lang,{ko:'쪽지 보내기',fr:'Envoyer'})}</button></div>
           <p id="message-send-result" role="status" aria-live="polite" class="small" hidden></p>
         </form>
-        <section class="card stack gap-12" style="padding:22px">
-          <h2 class="h3">{L(lang,{ko:'받은 쪽지',fr:'Messages reçus'})} </h2>
-          <p id="message-inbox-result" class="small" role="status" aria-live="polite" hidden></p><div id="message-inbox" class="stack gap-12"></div>
-        </section>
-        <section class="card stack gap-12" style="padding:22px">
-          <h2 class="h3">{L(lang,{ko:'보낸 쪽지',fr:'Messages envoyés'})}</h2>
-          <div id="message-sent" class="stack gap-12"></div>
+        <section class="card mailbox-card stack gap-12">
+          <div class="board-category-tabs mailbox-tabs" role="tablist" aria-label={L(lang,{ko:'쪽지함 구분',fr:'Dossiers de messagerie'})}>
+            <button id="mail-tab-inbox" class="board-category-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="mail-panel-inbox">{L(lang,{ko:'받은 쪽지함',fr:'Boîte de réception'})} <span id="mail-count-inbox"></span></button>
+            <button id="mail-tab-sent" class="board-category-tab" type="button" role="tab" aria-selected="false" aria-controls="mail-panel-sent" tabindex="-1">{L(lang,{ko:'보낸 쪽지함',fr:'Messages envoyés'})} <span id="mail-count-sent"></span></button>
+          </div>
+          <section id="mail-panel-inbox" role="tabpanel" aria-labelledby="mail-tab-inbox" class="stack gap-8">
+            <p id="message-inbox-result" class="small" role="status" aria-live="polite" hidden></p>
+            <div class="mail-list-head mail-grid" aria-hidden="true"><span>{L(lang,{ko:'보낸 사람',fr:'Expéditeur'})}</span><span>{L(lang,{ko:'쪽지 내용',fr:'Message'})}</span><span>{L(lang,{ko:'날짜',fr:'Date'})} ↓</span></div>
+            <div id="message-inbox" class="mail-list"></div>
+            <nav id="mail-pages-inbox" class="mail-pages" aria-label={L(lang,{ko:'받은 쪽지 페이지',fr:'Pages des messages reçus'})}></nav>
+          </section>
+          <section id="mail-panel-sent" role="tabpanel" aria-labelledby="mail-tab-sent" class="stack gap-8" hidden>
+            <div class="mail-list-head mail-grid" aria-hidden="true"><span>{L(lang,{ko:'받는 사람',fr:'Destinataire'})}</span><span>{L(lang,{ko:'쪽지 내용',fr:'Message'})}</span><span>{L(lang,{ko:'날짜',fr:'Date'})} ↓</span><span>{L(lang,{ko:'읽음',fr:'Lecture'})}</span></div>
+            <div id="message-sent" class="mail-list mail-sent"></div>
+            <nav id="mail-pages-sent" class="mail-pages" aria-label={L(lang,{ko:'보낸 쪽지 페이지',fr:'Pages des messages envoyés'})}></nav>
+          </section>
         </section>
       </div>
     </div>
@@ -51,7 +60,24 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
 .message-compose-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
 .message-compose-actions .btn,:global(#message-root .message-actions .btn){width:auto;min-height:34px;padding:7px 13px;font-size:13px;white-space:nowrap}
 #message-send-result{text-align:right;overflow-wrap:anywhere}
-:global(.message-item){padding:14px;border:1px solid #dce0e7;border-radius:10px;display:grid;gap:10px;min-width:0}
+.mailbox-card{padding:20px;min-width:0}
+#message-root [hidden]{display:none!important}
+:global(#message-root .mail-grid){display:grid;grid-template-columns:minmax(0,1fr) minmax(0,3fr) 145px;gap:12px;align-items:center;min-width:0}
+:global(#message-root #mail-panel-sent .mail-grid){grid-template-columns:minmax(0,1fr) minmax(0,3fr) 145px 80px}
+.mail-list-head{padding:9px 12px;background:#f2f5f2;border-radius:6px;font-weight:600;font-size:12px;color:#56675e}
+.mail-list{border:1px solid #e1e6e2;border-radius:8px;overflow:hidden}
+:global(#message-root .mail-row){border:0;background:white;width:100%;padding:12px;text-align:left;font:inherit;font-size:14px;color:inherit;cursor:pointer;min-height:48px}
+:global(#message-root .mail-row:hover),:global(#message-root .mail-row[aria-expanded="true"]){background:#edf4ef}
+:global(#message-root .mail-row:focus-visible){outline:2px solid #376a5b;outline-offset:-2px}
+:global(#message-root .mail-entry+.mail-entry){border-top:1px solid #e1e6e2}
+:global(#message-root .mail-snippet),:global(#message-root .mail-name){min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+:global(#message-root .mail-name){font-weight:600}
+:global(#message-root .mail-date),:global(#message-root .mail-read){font-size:12px;color:#53675e;font-variant-numeric:tabular-nums}
+:global(#message-root .message-item){padding:16px;background:#f7faf7;border-top:1px solid #e1e6e2;display:grid;gap:10px;min-width:0}
+:global(#message-root .mail-pages){display:flex;justify-content:center;align-items:center;gap:10px;flex-wrap:wrap}
+:global(#message-root .mail-empty){padding:22px;text-align:center;color:#53675e;font-size:14px}
+@media(max-width:650px){.mailbox-card{padding:12px}.mail-list-head{display:none!important}:global(#message-root .mail-grid),:global(#message-root #mail-panel-sent .mail-grid){grid-template-columns:minmax(0,1fr) minmax(0,2fr) minmax(76px,98px);gap:6px}:global(#message-root .mail-row){padding:10px 8px;font-size:12px}:global(#message-root .mail-date){white-space:normal;font-size:11px}:global(#message-root .mail-read){grid-column:3;text-align:right;font-size:11px}}
+
 :global(.message-item-body){white-space:pre-wrap;overflow-wrap:anywhere;word-break:normal}
 :global(.message-actions){display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
 </style>

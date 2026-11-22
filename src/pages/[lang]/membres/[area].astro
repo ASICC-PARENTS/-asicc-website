@@ -13,7 +13,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
 ---
 <Base lang={lang} rest={`membres/${area}/`} title={L(lang,titles[area])} noindex>
   <section class="wrap m-shell board-shell">
-    <div class="stack gap-16" id="files-root" data-lang={lang} data-area={area} data-login-url={href(lang,'membres/login/')}>
+    <div class="stack gap-16 member-ui" id="files-root" data-lang={lang} data-area={area} data-login-url={href(lang,'membres/login/')}>
       <a href={href(lang,'membres/')} class="small">← {L(lang,{ko:'회원공간',fr:'Espace membres'})}</a>
       <h1 class="h2">{L(lang,titles[area])}</h1>
       <p class="muted">
@@ -105,14 +105,14 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
                 <div id="resource-existing-files" class="stack gap-8" hidden>
                   <strong>{L(lang,{ko:'현재 첨부파일',fr:'Pièces jointes actuelles'})}</strong>
                   <div id="resource-existing-file-list" class="stack gap-8"></div>
-                  <p class="small muted">{L(lang,{ko:'파일 제거는 수정 저장을 누른 뒤 적용됩니다. 제거를 취소할 수도 있습니다.',fr:'La suppression sera appliquée à l’enregistrement. Vous pouvez l’annuler.'})}</p>
+                  <p class="small muted">{L(lang,{ko:'파일 제거는 저장을 누른 뒤 적용됩니다. 제거를 취소할 수도 있습니다.',fr:'La suppression sera appliquée à l’enregistrement. Vous pouvez l’annuler.'})}</p>
                 </div>
                 <label for="resource-files">{L(lang,{ko:'추가할 첨부파일 (여러 개 선택 가능)',fr:'Ajouter des pièces jointes (sélection multiple)'})}</label>
                 <input id="resource-files" type="file" multiple accept=".pdf,.docx,.xlsx,.pptx,.txt,.jpg,.jpeg,.png,.webp"/>
                 <p id="resource-size" class="small muted" aria-live="polite">{L(lang,{ko:'게시글당 첨부파일 합계 최대 20MB',fr:'Maximum 20 Mo au total par publication'})}</p>
                 <ul id="resource-selected-file-names" class="small muted" style="margin:0;padding-left:20px" aria-label={L(lang,{ko:'새로 선택한 파일',fr:'Fichiers sélectionnés'})}></ul>
               </div>
-              <p class="small muted">{L(lang,{ko:'자료 등록을 누르면 전송이 시작됩니다. 완료될 때까지 이 화면을 닫지 마세요.',fr:'Le transfert démarre après « Publier ». Gardez cette page ouverte jusqu’à la fin.'})}</p>
+              <p class="small muted">{L(lang,{ko:'등록을 누르면 전송이 시작됩니다. 완료될 때까지 이 화면을 닫지 마세요.',fr:'Le transfert démarre après « Publier ». Gardez cette page ouverte jusqu’à la fin.'})}</p>
               <div id="resource-upload-progress" class="stack gap-8" hidden>
                 <label for="resource-progress-bar" id="resource-progress-text">{L(lang,{ko:'파일 전송 준비 중…',fr:'Préparation du transfert…'})}</label>
                 <progress id="resource-progress-bar" max="100" value="0">0%</progress>
@@ -122,7 +122,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
                 fr:'PDF, Word, Excel, PowerPoint, TXT, JPG, PNG et WebP, jusqu’à 8 fichiers.'
               })}</p>
               <div class="row gap-12" style="flex-wrap:wrap">
-                <button id="resource-save" class="btn btn-dark" type="submit">{L(lang,{ko:'자료 등록',fr:'Publier'})}</button>
+                <button id="resource-save" class="btn btn-dark" type="submit">{L(lang,{ko:'등록',fr:'Publier'})}</button>
                 <button id="resource-cancel" class="btn btn-ghost" type="button">{L(lang,{ko:'취소',fr:'Annuler'})}</button>
               </div>
             </form>
@@ -279,9 +279,10 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
   const removedAttachmentIds=new Set<string>();
   const el=(tag:string,text?:string)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;return e;};
   import {toastResult} from '../../../scripts/members/toast';
+  import {formatParisDate} from '../../../scripts/members/display-date';
 const note=(msg:string,bad=false)=>{if(status){status.hidden=!msg;status.textContent=msg;status.style.color=bad?'#b42318':'';}toastResult(msg,bad);};
   const moneySize=(n:number)=>(n/1_000_000).toLocaleString(fr?'fr-FR':'ko-KR',{maximumFractionDigits:2})+' MB';
-  const stamp=(v?:{toDate?:()=>Date})=>{try{return v?.toDate?.().toLocaleString(fr?'fr-FR':'ko-KR',{timeZone:'Europe/Paris',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})||'';}catch{return '';}};
+  const stamp=(v?:{toDate?:()=>Date})=>formatParisDate(v);
   const canLearningPost=()=>['member','special','admin'].includes(role);
   const isAdmin=()=>role==='admin';
   const permitted=()=>area==='learning'||area==='gallery'&&['member','special','admin'].includes(role)||area==='office'&&isAdmin();
@@ -482,7 +483,7 @@ const note=(msg:string,bad=false)=>{if(status){status.hidden=!msg;status.textCon
     show('resource-attachments-field',true);show('resource-existing-files',true);show('resource-upload-progress',false);
     renderExistingAttachments(item);
     const heading=by<HTMLElement>('resource-form-heading');if(heading)heading.textContent=tr('학습자료 수정','Modifier la ressource');
-    const save=by<HTMLButtonElement>('resource-save');if(save)save.textContent=tr('수정 저장','Enregistrer');
+    const save=by<HTMLButtonElement>('resource-save');if(save)save.textContent=tr('저장','Enregistrer');
     const title=by<HTMLInputElement>('resource-title');if(title)title.value=item.title||'';
     const category=by<HTMLSelectElement>('resource-category');if(category)category.value=normalizedCategory(item.category)||'';
     resetResourceEditor();if(resourceEditor){setEditorBody(resourceEditor,item.body||'');updatePhotoCounter();void populateResourcePhotos(resourceEditor);}
@@ -593,7 +594,7 @@ const note=(msg:string,bad=false)=>{if(status){status.hidden=!msg;status.textCon
     }
     // Older resources using Firebase Storage continue to display without migrating metadata.
     if(!parts.length&&item.storagePath){
-      const button=el('button',tr('기존 자료 다운로드','Télécharger le document existant')) as HTMLButtonElement;
+      const button=el('button',tr('다운로드','Télécharger')) as HTMLButtonElement;
       button.type='button';button.className='files-mini-btn';
       button.addEventListener('click',async()=>{
         button.disabled=true;
@@ -610,7 +611,7 @@ const note=(msg:string,bad=false)=>{if(status){status.hidden=!msg;status.textCon
           const edit=el('button',tr('수정','Modifier')) as HTMLButtonElement;edit.type='button';edit.className='files-mini-btn';
           edit.addEventListener('click',()=>editResource(item));actions.append(edit);
         }
-        const del=el('button',tr('자료 삭제','Supprimer')) as HTMLButtonElement;del.type='button';del.className='files-mini-btn';
+        const del=el('button',tr('삭제','Supprimer')) as HTMLButtonElement;del.type='button';del.className='files-mini-btn board-mini-danger';
         del.addEventListener('click',()=>void removeRecord(item,del));actions.append(del);card.append(actions);
       }
     }
@@ -660,7 +661,7 @@ const note=(msg:string,bad=false)=>{if(status){status.hidden=!msg;status.textCon
       });actions.append(edit);
     }
     if(!comment.deleted&&canLearningPost()&&(comment.authorUid===uid||isAdmin())){
-      const del=el('button',tr('삭제','Supprimer')) as HTMLButtonElement;del.type='button';del.className='files-mini-btn';
+      const del=el('button',tr('삭제','Supprimer')) as HTMLButtonElement;del.type='button';del.className='files-mini-btn board-mini-danger';
       del.addEventListener('click',async()=>{
         if(!confirm(tr('이 댓글·답글을 삭제할까요?','Supprimer ce commentaire ou cette réponse ?')))return;
         del.disabled=true;
@@ -719,7 +720,7 @@ const note=(msg:string,bad=false)=>{if(status){status.hidden=!msg;status.textCon
     const date=el('span',stamp(item.createdAt));date.className='small muted';cap.append(date);
     if(item.status==='draft'){const draft=el('span',tr('미완성 초안','Brouillon incomplet'));draft.className='small muted';cap.append(draft);}
     if(isAdmin()&&(item.status==='draft'||item.status==='published')){
-      const del=el('button',tr('사진 삭제','Supprimer la photo')) as HTMLButtonElement;del.type='button';del.className='files-mini-btn';
+      const del=el('button',tr('사진 삭제','Supprimer la photo')) as HTMLButtonElement;del.type='button';del.className='files-mini-btn board-mini-danger';
       del.addEventListener('click',()=>void removeRecord(item,del));cap.append(del);
     }
     card.append(image,cap);
@@ -869,7 +870,7 @@ const note=(msg:string,bad=false)=>{if(status){status.hidden=!msg;status.textCon
           :`${tr('수정 실패','Échec de la modification')}: ${error instanceof Error?error.message:String(error)}`,true);
       }finally{
         resourceSubmitting=false;show('resource-upload-progress',false);
-        if(save){save.disabled=false;save.textContent=tr('수정 저장','Enregistrer');}
+        if(save){save.disabled=false;save.textContent=tr('저장','Enregistrer');}
         if(cancel)cancel.disabled=false;
       }
       return;
@@ -946,7 +947,7 @@ const note=(msg:string,bad=false)=>{if(status){status.hidden=!msg;status.textCon
       await refresh().catch(console.error);
     }finally{
       resourceSubmitting=false;
-      if(save){save.disabled=false;save.textContent=tr('자료 등록','Publier');}
+      if(save){save.disabled=false;save.textContent=tr('등록','Publier');}
       if(cancel)cancel.disabled=false;
     }
   });
@@ -1038,7 +1039,7 @@ const note=(msg:string,bad=false)=>{if(status){status.hidden=!msg;status.textCon
     show('resource-attachments-field',true);show('resource-existing-files',false);show('resource-upload-progress',false);
     const files=by<HTMLInputElement>('resource-files');if(files)files.required=false;
     const heading=by<HTMLElement>('resource-form-heading');if(heading)heading.textContent=tr('새 학습자료 등록','Nouvelle ressource');
-    const save=by<HTMLButtonElement>('resource-save');if(save)save.textContent=tr('자료 등록','Publier');
+    const save=by<HTMLButtonElement>('resource-save');if(save)save.textContent=tr('등록','Publier');
     by<HTMLFormElement>('learning-form')?.reset();resetResourceEditor();updateAttachmentSummary();
     const draftWrap=by<HTMLElement>('resource-drafts-wrap');if(draftWrap)draftWrap.hidden=!isAdmin();
   }

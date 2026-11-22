@@ -7,7 +7,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
 ---
 <Base lang={lang} rest="membres/board/" title={L(lang,{ko:'회원게시판',fr:'Forum des membres'})} noindex>
   <section class="wrap m-shell board-shell">
-    <div class="stack gap-16" id="board-root" data-lang={lang} data-login-url={href(lang,'membres/login/')}>
+    <div class="stack gap-16 member-ui" id="board-root" data-lang={lang} data-login-url={href(lang,'membres/login/')}>
       <a href={href(lang,'membres/')} class="small">← {L(lang,{ko:'회원공간',fr:'Espace membres'})}</a>
       <h1 class="h2">{L(lang,{ko:'회원게시판',fr:'Forum des membres'})}</h1>
       <p class="muted">{L(lang,{ko:'일반회원은 읽기, 정회원·특별회원·운영진은 글쓰기와 댓글이 가능합니다.',fr:'Les membres généraux peuvent consulter les messages. La publication et les commentaires sont réservés aux membres de l’association, aux membres spéciaux et aux administrateurs.'})}</p>
@@ -99,7 +99,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
             <p id="photo-help" class="small muted" role="status">{L(lang,{ko:'사진 첨부는 비공개 저장소 연결 후 사용할 수 있습니다.',fr:'L’ajout de photos sera activé après la configuration du stockage privé.'})}</p>
             <p class="small muted">{L(lang,{ko:'최대 5,000자(서식 코드 포함), 사진 최대 10장 · 고화질 자동 압축(총용량 제한 없음).',fr:'5 000 caractères maximum (mise en forme incluse), 10 photos maximum, compressées sans limite totale de taille.'})}</p>
             <div class="board-editor-actions row gap-12">
-              <button class="btn btn-dark" id="post-save" type="submit">{L(lang,{ko:'등록하기',fr:'Publier'})}</button>
+              <button class="btn btn-dark" id="post-save" type="submit">{L(lang,{ko:'등록',fr:'Publier'})}</button>
               <button class="btn btn-ghost" id="post-cancel" type="button">{L(lang,{ko:'취소',fr:'Annuler'})}</button>
             </div>
           </form>
@@ -177,17 +177,11 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
   const tr=(ko:string,french:string)=>fr?french:ko;
   const status=by<HTMLElement>('board-status');
   import {toastResult} from '../../../scripts/members/toast';
+  import {formatParisDate} from '../../../scripts/members/display-date';
 const notify=(v:string,bad=false)=>{if(status){status.textContent=v;status.hidden=!v;status.style.color=bad?'#b42318':'';}toastResult(v,bad);};
   const clearNotice=()=>notify('');
   const el=(tag:string,text?:string)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;return node;};
-  const stamp=(v?:TimestampLike)=>{
-    try{
-      const date=v?.toDate?.();if(!date)return '';
-      return new Intl.DateTimeFormat(fr?'fr-FR':'ko-KR',{
-        timeZone:'Europe/Paris',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false
-      }).format(date).replace(/\.\s*/g,'. ');
-    }catch{return '';}
-  };
+  const stamp=(v?:TimestampLike)=>formatParisDate(v);
   const wasEdited=(created?:TimestampLike,updated?:TimestampLike)=>{
     try {return !!(created?.toDate&&updated?.toDate&&updated.toDate().getTime()-created.toDate().getTime()>1000);}catch{return false;}
   };
@@ -356,7 +350,7 @@ const notify=(v:string,bad=false)=>{if(status){status.textContent=v;status.hidde
         :tr('사진 첨부는 비공개 저장소 연결 후 사용할 수 있습니다.','L’ajout de photos sera activé après la configuration du stockage privé.');
       photoHelp.style.color='';
     }
-    const btn=by<HTMLButtonElement>('post-save');if(btn)btn.textContent=tr('등록하기','Publier');
+    const btn=by<HTMLButtonElement>('post-save');if(btn)btn.textContent=tr('등록','Publier');
   }
   function showWriter(post?:BoardData){
     if(!canWrite()||!editor)return;
@@ -370,7 +364,7 @@ const notify=(v:string,bad=false)=>{if(status){status.textContent=v;status.hidde
       const title=by<HTMLInputElement>('post-title');if(title)title.value=plainTitle;
       const select=by<HTMLSelectElement>('post-category');if(select)select.value=category;
       setEditorBody(editor,post.body);updatePhotoCounter();void populatePhotos(editor);
-      const btn=by<HTMLButtonElement>('post-save');if(btn)btn.textContent=tr('수정 저장','Enregistrer les modifications');
+      const btn=by<HTMLButtonElement>('post-save');if(btn)btn.textContent=tr('저장','Enregistrer');
     }
     by<HTMLInputElement>('post-title')?.focus();
   }
@@ -460,7 +454,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       }
 
       if(canModerate() && post.authorUid!==uid){
-        const hide=el('button',tr('숨기기','Masquer')) as HTMLButtonElement;
+        const hide=el('button',tr('비공개','Masquer')) as HTMLButtonElement;
         hide.type='button';
         hide.className='board-mini-btn';
         hide.addEventListener('click',()=>void hidePost(post));
@@ -680,7 +674,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       });btns.append(edit);
     }
     if(!c.deleted&&canModerate()&&c.authorUid!==uid){
-      const hide=el('button',tr('숨기기','Masquer')) as HTMLButtonElement;
+      const hide=el('button',tr('비공개','Masquer')) as HTMLButtonElement;
       hide.type='button';hide.className='board-mini-btn';
       hide.addEventListener('click',async()=>{
         if(!confirm(tr(isReply?'답글을 숨길까요?':'댓글을 숨길까요?',isReply?'Masquer cette réponse ?':'Masquer ce commentaire ?')))return;

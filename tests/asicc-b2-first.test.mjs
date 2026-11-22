@@ -22,7 +22,7 @@ test('gallery starts closed, server denies non-admin requests while closed', () 
   assert.match(rules, /function galleryReady\(\) \{ return galleryOpen\(\) \|\| isAdmin\(\); \}/);
 });
 test('UI accurately says B2 is active and unarchived originals are not retained', () => {
-  assert.match(galleryPage, /비공개 Backblaze B2에만 저장됩니다/);
+  assert.doesNotMatch(galleryPage, /Backblaze B2|Google Drive|Goodstack/);
   assert.match(galleryPage, /사진은 웹용으로 축소되며 원본은 별도 보관되지 않습니다/);
   assert.match(adminPage, /현재 파일은 Backblaze B2에만 저장되고 Google Drive 원본 자동 보관은 실행되지 않습니다/);
 });

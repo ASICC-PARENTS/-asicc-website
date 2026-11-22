@@ -312,6 +312,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
 </style>
 
 <script>
+  import {formatParisDate} from '../../../scripts/members/display-date';
   import { getApps, initializeApp } from 'firebase/app';
   import { getAuth, onAuthStateChanged, getIdToken } from 'firebase/auth';
   import {
@@ -475,10 +476,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   };
   const stamp = (value: any): string => {
     const ms=timestamp(value);if(!ms)return '—';
-    return new Intl.DateTimeFormat(fr?'fr-FR':'ko-KR',{
-      timeZone:'Europe/Paris',year:'numeric',month:'2-digit',day:'2-digit',
-      hour:'2-digit',minute:'2-digit',hour12:false
-    }).format(new Date(ms));
+    return formatParisDate(new Date(ms))||'—';
   };
   const gradeLabel = (m:Member):string => {
     const r=upgradeHistory.get(m.id);
