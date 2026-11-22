@@ -23,16 +23,19 @@ test('learning resources editing, comments and zero-attachment posts are preserv
   assert.match(worker,/if\(sum>MAX_RESOURCE_POST\|\|sum!==record\.bytesTotal\)/);
   assert.match(resources,/loadResourceCategories\(\)/);
 });
-test('gallery upload requires moderated state; album rights protect shared media',()=>{
-  assert.match(gallery,/review\?'pending':'published'/);
+test('gallery upload self-publishes after successful storage; shared album permissions remain',()=>{
+  assert.match(gallery,/await updateDoc\(record,\{status:'published'/);
+  assert.doesNotMatch(gallery,/gallery-review-\$\{i\}/);
+  assert.match(rules,/resource\.data\.reviewReason == 'consent_uncertain' && request\.resource\.data\.status == 'pending'/);
   assert.match(rules,/resource\.data\.isShared == false/);
   assert.match(rules,/resource\.data\.ownerUid == request\.auth\.uid && resource\.data\.isShared == false/);
   assert.match(gallery,/async function bulkUpdate/);
   assert.match(gallery,/gallery-target-album/);
 });
-test('private messages block student or unknown accounts server side',()=>{
-  assert.match(rules,/function isAdultAccount\(uid\)/);
-  assert.match(rules,/isAdultAccount\(request\.resource\.data\.recipientUid\)/);
+test('private messages block unapproved accounts and enforce actual contact permissions server side',()=>{
+  assert.match(rules,/function isDmAccount\(uid\)/);
+  assert.match(rules,/canSendTo\(request\.resource\.data\.recipientUid\)/);
+  assert.match(rules,/projectExceptionFor\(sender\) && projectExceptionFor\(recipient\) && sender\.dmProject == recipient\.dmProject/);
   assert.match(messages,/!dmAllowed\(me\.data\(\)\)/);
   assert.match(admin,/admin-edit-account-type/);
 });

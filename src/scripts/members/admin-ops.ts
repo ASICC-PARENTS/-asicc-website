@@ -1,7 +1,7 @@
 /** Independent admin settings UI: never touches existing membership moderation code. */
 import {getApps,initializeApp} from 'firebase/app';
 import {getAuth,onAuthStateChanged,getIdToken} from 'firebase/auth';
-import {getFirestore,collection,doc,getDoc,getDocs,setDoc,serverTimestamp} from 'firebase/firestore';
+import {getFirestore,collection,doc,getDoc,getDocs,query,where,setDoc,serverTimestamp} from 'firebase/firestore';
 import {firebaseConfig} from '../../firebase-config';
 const root=document.getElementById('asicc-admin');const fr=root?.dataset.lang==='fr';
 const tr=(ko:string,french:string)=>fr?french:ko;
@@ -64,7 +64,7 @@ by<HTMLButtonElement>('ops-save-gallery')?.addEventListener('click',async()=>{
 });
 by<HTMLButtonElement>('ops-save-toggles')?.addEventListener('click',async()=>{
   if(!admin)return;const enabled=by<HTMLInputElement>('ops-messaging-open')?.checked===true;
-  try{await setDoc(doc(db,'siteSettings','messaging'),{enabled,updatedBy:uid,updatedAt:serverTimestamp()});say(tr('쪽지 설정을 저장했습니다.','Messagerie enregistrée.'));}catch(e){console.error(e);say(tr('저장 실패: Firebase 규칙을 확인하세요.','Enregistrement impossible.'),true);}
+  try{await setDoc(doc(db,'siteSettings','messaging'),{enabled,updatedBy:uid,updatedAt:serverTimestamp()});window.dispatchEvent(new CustomEvent('asicc-messaging-setting',{detail:enabled}));say(tr('쪽지 설정을 저장했습니다.','Messagerie enregistrée.'));}catch(e){console.error(e);say(tr('저장 실패: Firebase 규칙을 확인하세요.','Enregistrement impossible.'),true);}
 });
 async function showInbox(){
   const target=by<HTMLElement>('ops-inbox');if(!target)return;
@@ -73,14 +73,14 @@ async function showInbox(){
     const [upgrades,suggestions,images,withdrawals,nameChanges]=await Promise.all([
       getDocs(collection(db,'upgradeRequests')),
       getDocs(collection(db,'suggestions')),
-      getDocs(collection(db,'galleryItems')),
+      getDocs(query(collection(db,'galleryItems'),where('status','==','pending'))),
       getDocs(collection(db,'memberWithdrawalRequests')),
       getDocs(collection(db,'nameChangeRequests'))
     ]);
     const lists=[
       {title:tr('승급 심사','Demandes de statut'),count:upgrades.docs.filter(d=>d.data().status==='pending').length,href:'#requests-heading'},
       {title:tr('건의·문의','Suggestions'),count:suggestions.docs.filter(d=>['received','reviewing'].includes(d.data().status)).length,href:'#suggestions-heading'},
-      {title:tr('사진 검토','Médias à vérifier'),count:images.docs.filter(d=>d.data().status==='pending').length,href:`/${fr?'fr':'ko'}/membres/gallery/`},
+      {title:tr('사진 검토','Médias à vérifier'),count:images.docs.filter(d=>d.data().status==='pending').length,href:'../gallery/?view=review'},
       {title:tr('탈퇴 요청','Demandes de départ'),count:withdrawals.docs.filter(d=>d.data().status==='pending').length,href:'#members-heading'},
       {title:tr('실명 변경 요청','Corrections de nom'),count:nameChanges.docs.filter(d=>d.data().status==='pending').length,href:'#name-requests-heading'}
     ];

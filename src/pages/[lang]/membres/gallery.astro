@@ -28,11 +28,21 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
           <p class="small muted">{L(lang,{ko:'갤러리는 비공개 시험 상태입니다. 실제 학생 사진을 등록하지 말고 테스트 파일만 사용해 주세요. 현재 저장소는 Backblaze B2이며 Google Drive 자동 보관은 연결·실행되지 않습니다.',fr:'La galerie est fermée. Utilisez uniquement des fichiers de test. L’archivage Google Drive n’est pas encore connecté.'})}</p>
         </section>
         <div id="gallery-preview-controls" class="row gap-8" hidden><button class="btn btn-ghost" type="button" id="gallery-member-preview">{L(lang,{ko:'정회원 화면 미리보기',fr:'Aperçu membre'})}</button><span id="gallery-preview-note" class="small muted" hidden>{L(lang,{ko:'정식 공개 후 정회원 화면 예시입니다. 실제 공개 설정은 변경되지 않습니다.',fr:'Simulation après ouverture. La galerie reste inchangée.'})}</span></div>
-        <div class="row gap-12" style="flex-wrap:wrap;align-items:center">
+        <div id="gallery-view-toolbar" class="stack gap-12">
+          <div class="gallery-view-heading">
+            <div class="row gap-8" style="flex-wrap:wrap">
+              <button type="button" class="btn btn-ghost" id="gallery-all-view">{L(lang,{ko:'전체 보기',fr:'Tout afficher'})}</button>
+              <button type="button" class="btn btn-ghost" id="gallery-folder-view" aria-pressed="true">{L(lang,{ko:'폴더로 보기',fr:'Par albums'})}</button>
+              <button type="button" class="btn btn-ghost" id="gallery-photo-view" aria-pressed="false">{L(lang,{ko:'전체 사진 보기',fr:'Tous les médias'})}</button>
+              <button type="button" class="btn btn-ghost" id="gallery-review-view" hidden>{L(lang,{ko:'검토 대기 사진',fr:'Médias à vérifier'})} <span id="gallery-review-count"></span></button>
+            </div>
+            <button id="album-new-toggle" type="button" class="btn btn-dark">{L(lang,{ko:'+ 새 앨범 생성',fr:'+ Nouvel album'})}</button>
+          </div>
+        <div id="gallery-filters" class="row gap-12" style="flex-wrap:wrap;align-items:center">
           <label class="stack gap-8"><span>{L(lang,{ko:'학교 구분',fr:'Établissement'})}</span><select id="album-school-filter"><option value="all">{L(lang,{ko:'전체',fr:'Tous'})}</option><option value="kindergarten">{L(lang,{ko:'유치원',fr:'Maternelle'})}</option><option value="elementary">{L(lang,{ko:'초등학교',fr:'Élémentaire'})}</option><option value="middle">{L(lang,{ko:'중학교',fr:'Collège'})}</option><option value="common">{L(lang,{ko:'공통 행사',fr:'Événements communs'})}</option></select></label>
           <label class="stack gap-8"><span>{L(lang,{ko:'연도',fr:'Année'})}</span><select id="album-year-filter"><option value="all">{L(lang,{ko:'전체',fr:'Toutes'})}</option></select></label>
           <label class="stack gap-8"><span>{L(lang,{ko:'행사 검색',fr:'Rechercher un événement'})}</span><input id="album-search" type="search" maxlength="80" placeholder={L(lang,{ko:'행사 앨범 이름',fr:'Nom de l’album'})}/></label>
-          <button id="album-new-toggle" type="button" class="btn btn-dark">{L(lang,{ko:'+ 새 행사 앨범',fr:'+ Nouvel album'})}</button>
+        </div>
         </div>
         <form id="album-new-form" class="card stack gap-12 gallery-form" hidden>
           <h2 class="h3">{L(lang,{ko:'행사 앨범 생성',fr:'Créer un album'})}</h2>
@@ -66,6 +76,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
             </div>
           </section>
           <div id="gallery-items" class="gallery-photo-grid"></div>
+          <button type="button" id="gallery-more" class="btn btn-ghost" hidden>{L(lang,{ko:'사진 더 보기',fr:'Afficher plus de médias'})}</button>
         </section>
       </div>
     </div>
@@ -82,6 +93,10 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
   </dialog>
 </Base>
 <style>
+.gallery-view-heading{display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap}
+#album-new-toggle{margin-inline-start:auto;white-space:nowrap}
+#gallery-view-toolbar button[aria-pressed="true"]{background:#e4edf0;color:#183b48;border-color:#91a9b2}
+#gallery-more[hidden],#gallery-review-view[hidden],#gallery-filters[hidden],#album-new-toggle[hidden]{display:none!important}
 .gallery-lock{padding:35px;max-width:800px}.gallery-lock[hidden],#gallery-app[hidden],#album-detail[hidden]{display:none}
 .gallery-main select,.gallery-main input:not([type=file]){padding:10px;border:1px solid #d6dee2;border-radius:9px;max-width:100%;box-sizing:border-box;background:white}
 .gallery-main label{display:grid;gap:7px;min-width:155px}.gallery-album-grid[hidden]{display:none}.gallery-album-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,225px),1fr));gap:14px}

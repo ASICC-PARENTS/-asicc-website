@@ -19,16 +19,16 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
       <p id="message-state" class="small muted" role="status">{L(lang,{ko:'계정 유형과 권한을 확인하는 중입니다…',fr:'Vérification du compte…'})}</p>
       {!live && <p>{L(lang,{ko:'회원 기능이 준비 중입니다.',fr:'Fonction indisponible.'})}</p>}
       <section id="message-minor" class="card" style="padding:24px" hidden>
-        {L(lang,{ko:'미성년자 및 성인 여부 미확인 계정은 개인 쪽지를 이용할 수 없습니다. 이용이 제한된 계정은 운영진에게 문의해 주세요. 협회 문의는 공식 건의·문의 페이지를 이용해 주세요.',fr:'La messagerie privée est indisponible pour les mineurs et les comptes dont l’âge n’est pas confirmé ou dont l’accès est restreint. Contactez l’association par la page officielle.'})}
+        {L(lang,{ko:'개인 쪽지는 만 18세 이상 회원이 기본 대상이며, 미성년 학생은 운영진의 프로젝트 예외 승인이 있는 경우에만 이용할 수 있습니다. 이용이 제한된 계정은 운영진에게 문의해 주세요. 협회 문의는 공식 건의·문의 페이지를 이용해 주세요.',fr:'La messagerie est destinée aux adultes ; une dérogation limitée à un projet approuvé peut être accordée aux élèves mineurs. Contactez l’association par la page officielle.'})}
       </section>
       <div id="message-content" class="stack gap-16" hidden>
         <form id="message-compose" class="card stack gap-12" style="padding:22px">
           <h2 class="h3">{L(lang,{ko:'새 쪽지 보내기',fr:'Nouveau message'})}</h2>
           <label>{L(lang,{ko:'받는 사람 닉네임 검색',fr:'Rechercher un destinataire'})}<input id="message-search" type="search" maxlength="50" placeholder={L(lang,{ko:'닉네임 입력',fr:'Pseudo'})}/></label>
           <select id="message-recipient" required><option value="">{L(lang,{ko:'회원 선택',fr:'Sélectionner un membre'})}</option></select>
-          <p id="message-advice" class="small muted"></p>
+          <p id="message-advice" class="small muted"></p><p id="message-recipient-state" class="small muted" role="status" aria-live="polite"></p>
           <label>{L(lang,{ko:'쪽지 내용',fr:'Votre message'})}<textarea id="message-body" rows="5" maxlength="2000" required></textarea></label>
-          <button type="submit" class="btn btn-dark">{L(lang,{ko:'쪽지 보내기',fr:'Envoyer'})}</button>
+          <button type="submit" class="btn btn-dark" disabled>{L(lang,{ko:'쪽지 보내기',fr:'Envoyer'})}</button>
         </form>
         <section class="card stack gap-12" style="padding:22px">
           <h2 class="h3">{L(lang,{ko:'받은 쪽지',fr:'Messages reçus'})} <span class="asicc-unread" id="message-unread-count" hidden></span></h2>

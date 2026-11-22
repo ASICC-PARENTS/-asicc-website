@@ -1,7 +1,7 @@
 import {test,before,after} from 'node:test';
 import fs from 'node:fs';
 import {initializeTestEnvironment,assertSucceeds,assertFails} from '@firebase/rules-unit-testing';
-import {doc,setDoc,getDoc,deleteDoc,updateDoc,serverTimestamp} from 'firebase/firestore';
+import {doc,setDoc,getDoc,getDocs,collection,query,where,deleteDoc,updateDoc,serverTimestamp} from 'firebase/firestore';
 let env;
 const mkProfile=(uid,role,status='approved')=>({uid,role,status,name:uid,email:`${uid}@example.test`,nickname:uid,nicknameKey:uid,accountType:'adult',createdAt:new Date()});
 const ctx=(uid,verified=true)=>env.authenticatedContext(uid,{email:`${uid}@example.test`,email_verified:verified}).firestore();
@@ -102,10 +102,15 @@ test('when opened, verified member and special may create albums and upload phot
     }));
     await assertFails(getDoc(doc(ctx('special'),'galleryItems','review-photo')));
     await assertSucceeds(getDoc(doc(ctx('admin'),'galleryItems','review-photo')));
+    const adminDb=ctx('admin');const pending=query(collection(adminDb,'galleryItems'),where('status','==','pending'));
+    const queue=await assertSucceeds(getDocs(pending));
+    if(queue.empty||!queue.docs.some(d=>d.id==='review-photo')||queue.docs.some(d=>d.data().status!=='pending'))throw Error('Incorrect review queue');
+    const reader=ctx('special');await assertFails(getDocs(query(collection(reader,'galleryItems'),where('status','==','pending'))));
     await assertSucceeds(updateDoc(doc(ctx('admin'),'galleryItems','review-photo'),{
       status:'published',updatedAt:serverTimestamp()
     }));
     await assertSucceeds(getDoc(doc(ctx('special'),'galleryItems','review-photo')));
+    const after=await assertSucceeds(getDocs(pending));if(after.docs.some(d=>d.id==='review-photo'))throw Error('Approved item remained in review queue');
   } finally {
     await assertSucceeds(setDoc(doc(ctx('admin'),'siteSettings','gallery'),{
       isOpen:false,updatedBy:'admin',updatedAt:serverTimestamp()

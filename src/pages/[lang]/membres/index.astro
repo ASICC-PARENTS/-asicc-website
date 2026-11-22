@@ -133,7 +133,7 @@ if(import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true')onAuthStateChanged(auth
    note('member-role',({general:tr('일반회원','Membre général'),member:tr('정회원','Membre'),special:tr('특별회원','Membre spécial'),admin:tr('운영진','Administrateur')} as Record<string,string>)[role]||role);
    const full=['member','special','admin'].includes(role);
    const messageLink=by('member-messages-shortcut');if(messageLink)messageLink.hidden=!dmAllowed(data);
-   if(!dmAllowed(data)){const status=by('member-dashboard-status');if(status)status.textContent=tr('미성년자, 성인 여부 미확인 또는 이용 제한 계정에는 개인 쪽지가 제공되지 않습니다.','Messagerie indisponible : compte mineur, non vérifié ou restreint.');}
+   if(!dmAllowed(data)){const status=by('member-dashboard-status');if(status)status.textContent=tr('개인 쪽지가 비활성화되어 있습니다. 미성년 학생의 프로젝트 예외 승인은 운영진에게 문의해 주세요.','Messagerie désactivée. Contactez les administrateurs pour une dérogation liée à un projet.');}
    const upgrade=by('upgrade-shortcut');if(upgrade)upgrade.hidden=role!=='general';
    const admin=by('admin-shortcut');if(admin)admin.hidden=role!=='admin';
    const office=by('office-shortcut');if(office)office.hidden=role!=='admin';

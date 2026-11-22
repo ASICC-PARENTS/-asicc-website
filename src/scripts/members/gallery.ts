@@ -1,4 +1,4 @@
-/** ASICC event gallery: member self-publishing, optional review, admin moderation.
+/** ASICC event gallery: member self-publishing, admin review queue and moderation.
  * Gallery is CLOSED until an administrator explicitly changes siteSettings/gallery.
  * Files are always fetched through the authenticated private B2 Worker.
  */
@@ -24,7 +24,11 @@ const button=(label:string,handler:()=>void)=>{const b=node('button',label) as H
 const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
 const auth=getAuth(app),db=getFirestore(app),api=BOARD_PHOTO_API.trim().replace(/\/$/,'');
 let uid='',role='',opened=false,albums:Album[]=[],photos:Photo[]=[],selected:Album|null=null;
-let preview=false,viewerDM=false;let busy=false;const selectedPhotoIds=new Set<string>();const mediaCache=new Map<string,string>();
+let preview=false,viewerDM=false;let busy=false;
+type GalleryView='albums'|'photos'|'review';
+let view:GalleryView='albums',viewEpoch=0,renderedCount=0;const PHOTO_BATCH=24;
+let moreObserver:IntersectionObserver|undefined;
+const selectedPhotoIds=new Set<string>();const mediaCache=new Map<string,string>();
 const authorCache=new Map<string,Promise<PublicAuthor>>();
 const roleLabel=(value:string)=>({general:tr('일반회원','Membre général'),member:tr('정회원','Membre régulier'),special:tr('특별회원','Membre spécial'),admin:tr('운영진','Administrateur')} as Record<string,string>)[value]||tr('회원','Membre');
 function authorName(id:string){
@@ -38,7 +42,7 @@ function authorName(id:string){
 
 const canPost=()=>!preview&&['member','special','admin'].includes(role);
 const admin=()=>role==='admin'&&!preview;
-const visibleMedia=(p:Photo)=>preview?p.status==='published':admin()||p.status==='published'||p.authorUid===uid;
+const visibleMedia=(p:Photo)=>view==='review'?admin()&&p.status==='pending':preview?p.status==='published':admin()||p.status==='published'||p.authorUid===uid;
 const paintAuthor=(target:HTMLElement,id:string,info:PublicAuthor)=>displayAuthor(target,info,id,uid,preview?'member':role,!preview&&viewerDM,fr,'../messages/');
 const schoolName=(s:School)=>({kindergarten:tr('유치원','Maternelle'),elementary:tr('초등학교','Élémentaire'),middle:tr('중학교','Collège'),common:tr('공통 행사','Événements communs')})[s]||s;
 const dateText=(ts?:{toDate?:()=>Date})=>ts?.toDate?.()?.toLocaleDateString(fr?'fr-FR':'ko-KR')||'';
@@ -61,23 +65,73 @@ async function loadSettings(){
   else msg('');
   return true;
 }
-const revoke=()=>{for(const x of mediaCache.values())URL.revokeObjectURL(x);mediaCache.clear();};
+const revoke=()=>{moreObserver?.disconnect();by<HTMLDialogElement>('gallery-lightbox')?.close();for(const x of mediaCache.values())URL.revokeObjectURL(x);mediaCache.clear();};
+function loadWhenVisible(el:HTMLElement,load:()=>void){
+  if(!('IntersectionObserver' in window)){load();return;}
+  // Each observed media starts downloading only near the viewport.
+  const observer=new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting)){observer.disconnect();pendingObservers.delete(observer);if(el.isConnected)load();}},{rootMargin:'250px'});
+  pendingObservers.add(observer);observer.observe(el);
+}
+const pendingObservers=new Set<IntersectionObserver>();
+function clearMedia(){for(const ob of pendingObservers)ob.disconnect();pendingObservers.clear();revoke();}
+function filtersMatch(album:Album){
+  const level=by<HTMLSelectElement>('album-school-filter')?.value||'all',year=by<HTMLSelectElement>('album-year-filter')?.value||'all';
+  const search=by<HTMLInputElement>('album-search')?.value.trim().toLocaleLowerCase()||'';
+  return (level==='all'||album.school===level)&&(year==='all'||String(album.year)===year)&&album.title.toLocaleLowerCase().includes(search);
+}
+function updateViewControls(){
+  show('gallery-review-view',admin());show('gallery-filters',view!=='review');show('album-new-toggle',canPost()&&view!=='review');
+  for(const [id,on] of [['gallery-folder-view',view==='albums'],['gallery-photo-view',view==='photos'],['gallery-review-view',view==='review']] as const){by<HTMLElement>(id)?.setAttribute('aria-pressed',String(on));}
+}
+async function reviewCount(){if(!admin())return;try{const snap=await getDocs(query(collection(db,'galleryItems'),where('status','==','pending')));t('gallery-review-count',`(${snap.size})`);}catch(e){console.warn('Review count unavailable',e);}}
+async function loadVisiblePhotos(){
+  if(view==='review')return admin()?(await getDocs(query(collection(db,'galleryItems'),where('status','==','pending')))).docs:[];
+  if(admin()&&!preview)return (await getDocs(collection(db,'galleryItems'))).docs;
+  const published=await getDocs(query(collection(db,'galleryItems'),where('status','==','published')));
+  if(preview)return published.docs;
+  const mine=await getDocs(query(collection(db,'galleryItems'),where('authorUid','==',uid)));
+  return [...new Map([...published.docs,...mine.docs].map(d=>[d.id,d])).values()];
+}
+function sortPhotos(items:Photo[]){return items.sort((a,b)=>(a.sortOrder??100000)-(b.sortOrder??100000)||((a.createdAt?.toDate?.()?.getTime()||0)-(b.createdAt?.toDate?.()?.getTime()||0)));}
+function fillTarget(){const target=by<HTMLSelectElement>('gallery-target-album');if(target){target.replaceChildren();for(const a of albums){const o=node('option',`${a.year} / ${schoolName(a.school)} / ${a.title}`) as HTMLOptionElement;o.value=a.id;target.append(o);}}}
+async function openAllPhotos(){
+  if(view==='review'&&!admin())return;
+  const epoch=++viewEpoch;clearMedia();by<HTMLElement>('album-list')?.replaceChildren();selected=null;photos=[];selectedPhotoIds.clear();show('album-list',false);show('album-detail',true);show('media-upload-form',false);show('album-new-form',false);show('gallery-bulk-tools',admin());
+  by<HTMLElement>('album-actions')?.replaceChildren();by<HTMLElement>('gallery-items')?.replaceChildren();show('gallery-more',false);
+  t('album-active-title',view==='review'?tr('검토 대기 사진','Médias à vérifier'):tr('전체 사진 보기','Tous les médias'));
+  t('album-active-meta',tr('사진을 불러오는 중…','Chargement…'));fillTarget();
+  try{const records=await loadVisiblePhotos();if(epoch!==viewEpoch)return;
+    const filtered=new Set(albums.filter(filtersMatch).map(a=>a.id));
+    photos=sortPhotos(records.map(d=>({id:d.id,...d.data()} as Photo)).filter(p=>visibleMedia(p)&&(view==='review'||filtered.has(p.albumId))));
+    t('album-active-meta',tr(`${photos.length}개 자료`,`${photos.length} médias`));renderPhotos();
+    if(view==='review')t('gallery-review-count',`(${photos.length})`);
+  }catch(e){if(epoch===viewEpoch){console.error(e);msg(tr('사진 목록을 불러오지 못했습니다.','Impossible de charger les médias.'),true);}}
+}
+async function changeView(next:GalleryView){if(busy||next==='review'&&!admin())return;view=next;selected=null;viewEpoch++;clearMedia();clearUploadPreview();by<HTMLFormElement>('media-upload-form')?.reset();by<HTMLElement>('gallery-file-review')?.replaceChildren();show('album-new-form',false);updateViewControls();
+ if(view==='albums'){show('album-detail',false);show('album-list',true);renderAlbums();}else await openAllPhotos();}
+async function refreshPhotos(){if(selected&&view==='albums')await openAlbum(selected);else if(view!=='albums')await openAllPhotos();else await refresh();void reviewCount();}
+
 async function refresh(){
   if(!opened&&!admin()&&!preview)return;
   const snap=await getDocs(collection(db,'galleryAlbums'));
   albums=snap.docs.map(d=>({id:d.id,...d.data()} as Album));
   albums.sort((a,b)=>b.year-a.year||a.title.localeCompare(b.title));
+  populateYears();updateViewControls();void reviewCount();
+  if(view!=='albums'){await openAllPhotos();return;}
   renderAlbums();
-  if(selected){selected=albums.find(a=>a.id===selected?.id)||null;if(selected)await openAlbum(selected);else show('album-detail',false);}
+  if(selected){selected=albums.find(a=>a.id===selected?.id)||null;if(selected)await openAlbum(selected);else{show('album-detail',false);show('album-list',true);}}else{show('album-detail',false);show('album-list',true);}
 }
-function renderAlbums(){
-  const list=by<HTMLElement>('album-list');if(!list)return;list.replaceChildren();
-  const level=by<HTMLSelectElement>('album-school-filter')?.value||'all';
-  const year=by<HTMLSelectElement>('album-year-filter')?.value||'all';
-  const search=by<HTMLInputElement>('album-search')?.value.trim().toLocaleLowerCase()||'';
+function populateYears(){
   const yearSelect=by<HTMLSelectElement>('album-year-filter');
   if(yearSelect){const current=yearSelect.value;yearSelect.replaceChildren();const all=node('option',tr('전체 연도','Toutes les années')) as HTMLOptionElement;all.value='all';yearSelect.append(all);
     for(let y=Math.max(2018,new Date().getFullYear());y>=2018;y--){const o=node('option',`${y}`) as HTMLOptionElement;o.value=String(y);yearSelect.append(o);}yearSelect.value=[...yearSelect.options].some(o=>o.value===current)?current:'all';}
+}
+function renderAlbums(){
+  if(!selected)viewEpoch++;
+  const list=by<HTMLElement>('album-list');if(!list)return;clearMedia();list.replaceChildren();
+  const level=by<HTMLSelectElement>('album-school-filter')?.value||'all';
+  const year=by<HTMLSelectElement>('album-year-filter')?.value||'all';
+  const search=by<HTMLInputElement>('album-search')?.value.trim().toLocaleLowerCase()||'';
   for(const album of albums.filter(a=>(level==='all'||a.school===level)&&(year==='all'||String(a.year)===year)&&a.title.toLocaleLowerCase().includes(search))){
     const card=node('article');card.className='gallery-album-card';
     const open=button(`📁 ${album.title}`,()=>void openAlbum(album));open.className='board-title-link';card.append(open,node('span',`${schoolName(album.school)} · ${album.year}`));
@@ -86,9 +140,9 @@ function renderAlbums(){
       cover.loading='lazy';cover.style.cursor='pointer';cover.addEventListener('click',()=>void openAlbum(album));card.prepend(cover);
       const cached=mediaCache.get(album.coverItemId);
       if(cached)cover.src=cached;
-      else void (async()=>{if(preview){const coverRecord=await getDoc(doc(db,'galleryItems',album.coverItemId!));if(coverRecord.data()?.status!=='published')throw Error('Not published');}return getMedia(`/api/gallery?itemId=${encodeURIComponent(album.coverItemId)}`);})().then(r=>r.blob()).then(blob=>{
-        if(!cover.isConnected)return;const url=URL.createObjectURL(blob);mediaCache.set(album.coverItemId!,url);cover.src=url;
-      }).catch(()=>{cover.remove();});
+      else loadWhenVisible(cover,()=>{const epoch=viewEpoch;void (async()=>{if(preview){const coverRecord=await getDoc(doc(db,'galleryItems',album.coverItemId!));if(coverRecord.data()?.status!=='published')throw Error('Not published');}return getMedia(`/api/gallery?itemId=${encodeURIComponent(album.coverItemId)}`);})().then(r=>r.blob()).then(blob=>{
+        if(epoch!==viewEpoch||!cover.isConnected||list.hidden)return;const url=URL.createObjectURL(blob);mediaCache.set(album.coverItemId!,url);cover.src=url;
+      }).catch(()=>{cover.remove();});});
     }
     const byWho=node('span',tr('앨범 생성자 확인 중','Chargement du créateur'));byWho.className='small muted';card.append(byWho);void authorName(album.ownerUid).then(label=>{if(card.isConnected)paintAuthor(byWho,album.ownerUid,label);});
     list.append(card);
@@ -96,8 +150,9 @@ function renderAlbums(){
   if(!list.children.length)list.append(node('p',tr('아직 앨범이 없습니다.','Aucun album pour cette sélection.')));
 }
 async function openAlbum(album:Album){
+  if(busy&&selected?.id!==album.id)return;view='albums';const epoch=++viewEpoch;updateViewControls();
   if(selected?.id!==album.id){clearUploadPreview();by<HTMLFormElement>('media-upload-form')?.reset();by<HTMLElement>('gallery-file-review')?.replaceChildren();}
-  revoke();selected=album;show('album-list',false);show('album-detail',true);show('media-upload-form',canPost());
+  clearMedia();by<HTMLElement>('album-list')?.replaceChildren();photos=[];by<HTMLElement>('gallery-items')?.replaceChildren();show('gallery-more',false);selected=album;show('album-list',false);show('album-detail',true);show('media-upload-form',canPost());
   t('album-active-title',album.title);t('album-active-meta',`${schoolName(album.school)} · ${album.year} · ${dateText(album.createdAt)}`);
   const actions=by<HTMLElement>('album-actions');actions?.replaceChildren();
   selectedPhotoIds.clear();show('gallery-bulk-tools',admin());
@@ -113,17 +168,9 @@ async function openAlbum(album:Album){
     if(album.isShared)actions?.append(button(tr('공유 잠금 해제 확인','Vérifier le déverrouillage'),()=>void unlockAlbum(album)));
   }
   try{
-    let snapshots;
-    if(role==='admin'){const all=await getDocs(collection(db,'galleryItems'));snapshots={docs:all.docs.filter(d=>d.data().albumId===album.id)};}
-    else{
-      const published=await getDocs(query(collection(db,'galleryItems'),where('status','==','published')));
-      const mine=await getDocs(query(collection(db,'galleryItems'),where('authorUid','==',uid)));
-      const found=new Map([...published.docs.filter(d=>d.data().albumId===album.id),...mine.docs.filter(d=>d.data().albumId===album.id)].map(d=>[d.id,d]));
-      snapshots={docs:[...found.values()]};
-    }
-    if(selected?.id!==album.id)return;
-    photos=snapshots.docs.map(d=>({id:d.id,...d.data()} as Photo)).filter(visibleMedia);
-    photos.sort((a,b)=>(a.sortOrder??100000)-(b.sortOrder??100000)||((a.createdAt?.toDate?.()?.getTime()||0)-(b.createdAt?.toDate?.()?.getTime()||0)));
+    const records=await loadVisiblePhotos();
+    if(epoch!==viewEpoch||selected?.id!==album.id)return;
+    photos=sortPhotos(records.map(d=>({id:d.id,...d.data()} as Photo)).filter(p=>p.albumId===album.id&&visibleMedia(p)));
     renderPhotos();
   }catch(e){console.error(e);msg(tr('사진 목록을 불러오지 못했습니다. Firebase 규칙을 확인하세요.','Impossible de charger les médias. Vérifiez les règles Firebase.'),true);}
 }
@@ -194,9 +241,11 @@ function albumSelect(album:Album,field:'school'|'year'){
   group.append(select,save);return group;
 }
 const mediaBtn=(caption:string,onClick:()=>void)=>{const b=button(caption,onClick);b.classList.add('btn-sm');return b;};
-function renderPhotos(){
-  const list=by<HTMLElement>('gallery-items');if(!list)return;list.replaceChildren();
-  for(const photo of photos){
+function renderPhotos(append=false){
+  const list=by<HTMLElement>('gallery-items');if(!list)return;
+  if(!append){list.replaceChildren();renderedCount=0;moreObserver?.disconnect();}
+  const visible=photos.filter(visibleMedia);const batch=visible.slice(renderedCount,renderedCount+PHOTO_BATCH);renderedCount+=batch.length;
+  for(const photo of batch){
     if(!visibleMedia(photo))continue;
     const card=node('article');card.className='gallery-media-card';
     if(admin()){const pick=node('label') as HTMLLabelElement;pick.style.cssText='display:flex;gap:7px;align-items:center;padding:8px';
@@ -206,6 +255,7 @@ function renderPhotos(){
     const media=photo.mediaType==='video'?node('video') as HTMLVideoElement:node('img') as HTMLImageElement;
     if(media instanceof HTMLImageElement){media.alt=photo.description||tr('갤러리 사진','Photo de galerie');media.loading='lazy';}else{media.controls=true;media.playsInline=true;media.setAttribute('controlsList','nodownload');media.preload='metadata';}
     card.append(media);const caption=node('div');caption.className='gallery-media-caption';
+    if(!selected){const album=albums.find(a=>a.id===photo.albumId);if(album){if(view==='review')caption.append(node('span',`${album.year} · ${album.title}`));else caption.append(button(`${album.year} · ${album.title}`,()=>void openAlbum(album)));}}
     if(photo.description)caption.append(node('p',photo.description));
     const author=node('span',tr('등록자 확인 중','Chargement de l’auteur'));author.className='small muted';caption.append(author);
     void authorName(photo.authorUid).then(label=>{if(card.isConnected)paintAuthor(author,photo.authorUid,label);});
@@ -219,22 +269,23 @@ function renderPhotos(){
       if(photo.status==='published')actions.append(mediaBtn(tr('비공개','Masquer'),()=>void changePhotoStatus(photo,'hidden')));
       if(photo.status==='pending')actions.append(mediaBtn(tr('반려','Refuser'),()=>void changePhotoStatus(photo,'rejected')));
       actions.append(mediaBtn(tr('저장된 파일 다운로드','Télécharger le fichier stocké'),()=>void downloadPhoto(photo)));
-      if(photo.mediaType==='photo'&&photo.status==='published')actions.append(mediaBtn(tr('앨범 대표 사진으로 지정','Choisir comme couverture'),()=>void setAlbumCover(photo)));
+      if(selected&&photo.mediaType==='photo'&&photo.status==='published')actions.append(mediaBtn(tr('앨범 대표 사진으로 지정','Choisir comme couverture'),()=>void setAlbumCover(photo)));
       actions.append(mediaBtn(tr('앨범 이동','Déplacer'),()=>void movePhoto(photo)));
-      actions.append(mediaBtn('↑',()=>void changeOrder(photo,-1)),mediaBtn('↓',()=>void changeOrder(photo,1)));
+      if(selected)actions.append(mediaBtn('↑',()=>void changeOrder(photo,-1)),mediaBtn('↓',()=>void changeOrder(photo,1)));
     }
     if(!preview&&!admin()&&selected?.ownerUid===uid&&photo.mediaType==='photo'&&photo.status==='published'){
       actions.append(mediaBtn(tr('앨범 대표 사진으로 지정','Choisir comme couverture'),()=>void setAlbumCover(photo)));
     }
     if(actions.children.length)caption.append(actions);
     card.append(caption);list.append(card);
-    if(photo.status!=='draft')void getMedia(filePath(photo)).then(r=>r.blob()).then(b=>{
-      if(!media.isConnected)return;const url=URL.createObjectURL(b);mediaCache.set(photo.id,url);media.addEventListener('error',()=>{if(!media.isConnected)return;const warning=node('p',tr('파일을 읽을 수 없습니다.','Fichier illisible.'));warning.className='asicc-gallery-error';media.replaceWith(warning);},{once:true});media.src=url;
+    if(photo.status!=='draft')loadWhenVisible(media,()=>{const epoch=viewEpoch;void getMedia(filePath(photo)).then(r=>r.blob()).then(b=>{
+      if(epoch!==viewEpoch||!media.isConnected)return;const url=mediaCache.get(photo.id)||URL.createObjectURL(b);mediaCache.set(photo.id,url);media.addEventListener('error',()=>{if(!media.isConnected)return;const warning=node('p',tr('파일을 읽을 수 없습니다.','Fichier illisible.'));warning.className='asicc-gallery-error';media.replaceWith(warning);},{once:true});media.src=url;
       if(media instanceof HTMLImageElement)media.addEventListener('click',()=>lightbox(photo,url));
-    }).catch((error)=>{if(!media.isConnected)return;const warning=node('p',tr('미리보기를 불러오지 못했습니다.','Aperçu indisponible.')+' '+String(error.message||error));warning.className='asicc-gallery-error';media.replaceWith(warning);});
+    }).catch((error)=>{if(!media.isConnected)return;const warning=node('p',tr('미리보기를 불러오지 못했습니다.','Aperçu indisponible.')+' '+String(error.message||error));warning.className='asicc-gallery-error';media.replaceWith(warning);});});
     else{const warning=node('p',tr('업로드가 완료되지 않은 파일입니다.','Transfert incomplet.'));warning.className='asicc-gallery-error';media.replaceWith(warning);}
   }
-  if(!list.children.length)list.append(node('p',tr('이 앨범에 공개된 사진이 없습니다.','Aucun média dans cet album.')));
+  if(!list.children.length)list.append(node('p',view==='review'?tr('검토 대기 사진이 없습니다.','Aucun média à vérifier.'):tr('표시할 사진·동영상이 없습니다.','Aucun média à afficher.')));
+  const more=by<HTMLButtonElement>('gallery-more');if(more){more.hidden=renderedCount>=visible.length;moreObserver?.disconnect();if(!more.hidden&&'IntersectionObserver' in window){moreObserver=new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting)){moreObserver?.disconnect();renderPhotos(true);}},{rootMargin:'150px'});moreObserver.observe(more);}}
 }
 let lightboxPosition=-1;
 function lightbox(photo:Photo,url:string){
@@ -255,9 +306,9 @@ function stepLightbox(delta:number){
   const photo=visible[lightboxPosition+delta];if(!photo)return;
   const url=mediaCache.get(photo.id);
   if(url)lightbox(photo,url);
-  else void getMedia(filePath(photo)).then(r=>r.blob()).then(blob=>{
-    const link=URL.createObjectURL(blob);mediaCache.set(photo.id,link);lightbox(photo,link);
-  }).catch(()=>msg(tr('사진을 열 수 없습니다.','Impossible d’ouvrir le média.'),true));
+  else {const epoch=viewEpoch;void getMedia(filePath(photo)).then(r=>r.blob()).then(blob=>{
+    if(epoch!==viewEpoch||!by<HTMLDialogElement>('gallery-lightbox')?.open)return;const link=URL.createObjectURL(blob);mediaCache.set(photo.id,link);lightbox(photo,link);
+  }).catch(()=>msg(tr('사진을 열 수 없습니다.','Impossible d’ouvrir le média.'),true));}
 }
 async function clearCoverReference(photo:Photo){
   const album=albums.find(a=>a.id===photo.albumId);
@@ -281,14 +332,14 @@ async function downloadPhoto(photo:Photo){
   }catch(e){console.error(e);msg(tr('파일 다운로드에 실패했습니다.','Téléchargement impossible.'),true);}
 }
 async function editPhoto(photo:Photo){const description=prompt(tr('사진 설명','Description'),photo.description||'');if(description===null||description.length>3000)return;
-  try{await updateDoc(doc(db,'galleryItems',photo.id),{description,updatedAt:serverTimestamp()});if(selected)await openAlbum(selected);}catch(e){console.error(e);msg(tr('수정할 수 없습니다.','Modification refusée.'),true);}
+  try{await updateDoc(doc(db,'galleryItems',photo.id),{description,updatedAt:serverTimestamp()});await refreshPhotos();}catch(e){console.error(e);msg(tr('수정할 수 없습니다.','Modification refusée.'),true);}
 }
 async function changePhotoStatus(photo:Photo,state:Photo['status']){
   if(!admin()||state==='published'&&photo.status==='draft')return;if(!confirm(tr('사진 공개 상태를 변경할까요?','Modifier la visibilité du média ?')))return;
-  try{if(state!=='published')await clearCoverReference(photo);await updateDoc(doc(db,'galleryItems',photo.id),{status:state,updatedAt:serverTimestamp()});if(selected)await openAlbum(selected);}catch(e){console.error(e);msg(tr('공개 상태를 변경하지 못했습니다.','Changement d’état refusé.'),true);}
+  try{if(state!=='published')await clearCoverReference(photo);await updateDoc(doc(db,'galleryItems',photo.id),{status:state,updatedAt:serverTimestamp()});await refreshPhotos();}catch(e){console.error(e);msg(tr('공개 상태를 변경하지 못했습니다.','Changement d’état refusé.'),true);}
 }
 async function deletePhoto(photo:Photo){if(!confirm(tr('이 파일을 삭제할까요? 보관 원본에 관한 별도 개인정보 요청은 운영진에게 전달해 주세요.','Supprimer ce fichier ? Pour l’archivage, contactez l’administration.')))return;
-  try{await clearCoverReference(photo);await getMedia(filePath(photo),'DELETE');await deleteDoc(doc(db,'galleryItems',photo.id));if(selected)await openAlbum(selected);}catch(e){console.error(e);msg(tr('삭제에 실패했습니다.','Suppression impossible.'),true);}
+  try{await clearCoverReference(photo);await getMedia(filePath(photo),'DELETE');await deleteDoc(doc(db,'galleryItems',photo.id));await refreshPhotos();}catch(e){console.error(e);msg(tr('삭제에 실패했습니다.','Suppression impossible.'),true);}
 }
 async function movePhoto(photo:Photo){if(!admin())return;
   const dest=by<HTMLSelectElement>('gallery-target-album')?.value||'';
@@ -299,14 +350,14 @@ async function movePhoto(photo:Photo){if(!admin())return;
       await updateDoc(doc(db,'galleryAlbums',dest),{isShared:true,updatedAt:serverTimestamp()});destination.isShared=true;
     }
     await clearCoverReference(photo);
-    await updateDoc(doc(db,'galleryItems',photo.id),{albumId:dest,updatedAt:serverTimestamp()});if(selected)await openAlbum(selected);
+    await updateDoc(doc(db,'galleryItems',photo.id),{albumId:dest,updatedAt:serverTimestamp()});await refreshPhotos();
   }catch(e){console.error(e);msg(tr('사진을 이동하지 못했습니다.','Déplacement impossible.'),true);}
 }
 async function changeOrder(photo:Photo,step:number){if(!admin())return;const idx=photos.findIndex(x=>x.id===photo.id),other=photos[idx+step];if(idx<0||!other)return;
   try{const a=photo.sortOrder??idx,b=other.sortOrder??idx+step;
     await updateDoc(doc(db,'galleryItems',photo.id),{sortOrder:b,updatedAt:serverTimestamp()});
     await updateDoc(doc(db,'galleryItems',other.id),{sortOrder:a,updatedAt:serverTimestamp()});
-    if(selected)await openAlbum(selected);
+    await refreshPhotos();
   }catch(e){console.error(e);msg(tr('순서를 변경하지 못했습니다.','Impossible de changer l’ordre.'),true);}
 }
 async function shrink(file:File){
@@ -319,40 +370,34 @@ async function shrink(file:File){
     if(!blob||blob.size>1500000)throw Error('Image too large after optimization');return blob;
   }finally{image.close();}
 }
-async function notifyReview(id:string){
-  try{await getMedia(`/api/notify`, 'POST',new Blob([JSON.stringify({kind:'gallery',id})],{type:'application/json'}),'application/json');}
-  catch(e){console.warn('Notification delivery not configured',e);}
-}
 async function upload(){if(!selected||busy||!canPost())return;
   const files=Array.from(by<HTMLInputElement>('gallery-files')?.files||[]);if(!files.length)return;
   if(files.length>40)return msg(tr('한 번에 최대 40개 파일을 선택해 주세요.','Maximum 40 fichiers par envoi.'),true);
-  busy=true;const save=by<HTMLButtonElement>('gallery-submit');if(save)save.disabled=true;
+  const uploadAlbum=selected;busy=true;const save=by<HTMLButtonElement>('gallery-submit');if(save)save.disabled=true;
   try{
-    if(selected.ownerUid!==uid&&!selected.isShared){await updateDoc(doc(db,'galleryAlbums',selected.id),{isShared:true,updatedAt:serverTimestamp()});selected.isShared=true;}
+    if(uploadAlbum.ownerUid!==uid&&!uploadAlbum.isShared){await updateDoc(doc(db,'galleryAlbums',uploadAlbum.id),{isShared:true,updatedAt:serverTimestamp()});uploadAlbum.isShared=true;}
     for(let i=0;i<files.length;i++){
       const file=files[i],isVideo=file.type==='video/mp4'||file.type==='video/webm';
-      const review=by<HTMLInputElement>(`gallery-review-${i}`)?.checked===true;
       const description=by<HTMLTextAreaElement>(`gallery-description-${i}`)?.value.trim()||'';
       if(!isVideo&&!['image/jpeg','image/png','image/webp'].includes(file.type))throw Error('Unsupported file type');
       if(file.size>20000000||file.size===0)throw Error(`${file.name}: maximum 20 MB`);
       const blob=isVideo?file:await shrink(file),mime=isVideo?file.type:'image/webp';
       const record=doc(collection(db,'galleryItems'));
       const image:FileMeta={id:crypto.randomUUID(),mime,size:blob.size};
-      await setDoc(record,{albumId:selected.id,title:isVideo?tr('동영상','Vidéo'):tr('사진','Photo'),description,authorUid:uid,
+      await setDoc(record,{albumId:uploadAlbum.id,title:isVideo?tr('동영상','Vidéo'):tr('사진','Photo'),description,authorUid:uid,
         mediaType:isVideo?'video':'photo',originalName:file.name.slice(0,255),image,status:'draft',
-        reviewReason:review?'consent_uncertain':'',sortOrder:Date.now()+i,createdAt:serverTimestamp()});
+        reviewReason:'',sortOrder:Date.now()+i,createdAt:serverTimestamp()});
       msg(tr(`업로드 ${i+1}/${files.length}: ${file.name}`,`Transfert ${i+1}/${files.length}: ${file.name}`));
       await getMedia(`/api/gallery-upload?itemId=${encodeURIComponent(record.id)}`,'POST',blob,mime);
-      await updateDoc(record,{status:review?'pending':'published',updatedAt:serverTimestamp()});
-      if(review)void notifyReview(record.id);
+      await updateDoc(record,{status:'published',updatedAt:serverTimestamp()});
     }
     by<HTMLFormElement>('media-upload-form')?.reset();clearUploadPreview();by<HTMLElement>('gallery-file-review')?.replaceChildren();
-    msg(tr('파일 업로드가 완료되었습니다. 검토 요청한 사진은 운영진 승인 전까지 비공개입니다.','Transfert terminé. Les médias à examiner restent privés.'));
-    if(selected)await openAlbum(selected);
+    msg(tr('파일 업로드가 완료되었습니다.','Transfert terminé.'));
+    await refreshPhotos();
   }catch(e){console.error(e);msg(tr('업로드가 일부 실패했습니다. 미완성 항목은 운영진에게 알려주세요.','Envoi partiellement échoué. Signalez les brouillons à l’administration.')+' '+String(e),true);}finally{busy=false;if(save)save.disabled=false;}
 }
 async function bulkUpdate(action:'move'|'approve'|'hide'){
-  if(!admin()||!selected||busy)return;
+  if(!admin()||busy)return;
   const current=photos.filter(x=>selectedPhotoIds.has(x.id));
   if(!current.length)return msg(tr('먼저 사진을 선택해 주세요.','Sélectionnez des photos.'),true);
   const dest=by<HTMLSelectElement>('gallery-target-album')?.value||'';
@@ -372,14 +417,14 @@ async function bulkUpdate(action:'move'|'approve'|'hide'){
       if(action==='approve'&&photo.status!=='published'&&photo.status!=='draft')await updateDoc(doc(db,'galleryItems',photo.id),{status:'published',updatedAt:serverTimestamp()});
       if(action==='hide'&&photo.status!=='hidden'){await clearCoverReference(photo);await updateDoc(doc(db,'galleryItems',photo.id),{status:'hidden',updatedAt:serverTimestamp()});}
     }
-    selectedPhotoIds.clear();await openAlbum(selected);msg(tr('일괄 작업을 완료했습니다.','Action groupée terminée.'));
+    selectedPhotoIds.clear();await refreshPhotos();msg(tr('일괄 작업을 완료했습니다.','Action groupée terminée.'));
   }catch(e){console.error(e);msg(tr('일부 항목을 수정하지 못했습니다. 목록을 새로고침해 주세요.','Certains fichiers n’ont pas été modifiés.'),true);}
   finally{busy=false;}
 }
 by<HTMLButtonElement>('gallery-bulk-move')?.addEventListener('click',()=>void bulkUpdate('move'));
 by<HTMLButtonElement>('gallery-bulk-approve')?.addEventListener('click',()=>void bulkUpdate('approve'));
 by<HTMLButtonElement>('gallery-bulk-hide')?.addEventListener('click',()=>void bulkUpdate('hide'));
-by<HTMLButtonElement>('album-new-toggle')?.addEventListener('click',()=>show('album-new-form',true));
+by<HTMLButtonElement>('album-new-toggle')?.addEventListener('click',()=>{if(!busy&&canPost()&&view!=='review')show('album-new-form',true);});
 by<HTMLButtonElement>('album-new-cancel')?.addEventListener('click',()=>show('album-new-form',false));
 by<HTMLFormElement>('album-new-form')?.addEventListener('submit',async e=>{e.preventDefault();if(!canPost()||busy)return;
   const title=by<HTMLInputElement>('album-title')?.value.trim()||'',school=by<HTMLSelectElement>('album-school')?.value as School;
@@ -401,16 +446,23 @@ by<HTMLInputElement>('gallery-files')?.addEventListener('change',()=>{
     const fields=node('div');fields.className='asicc-gallery-review-fields';
     fields.append(node('strong',`${i+1}. ${file.type.startsWith('video/')?tr('동영상','Vidéo'):tr('사진','Photo')} · ${(file.size/1e6).toFixed(1)} MB`));
     const desc=node('textarea') as HTMLTextAreaElement;desc.id=`gallery-description-${i}`;desc.rows=2;desc.maxLength=3000;desc.placeholder=tr('사진·동영상 설명 (선택)','Description (facultatif)');desc.setAttribute('aria-label',desc.placeholder);fields.append(desc);
-    const choice=node('label');const input=node('input') as HTMLInputElement;input.type='checkbox';input.id=`gallery-review-${i}`;choice.append(input,node('span',tr(' 운영진 검토 요청 → 임시 비공개',' Demander un examen → privé')));fields.append(choice);row.append(fields);target.append(row);});
+    row.append(fields);target.append(row);});
 });
-window.addEventListener('pagehide',clearUploadPreview);
+window.addEventListener('pagehide',()=>{viewEpoch++;clearUploadPreview();clearMedia();});
+window.addEventListener('pageshow',e=>{if(e.persisted&&uid)void refresh().catch(console.warn);});
 by<HTMLButtonElement>('gallery-member-preview')?.addEventListener('click',async()=>{
-  if(role!=='admin'||busy)return;preview=!preview;selected=null;revoke();clearUploadPreview();by<HTMLFormElement>('media-upload-form')?.reset();by<HTMLElement>('gallery-file-review')?.replaceChildren();
+  if(role!=='admin'||busy)return;preview=!preview;view='albums';viewEpoch++;selected=null;clearMedia();clearUploadPreview();by<HTMLFormElement>('media-upload-form')?.reset();by<HTMLElement>('gallery-file-review')?.replaceChildren();
   show('album-detail',false);show('album-list',true);show('album-new-form',false);show('album-new-toggle',!preview);show('gallery-admin-banner',!preview&&!opened);show('gallery-preview-note',preview);
   t('gallery-member-preview',preview?tr('운영진 화면으로 돌아가기','Retour à la gestion'):tr('정회원 화면 미리보기','Aperçu membre'));await refresh();
 });
-for(const id of ['album-school-filter','album-year-filter','album-search'])by<HTMLElement>(id)?.addEventListener('input',renderAlbums);
-by<HTMLButtonElement>('album-back')?.addEventListener('click',()=>{selected=null;show('album-detail',false);show('album-list',true);revoke();renderAlbums();});
+let filterTimer:ReturnType<typeof setTimeout>|undefined;
+for(const id of ['album-school-filter','album-year-filter','album-search'])by<HTMLElement>(id)?.addEventListener('input',()=>{if(busy)return;clearTimeout(filterTimer);filterTimer=setTimeout(()=>{if(!busy){if(view==='albums'&&selected)void changeView('albums');else if(view==='photos')void openAllPhotos();else if(view==='albums')renderAlbums();}},180);});
+by<HTMLButtonElement>('gallery-all-view')?.addEventListener('click',()=>{if(busy)return;for(const id of ['album-school-filter','album-year-filter']){const el=by<HTMLSelectElement>(id);if(el)el.value='all';}const search=by<HTMLInputElement>('album-search');if(search)search.value='';void changeView(view==='review'?'albums':view);});
+by<HTMLButtonElement>('gallery-folder-view')?.addEventListener('click',()=>void changeView('albums'));
+by<HTMLButtonElement>('gallery-photo-view')?.addEventListener('click',()=>void changeView('photos'));
+by<HTMLButtonElement>('gallery-review-view')?.addEventListener('click',()=>void changeView('review'));
+by<HTMLButtonElement>('gallery-more')?.addEventListener('click',()=>renderPhotos(true));
+by<HTMLButtonElement>('album-back')?.addEventListener('click',()=>void changeView('albums'));
 by<HTMLButtonElement>('gallery-lightbox-close')?.addEventListener('click',()=>by<HTMLDialogElement>('gallery-lightbox')?.close());
 by<HTMLButtonElement>('gallery-lightbox-prev')?.addEventListener('click',()=>stepLightbox(-1));
 by<HTMLButtonElement>('gallery-lightbox-next')?.addEventListener('click',()=>stepLightbox(1));
@@ -420,6 +472,6 @@ if(import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true')onAuthStateChanged(auth
     const p=await getDoc(doc(db,'members',user.uid));if(!p.exists()||p.data().status!=='approved')throw Error('Inactive membership');
     uid=user.uid;role=String(p.data().role||'general');viewerDM=dmAllowed(p.data());authorCache.set(uid,Promise.resolve({nickname:p.data().nickname||tr('회원','Membre'),role,canReceiveDM:viewerDM}));void syncOwnAlias(db,uid,p.data()).catch(console.warn);
     if(!await loadSettings())return;
-    if(!canPost()){locked();return;}await refresh();
+    if(!canPost()){locked();return;}if(new URLSearchParams(location.search).get('view')==='review'&&admin())view='review';await refresh();
   }catch(e){console.error(e);locked();msg(tr('갤러리를 불러오지 못했습니다. 회원 권한을 확인해 주세요.','Galerie indisponible. Vérifiez votre compte.'),true);}
 });

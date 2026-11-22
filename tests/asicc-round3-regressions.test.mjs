@@ -31,11 +31,12 @@ test('board category IDs survive future label renaming',()=>{
   assert.match(board,/info:'정보',question:'질문'/);
   assert.match(area,/cat==='general'/);
 });
-test('minor accounts are not selectable as message recipients and cannot send server side',()=>{
+test('default-blocked student accounts are excluded; exception recipients are checked server side',()=>{
   assert.match(messages,/\.filter\(x=>!!x\.nickname&&x\.canReceiveDM\)/);
   assert.match(members,/messageLink\.hidden=!dmAllowed\(data\)/);
   assert.match(rules,/request\.resource\.data\.canReceiveDM == dmAllowedFor\(getAfter\(memberDoc\(uid\)\)\.data\)/);
-  assert.match(rules,/isAdultAccount\(request\.resource\.data\.recipientUid\)/);
+  assert.match(rules,/canSendTo\(request\.resource\.data\.recipientUid\)/);
+  assert.match(messages,/canContact\(db,to\)/);
 });
 test('gallery is closed before launch and provides admin-only tools',()=>{
   assert.match(gallery,/opened=snapshot\.exists\(\)&&snapshot\.data\(\)\?\.isOpen===true/);
