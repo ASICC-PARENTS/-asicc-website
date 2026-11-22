@@ -10,7 +10,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
     <div class="stack gap-16 member-ui" id="board-root" data-lang={lang} data-login-url={href(lang,'membres/login/')}>
       <a href={href(lang,'membres/')} class="small">← {L(lang,{ko:'회원공간',fr:'Espace membres'})}</a>
       <h1 class="h2">{L(lang,{ko:'회원게시판',fr:'Forum des membres'})}</h1>
-      <p class="muted">{L(lang,{ko:'일반회원은 읽기, 정회원·특별회원·운영진은 글쓰기와 댓글이 가능합니다.',fr:'Les membres généraux peuvent consulter les messages. La publication et les commentaires sont réservés aux membres de l’association, aux membres spéciaux et aux administrateurs.'})}</p>
+      <p class="muted">{L(lang,{ko:'일반회원은 읽기, 정회원·특별회원·관리자는 글쓰기와 댓글이 가능합니다.',fr:'Les membres généraux peuvent consulter les messages. La publication et les commentaires sont réservés aux membres de l’association, aux membres spéciaux et aux administrateurs.'})}</p>
       <details class="card" style="padding:14px"><summary>{L(lang,{ko:'게시판 이용 규칙',fr:'Règles du forum'})}</summary><p class="small muted" style="margin-top:10px">{L(lang,{ko:'비방·괴롭힘·고의적 분란 조장·허위정보·개인정보 공개·스팸을 금지합니다. 운영진은 위반 게시물을 숨기거나 삭제하고 계정의 이용 권한을 제한할 수 있습니다. 이의제기는 contact@asicc-parents.fr로 문의해 주세요.',fr:'Les attaques, le harcèlement, les provocations délibérées, les fausses informations, la divulgation de données et les spams sont interdits. La modération peut masquer ou supprimer des contenus et limiter les accès. Recours : contact@asicc-parents.fr.'})}</p></details>
       {!live && <div class="card auth-card" role="status">{L(lang,{ko:'게시판은 보안 점검 중으로 아직 공개되지 않았습니다.',fr:'Le forum est désactivé pendant les vérifications de sécurité.'})}</div>}
       <div id="board-app" hidden={!live} class="stack gap-16">
@@ -198,7 +198,7 @@ const notify=(v:string,bad=false)=>{if(status){status.textContent=v;status.hidde
     return aliases.get(authorUid)!;
   };
   const nicknameOf=(id:string)=>publicInfo(id).then(x=>x.nickname);
-  const roleName=(r:string)=>({general:tr('일반회원','Membre général'),member:tr('정회원','Membre régulier'),special:tr('특별회원','Membre spécial'),admin:tr('운영진','Administrateur')} as Record<string,string>)[r]||tr('회원','Membre');
+  const roleName=(r:string)=>({general:tr('일반회원','Membre général'),member:tr('정회원','Membre régulier'),special:tr('특별회원','Membre spécial'),admin:tr('관리자','Administrateur')} as Record<string,string>)[r]||tr('회원','Membre');
   let viewerDM=false;const messageUrl='../messages/';
   let uid='',name='',role='',posts:BoardData[]=[],selected:BoardData|null=null;
   let editingPostId:string|null=null, photoBusy=false;

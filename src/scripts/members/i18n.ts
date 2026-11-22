@@ -49,7 +49,7 @@ export const M = {
     accountIntro: '가입 정보와 동의 항목을 관리합니다.', statusLabel: '상태', roleLabel: '권한', saved: '저장했습니다.',
     deleteAccount: '회원 탈퇴', deleteConfirm: '탈퇴하면 계정과 가족 정보가 삭제됩니다. 계속할까요?',
     'status.pending': '승인 대기', 'status.approved': '승인됨', 'status.rejected': '거절됨',
-    'role.member': '학부모 회원', 'role.rep': '학교별 대표', 'role.admin': '임원',
+    'role.member': '학부모 회원', 'role.rep': '학교별 대표', 'role.admin': '관리자',
     'lv.mat': '유치원', 'lv.elem': '초등학교', 'lv.col': '중학교',
     // admin
     adminTitle: '임원 관리', 'adm.approvals': '가입 승인', 'adm.members': '회원 목록', 'adm.content': '콘텐츠 등록', 'adm.inbox': '받은 신청',
@@ -109,7 +109,7 @@ export const M = {
     accountIntro: 'Vos informations et consentements.', statusLabel: 'Statut', roleLabel: 'Rôle', saved: 'Enregistré.',
     deleteAccount: 'Supprimer mon compte', deleteConfirm: 'Votre compte et vos informations seront supprimés. Continuer ?',
     'status.pending': 'En attente', 'status.approved': 'Validé', 'status.rejected': 'Refusé',
-    'role.member': 'Parent membre', 'role.rep': 'Représentant(e) de niveau', 'role.admin': 'Bureau',
+    'role.member': 'Parent membre', 'role.rep': 'Représentant(e) de niveau', 'role.admin': 'Administrateur',
     'lv.mat': 'Maternelle', 'lv.elem': 'Élémentaire', 'lv.col': 'Collège',
     adminTitle: 'Administration', 'adm.approvals': 'Validations', 'adm.members': 'Membres', 'adm.content': 'Contenus', 'adm.inbox': 'Demandes reçues',
     approvalsIntro: 'Vérifiez le lien avec la section avant de valider. Les représentants ne traitent que leur niveau.',

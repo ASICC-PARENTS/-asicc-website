@@ -32,7 +32,7 @@ let view:GalleryView='albums',viewEpoch=0,renderedCount=0;const PHOTO_BATCH=24;
 let moreObserver:IntersectionObserver|undefined;
 const selectedPhotoIds=new Set<string>();const mediaCache=new Map<string,string>();
 const authorCache=new Map<string,Promise<PublicAuthor>>();
-const roleLabel=(value:string)=>({general:tr('일반회원','Membre général'),member:tr('정회원','Membre régulier'),special:tr('특별회원','Membre spécial'),admin:tr('운영진','Administrateur')} as Record<string,string>)[value]||tr('회원','Membre');
+const roleLabel=(value:string)=>({general:tr('일반회원','Membre général'),member:tr('정회원','Membre régulier'),special:tr('특별회원','Membre spécial'),admin:tr('관리자','Administrateur')} as Record<string,string>)[value]||tr('회원','Membre');
 function authorName(id:string){
   if(!id)return Promise.resolve({nickname:tr('회원','Membre'),role:''});
   if(!authorCache.has(id))authorCache.set(id,getDoc(doc(db,'publicNames',id)).then(snapshot=>({

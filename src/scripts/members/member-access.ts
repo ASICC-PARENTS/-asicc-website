@@ -15,7 +15,7 @@ export async function syncOwnAlias(db:Firestore,uid:string,p:AccountAccess){
   else if(a?.nickname===p.nickname&&(a.role!==p.role||a.canReceiveDM!==canReceiveDM))await updateDoc(ref,{role:p.role,canReceiveDM,updatedAt:serverTimestamp()});
 }
 export type PublicAuthor={nickname:string;role:string;canReceiveDM?:boolean};
-const names:Record<string,[string,string]>={general:['일반회원','Membre général'],member:['정회원','Membre régulier'],special:['특별회원','Membre spécial'],admin:['운영진','Administrateur']};
+const names:Record<string,[string,string]>={general:['일반회원','Membre général'],member:['정회원','Membre régulier'],special:['특별회원','Membre spécial'],admin:['관리자','Administrateur']};
 export type MessageSource={kind:'board'|'learning'|'reply';post:string;comment:string};
 const contactChecks=new Map<string,Promise<boolean>>();
 export function displayAuthor(target:HTMLElement,info:PublicAuthor,authorUid:string,viewerUid:string,viewerRole:string,viewerDM:boolean,fr:boolean,messageUrl:string,suffix='',db?:Firestore,source?:MessageSource){

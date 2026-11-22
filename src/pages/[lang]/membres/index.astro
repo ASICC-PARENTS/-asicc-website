@@ -130,7 +130,7 @@ if(import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true')onAuthStateChanged(auth
    const data=snap.data(),role=String(data.role);
    note('member-name',tr(`안녕하세요, ${data.nickname||'회원'}님!`,`Bienvenue, ${data.nickname||'membre'} !`));
    note('member-email',String(data.email||''));
-   note('member-role',({general:tr('일반회원','Membre général'),member:tr('정회원','Membre'),special:tr('특별회원','Membre spécial'),admin:tr('운영진','Administrateur')} as Record<string,string>)[role]||role);
+   note('member-role',({general:tr('일반회원','Membre général'),member:tr('정회원','Membre'),special:tr('특별회원','Membre spécial'),admin:tr('관리자','Administrateur')} as Record<string,string>)[role]||role);
    const full=['member','special','admin'].includes(role);
    const messaging=await getDoc(doc(db,'siteSettings','messaging')).catch(()=>null);
    const messageLink=by('member-messages-shortcut');if(messageLink)messageLink.hidden=!dmAllowed(data)||messaging?.data()?.enabled!==true;

@@ -24,7 +24,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
       </section>
       <div id="gallery-app" hidden class="stack gap-16">
         <section id="gallery-admin-banner" class="card" hidden>
-          <strong>{L(lang,{ko:'운영진 전용 비공개 시험 화면',fr:'Espace de test privé réservé à l’administration'})}</strong>
+          <strong>{L(lang,{ko:'관리자 전용 비공개 시험 화면',fr:'Espace de test privé réservé à l’administration'})}</strong>
           <p class="small muted">{L(lang,{ko:'갤러리는 비공개 시험 상태입니다. 실제 학생 사진을 등록하지 말고 테스트 파일만 사용해 주세요.',fr:'La galerie est fermée. Utilisez uniquement des fichiers de test.'})}</p>
         </section>
         <div id="gallery-preview-controls" class="row gap-8" hidden><button class="btn btn-ghost" type="button" id="gallery-member-preview">{L(lang,{ko:'정회원 화면 미리보기',fr:'Aperçu membre'})}</button><span id="gallery-preview-note" class="small muted" hidden>{L(lang,{ko:'정식 공개 후 정회원 화면 예시입니다. 실제 공개 설정은 변경되지 않습니다.',fr:'Simulation après ouverture. La galerie reste inchangée.'})}</span></div>
@@ -66,7 +66,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
             <button id="gallery-submit" class="btn btn-dark" type="submit">{L(lang,{ko:'등록',fr:'Publier'})}</button>
           </form>
           <section id="gallery-bulk-tools" class="card stack gap-8" style="padding:14px" hidden>
-            <strong>{L(lang,{ko:'운영진 사진 일괄 관리',fr:'Actions groupées'})}</strong>
+            <strong>{L(lang,{ko:'관리자 사진 일괄 관리',fr:'Actions groupées'})}</strong>
             <div class="row gap-8" style="flex-wrap:wrap;align-items:center">
               <select id="gallery-target-album" aria-label={L(lang,{ko:'이동 대상 앨범',fr:'Album de destination'})}></select>
               <button type="button" class="btn btn-ghost" id="gallery-bulk-move">{L(lang,{ko:'선택 사진 이동',fr:'Déplacer la sélection'})}</button>

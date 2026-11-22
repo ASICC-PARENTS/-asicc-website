@@ -18,10 +18,10 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
       <h1 class="h2">{L(lang,titles[area])}</h1>
       <p class="muted">
         {area==='learning' ? L(lang,{
-          ko:'가입된 모든 회원이 자료를 열람·다운로드할 수 있습니다. 정회원·특별회원·운영진은 자료를 등록할 수 있으며, 게시글당 첨부파일 총합은 20MB까지입니다.',
+          ko:'가입된 모든 회원이 자료를 열람·다운로드할 수 있습니다. 정회원·특별회원·관리자는 자료를 등록할 수 있으며, 게시글당 첨부파일 총합은 20MB까지입니다.',
           fr:'Tous les membres inscrits peuvent consulter et télécharger les ressources. Les membres, membres spéciaux et administrateurs peuvent publier, avec 20 Mo de pièces jointes par publication.'
         }) : area==='gallery' ? L(lang,{
-          ko:'정회원·특별회원·운영진 전용 비공개 사진공간입니다. 사진 등록은 운영진만 가능합니다.',
+          ko:'정회원·특별회원·관리자 전용 비공개 사진공간입니다. 사진 등록은 운영진만 가능합니다.',
           fr:'Galerie privée réservée aux membres de l’association, membres spéciaux et administrateurs. Seuls les administrateurs peuvent publier.'
         }) : L(lang,{
           ko:'운영진만 접근 가능한 비공개 문서 공간입니다.',fr:'Espace documentaire confidentiel, réservé aux administrateurs.'
@@ -57,7 +57,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
               <button type="button" class="board-category-tab" data-resource-tab="middle" aria-pressed="false">{L(lang,{ko:'중학교',fr:'Collège'})}</button>
               <button type="button" class="board-category-tab" data-resource-tab="other" aria-pressed="false">{L(lang,{ko:'기타',fr:'Autres'})}</button>
             </nav>
-            <label id="resource-drafts-wrap" class="small muted" hidden><input type="checkbox" id="resource-show-drafts"/> {L(lang,{ko:'미완성 초안 표시 (운영진)',fr:'Afficher les brouillons incomplets (administration)'})}</label>
+            <label id="resource-drafts-wrap" class="small muted" hidden><input type="checkbox" id="resource-show-drafts"/> {L(lang,{ko:'미완성 초안 표시 (관리자)',fr:'Afficher les brouillons incomplets (administration)'})}</label>
             <form id="learning-form" class="card board-editor files-compose stack gap-12" hidden>
               <h2 id="resource-form-heading" class="h3">{L(lang,{ko:'새 학습자료 등록',fr:'Nouvelle ressource'})}</h2>
               <label for="resource-title">{L(lang,{ko:'제목',fr:'Titre'})}</label>
@@ -168,7 +168,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
             <section id="resource-comments" class="stack gap-12" hidden>
               <h3 class="h3">{L(lang,{ko:'댓글',fr:'Commentaires'})} <span id="resource-comment-count" class="small muted"></span></h3>
               <div id="resource-comment-list" class="stack gap-8"></div>
-              <p id="resource-comment-readonly" class="small muted" hidden>{L(lang,{ko:'정회원·특별회원·운영진은 댓글을 작성할 수 있습니다.',fr:'Les membres approuvés peuvent commenter.'})}</p>
+              <p id="resource-comment-readonly" class="small muted" hidden>{L(lang,{ko:'정회원·특별회원·관리자는 댓글을 작성할 수 있습니다.',fr:'Les membres approuvés peuvent commenter.'})}</p>
               <form id="resource-comment-form" class="stack gap-8" hidden>
                 <label for="resource-comment-body">{L(lang,{ko:'댓글 작성',fr:'Ajouter un commentaire'})}</label>
                 <textarea id="resource-comment-body" maxlength="2000" rows="3" required></textarea>
@@ -259,7 +259,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
   const aliases=new Map<string,Promise<PublicAuthor>>();
   const memberRoleLabel=(value:string)=>({
     general:tr('일반회원','Membre général'),member:tr('정회원','Membre régulier'),
-    special:tr('특별회원','Membre spécial'),admin:tr('운영진','Administrateur')
+    special:tr('특별회원','Membre spécial'),admin:tr('관리자','Administrateur')
   } as Record<string,string>)[value]||tr('회원','Membre');
   const publicAuthor=(authorUid:string):Promise<PublicAuthor>=>{
     if(!authorUid)return Promise.resolve({nickname:tr('기존 자료','Document existant'),role:''});

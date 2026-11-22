@@ -5,14 +5,14 @@ export const getStaticPaths = langPaths;
 const lang = Astro.params.lang as Lang;
 const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
 ---
-<Base lang={lang} rest="membres/admin/" title={L(lang, { ko: 'ASICC 운영진 관리', fr: 'Administration ASICC' })} noindex>
+<Base lang={lang} rest="membres/admin/" title={L(lang, { ko: 'ASICC 관리자 화면', fr: 'Administration ASICC' })} noindex>
   <section class="wrap m-shell asicc-admin-page">
     <div id="asicc-admin" class="stack gap-24"
       data-lang={lang}
       data-login-url={href(lang, 'membres/login/')}
       data-member-url={href(lang, 'membres/')}>
       <div class="stack gap-12">
-        <span class="m-badge" style="align-self:flex-start">{L(lang, { ko: '운영진 전용', fr: 'Accès administrateur' })}</span>
+        <span class="m-badge" style="align-self:flex-start">{L(lang, { ko: '관리자 전용', fr: 'Accès administrateur' })}</span>
         <h1 class="h2">{L(lang, { ko: 'ASICC 회원관리', fr: 'Gestion des membres ASICC' })}</h1>
         <p class="muted">{L(lang, {
           ko: '회원 가입·승급 심사, 실명 변경 신청, 비공개 건의, 계정 이용 제한을 관리합니다.',
@@ -22,7 +22,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
 
       {!live && <div class="card auth-card" role="status">{L(lang,{ko:"관리자 기능은 Firebase 권한 검증 전까지 비활성화됩니다.",fr:"L’administration reste désactivée jusqu’à la validation des règles Firebase."})}</div>}
       <div hidden={!live} id="admin-loading" class="card auth-card" role="status">
-        {L(lang, { ko: '운영진 권한을 확인하고 있습니다…', fr: 'Vérification des droits administrateur…' })}
+        {L(lang, { ko: '관리자 권한을 확인하고 있습니다…', fr: 'Vérification des droits administrateur…' })}
       </div>
       <div id="admin-denied" class="card auth-card stack gap-12" hidden>
         <p id="admin-denied-message" role="alert"></p>
@@ -39,7 +39,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
           <div class="row gap-16" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
             <div class="stack gap-8">
               <strong id="admin-who"></strong>
-              <span class="small muted">{L(lang, { ko: '운영진 인증 완료', fr: 'Accès administrateur confirmé' })}</span>
+              <span class="small muted">{L(lang, { ko: '관리자 인증 완료', fr: 'Accès administrateur confirmé' })}</span>
             </div>
             <div class="row gap-12" style="flex-wrap:wrap">
               <a class="btn btn-ghost" href={href(lang, 'membres/')}>{L(lang, { ko: '회원공간', fr: 'Espace membres' })}</a>
@@ -90,7 +90,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
           <p class="small muted">{L(lang,{ko:'일반적인 갤러리 공개·쪽지·게시판 분류는 코드를 수정하지 않고 여기에서 변경합니다. 보안 규칙 자체는 직접 편집하지 않습니다.',fr:'Gérez les catégories, la galerie et la messagerie sans modifier le code. Les règles de sécurité restent protégées.'})}</p>
           <div class="stack gap-8" style="border:1px solid #dce0e7;border-radius:10px;padding:16px">
             <label class="row gap-12" style="align-items:center"><input type="checkbox" id="ops-gallery-open"/> <strong>{L(lang,{ko:'갤러리 회원 공개',fr:'Ouvrir la galerie aux membres'})}</strong></label>
-            <p class="small muted">{L(lang,{ko:'기본은 비공개입니다. 공개하면 일반 등록된 사진과 운영진이 승인한 사진이 정회원·특별회원·운영진에게 표시됩니다. 현재 파일은 Backblaze B2에만 저장되고 Google Drive 원본 자동 보관은 실행되지 않습니다. 초상권 정책 확정 전에는 공개하지 마세요.',fr:'Fermée par défaut. Les photos directement publiées ou approuvées seront visibles aux membres autorisés. Les fichiers restent sur Backblaze B2 ; aucune sauvegarde Google Drive. Ne pas ouvrir avant la validation des règles relatives au droit à l’image.'})}</p>
+            <p class="small muted">{L(lang,{ko:'기본은 비공개입니다. 공개하면 일반 등록된 사진과 관리자가 승인한 사진이 정회원·특별회원·관리자에게 표시됩니다. 현재 파일은 Backblaze B2에만 저장되고 Google Drive 원본 자동 보관은 실행되지 않습니다. 초상권 정책 확정 전에는 공개하지 마세요.',fr:'Fermée par défaut. Les photos directement publiées ou approuvées seront visibles aux membres autorisés. Les fichiers restent sur Backblaze B2 ; aucune sauvegarde Google Drive. Ne pas ouvrir avant la validation des règles relatives au droit à l’image.'})}</p>
             <button type="button" class="btn btn-dark" id="ops-save-gallery" style="align-self:flex-start">{L(lang,{ko:'갤러리 공개 설정 저장',fr:'Enregistrer la galerie'})}</button>
             <label class="row gap-12" style="align-items:center"><input type="checkbox" id="ops-messaging-open"/> <strong>{L(lang,{ko:'회원 쪽지 기능 전체 활성화',fr:'Activer la messagerie des membres'})}</strong></label>
             <button type="button" class="btn btn-dark" id="ops-save-toggles" style="align-self:flex-start">{L(lang,{ko:'쪽지 설정 저장',fr:'Enregistrer la messagerie'})}</button>
@@ -127,7 +127,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
             <span id="admin-member-count" class="m-badge"></span>
           </div>
           <p class="small muted">{L(lang, {
-            ko: '정식 정회원과 특별회원은 동일한 접근권한을 갖습니다. 다른 운영진을 지정할 때는 신중하게 확인하세요.',
+            ko: '정식 정회원과 특별회원은 동일한 접근권한을 갖습니다. 다른 관리자를 지정할 때는 신중하게 확인하세요.',
             fr: 'Membres et membres spéciaux ont le même accès. Vérifiez soigneusement toute nomination d’administrateur.'
           })}</p>
           <div class="asicc-admin-toolbar">
@@ -140,7 +140,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
                 <option value="general">{L(lang,{ko:'일반회원',fr:'Membre général'})}</option>
                 <option value="member">{L(lang,{ko:'정회원',fr:'Membre'})}</option>
                 <option value="special">{L(lang,{ko:'특별회원',fr:'Membre spécial'})}</option>
-                <option value="admin">{L(lang,{ko:'운영진',fr:'Administrateur'})}</option>
+                <option value="admin">{L(lang,{ko:'관리자',fr:'Administrateur'})}</option>
               </select>
             </label>
             <label class="stack gap-8"><span class="small">{L(lang,{ko:'계정 상태',fr:'État du compte'})}</span>
@@ -236,7 +236,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
         </section>
         <section class="card stack gap-12" style="padding:22px" aria-labelledby="hidden-heading">
           <h2 id="hidden-heading" class="h3">{L(lang,{ko:'숨김 글·댓글 관리 / 복구',fr:'Contenus masqués / restauration'})}</h2>
-          <p class="small muted">{L(lang,{ko:'숨긴 원문은 운영진만 확인하고 복구할 수 있습니다. 기존 방식으로 숨겨 이미 덮어쓴 글은 복구되지 않습니다.',fr:'Les archives privées permettent la restauration. Les anciens textes déjà écrasés avant cette mise à jour ne sont pas récupérables.'})}</p>
+          <p class="small muted">{L(lang,{ko:'숨긴 원문은 관리자만 확인하고 복구할 수 있습니다. 기존 방식으로 숨겨 이미 덮어쓴 글은 복구되지 않습니다.',fr:'Les archives privées permettent la restauration. Les anciens textes déjà écrasés avant cette mise à jour ne sont pas récupérables.'})}</p>
           <div id="admin-hidden-list" class="stack gap-12"></div>
         </section>
         <details id="admin-deletions-panel" class="card asicc-admin-deletion-section" aria-labelledby="deletions-heading">
@@ -388,7 +388,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     general: tr('일반회원', 'Membre général'),
     member: tr('정회원', 'Membre de l’association'),
     special: tr('특별회원', 'Membre spécial'),
-    admin: tr('운영진', 'Administrateur')
+    admin: tr('관리자', 'Administrateur')
   } as Record<string,string>)[role] || role;
   const kindLabel = (kind: string) => ({
     parent: tr('학부모','Parent'), alumnus: tr('졸업생','Ancien élève'),
@@ -1062,7 +1062,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       if(!user.emailVerified) {deny(tr('이메일 인증 후 로그인해 주세요.','Vérifiez votre e-mail avant de vous connecter.'));return;}
       const me=await getDoc(doc(db,'members',user.uid));
       if(!me.exists() || me.data().status!=='approved' || me.data().role!=='admin') {
-        deny(tr('운영진만 접근할 수 있는 공간입니다.','Cet espace est réservé aux administrateurs.'));return;
+        deny(tr('관리자만 접근할 수 있는 공간입니다.','Cet espace est réservé aux administrateurs.'));return;
       }
       meUid=user.uid;
       text('admin-who',me.data().name || user.email || 'Admin');
