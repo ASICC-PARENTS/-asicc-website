@@ -202,7 +202,7 @@ const current = (p: string) => rest.startsWith(p);
         try{const p=await getDoc(doc(db,'members',u.uid));if(seq!==generation||!p.exists()||!dmAllowed(p.data()))return;
           void syncOwnAlias(db,u.uid,p.data()).catch(console.warn);
           const setting=await getDoc(doc(db,'siteSettings','messaging'));if(seq!==generation||setting.data()?.enabled!==true)return;
-          stopUnread=onSnapshot(query(collection(db,'privateMessages'),where('recipientUid','==',u.uid)),snap=>{if(seq===generation)unreadBadge(snap.docs.filter(d=>!d.data().readAt).length);},()=>unreadBadge(0));
+          stopUnread=onSnapshot(query(collection(db,'privateMessages'),where('recipientUid','==',u.uid)),snap=>{if(seq===generation)unreadBadge(snap.docs.filter(d=>!d.data().readAt&&!d.data().recipientDeletedAt).length);},()=>unreadBadge(0));
         }catch(error){console.debug('ASICC unread status unavailable',error);}}
       onAuthStateChanged(auth, (user) => {setMembersLock(Boolean(user?.emailVerified));void bindUnread();});
       window.addEventListener('pagehide',()=>{generation++;stopUnread?.();});

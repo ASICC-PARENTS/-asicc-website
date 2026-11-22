@@ -22,17 +22,18 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
         {L(lang,{ko:'현재 쪽지 기능을 이용할 수 없습니다. 이용을 원하시는 경우 운영진에게 문의해 주세요.',fr:'La messagerie est indisponible. Contactez l’administration.'})}
       </section>
       <div id="message-content" class="stack gap-16" hidden>
-        <form id="message-compose" class="card stack gap-12" style="padding:22px">
+        <form id="message-compose" class="card stack gap-12" hidden>
           <h2 class="h3">{L(lang,{ko:'새 쪽지 보내기',fr:'Nouveau message'})}</h2>
-          <label>{L(lang,{ko:'받는 사람 닉네임 검색',fr:'Rechercher un destinataire'})}<input id="message-search" type="search" maxlength="50" placeholder={L(lang,{ko:'닉네임 입력',fr:'Pseudo'})}/></label>
-          <select id="message-recipient" required><option value="">{L(lang,{ko:'회원 선택',fr:'Sélectionner un membre'})}</option></select>
-          <p id="message-advice" class="small muted"></p><p id="message-recipient-state" class="small muted" role="status" aria-live="polite"></p>
-          <label>{L(lang,{ko:'쪽지 내용',fr:'Votre message'})}<textarea id="message-body" rows="5" maxlength="2000" required></textarea></label>
-          <button type="submit" class="btn btn-dark" disabled>{L(lang,{ko:'쪽지 보내기',fr:'Envoyer'})}</button>
+          <p class="message-recipient-line"><span class="muted">{L(lang,{ko:'받는 사람',fr:'Destinataire'})}</span> <strong id="message-recipient-name"></strong></p>
+          <p id="message-recipient-state" class="small muted" role="status" aria-live="polite"></p>
+          <label class="message-field" for="message-body">{L(lang,{ko:'쪽지 내용',fr:'Votre message'})}</label>
+          <textarea id="message-body" rows="7" maxlength="2000" required placeholder={L(lang,{ko:'쪽지 내용을 입력해 주세요.',fr:'Écrivez votre message.'})}></textarea>
+          <div class="message-compose-actions"><button type="button" id="message-cancel" class="btn btn-ghost">{L(lang,{ko:'닫기',fr:'Fermer'})}</button><button type="submit" class="btn btn-dark" disabled>{L(lang,{ko:'쪽지 보내기',fr:'Envoyer'})}</button></div>
+          <p id="message-send-result" role="status" aria-live="polite" class="small" hidden></p>
         </form>
         <section class="card stack gap-12" style="padding:22px">
-          <h2 class="h3">{L(lang,{ko:'받은 쪽지',fr:'Messages reçus'})} <span class="asicc-unread" id="message-unread-count" hidden></span></h2>
-          <div id="message-inbox" class="stack gap-12"></div>
+          <h2 class="h3">{L(lang,{ko:'받은 쪽지',fr:'Messages reçus'})} </h2>
+          <p id="message-inbox-result" class="small" role="status" aria-live="polite" hidden></p><div id="message-inbox" class="stack gap-12"></div>
         </section>
         <section class="card stack gap-12" style="padding:22px">
           <h2 class="h3">{L(lang,{ko:'보낸 쪽지',fr:'Messages envoyés'})}</h2>
@@ -42,4 +43,16 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
     </div>
   </section>
 </Base>
+<style>
+#message-compose{padding:20px;min-width:0;scroll-margin-top:100px}
+.message-recipient-line{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.message-field{display:block;font-weight:600}
+#message-body{display:block;width:100%;min-height:170px;box-sizing:border-box;padding:12px;border:1px solid #c9d1ce;border-radius:8px;resize:vertical;background:#fff;font:inherit}
+.message-compose-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.message-compose-actions .btn,:global(#message-root .message-actions .btn){width:auto;min-height:34px;padding:7px 13px;font-size:13px;white-space:nowrap}
+#message-send-result{text-align:right;overflow-wrap:anywhere}
+:global(.message-item){padding:14px;border:1px solid #dce0e7;border-radius:10px;display:grid;gap:10px;min-width:0}
+:global(.message-item-body){white-space:pre-wrap;overflow-wrap:anywhere;word-break:normal}
+:global(.message-actions){display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+</style>
 <script>import '../../../scripts/members/messages';</script>

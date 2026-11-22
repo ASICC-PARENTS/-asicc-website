@@ -329,8 +329,9 @@ test('minor/student and general accounts cannot send or receive private messages
   await assertSucceeds(setDoc(doc(adminDb,'siteSettings','messaging'),{
     enabled:true,updatedBy:uid.admin,updatedAt:serverTimestamp()
   }));
+  await env.withSecurityRulesDisabled(async c=>{for(const target of [uid.admin,uid.member,'student-test'])await setDoc(doc(c.firestore(),'boardPosts','dmblocked-'+target),{authorUid:target,deleted:false});});
   const message=(sender,recipient)=>({senderUid:sender,recipientUid:recipient,
-    body:'Hello',readAt:null,createdAt:serverTimestamp()});
+    body:'Hello',readAt:null,createdAt:serverTimestamp(),source:{kind:'board',post:'dmblocked-'+recipient,comment:''}});
   await assertFails(setDoc(doc(context('student-test'),'privateMessages','student-out'),
     message('student-test',uid.admin)));
   await assertFails(setDoc(doc(context(uid.member),'privateMessages','student-in'),
@@ -915,11 +916,11 @@ test('adult students auto-enable from birth date; minors default off; only admin
       {...profile(ids[2],'member'),accountType:'student'},
       {...profile(ids[3],'special'),accountType:'',memberKind:'alumni-parent'},
       {...profile(ids[4],'admin'),accountType:''},profile(ids[5],'general'),profile(ids[6],'special','suspended')];
-    for(let i=0;i<ids.length;i++)await setDoc(doc(f,'members',ids[i]),items[i]);
+    for(let i=0;i<ids.length;i++){await setDoc(doc(f,'members',ids[i]),items[i]);await setDoc(doc(f,'boardPosts','dm9-source-'+ids[i]),{authorUid:ids[i],deleted:false});}
   });
   const [adult,minor,unknown,parent,admin,general,suspended]=ids;
   const check=(from,to)=>getDoc(doc(context(from),'messageAccess',to));
-  const send=(from,to,id)=>setDoc(doc(context(from),'privateMessages',id),{senderUid:from,recipientUid:to,body:'Round nine',readAt:null,createdAt:serverTimestamp()});
+  const send=(from,to,id)=>setDoc(doc(context(from),'privateMessages',id),{senderUid:from,recipientUid:to,body:'Round nine',readAt:null,createdAt:serverTimestamp(),source:{kind:'board',post:'dm9-source-'+to,comment:''}});
   const mode=(id,dmMode)=>updateDoc(doc(db,'members',id),{dmMode,dmUpdatedBy:uid.admin,dmUpdatedAt:serverTimestamp()});
   await assertSucceeds(check(adult,parent));await assertSucceeds(check(admin,parent));
   await assertSucceeds(send(admin,adult,'dm9-legacy-admin'));
@@ -961,4 +962,51 @@ test('initialization marker is staff-only and immutable, initial activation does
   await assertFails(setDoc(marker,data));await assertFails(deleteDoc(marker));
   await assertSucceeds(updateDoc(doc(db,'members',uid.admin),{dmMode:'off',dmUpdatedBy:uid.admin,dmUpdatedAt:serverTimestamp()}));
   await assertSucceeds(updateDoc(doc(db,'members',uid.admin),{dmMode:'auto',dmUpdatedBy:uid.admin,dmUpdatedAt:serverTimestamp()}));
+});
+
+
+test('round 10: only real post/comment authors or received-message senders may be contacted; inbox deletion is recipient-only',async()=>{
+  const a='dm10-sender',b='dm10-recipient',c='dm10-other';
+  await env.withSecurityRulesDisabled(async ctx=>{
+    const db=ctx.firestore();for(const id of [a,b,c])await setDoc(doc(db,'members',id),profile(id,'member'));
+    await setDoc(doc(db,'siteSettings','messaging'),{enabled:true});
+    await setDoc(doc(db,'boardPosts','dm10-post'),{authorUid:b,deleted:false});
+    await setDoc(doc(db,'boardPosts','dm10-hidden'),{authorUid:b,deleted:true});
+    await setDoc(doc(db,'boardPosts','dm10-post','comments','dm10-comment'),{authorUid:c,deleted:false});
+    await setDoc(doc(db,'boardPosts','dm10-post','comments','dm10-hidden-comment'),{authorUid:c,deleted:true});
+    await setDoc(doc(db,'learningResources','dm10-published'),{authorUid:b,status:'published'});
+    await setDoc(doc(db,'learningResources','dm10-draft'),{authorUid:b,status:'draft'});
+    await setDoc(doc(db,'publicNames',b),{nickname:b,role:'member',canReceiveDM:true});
+    await setDoc(doc(db,'privateMessages','dm10-legacy'),{senderUid:c,recipientUid:a,body:'Legacy received message',createdAt:new Date(),readAt:null});
+  });
+  const ref=(who,id)=>doc(context(who),'privateMessages',id);
+  const send=(from,to,id,source)=>setDoc(ref(from,id),{senderUid:from,recipientUid:to,body:'Round ten',createdAt:serverTimestamp(),readAt:null,...(source?{source}:{})});
+  const board={kind:'board',post:'dm10-post',comment:''};
+  await assertFails(getDocs(collection(context(a),'publicNames')));
+  await assertSucceeds(getDoc(doc(context(a),'publicNames',b)));
+  await assertFails(send(a,b,'dm10-no-source'));
+  await assertFails(send(a,c,'dm10-wrong-author',board));
+  await assertFails(send(a,b,'dm10-missing',{...board,post:'missing'}));
+  await assertFails(send(a,b,'dm10-malformed',{...board,post:'dm10-post/extra'}));
+  await assertFails(send(a,b,'dm10-hidden-fail',{...board,post:'dm10-hidden'}));
+  await assertFails(send(a,c,'dm10-hidden-comment-fail',{...board,comment:'dm10-hidden-comment'}));
+  await assertSucceeds(send(a,c,'dm10-comment-ok',{...board,comment:'dm10-comment'}));
+  await assertFails(send(a,b,'dm10-draft-fail',{kind:'learning',post:'dm10-draft',comment:''}));
+  await assertSucceeds(send(a,b,'dm10-learning-ok',{kind:'learning',post:'dm10-published',comment:''}));
+  await assertSucceeds(send(a,b,'dm10-original',board));
+  const reply={kind:'reply',post:'dm10-original',comment:''};
+  await assertFails(send(c,a,'dm10-stranger-reply',reply));
+  await assertFails(send(b,c,'dm10-wrong-reply',reply));
+  await assertSucceeds(send(b,a,'dm10-reply-ok',reply));
+  await assertSucceeds(send(a,c,'dm10-legacy-reply',{kind:'reply',post:'dm10-legacy',comment:''}));
+  await assertFails(updateDoc(ref(a,'dm10-original'),{readAt:serverTimestamp()}));
+  await assertSucceeds(updateDoc(ref(b,'dm10-original'),{readAt:serverTimestamp()}));
+  await assertFails(updateDoc(ref(a,'dm10-original'),{recipientDeletedAt:serverTimestamp()}));
+  await assertFails(updateDoc(ref(c,'dm10-original'),{recipientDeletedAt:serverTimestamp()}));
+  await assertFails(updateDoc(ref(b,'dm10-original'),{recipientDeletedAt:serverTimestamp(),body:'tampered'}));
+  await assertSucceeds(updateDoc(ref(b,'dm10-original'),{recipientDeletedAt:serverTimestamp()}));
+  await assertFails(updateDoc(ref(b,'dm10-original'),{recipientDeletedAt:null}));
+  await assertFails(deleteDoc(ref(b,'dm10-original')));
+  await assertFails(send(b,a,'dm10-deleted-reply',reply));
+  const retained=await assertSucceeds(getDoc(ref(a,'dm10-original')));assert.equal(retained.data().body,'Round ten');assert.ok(retained.data().readAt);assert.ok(retained.data().recipientDeletedAt);
 });

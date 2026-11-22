@@ -31,16 +31,15 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
         <div id="gallery-view-toolbar" class="stack gap-12">
           <div class="gallery-view-heading">
             <div class="row gap-8" style="flex-wrap:wrap">
-              <button type="button" class="btn btn-ghost" id="gallery-all-view">{L(lang,{ko:'전체 보기',fr:'Tout afficher'})}</button>
+              <button type="button" class="btn btn-ghost" id="gallery-all-view" aria-pressed="false">{L(lang,{ko:'전체 보기',fr:'Tout afficher'})}</button>
               <button type="button" class="btn btn-ghost" id="gallery-folder-view" aria-pressed="true">{L(lang,{ko:'폴더로 보기',fr:'Par albums'})}</button>
-              <button type="button" class="btn btn-ghost" id="gallery-photo-view" aria-pressed="false">{L(lang,{ko:'전체 사진 보기',fr:'Tous les médias'})}</button>
               <button type="button" class="btn btn-ghost" id="gallery-review-view" hidden>{L(lang,{ko:'검토 대기 사진',fr:'Médias à vérifier'})} <span id="gallery-review-count"></span></button>
             </div>
             <button id="album-new-toggle" type="button" class="btn btn-dark">{L(lang,{ko:'+ 새 앨범 생성',fr:'+ Nouvel album'})}</button>
           </div>
         <div id="gallery-filters" class="row gap-12" style="flex-wrap:wrap;align-items:center">
-          <label class="stack gap-8"><span>{L(lang,{ko:'학교 구분',fr:'Établissement'})}</span><select id="album-school-filter"><option value="all">{L(lang,{ko:'전체',fr:'Tous'})}</option><option value="kindergarten">{L(lang,{ko:'유치원',fr:'Maternelle'})}</option><option value="elementary">{L(lang,{ko:'초등학교',fr:'Élémentaire'})}</option><option value="middle">{L(lang,{ko:'중학교',fr:'Collège'})}</option><option value="common">{L(lang,{ko:'공통 행사',fr:'Événements communs'})}</option></select></label>
           <label class="stack gap-8"><span>{L(lang,{ko:'연도',fr:'Année'})}</span><select id="album-year-filter"><option value="all">{L(lang,{ko:'전체',fr:'Toutes'})}</option></select></label>
+          <label class="stack gap-8"><span>{L(lang,{ko:'학교 구분',fr:'Établissement'})}</span><select id="album-school-filter"><option value="all">{L(lang,{ko:'전체',fr:'Tous'})}</option><option value="kindergarten">{L(lang,{ko:'유치원',fr:'Maternelle'})}</option><option value="elementary">{L(lang,{ko:'초등학교',fr:'Élémentaire'})}</option><option value="middle">{L(lang,{ko:'중학교',fr:'Collège'})}</option><option value="common">{L(lang,{ko:'공통 행사',fr:'Événements communs'})}</option></select></label>
           <label class="stack gap-8"><span>{L(lang,{ko:'행사 검색',fr:'Rechercher un événement'})}</span><input id="album-search" type="search" maxlength="80" placeholder={L(lang,{ko:'행사 앨범 이름',fr:'Nom de l’album'})}/></label>
         </div>
         </div>

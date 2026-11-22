@@ -39,10 +39,10 @@ test('gallery review uses only pending; hidden is separate from deletion',()=>{
  assert.match(g,/이 사진을 공개하시겠습니까/);assert.match(g,/비공개하시겠습니까/);
  assert.doesNotMatch(g,/tr\('반려','Refuser'\)/);
 });
-test('author and message directory check server eligibility, rather than stale alias',()=>{
+test('author and selected recipient check server eligibility, rather than stale alias',()=>{
  const a=read('src/scripts/members/member-access.ts'),m=read('src/scripts/members/messages.ts');
  assert.match(a,/canContact\(db,authorUid\)/);assert.match(a,/✉ 쪽지 보내기/);
- assert.match(m,/canContact\(db,x\.uid\)/);assert.match(m,/canContact\(db,to\)/);
+ assert.doesNotMatch(m,/getDocs\(collection\(db,'publicNames'\)\)/);assert.match(m,/canContact\(db,to\)/);
 });
 test('completed operations are visible through shared toast and admin settings dispatch',()=>{
  assert.match(read('src/scripts/members/admin-ops.ts'),/asicc-ops-toast/);

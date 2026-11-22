@@ -601,22 +601,24 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     table.append(tbody);container.append(table);
   }
 
+  const dmRowResults=new Map<string,{text:string;error:boolean}>();
   function renderMemberMessaging(row:HTMLTableRowElement,m:Member){
-    const cell=document.createElement('td');cell.className='admin-small';row.append(cell);
+    const cell=document.createElement('td');cell.className='admin-small admin-dm-cell';row.append(cell);
     const allowed=dmAllowed(m),effective=allowed&&globalDMEnabled;
     const state=panel('admin-small',effective?tr('ON · 이용 가능','ON · Disponible'):allowed?tr('OFF · 전체 설정 꺼짐','OFF · Réglage global'):tr('OFF · 이용 불가','OFF · Indisponible'));
     state.style.color=effective?'#23654b':'#667085';cell.append(state);
     const select=document.createElement('select');select.setAttribute('aria-label',tr(`${m.name} 쪽지 권한`,`Messagerie de ${m.name}`));
     for(const [value,label] of [['auto',tr('자동','Auto')],['on','ON'],['off','OFF']]){const o=document.createElement('option');o.value=value;o.textContent=label;select.append(o);}
     select.value=m.dmMode||'auto';
-    const save=actionButton(tr('쪽지 설정 저장','Enregistrer'),()=>void saveMessagingMode(m,select,save));save.className='btn btn-ghost btn-sm admin-row-action';
-    select.disabled=m.status!=='approved'||m.role==='general';save.disabled=select.disabled;cell.append(select,save);
-    if(m.id!==meUid&&effective){const a=document.createElement('a');a.href='../messages/?to='+encodeURIComponent(m.id);a.className='btn btn-ghost btn-sm';a.textContent=tr('✉ 쪽지 보내기','✉ Envoyer un message');cell.append(a);}
+    const local=panel('admin-dm-result','');local.setAttribute('role','status');local.setAttribute('aria-live','polite');
+    const save=actionButton(tr('저장','OK'),()=>void saveMessagingMode(m,select,save,local));save.className='btn btn-ghost admin-dm-save';
+    select.disabled=m.status!=='approved'||m.role==='general';save.disabled=select.disabled;const controls=panel('admin-dm-controls','');controls.append(select,save);cell.append(controls,local);if(dmRowResults.has(m.id)){const result=dmRowResults.get(m.id)!;local.textContent=result.text;local.dataset.error=String(result.error);}
   }
-  async function saveMessagingMode(member:Member,select:HTMLSelectElement,button:HTMLButtonElement){
+  async function saveMessagingMode(member:Member,select:HTMLSelectElement,button:HTMLButtonElement,local:HTMLElement){
+    const feedback=(text:string,error=false)=>{dmRowResults.set(member.id,{text,error});local.textContent=text;local.dataset.error=String(error);};
     if(busy||member.status!=='approved'||member.role==='general')return;
     const dmMode=select.value;if(!['auto','on','off'].includes(dmMode))return;
-    const originalLabel=button.textContent;busy=true;select.disabled=true;button.disabled=true;button.textContent=tr('저장 중…','Enregistrement…');
+    const originalLabel=button.textContent;busy=true;select.disabled=true;button.disabled=true;button.textContent=tr('저장 중…','Enregistrement…');feedback('');
     try{
       await runTransaction(db,async tx=>{
         const ref=doc(db,'members',member.id),snap=await tx.get(ref);if(!snap.exists())throw Error('member-missing');const fresh=snap.data();
@@ -625,9 +627,9 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
         tx.update(ref,update);
         if(fresh.nickname&&fresh.nicknameKey===fresh.nickname.toLowerCase())tx.set(doc(db,'publicNames',member.id),{nickname:fresh.nickname,role:fresh.role,canReceiveDM:dmAllowed({...fresh,...update}),updatedAt:serverTimestamp()});
       });
-      showMessage(dmMode==='on'?(globalDMEnabled?tr('쪽지 기능이 활성화되었습니다.','Messagerie activée.'):tr('개인 쪽지 ON 설정이 저장되었습니다. 전체 쪽지 설정은 OFF입니다.','Accès individuel enregistré. La messagerie globale est désactivée.')):dmMode==='off'?tr('쪽지 기능이 비활성화되었습니다.','Messagerie désactivée.'):tr('자동 설정이 저장되었습니다.','Réglage automatique enregistré.'));
-      try{await loadMembers(true);}catch(e){console.error(e);showMessage(tr('설정은 저장했지만 명단 갱신에 실패했습니다. 새로고침해 주세요.','Accès enregistré, mais actualisation impossible. Rechargez la liste.'),true);}
-    }catch(e){console.error(e);showMessage(tr('쪽지 설정을 저장하지 못했습니다.','Enregistrement impossible.'),true);select.value=member.dmMode||'auto';}
+      feedback(tr('저장 완료','Enregistré'));
+      try{await loadMembers(true);}catch(e){console.error(e);feedback(tr('저장됨 · 새로고침 필요','Enregistré · actualisez'),true);}
+    }catch(e){console.error(e);feedback(tr('저장 실패','Échec'),true);select.value=member.dmMode||'auto';}
     finally{busy=false;select.disabled=false;button.disabled=false;button.textContent=originalLabel;}
   }
   async function loadInitialisation(){

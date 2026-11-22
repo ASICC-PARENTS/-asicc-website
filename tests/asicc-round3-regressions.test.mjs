@@ -32,7 +32,7 @@ test('board category IDs survive future label renaming',()=>{
   assert.match(area,/cat==='general'/);
 });
 test('default-blocked student accounts are excluded; exception recipients are checked server side',()=>{
-  assert.match(messages,/\.filter\(x=>!!x\.nickname&&x\.canReceiveDM\)/);
+  assert.match(messages,/await canContact\(db,to\)&&await validSource\(to,source\)/);
   assert.match(members,/messageLink\.hidden=!dmAllowed\(data\)/);
   assert.match(rules,/request\.resource\.data\.canReceiveDM == dmAllowedFor\(getAfter\(memberDoc\(uid\)\)\.data\)/);
   assert.match(rules,/canSendTo\(request\.resource\.data\.recipientUid\)/);
@@ -50,7 +50,7 @@ test('gallery is closed before launch and provides admin-only tools',()=>{
 test('reports and all request categories appear in operational flow',()=>{
   assert.match(board,/reportBoardEntry\('post',post\.id\)/);
   assert.match(board,/reportBoardEntry\('comment',postId,c\.id\)/);
-  assert.match(messages,/kind:'suggestion',id:record\.id/);
+  assert.doesNotMatch(messages,/reportMessage|kind:'suggestion'/);
   assert.match(ops,/memberWithdrawalRequests/);
   assert.match(ops,/nameChangeRequests/);
 });

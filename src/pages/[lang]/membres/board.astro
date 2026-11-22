@@ -414,7 +414,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       const author=el('span',tr('회원','Membre'));author.className='board-author';
       const date=el('span',stamp(post.createdAt));date.className='board-date';
       row.append(number,subject,author,date);list.append(row);
-      void publicInfo(post.authorUid).then(info=>{if(row.isConnected){displayAuthor(author,info,post.authorUid,uid,role,viewerDM,fr,messageUrl,'',db);}});
+      void publicInfo(post.authorUid).then(info=>{if(row.isConnected){displayAuthor(author,info,post.authorUid,uid,role,viewerDM,fr,messageUrl,'',db,post.deleted?undefined:{kind:'board',post:post.id,comment:''});}});
     });
   }
   async function reportBoardEntry(kind:'post'|'comment',postId:string,commentId?:string){
@@ -447,7 +447,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       title.append(badge,document.createTextNode(plainTitle));
     }
     if(body){renderBoardBody(body,post.body);void populatePhotos(body);}
-    if(meta){meta.textContent=dateLabel(post.createdAt,post.updatedAt);void publicInfo(post.authorUid).then(info=>{if(selected?.id===post.id)displayAuthor(meta,info,post.authorUid,uid,role,viewerDM,fr,messageUrl,dateLabel(post.createdAt,post.updatedAt),db);});}
+    if(meta){meta.textContent=dateLabel(post.createdAt,post.updatedAt);void publicInfo(post.authorUid).then(info=>{if(selected?.id===post.id)displayAuthor(meta,info,post.authorUid,uid,role,viewerDM,fr,messageUrl,dateLabel(post.createdAt,post.updatedAt),db,post.deleted?undefined:{kind:'board',post:post.id,comment:''});});}
     actions?.replaceChildren();
     
     if(!post.deleted){
@@ -626,7 +626,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
     const wrap=el('div');wrap.className=`board-comment-entry${isReply?' board-reply-entry':''}`;
     wrap.dataset.depth=String(depth);
     const meta=el('div',`${kind} · ${dateLabel(c.createdAt,c.updatedAt)}`);meta.className='board-comment-meta small muted';
-    void publicInfo(c.authorUid).then(info=>{if(meta.isConnected)displayAuthor(meta,info,c.authorUid,uid,role,viewerDM,fr,messageUrl,`${kind} · ${dateLabel(c.createdAt,c.updatedAt)}`,db);});
+    void publicInfo(c.authorUid).then(info=>{if(meta.isConnected)displayAuthor(meta,info,c.authorUid,uid,role,viewerDM,fr,messageUrl,`${kind} · ${dateLabel(c.createdAt,c.updatedAt)}`,db,c.deleted?undefined:{kind:'board',post:postId,comment:c.id});});
     const body=el('p',detail.text);body.className='board-comment-text';
     if(orphan){const note=el('p',tr('연결된 상위 댓글·답글을 찾을 수 없습니다.','Le commentaire parent est introuvable.'));note.className='small muted';wrap.append(note);}
     wrap.append(meta,body);

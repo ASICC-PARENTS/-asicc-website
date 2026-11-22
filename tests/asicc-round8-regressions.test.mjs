@@ -11,7 +11,7 @@ test('review queue has a dedicated link, query and refreshed status after approv
   assert.match(gallery,/get\('view'\)==='review'&&admin\(\)/);
 });
 test('all reset, albums and photos have clear independent controls, lazy media and incremental display',()=>{
-  for(const id of ['gallery-all-view','gallery-folder-view','gallery-photo-view','gallery-more','album-new-toggle'])assert.match(page,new RegExp(`id="${id}"`));
+  for(const id of ['gallery-all-view','gallery-folder-view','gallery-more','album-new-toggle'])assert.match(page,new RegExp(`id="${id}"`));
   assert.match(page,/#album-new-toggle\{margin-inline-start:auto/);
   assert.match(gallery,/el\.value='all'/);assert.match(gallery,/search\.value=''/);
   assert.match(gallery,/PHOTO_BATCH=24/);assert.match(gallery,/visible\.slice\(renderedCount,renderedCount\+PHOTO_BATCH\)/);
@@ -24,17 +24,17 @@ test('uploads remain ordinary draft-to-published, no per-photo review checkbox i
   assert.match(page,/책임감 있게 사진과 동영상을 등록/);
 });
 test('row-level messaging has independently saved settings, admin override and audit',()=>{
-  assert.match(admin,/renderMemberMessaging\(row,m\)/);assert.match(admin,/saveMessagingMode\(m,select,save\)/);
-  assert.match(admin,/href='\.\.\/messages\/\?to='/);
+  assert.match(admin,/renderMemberMessaging\(row,m\)/);assert.match(admin,/saveMessagingMode\(m,select,save,local\)/);
+  assert.doesNotMatch(admin,/href='\.\.\/messages\/\?to='/);
   assert.match(admin,/dmUpdatedBy:meUid,dmUpdatedAt:serverTimestamp\(\)/);
   assert.doesNotMatch(admin,/admin-edit-dm-project|admin-edit-birth-verified/);assert.match(rules,/function validAdminMessagingUpdate/);
   assert.match(rules,/changed\.hasOnly\(\['dmMode','dmUpdatedBy','dmUpdatedAt'\]\)/);
 });
 test('compose rechecks actual recipient permissions; admin does not depend on stale aliases',()=>{
   assert.match(access,/canContact\(db,authorUid\)/);
-  assert.match(messages,/role==='admin'\)\{\s*const active=await getDocs\(collection\(db,'members'\)\)/);
+  assert.doesNotMatch(messages,/getDocs\(collection\(db,'(?:members|publicNames)'\)\)/);assert.match(messages,/await validSource\(to,source\)/);
   assert.match(access,/getDocFromServer\(doc\(db,'messageAccess',uid\)\)/);
   assert.match(rules,/match \/messageAccess\/\{uid\}[\s\S]*?allow get: if canSendTo\(uid\)/);
   assert.match(rules,/sender\.role in \['member','special','admin'\] && recipient\.role in \['member','special','admin'\]/);
-  assert.match(messages,/if\(sending\|\|!selectedAllowed\)/);
+  assert.match(messages,/if\(sending\|\|!selectedAllowed\|\|!selected\)/);
 });

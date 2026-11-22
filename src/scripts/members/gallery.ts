@@ -82,7 +82,7 @@ function filtersMatch(album:Album){
 }
 function updateViewControls(){
   show('gallery-review-view',admin());show('gallery-filters',view!=='review');show('album-new-toggle',canPost()&&view!=='review');
-  for(const [id,on] of [['gallery-folder-view',view==='albums'],['gallery-photo-view',view==='photos'],['gallery-review-view',view==='review']] as const){by<HTMLElement>(id)?.setAttribute('aria-pressed',String(on));}
+  for(const [id,on] of [['gallery-folder-view',view==='albums'],['gallery-all-view',view==='photos'],['gallery-review-view',view==='review']] as const){by<HTMLElement>(id)?.setAttribute('aria-pressed',String(on));}
 }
 async function reviewCount(){if(!admin())return;try{const snap=await getDocs(query(collection(db,'galleryItems'),where('status','==','pending')));t('gallery-review-count',`(${snap.size})`);}catch(e){console.warn('Review count unavailable',e);}}
 async function loadVisiblePhotos(){
@@ -99,7 +99,7 @@ async function openAllPhotos(){
   if(view==='review'&&!admin())return;
   const epoch=++viewEpoch;clearMedia();by<HTMLElement>('album-list')?.replaceChildren();selected=null;photos=[];selectedPhotoIds.clear();show('album-list',false);show('album-detail',true);show('media-upload-form',false);show('album-new-form',false);show('gallery-bulk-tools',admin());
   by<HTMLElement>('album-actions')?.replaceChildren();by<HTMLElement>('gallery-items')?.replaceChildren();show('gallery-more',false);
-  t('album-active-title',view==='review'?tr('검토 대기 사진','Médias à vérifier'):tr('전체 사진 보기','Tous les médias'));
+  t('album-active-title',view==='review'?tr('검토 대기 사진','Médias à vérifier'):tr('전체 보기','Tous les médias'));
   t('album-active-meta',tr('사진을 불러오는 중…','Chargement…'));fillTarget();
   try{const records=await loadVisiblePhotos();if(epoch!==viewEpoch)return;
     const filtered=new Set(albums.filter(filtersMatch).map(a=>a.id));
@@ -461,9 +461,8 @@ by<HTMLButtonElement>('gallery-member-preview')?.addEventListener('click',async(
 });
 let filterTimer:ReturnType<typeof setTimeout>|undefined;
 for(const id of ['album-school-filter','album-year-filter','album-search'])by<HTMLElement>(id)?.addEventListener('input',()=>{if(busy)return;clearTimeout(filterTimer);filterTimer=setTimeout(()=>{if(!busy){if(view==='albums'&&selected)void changeView('albums');else if(view==='photos')void openAllPhotos();else if(view==='albums')renderAlbums();}},180);});
-by<HTMLButtonElement>('gallery-all-view')?.addEventListener('click',()=>{if(busy)return;for(const id of ['album-school-filter','album-year-filter']){const el=by<HTMLSelectElement>(id);if(el)el.value='all';}const search=by<HTMLInputElement>('album-search');if(search)search.value='';void changeView(view==='review'?'albums':view);});
+by<HTMLButtonElement>('gallery-all-view')?.addEventListener('click',()=>{if(busy)return;for(const id of ['album-school-filter','album-year-filter']){const el=by<HTMLSelectElement>(id);if(el)el.value='all';}const search=by<HTMLInputElement>('album-search');if(search)search.value='';void changeView('photos');});
 by<HTMLButtonElement>('gallery-folder-view')?.addEventListener('click',()=>void changeView('albums'));
-by<HTMLButtonElement>('gallery-photo-view')?.addEventListener('click',()=>void changeView('photos'));
 by<HTMLButtonElement>('gallery-review-view')?.addEventListener('click',()=>void changeView('review'));
 by<HTMLButtonElement>('gallery-more')?.addEventListener('click',()=>renderPhotos(true));
 by<HTMLButtonElement>('album-back')?.addEventListener('click',()=>void changeView('albums'));

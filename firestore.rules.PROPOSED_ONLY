@@ -176,7 +176,8 @@ match /nicknames/{key} {
 }
 // Public alias only, never exposes a real name, e-mail or student information.
 match /publicNames/{uid} {
-  allow get, list: if isActive();
+  allow get: if isActive();
+  allow list: if isAdmin();
   allow create, update: if signedIn() && (request.auth.uid == uid || isAdmin())
     && request.resource.data.keys().hasOnly(['nickname','updatedAt','role','canReceiveDM'])
     && request.resource.data.keys().hasAll(['nickname','updatedAt','canReceiveDM'])
@@ -933,6 +934,30 @@ function validUpgrade(uid) {
       allow get: if canSendTo(uid);
       allow list, create, update, delete: if false;
     }
+    // A new message must reference an actual visible post/comment or an existing received message.
+    function dmSourceId(v) { return v is string && v.size() > 0 && v.size() <= 1500 && !v.matches('.*[/].*'); }
+    function dmPostSource(s, target, col) {
+      let post = /databases/$(database)/documents/$(col)/$(s.post);
+      return exists(post)
+        && (col == 'boardPosts' ? get(post).data.get('deleted',false) == false : get(post).data.get('status','') == 'published')
+        && (s.comment == '' ? get(post).data.get('authorUid','') == target : dmCommentSource(s,target,col));
+    }
+    function dmCommentSource(s,target,col) {
+      let comment = /databases/$(database)/documents/$(col)/$(s.post)/comments/$(s.comment);
+      return exists(comment) && get(comment).data.get('deleted',false) == false && get(comment).data.authorUid == target;
+    }
+    function dmReplySource(s,target) {
+      let original = /databases/$(database)/documents/privateMessages/$(s.post);
+      return s.comment == '' && exists(original) && get(original).data.senderUid == target
+        && get(original).data.recipientUid == request.auth.uid && get(original).data.get('recipientDeletedAt',null) == null;
+    }
+    function validDmSource(s,target) {
+      return s is map && s.keys().hasOnly(['kind','post','comment']) && s.keys().hasAll(['kind','post','comment'])
+        && dmSourceId(s.post) && (s.comment == '' || dmSourceId(s.comment))
+        && ((s.kind == 'board' && dmPostSource(s,target,'boardPosts'))
+          || (s.kind == 'learning' && dmPostSource(s,target,'learningResources'))
+          || (s.kind == 'reply' && dmReplySource(s,target)));
+    }
     // Private messages: approved non-general accounts only; server enforces explicit admin override and automatic age policy.
     match /privateMessages/{messageId} {
       allow get, list: if isActive() && messagingEnabled() && isDmAccount(request.auth.uid)
@@ -940,20 +965,23 @@ function validUpgrade(uid) {
           || resource.data.recipientUid == request.auth.uid);
       allow create: if request.resource.data.get('recipientUid','') is string && canSendTo(request.resource.data.recipientUid)
         && request.resource.data.keys().hasOnly([
-          'senderUid','recipientUid','body','createdAt','readAt'])
+          'senderUid','recipientUid','body','createdAt','readAt','source'])
         && request.resource.data.keys().hasAll([
-          'senderUid','recipientUid','body','createdAt','readAt'])
+          'senderUid','recipientUid','body','createdAt','readAt','source'])
         && request.resource.data.senderUid == request.auth.uid
         && request.resource.data.recipientUid is string
         && request.resource.data.recipientUid != request.auth.uid
         && request.resource.data.body is string && request.resource.data.body.size() >= 1
         && request.resource.data.body.size() <= 2000
         && request.resource.data.createdAt == request.time
-        && request.resource.data.readAt == null;
+        && request.resource.data.readAt == null
+        && validDmSource(request.resource.data.source,request.resource.data.recipientUid);
       allow update: if isActive() && messagingEnabled() && isDmAccount(request.auth.uid)
         && resource.data.recipientUid == request.auth.uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt'])
-        && resource.data.readAt == null && request.resource.data.readAt == request.time;
+        && ((request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt'])
+          && resource.data.readAt == null && request.resource.data.readAt == request.time)
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['recipientDeletedAt'])
+          && resource.data.get('recipientDeletedAt',null) == null && request.resource.data.recipientDeletedAt == request.time));
       allow delete: if false;
     }
     // Anything not explicitly approved above is denied.

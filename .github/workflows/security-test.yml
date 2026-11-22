@@ -5,6 +5,7 @@ on:
     paths:
       - 'tests/firestore-rules.test.mjs'
       - 'tests/asicc-round9-policy.test.mjs'
+      - 'tests/asicc-round10-regressions.test.mjs'
       - 'src/scripts/members/dm-policy.ts'
       - 'firestore.rules.PROPOSED_ONLY'
       - 'firebase.test.json'
@@ -28,7 +29,7 @@ jobs:
       - name: Install project dependencies
         run: npm ci
       - name: Run DM policy tests
-        run: node --experimental-strip-types --test tests/asicc-round9-policy.test.mjs
+        run: node --experimental-strip-types --test tests/asicc-*-regressions.test.mjs tests/asicc-round9-policy.test.mjs tests/asicc-b2-first.test.mjs tests/patch-regressions.test.mjs
       - name: Install rules testing library
         run: npm install --no-save @firebase/rules-unit-testing@4.0.1
       - name: Run Firestore rules tests with emulator (NO PRODUCTION ACCESS)
