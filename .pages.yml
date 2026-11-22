@@ -12,7 +12,7 @@ content:
   type: group
   items:
   - name: homepage
-    label: 첫 화면·협회 소개 문구 (한/불)
+    label: "🏠 메인 첫 화면 제목·소개 — 실제 위치: /ko/ · /fr/"
     type: file
     path: src/data/site-copy.json
     format: json
@@ -57,18 +57,18 @@ content:
       label: 협회 소개 추가 섹션(운영진·기관·정관) 공개
       type: boolean
   - name: homepage_tiles
-    label: 첫 화면 바로가기 6개 (한/불)
+    label: "🏠 메인 바로가기 카드 6개 — 첫 화면 중단"
     type: file
     path: src/data/cms/home-tiles.json
     format: json
     list: true
     fields:
     - name: k
-      label: 아이콘 식별자
+      label: "관리용 카드 ID (변경 불가)"
       type: string
       readonly: true
     - name: path
-      label: 링크 주소
+      label: "버튼 이동 주소 (변경 불가)"
       type: string
       readonly: true
     - name: title_ko
@@ -84,7 +84,7 @@ content:
       label: Description - français
       type: text
   - name: page_index
-    label: 첫 화면 페이지 문구 (한/불)
+    label: "🏠 첫 화면 상세 문구 — 최신 소식·학교 소개 영역"
     type: file
     path: src/data/cms/pages/index.json
     format: json
@@ -180,7 +180,7 @@ content:
         label: Français
         type: string
   - name: menu_texts
-    label: 메뉴·푸터 공통 문구 (한/불)
+    label: "🧭 모든 페이지 상단 메뉴 및 하단 푸터"
     type: file
     path: src/data/cms/navigation.json
     format: json

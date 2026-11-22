@@ -1,0 +1,32 @@
+--- 5th/tests/firestore-rules.test.mjs
++++ 6th/tests/firestore-rules.test.mjs
+@@ -240,7 +240,8 @@
+         title: 'example',
+         body: 'hello',
+         authorUid: user,
+-        authorName: '기존회원',
++        // New posts must use the signed-in member's profile nickname.
++        authorName: user,
+         createdAt: serverTimestamp(),
+         updatedAt: serverTimestamp(),
+         deleted: false
+@@ -521,7 +522,8 @@
+         title: 'Post to be hidden',
+         body: 'Original content',
+         authorUid: uid.member,
+-        authorName: '기존회원',
++        // The rule compares authorName with the authenticated profile nickname.
++        authorName: uid.member,
+         createdAt: serverTimestamp(),
+         updatedAt: serverTimestamp(),
+         deleted: false
+@@ -569,7 +571,8 @@
+       {
+         body: 'Original member comment',
+         authorUid: uid.member,
+-        authorName: '기존회원',
++        // The author name must match the commenter's current nickname.
++        authorName: uid.member,
+         createdAt: serverTimestamp(),
+         updatedAt: serverTimestamp(),
+         deleted: false

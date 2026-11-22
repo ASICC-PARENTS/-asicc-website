@@ -16,13 +16,14 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
 <div id="upgrade-root" class="stack gap-16" data-lang={lang} data-login-url={href(lang,'membres/login/')} style="max-width:840px;margin:auto">
 <a href={href(lang,'membres/')} class="small">← {L(lang,{ko:'회원공간으로',fr:'Retour à l’espace membres'})}</a>
 <h1 class="h2">{L(lang,{ko:'회원 등급 승급 신청',fr:'Demander un changement de statut'})}</h1>
-<p class="muted">{L(lang,{ko:'일반회원이 협회회원·특별회원 자격을 신청하는 별도 페이지입니다. 운영진이 내용을 확인하고 승인합니다.',fr:'Les membres généraux peuvent demander un statut, soumis à l’examen de l’administration.'})}</p>
+<p class="muted">{L(lang,{ko:'일반회원이 정회원·특별회원 자격을 신청하는 별도 페이지입니다. 운영진이 내용을 확인하고 승인합니다.',fr:'Les membres généraux peuvent demander un statut, soumis à l’examen de l’administration.'})}</p>
 {!live && <div class="card">{L(lang,{ko:'아직 이용할 수 없습니다.',fr:'Service indisponible.'})}</div>}
 <p id="upgrade-status" role="status" class="small"></p>
 <form id="full-upgrade-form" hidden={!live} class="card stack gap-16" style="padding:26px">
+  <p id="upgrade-birth-info" class="small muted" hidden></p>
   <label for="full-role">{L(lang,{ko:'신청 등급',fr:'Statut demandé'})}</label>
   <select id="full-role" required>
-    <option value="member">{L(lang,{ko:'협회회원 (국제섹션 재학생 학부모)',fr:'Membre de l’association (parent d’élève)'})}</option>
+    <option value="member">{L(lang,{ko:'정회원 (국제섹션 재학생 및 학부모)',fr:'Membre régulier (élève ou parent d’élève)'})}</option>
     <option value="special">{L(lang,{ko:'특별회원',fr:'Membre spécial'})}</option>
   </select>
   <div id="full-special-kind" class="stack gap-8" hidden>
@@ -43,7 +44,9 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
     <p class="small muted">{L(lang,{ko:'재학 중인 학생 또는 졸업·전학한 학생의 이름, 학교, 학년을 입력해 주세요. 자녀가 여러 명이면 추가할 수 있습니다.',fr:'Indiquez le nom, l’école et la classe actuelle ou de départ. Vous pouvez ajouter plusieurs enfants.'})}</p>
     <div id="full-children" class="stack gap-12"></div>
   </div>
-  <label for="full-year">{L(lang,{ko:'졸업·전학 연도 (선택)',fr:'Année de fin de scolarité ou de transfert (facultatif)'})}</label>
+  <label for="full-start-year">{L(lang,{ko:'재학 시작 연도 (졸업·전학자 필수)',fr:'Année de début (obligatoire pour anciens et transférés)'})}</label>
+  <input id="full-start-year" type="number" min="2000" max="2100" />
+  <label for="full-year">{L(lang,{ko:'재학 종료·졸업·전학 연도 (졸업·전학자 필수)',fr:'Année de fin de scolarité (obligatoire pour anciens)'})}</label>
   <input id="full-year" type="number" min="2000" max="2100" />
   <label for="full-note">{L(lang,{ko:'운영진 심사 참고사항 (교사·기여자는 활동 내용 기입)',fr:'Informations complémentaires (contribution, établissement, etc.)'})}</label>
   <textarea id="full-note" rows="4" maxlength="500"></textarea>
@@ -62,12 +65,14 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
   import { getAuth,onAuthStateChanged,getIdToken } from 'firebase/auth';
   import { getFirestore,doc,getDoc,setDoc,updateDoc,serverTimestamp } from 'firebase/firestore';
   import { firebaseConfig } from '../../../firebase-config';
+  import {BOARD_PHOTO_API} from '../../../config/board-photos';
   const root=document.querySelector<HTMLElement>('#upgrade-root');const fr=root?.dataset.lang==='fr';
   const tr=(ko:string,french:string)=>fr?french:ko;
-  const say=(s:string,bad=false)=>{const p=document.querySelector<HTMLElement>('#upgrade-status');if(p){p.textContent=s;p.style.color=bad?'#b42318':'#067647';}};
+  import {toastResult} from '../../../scripts/members/toast';
+const say=(s:string,bad=false)=>{const p=document.querySelector<HTMLElement>('#upgrade-status');if(p){p.textContent=s;p.style.color=bad?'#b42318':'#067647';}toastResult(s,bad);};
   const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
   const auth=getAuth(app),db=getFirestore(app);
-  let uid='',profile:{name:string;email:string;role:string}|null=null;
+  let uid='',profile:{name:string;email:string;role:string;accountType?:string;birthDate?:string}|null=null;
   const container=document.querySelector<HTMLElement>('#full-children')!;
   function addChild(){
     if(container.children.length>=5)return;
@@ -99,6 +104,8 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
       await user.reload();await getIdToken(user,true);if(!user.emailVerified)throw Error('verify');
       const snap=await getDoc(doc(db,'members',user.uid));if(!snap.exists()||snap.data().status!=='approved')throw Error('profile');
       uid=user.uid;profile=snap.data() as typeof profile;
+      const birthInfo=document.querySelector<HTMLElement>('#upgrade-birth-info');
+      if(birthInfo&&(profile?.accountType==='student'||profile?.birthDate)){birthInfo.hidden=false;birthInfo.textContent=profile.birthDate?tr(`등록된 생년월일: ${profile.birthDate} (회원정보에 유지됩니다.)`,`Date de naissance enregistrée : ${profile.birthDate} (conservée dans votre profil).`):tr('생년월일이 등록되지 않았습니다. 운영진에게 확인을 요청해 주세요.','Date de naissance manquante : contactez l’administration.');}
       if(profile?.role!=='general'){say(tr('현재 등급에서는 승급 신청이 필요하지 않습니다.','Ce statut ne nécessite pas de demande.'));return;}
       const req=await getDoc(doc(db,'upgradeRequests',uid));
       if(req.exists()&&req.data().status!=='rejected'){
@@ -119,17 +126,22 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
     const kind=requestedRole==='member'?'parent':document.querySelector<HTMLSelectElement>('#full-kind')!.value;
     const relation=document.querySelector<HTMLSelectElement>('#full-relation')!.value;
     if((requestedRole==='member'||kind==='alumnus'||kind==='alumni-parent')&&!children.length){say(tr('학생 정보를 한 명 이상 입력해 주세요.','Ajoutez au moins un élève.'),true);return;}
+    const startRaw=document.querySelector<HTMLInputElement>('#full-start-year')!.value;
+    const startYear=startRaw?Number(startRaw):null;
     const yearRaw=document.querySelector<HTMLInputElement>('#full-year')!.value;
     const schoolYear=yearRaw?Number(yearRaw):null;
     if(schoolYear!==null&&(!Number.isInteger(schoolYear)||schoolYear<2000||schoolYear>2100)){say(tr('연도를 확인해 주세요.','Vérifiez l’année.'),true);return;}
+    if(['alumnus','alumni-parent'].includes(kind) && (startYear===null||schoolYear===null)){say(tr('졸업·전학자의 재학 시작·종료 연도를 모두 입력해 주세요.','Les deux années de scolarité sont obligatoires.'),true);return;}
+    if(startYear!==null&&(!Number.isInteger(startYear)||startYear<2000||startYear>2100||schoolYear!==null&&startYear>schoolYear)){say(tr('재학 시작·종료 연도를 확인해 주세요.','Vérifiez les années de scolarité.'),true);return;}
     const btn=form.querySelector<HTMLButtonElement>('button[type="submit"]');if(btn)btn.disabled=true;
     try{
       const ref=doc(db,'upgradeRequests',uid),snap=await getDoc(ref);
-      const entry={requestedRole,kind,relation,children,schoolYear,note:document.querySelector<HTMLTextAreaElement>('#full-note')!.value.trim(),status:'pending',createdAt:serverTimestamp()};
+      const entry={requestedRole,kind,relation,children,schoolYear,startYear,note:document.querySelector<HTMLTextAreaElement>('#full-note')!.value.trim(),status:'pending',createdAt:serverTimestamp()};
       if(!snap.exists())await setDoc(ref,{uid,applicantName:profile.name,applicantEmail:profile.email,...entry});
       else if(snap.data().status==='rejected')await updateDoc(ref,entry);
       else throw Error('already submitted');
       form.hidden=true;say(tr('승급 신청을 접수했습니다.','Demande transmise.'));
+      void fetch(BOARD_PHOTO_API.trim().replace(/\/$/,'')+'/api/notify',{method:'POST',headers:{Authorization:'Bearer '+await getIdToken(auth.currentUser!),'Content-Type':'application/json'},body:JSON.stringify({kind:'upgrade',id:uid})}).catch(console.warn);
     }catch(err){console.error(err);say(tr('신청을 저장하지 못했습니다.','Impossible d’enregistrer la demande.'),true);}
     finally{if(btn)btn.disabled=false;}
   });

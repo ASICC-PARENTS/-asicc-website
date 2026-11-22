@@ -1,0 +1,38 @@
+이 파일은 Firestore 규칙 전체가 아니라, 추가할 블록만 담고 있습니다.
+
+배포 중인 Firebase Console > Firestore Database > Rules 에서
+service cloud.firestore { match /databases/{database}/documents { ... } } 내부에,
+마지막 기본 거부 match /{document=**} 블록보다 앞에 추가하세요.
+현재 규칙 전체를 교체하지 마세요. 반드시 기존 규칙 백업과 테스트 후 반영하세요.
+
+----- BEGIN COPY BELOW -----
+    // Per-administrator acknowledgement. Reopening the browser or using another device
+    // must not resurface an alert that has already been acknowledged.
+    match /adminNotificationAcks/{uid} {
+      allow get: if isAdmin() && request.auth.uid == uid;
+      allow list: if false;
+      allow create, update: if isAdmin() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['acknowledgedAt'])
+        && request.resource.data.keys().hasAll(['acknowledgedAt'])
+        && request.resource.data.acknowledgedAt == request.time;
+      allow delete: if false;
+    }
+
+    // A withdrawal REQUEST is different from an account deletion. Only the
+    // account holder can request it, and only administrators can read all requests.
+    // Do not keep sensitive data or children names in these notices.
+    match /memberWithdrawalRequests/{uid} {
+      allow get: if isAdmin() || (verified() && request.auth.uid == uid);
+      allow list: if isAdmin();
+      allow create: if isActive() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['uid','name','email','status','requestedAt'])
+        && request.resource.data.keys().hasAll(['uid','name','email','status','requestedAt'])
+        && request.resource.data.uid == uid
+        && request.resource.data.name == me().name
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.status == 'pending'
+        && request.resource.data.requestedAt == request.time;
+      allow update, delete: if false;
+    }
+
+----- END COPY ABOVE -----

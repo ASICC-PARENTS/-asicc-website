@@ -12,7 +12,7 @@ const lang = Astro.props.pageLang as Lang;
 const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
 ---
 <Base lang={lang} rest="membres/" title={L(lang,{ko:'ASICC 회원공간',fr:'Espace membres ASICC'})} noindex>
-<section class="wrap m-shell">
+<section class="wrap m-shell member-ui">
   <div id="member-root" data-lang={lang} data-login-url={href(lang,'membres/login/')} class="stack gap-24">
     <div class="stack gap-8">
       <span class="m-badge" style="align-self:flex-start">ASICC · ESPACE MEMBRES</span>
@@ -24,37 +24,42 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
     <div id="member-error" class="card" role="alert" hidden></div>
     <div id="member-content" hidden class="stack gap-20">
       <div class="card member-topbar">
-        <div class="stack gap-8">
-          <strong id="member-name"></strong><span id="member-role" class="m-badge" style="align-self:flex-start"></span>
-          <span class="small muted" id="member-email"></span>
+        <div class="member-leading">
+          <div class="stack gap-8 member-identity">
+            <div class="row gap-8" style="align-items:center;flex-wrap:wrap"><strong id="member-name"></strong><span id="member-role" class="m-badge"></span></div>
+            <span class="small muted" id="member-email"></span>
+          </div>
+          <div class="member-staff-links" id="member-staff-links" hidden>
+            <a class="btn btn-ghost" href={href(lang,'membres/admin/')} id="admin-shortcut" hidden>{L(lang,{ko:'회원관리',fr:'Administration'})}</a>
+            <a class="btn btn-ghost" href={href(lang,'membres/office/')} id="office-shortcut" hidden>{L(lang,{ko:'온라인 협회 사무실',fr:'Bureau privé'})}</a>
+          </div>
         </div>
         <div class="member-top-actions">
           <a class="btn btn-ghost" href={href(lang,'membres/profile/')}>{L(lang,{ko:'내 정보 관리',fr:'Mon profil'})}</a>
           <a class="btn btn-ghost" href={href(lang,'membres/upgrade/')} id="upgrade-shortcut" hidden>{L(lang,{ko:'승급 신청',fr:'Demander un statut'})}</a>
+          <a class="btn btn-ghost" id="member-messages-shortcut" href={href(lang,'membres/messages/')}>{L(lang,{ko:'쪽지함',fr:'Messagerie'})} <span data-asicc-unread class="asicc-unread" hidden aria-live="polite"></span></a>
           <a class="btn btn-ghost" href={href(lang,'membres/suggestions/')}>{L(lang,{ko:'협회에 건의',fr:'Écrire à l’association'})}</a>
-          <a class="btn btn-ghost" href={href(lang,'membres/admin/')} id="admin-shortcut" hidden>{L(lang,{ko:'회원관리',fr:'Administration'})}</a>
-          <a class="btn btn-ghost" href={href(lang,'membres/office/')} id="office-shortcut" hidden>{L(lang,{ko:'온라인 협회사무실',fr:'Bureau privé'})}</a>
           <button id="member-signout" type="button" class="btn btn-ghost">{L(lang,{ko:'로그아웃',fr:'Déconnexion'})}</button>
         </div>
       </div>
       <div class="member-three">
         <section class="card member-panel stack gap-12">
           <div class="member-panel-title"><h2 class="h3">{L(lang,{ko:'학습자료실',fr:'Ressources pédagogiques'})}</h2><span aria-hidden="true">📚</span></div>
-          <p class="small muted">{L(lang,{ko:'최근 등록 자료 5개',fr:'5 dernières ressources'})}</p>
+          <p id="recent-learning-count" class="small muted">{L(lang,{ko:'최근 등록 자료',fr:'Ressources récentes'})}</p>
           <div id="recent-learning" class="member-feed stack gap-8"></div>
-          <a class="btn btn-ghost member-bottom-link" href={href(lang,'membres/learning/')}>{L(lang,{ko:'전체 자료 보기',fr:'Toutes les ressources'})} →</a>
+          <a class="btn btn-ghost member-bottom-link" href={href(lang,'membres/learning/')}>{L(lang,{ko:'학습자료실',fr:'Ressources pédagogiques'})} →</a>
         </section>
         <section class="card member-panel stack gap-12">
-          <div class="member-panel-title"><h2 class="h3">{L(lang,{ko:'회원 게시판',fr:'Forum des membres'})}</h2><span aria-hidden="true">💬</span></div>
+          <div class="member-panel-title"><h2 class="h3">{L(lang,{ko:'회원게시판',fr:'Forum des membres'})}</h2><span aria-hidden="true">💬</span></div>
           <p id="board-privilege" class="small muted"></p>
           <div id="recent-posts" class="member-feed stack gap-8"></div>
-          <a class="btn btn-ghost member-bottom-link" href={href(lang,'membres/board/')}>{L(lang,{ko:'전체 게시글 보기',fr:'Tous les messages'})} →</a>
+          <a class="btn btn-ghost member-bottom-link" href={href(lang,'membres/board/')}>{L(lang,{ko:'회원게시판',fr:'Forum des membres'})} →</a>
         </section>
         <section class="card member-panel stack gap-12">
           <div class="member-panel-title"><h2 class="h3">{L(lang,{ko:'갤러리',fr:'Galerie'})}</h2><span aria-hidden="true">🖼️</span></div>
-          <p class="small muted">{L(lang,{ko:'최근 등록 앨범',fr:'Albums récents'})}</p>
+          <p class="small muted">{L(lang,{ko:'초상권 관리 기준을 협의 중입니다. 갤러리 공개 전까지 이용할 수 없습니다.',fr:'Galerie en préparation : politique de droit à l’image en cours.'})}</p>
           <div id="recent-gallery" class="member-feed stack gap-8"></div>
-          <a id="gallery-link" class="btn btn-ghost member-bottom-link" href={href(lang,'membres/gallery/')}>{L(lang,{ko:'전체 앨범 보기',fr:'Voir tous les albums'})} →</a>
+          <a id="gallery-link" class="btn btn-ghost member-bottom-link" href={href(lang,'membres/gallery/')}>{L(lang,{ko:'갤러리',fr:'Galerie'})} →</a>
         </section>
       </div>
       <p id="member-dashboard-status" class="small muted" role="status" aria-live="polite"></p>
@@ -64,7 +69,12 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
 </Base>
 <style>
 .member-topbar {padding:20px 24px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;justify-content:space-between}
-.member-top-actions {display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.member-leading {display:flex;gap:18px;flex-wrap:wrap;align-items:center;min-width:0}
+.member-staff-links {display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.member-staff-links[hidden] {display:none}
+.member-identity {text-align:left;align-items:flex-start;min-width:0}
+.member-top-actions {display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:flex-end;margin-left:auto}
+@media(max-width:720px){.member-leading{width:100%}.member-top-actions{margin-left:0;justify-content:flex-start}}
 .member-three {display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:16px;align-items:stretch}
 .member-panel {padding:22px;min-width:0;min-height:340px}
 .member-panel-title {display:flex;justify-content:space-between;align-items:center;gap:8px}
@@ -77,8 +87,9 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
 <script>
 import {getApps,initializeApp} from 'firebase/app';
 import {getAuth,onAuthStateChanged,signOut,getIdToken} from 'firebase/auth';
-import {getFirestore,doc,getDoc,getDocs,collection,query,orderBy,limit} from 'firebase/firestore';
+import {getFirestore,doc,getDoc,getDocs,getDocsFromServer,collection,query,where,orderBy,limit} from 'firebase/firestore';
 import {firebaseConfig} from '../../../firebase-config';
+import {dmAllowed} from '../../../scripts/members/member-access';
 const root=document.querySelector<HTMLElement>('#member-root');const fr=root?.dataset.lang==='fr';
 const tr=(ko:string,french:string)=>fr?french:ko;
 const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
@@ -89,13 +100,28 @@ function item(text:string,sub?:string){const n=document.createElement('div');n.c
 async function displayFeed(id:string,collectionName:string,max=5){
  const target=by(id);if(!target)return;
  try{
-   const snap=await getDocs(query(collection(db,collectionName),orderBy('createdAt','desc'),limit(collectionName==='boardPosts'?20:max)));
-   const docs=snap.docs.filter(d=>collectionName!=='boardPosts'||d.data().deleted!==true).slice(0,max);
+   const previewLimit=collectionName==='boardPosts'?20:collectionName==='learningResources'||collectionName==='galleryItems'?10:max;
+   const feedQuery=collectionName==='galleryItems'?query(collection(db,collectionName),where('status','==','published')):query(collection(db,collectionName),orderBy('createdAt','desc'),limit(previewLimit));
+   // A deletion must not remain visible because of an old local Firestore snapshot.
+   const snap=collectionName==='learningResources'?await getDocsFromServer(feedQuery):await getDocs(feedQuery);
+   // A Firestore draft can exist even when its binary upload failed.
+   // The dashboard must show only completed publications (or legacy stored files).
+   const docs=snap.docs.filter(d=>{
+     const data=d.data();
+     if(collectionName==='boardPosts')return data.deleted!==true;
+     if(collectionName==='learningResources'||collectionName==='galleryItems')return data.status==='published'||(!data.status&&typeof data.storagePath==='string'&&!!data.storagePath);
+     return true;
+   }).sort((a,b)=>(b.data().createdAt?.toMillis?.()||0)-(a.data().createdAt?.toMillis?.()||0)).slice(0,max);
    target.replaceChildren();
+   if(id==='recent-learning')note('recent-learning-count',tr(`최근 등록 자료 ${docs.length}개`,`${docs.length} ressources récentes`));
    if(!docs.length){target.textContent=tr('등록된 자료가 없습니다.','Aucun contenu.');return;}
-   docs.forEach(d=>{const data=d.data();target.append(item(String(data.title||data.filename||tr('제목 없는 자료','Sans titre')).slice(0,120),collectionName==='boardPosts'?tr('게시글','Message'):String(data.mime||tr('자료','Ressource'))));});
- }catch(err){console.error(err);target.textContent=tr('자료를 불러오지 못했습니다.','Impossible de charger les données.');}
+   docs.forEach(d=>{const data=d.data();target.append(item(String((collectionName==='galleryItems'?(data.description||tr('갤러리 사진·동영상','Média de galerie')):data.title||data.filename)||tr('제목 없는 자료','Sans titre')).slice(0,120),collectionName==='boardPosts'?tr('게시글','Message'):String(data.mime||tr('자료','Ressource'))));});
+ }catch(err){console.error(err);if(id==='recent-learning')note('recent-learning-count',tr('최근 등록 자료','Ressources récentes'));target.textContent=tr('자료를 불러오지 못했습니다.','Impossible de charger les données.');}
 }
+// Browser Back/Forward Cache may restore an old dashboard DOM without rerunning auth.
+window.addEventListener('pageshow',event=>{
+  if(event.persisted&&!by('member-content')?.hidden)void displayFeed('recent-learning','learningResources');
+});
 if(import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true')onAuthStateChanged(auth,async user=>{
  if(!user){location.replace(root?.dataset.loginUrl||'/');return;}
  try{
@@ -104,21 +130,32 @@ if(import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true')onAuthStateChanged(auth
    const data=snap.data(),role=String(data.role);
    note('member-name',tr(`안녕하세요, ${data.nickname||'회원'}님!`,`Bienvenue, ${data.nickname||'membre'} !`));
    note('member-email',String(data.email||''));
-   note('member-role',({general:tr('일반회원','Membre général'),member:tr('협회회원','Membre'),special:tr('특별회원','Membre spécial'),admin:tr('운영진','Administrateur')} as Record<string,string>)[role]||role);
+   note('member-role',({general:tr('일반회원','Membre général'),member:tr('정회원','Membre'),special:tr('특별회원','Membre spécial'),admin:tr('관리자','Administrateur')} as Record<string,string>)[role]||role);
    const full=['member','special','admin'].includes(role);
+   const messaging=await getDoc(doc(db,'siteSettings','messaging')).catch(()=>null);
+   const messageLink=by('member-messages-shortcut');if(messageLink)messageLink.hidden=!dmAllowed(data)||messaging?.data()?.enabled!==true;
+   if(role!=='general'&&(!dmAllowed(data)||messaging?.data()?.enabled!==true)){const status=by('member-dashboard-status');if(status)status.textContent=tr('현재 쪽지 기능을 이용할 수 없습니다. 이용을 원하시는 경우 운영진에게 문의해 주세요.','La messagerie est indisponible. Contactez l’administration.');}
    const upgrade=by('upgrade-shortcut');if(upgrade)upgrade.hidden=role!=='general';
    const admin=by('admin-shortcut');if(admin)admin.hidden=role!=='admin';
    const office=by('office-shortcut');if(office)office.hidden=role!=='admin';
+   const staffLinks=by('member-staff-links');if(staffLinks)staffLinks.hidden=role!=='admin';
    note('board-privilege',full?tr('읽기·글쓰기·댓글 가능','Lecture, publication et commentaires'):tr('읽기 가능 · 글쓰기는 🔒 잠금','Lecture autorisée · publication verrouillée 🔒'));
    const loading=by('member-loading');if(loading)loading.hidden=true;
    const content=by('member-content');if(content)content.hidden=false;
    if(!full){
      const gal=by('recent-gallery');if(gal){gal.replaceChildren();const lock=document.createElement('div');lock.className='member-lock';
        const symbol=document.createElement('div');symbol.textContent='🔒';symbol.style.fontSize='2rem';
-       const label=document.createElement('p');label.textContent=tr('협회회원·특별회원부터 볼 수 있습니다.','Galerie réservée aux membres approuvés.');
+       const label=document.createElement('p');label.textContent=tr('정회원·특별회원부터 볼 수 있습니다.','Galerie réservée aux membres approuvés.');
        lock.append(symbol,label);gal.append(lock);}
      const galLink=by('gallery-link');if(galLink)galLink.hidden=true;
-   }else{void displayFeed('recent-gallery','galleryItems');}
+   }else{
+     // Do not query or summarize private gallery records before formal launch.
+     void getDoc(doc(db,'siteSettings','gallery')).then(setting=>{
+       const gal=by('recent-gallery');if(!gal)return;
+       if(setting.data()?.isOpen===true)void displayFeed('recent-gallery','galleryItems');
+       else gal.textContent=tr('초상권 정책 확정 전까지 갤러리를 공개하지 않습니다.','Galerie fermée en attendant la politique de droit à l’image.');
+     }).catch(()=>{const gal=by('recent-gallery');if(gal)gal.textContent=tr('갤러리를 준비하고 있습니다.','Galerie en préparation.');});
+   }
    void displayFeed('recent-learning','learningResources');
    void displayFeed('recent-posts','boardPosts');
  }catch(err){console.error(err);const loading=by('member-loading');if(loading)loading.hidden=true;const errBox=by('member-error');if(errBox){errBox.hidden=false;errBox.textContent=tr('회원정보를 불러올 수 없습니다. 인증·권한을 확인해 주세요.','Impossible de charger le profil. Vérifiez vos droits.');}}

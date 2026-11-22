@@ -26,6 +26,9 @@ const EMAIL = uid => `${uid}@example.test`;
 
 const profile = (uid, role, status = 'approved') => ({
   name: uid,
+  nickname: uid,
+  nicknameKey: uid,
+  accountType: 'adult',
   email: EMAIL(uid),
   role,
   status,
@@ -87,9 +90,15 @@ before(async () => {
         item('learn1', 'learning')
       ),
 
+      setDoc(doc(db, 'nicknames', 'member'), {
+        uid: 'member', nickname: 'member', createdAt: new Date()
+      }),
+      setDoc(doc(db, 'publicNames', 'member'), {
+        nickname: 'member', role: 'member', canReceiveDM: true, updatedAt: new Date()
+      }),
       setDoc(
         doc(db, 'galleryItems', 'pic1'),
-        item('pic1', 'gallery')
+        {...item('pic1', 'gallery'), status:'published', mediaType:'photo', albumId:'album-seed'}
       ),
 
       setDoc(
@@ -158,17 +167,27 @@ test('general can see learning but not gallery or office', async () => {
   );
 });
 
-test('special has identical gallery permission to member, not office', async () => {
+test('closed gallery: only admin can inspect photos; both member and special are blocked', async () => {
+  await assertSucceeds(getDoc(doc(context(uid.admin), 'galleryItems', 'pic1')));
   for (const user of [uid.member, uid.special]) {
-    const db = context(user);
+    await assertFails(getDoc(doc(context(user), 'galleryItems', 'pic1')));
+    await assertFails(getDoc(doc(context(user), 'officeDocs', 'minutes1')));
+  }
+});
 
-    await assertSucceeds(
-      getDoc(doc(db, 'galleryItems', 'pic1'))
-    );
-
-    await assertFails(
-      getDoc(doc(db, 'officeDocs', 'minutes1'))
-    );
+test('opened gallery: member and special can view equally, general remains blocked', async () => {
+  await env.withSecurityRulesDisabled(async ctx => {
+    await setDoc(doc(ctx.firestore(),'siteSettings','gallery'), {isOpen:true});
+  });
+  try {
+    for (const user of [uid.member, uid.special]) {
+      await assertSucceeds(getDoc(doc(context(user), 'galleryItems', 'pic1')));
+    }
+    await assertFails(getDoc(doc(context(uid.general), 'galleryItems', 'pic1')));
+  } finally {
+    await env.withSecurityRulesDisabled(async ctx => {
+      await setDoc(doc(ctx.firestore(),'siteSettings','gallery'), {isOpen:false});
+    });
   }
 });
 
@@ -221,7 +240,8 @@ test('member and special can write board posts', async () => {
         title: 'example',
         body: 'hello',
         authorUid: user,
-        authorName: '기존회원',
+        // New posts must use the signed-in member's profile nickname.
+        authorName: user,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         deleted: false
@@ -255,14 +275,14 @@ test('new user may create only approved general member profile', async () => {
   const batch = writeBatch(db);
   batch.set(doc(db,'members',newuid),{
     name:'New user',nickname:'NewTester',nicknameKey:'newtester',email:EMAIL(newuid),
-    role:'general',status:'approved',consent:true,termsVersion:'2026-11',
+    role:'general',status:'approved',accountType:'adult',consent:true,termsVersion:'2026-11',
     termsAcceptedAt:serverTimestamp(),createdAt:serverTimestamp()
   });
   batch.set(doc(db,'nicknames','newtester'),{
     uid:newuid,nickname:'NewTester',createdAt:serverTimestamp()
   });
   batch.set(doc(db,'publicNames',newuid),{
-    nickname:'NewTester',updatedAt:serverTimestamp()
+    nickname:'NewTester',role:'general',canReceiveDM:false,updatedAt:serverTimestamp()
   });
   await assertSucceeds(batch.commit());
   const evil='evil-signup';
@@ -270,6 +290,56 @@ test('new user may create only approved general member profile', async () => {
     name:'Evil',email:EMAIL(evil),role:'admin',status:'approved',
     consent:true,createdAt:serverTimestamp()
   }));
+});
+
+test('student registration can only publish a non-messageable public alias', async () => {
+  const studentId='student-test', db=context(studentId);
+  const b=writeBatch(db);
+  b.set(doc(db,'members',studentId),{
+    name:'Student Test',nickname:'YoungGuest',nicknameKey:'youngguest',
+    email:EMAIL(studentId),role:'general',status:'approved',accountType:'student',birthDate:'2015-01-01',
+    consent:true,termsVersion:'2026-11',termsAcceptedAt:serverTimestamp(),createdAt:serverTimestamp()
+  });
+  b.set(doc(db,'nicknames','youngguest'),{uid:studentId,nickname:'YoungGuest',createdAt:serverTimestamp()});
+  b.set(doc(db,'publicNames',studentId),{
+    nickname:'YoungGuest',role:'general',canReceiveDM:false,updatedAt:serverTimestamp()
+  });
+  await assertSucceeds(b.commit());
+  await assertFails(updateDoc(doc(db,'publicNames',studentId),{canReceiveDM:true,updatedAt:serverTimestamp()}));
+});
+
+test('student information and both years are mandatory for alumni upgrade requests', async () => {
+  const applicant='alumni-applicant', db=context(applicant);
+  await env.withSecurityRulesDisabled(async ctx=>{
+    await setDoc(doc(ctx.firestore(),'members',applicant),profile(applicant,'general'));
+  });
+  const ref=doc(db,'upgradeRequests',applicant);
+  const base={uid:applicant,applicantName:applicant,applicantEmail:EMAIL(applicant),
+    requestedRole:'special',kind:'alumni-parent',status:'pending',note:'Old school records',
+    relation:'mother',createdAt:serverTimestamp()};
+  await assertFails(setDoc(ref,{...base,startYear:null,schoolYear:2022,children:[
+    {studentName:'Child',school:'Primary',grade:'CM2'}]}));
+  await assertFails(setDoc(ref,{...base,startYear:2020,schoolYear:2022,children:[]}));
+  await assertSucceeds(setDoc(ref,{...base,startYear:2020,schoolYear:2022,children:[
+    {studentName:'Child',school:'Primary',grade:'CM2'}]}));
+});
+
+test('minor/student and general accounts cannot send or receive private messages', async () => {
+  const adminDb=context(uid.admin);
+  await assertSucceeds(setDoc(doc(adminDb,'siteSettings','messaging'),{
+    enabled:true,updatedBy:uid.admin,updatedAt:serverTimestamp()
+  }));
+  await env.withSecurityRulesDisabled(async c=>{for(const target of [uid.admin,uid.member,'student-test'])await setDoc(doc(c.firestore(),'boardPosts','dmblocked-'+target),{authorUid:target,deleted:false});});
+  const message=(sender,recipient)=>({senderUid:sender,recipientUid:recipient,
+    body:'Hello',readAt:null,createdAt:serverTimestamp(),source:{kind:'board',post:'dmblocked-'+recipient,comment:''}});
+  await assertFails(setDoc(doc(context('student-test'),'privateMessages','student-out'),
+    message('student-test',uid.admin)));
+  await assertFails(setDoc(doc(context(uid.member),'privateMessages','student-in'),
+    message(uid.member,'student-test')));
+  await assertFails(setDoc(doc(context(uid.general),'privateMessages','general-to-admin'),
+    message(uid.general,uid.admin)));
+  await assertFails(setDoc(doc(context(uid.general),'privateMessages','general-to-member'),
+    message(uid.general,uid.member)));
 });
 
 test('general member can file request to become association member', async () => {
@@ -283,6 +353,9 @@ test('general member can file request to become association member', async () =>
       requestedRole: 'member',
       kind: 'parent',
       schoolYear: null,
+      startYear: null,
+      relation: 'mother',
+      children: [{studentName:'Student One',school:'Primary',grade:'CM1'}],
       note: 'test',
       status: 'pending',
       createdAt: serverTimestamp()
@@ -324,6 +397,10 @@ test('admin may approve member upgrade using transaction', async () => {
 
       tx.update(memRef, {
         role: 'member'
+      });
+      tx.set(doc(db,'publicNames',uid.general), {
+        nickname: uid.general, role: 'member', canReceiveDM: true,
+        updatedAt: serverTimestamp()
       });
 
       tx.update(reqRef, {
@@ -446,7 +523,8 @@ test('admin may hide another member post', async () => {
         title: 'Post to be hidden',
         body: 'Original content',
         authorUid: uid.member,
-        authorName: '기존회원',
+        // The rule compares authorName with the authenticated profile nickname.
+        authorName: uid.member,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         deleted: false
@@ -494,7 +572,8 @@ test('comment owner may edit; admin cannot rewrite but may hide', async () => {
       {
         body: 'Original member comment',
         authorUid: uid.member,
-        authorName: '기존회원',
+        // The author name must match the commenter's current nickname.
+        authorName: uid.member,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         deleted: false
@@ -694,6 +773,7 @@ test('duplicate nickname registration is denied', async () => {
     email: EMAIL(newuid),
     role: 'general',
     status: 'approved',
+    accountType: 'adult',
     consent: true,
     termsVersion: '2026-11',
     termsAcceptedAt: serverTimestamp(),
@@ -706,7 +786,7 @@ test('duplicate nickname registration is denied', async () => {
     createdAt: serverTimestamp()
   });
 
-  batch.set(doc(db, 'publicNames', newuid), {nickname:'NewTester',updatedAt:serverTimestamp()});
+  batch.set(doc(db, 'publicNames', newuid), {nickname:'NewTester',role:'general',canReceiveDM:false,updatedAt:serverTimestamp()});
   await assertFails(batch.commit());
 });
 
@@ -720,11 +800,11 @@ test('reserved administrator nickname cannot be registered', async () => {
   const other='impersonator';const db=context(other);const batch=writeBatch(db);
   batch.set(doc(db,'members',other),{
     name:'Bad',nickname:'ASICCAdmin',nicknameKey:'asiccadmin',email:EMAIL(other),
-    role:'general',status:'approved',consent:true,termsVersion:'2026-11',
+    role:'general',status:'approved',accountType:'adult',consent:true,termsVersion:'2026-11',
     termsAcceptedAt:serverTimestamp(),createdAt:serverTimestamp()
   });
   batch.set(doc(db,'nicknames','asiccadmin'),{uid:other,nickname:'ASICCAdmin',createdAt:serverTimestamp()});
-  batch.set(doc(db,'publicNames',other),{nickname:'ASICCAdmin',updatedAt:serverTimestamp()});
+  batch.set(doc(db,'publicNames',other),{nickname:'ASICCAdmin',role:'general',canReceiveDM:false,updatedAt:serverTimestamp()});
   await assertFails(batch.commit());
 });
 
@@ -732,13 +812,14 @@ test('member can reserve an alias atomically but cannot seize an existing one', 
   const db=context(uid.member);const member=doc(db,'members',uid.member);
   const good=writeBatch(db);
   good.update(member,{nickname:'Bonjour77',nicknameKey:'bonjour77'});
+  good.delete(doc(db,'nicknames','member'));
   good.set(doc(db,'nicknames','bonjour77'),{uid:uid.member,nickname:'Bonjour77',createdAt:serverTimestamp()});
-  good.set(doc(db,'publicNames',uid.member),{nickname:'Bonjour77',updatedAt:serverTimestamp()});
+  good.set(doc(db,'publicNames',uid.member),{nickname:'Bonjour77',role:'member',canReceiveDM:true,updatedAt:serverTimestamp()});
   await assertSucceeds(good.commit());
   const bad=writeBatch(db);
   bad.update(member,{nickname:'NewTester',nicknameKey:'newtester'});
   bad.set(doc(db,'nicknames','newtester'),{uid:uid.member,nickname:'NewTester',createdAt:serverTimestamp()});
-  bad.set(doc(db,'publicNames',uid.member),{nickname:'NewTester',updatedAt:serverTimestamp()});
+  bad.set(doc(db,'publicNames',uid.member),{nickname:'NewTester',role:'member',canReceiveDM:true,updatedAt:serverTimestamp()});
   bad.delete(doc(db,'nicknames','bonjour77'));
   await assertFails(bad.commit());
 });
@@ -747,7 +828,7 @@ test('nickname can change with reservation release and public display update', a
   const db=context(uid.member);const batch=writeBatch(db);
   batch.update(doc(db,'members',uid.member),{nickname:'Bonjour78',nicknameKey:'bonjour78'});
   batch.set(doc(db,'nicknames','bonjour78'),{uid:uid.member,nickname:'Bonjour78',createdAt:serverTimestamp()});
-  batch.set(doc(db,'publicNames',uid.member),{nickname:'Bonjour78',updatedAt:serverTimestamp()});
+  batch.set(doc(db,'publicNames',uid.member),{nickname:'Bonjour78',role:'member',canReceiveDM:true,updatedAt:serverTimestamp()});
   batch.delete(doc(db,'nicknames','bonjour77'));
   await assertSucceeds(batch.commit());
   const snap=await assertSucceeds(getDoc(doc(context(uid.special),'publicNames',uid.member)));
@@ -821,4 +902,111 @@ test('admin may anonymize historical authorName without rewriting the body', asy
   await assertSucceeds(updateDoc(doc(db,'boardPosts','post1'),{authorName:'기존회원',updatedAt:serverTimestamp()}));
   await assertSucceeds(updateDoc(doc(db,'boardPosts','post1','comments','comment-permission-test'),{authorName:'기존회원',updatedAt:serverTimestamp()}));
   await assertFails(updateDoc(doc(context(uid.special),'boardPosts','post1'),{authorName:'other',updatedAt:serverTimestamp()}));
+});
+
+// Round 9: automatic age policy, explicit admin override, immutable roles, and global switch.
+test('adult students auto-enable from birth date; minors default off; only admin may override', async()=>{
+  const db=context(uid.admin);
+  await assertSucceeds(setDoc(doc(db,'siteSettings','messaging'),{enabled:true,updatedBy:uid.admin,updatedAt:serverTimestamp()}));
+  const ids=['adult-alumni9','minor-alumni9','missing-age9','legacy-parent9','legacy-admin9','general9','suspended9'];
+  await env.withSecurityRulesDisabled(async c=>{
+    const f=c.firestore(); const items=[
+      {...profile(ids[0],'special'),accountType:'student',birthDate:'2000-01-01'},
+      {...profile(ids[1],'special'),accountType:'student',birthDate:'2015-01-01'},
+      {...profile(ids[2],'member'),accountType:'student'},
+      {...profile(ids[3],'special'),accountType:'',memberKind:'alumni-parent'},
+      {...profile(ids[4],'admin'),accountType:''},profile(ids[5],'general'),profile(ids[6],'special','suspended')];
+    for(let i=0;i<ids.length;i++){await setDoc(doc(f,'members',ids[i]),items[i]);await setDoc(doc(f,'boardPosts','dm9-source-'+ids[i]),{authorUid:ids[i],deleted:false});}
+  });
+  const [adult,minor,unknown,parent,admin,general,suspended]=ids;
+  const check=(from,to)=>getDoc(doc(context(from),'messageAccess',to));
+  const send=(from,to,id)=>setDoc(doc(context(from),'privateMessages',id),{senderUid:from,recipientUid:to,body:'Round nine',readAt:null,createdAt:serverTimestamp(),source:{kind:'board',post:'dm9-source-'+to,comment:''}});
+  const mode=(id,dmMode)=>updateDoc(doc(db,'members',id),{dmMode,dmUpdatedBy:uid.admin,dmUpdatedAt:serverTimestamp()});
+  await assertSucceeds(check(adult,parent));await assertSucceeds(check(admin,parent));
+  await assertSucceeds(send(admin,adult,'dm9-legacy-admin'));
+  await assertFails(check(minor,admin));await assertFails(check(admin,minor));
+  await assertFails(check(unknown,admin));await assertFails(check(general,admin));await assertFails(check(admin,general));
+  await assertFails(check(admin,suspended));
+  await assertFails(updateDoc(doc(context(minor),'members',minor),{dmMode:'on',dmUpdatedBy:minor,dmUpdatedAt:serverTimestamp()}));
+  await assertFails(updateDoc(doc(db,'members',minor),{dmMode:'on'}));
+  await assertSucceeds(mode(minor,'on'));await assertSucceeds(mode(unknown,'on'));
+  await assertSucceeds(send(minor,admin,'dm9-minor-admin'));await assertSucceeds(send(admin,minor,'dm9-admin-minor'));
+  await assertSucceeds(check(unknown,admin));
+  await assertSucceeds(updateDoc(doc(context(minor),'privateMessages','dm9-admin-minor'),{readAt:serverTimestamp()}));
+  await assertFails(getDoc(doc(context(parent),'privateMessages','dm9-admin-minor')));
+  await assertFails(getDoc(doc(context(minor),'members',parent)));
+  await assertSucceeds(mode(minor,'off'));await assertFails(check(admin,minor));
+  await assertFails(getDoc(doc(context(minor),'privateMessages','dm9-admin-minor')));
+  await assertSucceeds(mode(adult,'off'));await assertFails(check(adult,parent));
+  await assertSucceeds(mode(adult,'auto'));await assertSucceeds(check(adult,parent));
+  await assertSucceeds(updateDoc(doc(context(admin),'members',admin),{dmMode:'on',dmUpdatedBy:admin,dmUpdatedAt:serverTimestamp()}));
+  await assertFails(updateDoc(doc(context(admin),'members',admin),{dmMode:'on',role:'general',dmUpdatedBy:admin,dmUpdatedAt:serverTimestamp()}));
+  await assertFails(updateDoc(doc(context(admin),'members',admin),{email:'other@example.test',dmMode:'on',dmUpdatedBy:admin,dmUpdatedAt:serverTimestamp()}));
+  await assertFails(setDoc(doc(db,'messageAccess',minor),{allowed:true}));
+  await assertFails(getDocs(collection(db,'messageAccess')));
+  await assertSucceeds(setDoc(doc(db,'siteSettings','messaging'),{enabled:false,updatedBy:uid.admin,updatedAt:serverTimestamp()}));
+  await assertFails(check(admin,parent));await assertFails(send(admin,parent,'dm9-global-off'));
+  await assertSucceeds(setDoc(doc(db,'siteSettings','messaging'),{enabled:true,updatedBy:uid.admin,updatedAt:serverTimestamp()}));
+});
+
+test('initialization marker is staff-only and immutable, initial activation does not alter other fields',async()=>{
+  const db=context(uid.admin),marker=doc(db,'siteSettings','dmRound9');
+  const data={updatedBy:uid.admin,updatedAt:serverTimestamp()};
+  await assertFails(getDoc(doc(context(uid.member),'siteSettings','dmRound9')));
+  await assertFails(setDoc(doc(context(uid.member),'siteSettings','dmRound9'),{updatedBy:uid.member,updatedAt:serverTimestamp()}));
+  await assertSucceeds(runTransaction(db,async tx=>{
+    const before=await tx.get(marker);assert.equal(before.exists(),false);
+    tx.update(doc(db,'members',uid.admin),{dmMode:'on',dmUpdatedBy:uid.admin,dmUpdatedAt:serverTimestamp()});
+    tx.set(marker,data);
+  }));
+  await assertFails(setDoc(marker,data));await assertFails(deleteDoc(marker));
+  await assertSucceeds(updateDoc(doc(db,'members',uid.admin),{dmMode:'off',dmUpdatedBy:uid.admin,dmUpdatedAt:serverTimestamp()}));
+  await assertSucceeds(updateDoc(doc(db,'members',uid.admin),{dmMode:'auto',dmUpdatedBy:uid.admin,dmUpdatedAt:serverTimestamp()}));
+});
+
+
+test('round 10: only real post/comment authors or received-message senders may be contacted; inbox deletion is recipient-only',async()=>{
+  const a='dm10-sender',b='dm10-recipient',c='dm10-other';
+  await env.withSecurityRulesDisabled(async ctx=>{
+    const db=ctx.firestore();for(const id of [a,b,c])await setDoc(doc(db,'members',id),profile(id,'member'));
+    await setDoc(doc(db,'siteSettings','messaging'),{enabled:true});
+    await setDoc(doc(db,'boardPosts','dm10-post'),{authorUid:b,deleted:false});
+    await setDoc(doc(db,'boardPosts','dm10-hidden'),{authorUid:b,deleted:true});
+    await setDoc(doc(db,'boardPosts','dm10-post','comments','dm10-comment'),{authorUid:c,deleted:false});
+    await setDoc(doc(db,'boardPosts','dm10-post','comments','dm10-hidden-comment'),{authorUid:c,deleted:true});
+    await setDoc(doc(db,'learningResources','dm10-published'),{authorUid:b,status:'published'});
+    await setDoc(doc(db,'learningResources','dm10-draft'),{authorUid:b,status:'draft'});
+    await setDoc(doc(db,'publicNames',b),{nickname:b,role:'member',canReceiveDM:true});
+    await setDoc(doc(db,'privateMessages','dm10-legacy'),{senderUid:c,recipientUid:a,body:'Legacy received message',createdAt:new Date(),readAt:null});
+  });
+  const ref=(who,id)=>doc(context(who),'privateMessages',id);
+  const send=(from,to,id,source)=>setDoc(ref(from,id),{senderUid:from,recipientUid:to,body:'Round ten',createdAt:serverTimestamp(),readAt:null,...(source?{source}:{})});
+  const board={kind:'board',post:'dm10-post',comment:''};
+  await assertFails(getDocs(collection(context(a),'publicNames')));
+  await assertSucceeds(getDoc(doc(context(a),'publicNames',b)));
+  await assertFails(send(a,b,'dm10-no-source'));
+  await assertFails(send(a,c,'dm10-wrong-author',board));
+  await assertFails(send(a,b,'dm10-missing',{...board,post:'missing'}));
+  await assertFails(send(a,b,'dm10-malformed',{...board,post:'dm10-post/extra'}));
+  await assertFails(send(a,b,'dm10-hidden-fail',{...board,post:'dm10-hidden'}));
+  await assertFails(send(a,c,'dm10-hidden-comment-fail',{...board,comment:'dm10-hidden-comment'}));
+  await assertSucceeds(send(a,c,'dm10-comment-ok',{...board,comment:'dm10-comment'}));
+  await assertFails(send(a,b,'dm10-draft-fail',{kind:'learning',post:'dm10-draft',comment:''}));
+  await assertSucceeds(send(a,b,'dm10-learning-ok',{kind:'learning',post:'dm10-published',comment:''}));
+  await assertSucceeds(send(a,b,'dm10-original',board));
+  const reply={kind:'reply',post:'dm10-original',comment:''};
+  await assertFails(send(c,a,'dm10-stranger-reply',reply));
+  await assertFails(send(b,c,'dm10-wrong-reply',reply));
+  await assertSucceeds(send(b,a,'dm10-reply-ok',reply));
+  await assertSucceeds(send(a,c,'dm10-legacy-reply',{kind:'reply',post:'dm10-legacy',comment:''}));
+  await assertFails(updateDoc(ref(a,'dm10-original'),{readAt:serverTimestamp()}));
+  await assertSucceeds(updateDoc(ref(b,'dm10-original'),{readAt:serverTimestamp()}));
+  await assertFails(updateDoc(ref(a,'dm10-original'),{recipientDeletedAt:serverTimestamp()}));
+  await assertFails(updateDoc(ref(c,'dm10-original'),{recipientDeletedAt:serverTimestamp()}));
+  await assertFails(updateDoc(ref(b,'dm10-original'),{recipientDeletedAt:serverTimestamp(),body:'tampered'}));
+  await assertSucceeds(updateDoc(ref(b,'dm10-original'),{recipientDeletedAt:serverTimestamp()}));
+  await assertFails(updateDoc(ref(b,'dm10-original'),{recipientDeletedAt:null}));
+  await assertFails(deleteDoc(ref(b,'dm10-original')));
+  await assertFails(send(b,a,'dm10-deleted-reply',reply));
+  const retained=await assertSucceeds(getDoc(ref(a,'dm10-original')));assert.equal(retained.data().body,'Round ten');assert.ok(retained.data().readAt);assert.ok(retained.data().recipientDeletedAt);
 });

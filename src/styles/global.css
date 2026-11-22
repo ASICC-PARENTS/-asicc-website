@@ -975,7 +975,9 @@ html[lang="fr"] a[href^="http"] { overflow-wrap: anywhere; }
 .board-comment-meta {font-size:12px;color:#67776E}
 .board-comment-text {white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7;margin:0}
 .board-comment-entry .board-comment-actions {align-self:flex-start;margin-top:4px}
-.board-replies {margin:0 0 5px 20px;border-left:2px solid #D9E7DE;background:#F8FBF9}
+.board-replies {margin:0 0 5px 17px;padding-left:8px;border-left:2px solid #D9E7DE;background:#F8FBF9;min-width:0}
+.board-comment-node {min-width:0}
+.board-comment-node .board-replies .board-comment-entry {overflow-wrap:anywhere}
 .board-reply-entry {padding:11px 15px}
 .board-reply-form {margin-top:7px;display:flex;flex-direction:column;gap:8px}
 .board-reply-form textarea {resize:vertical;min-height:70px;width:100%}
@@ -986,5 +988,55 @@ html[lang="fr"] a[href^="http"] { overflow-wrap: anywhere; }
   .board-title-wrap .board-title-link {padding:4px 0;flex-basis:70%}
   .board-category-tabs {gap:5px}
   .board-category-tab {padding:7px 11px;font-size:12px}
-  .board-replies {margin-left:12px}
+  .board-replies {margin-left:8px;padding-left:5px}
 }
+
+/* Consistent member identity, and unread mail */
+.asicc-author{display:inline-flex!important;vertical-align:middle;flex-direction:column;align-items:flex-start;gap:4px;line-height:1.3;max-width:100%;white-space:normal;overflow-wrap:anywhere;color:var(--ink)}
+.asicc-role-tag{display:inline-block!important;border-radius:5px;padding:3px 8px;font-size:11px;font-weight:700;line-height:1.2;background:#eee;color:#555;white-space:nowrap}
+.asicc-role-tag[data-role="member"]{background:#e1eee8;color:#25634a}.asicc-role-tag[data-role="special"]{background:#f3e9d6;color:#79531e}.asicc-role-tag[data-role="admin"]{background:#34465c;color:#fff}.asicc-author-name{color:inherit;text-decoration:underline;text-underline-offset:2px;cursor:pointer}.asicc-author-name:hover{color:#25634a}
+.asicc-unread{display:inline-block;padding:2px 6px;border-radius:5px;background:#facc15;color:#594300;font-size:11px;font-weight:800;line-height:1.3;white-space:nowrap}.asicc-unread[hidden]{display:none!important}
+.asicc-message-unread{background:#fffbed;border-color:#d8b752!important}.asicc-gallery-error{padding:12px;color:#8a2626;background:#fdf2f2;font-size:13px}.asicc-gallery-pending{background:#fff0bc;color:#775000;padding:5px 8px;border-radius:5px;font-size:12px;font-weight:700}.asicc-upload-preview{width:108px;height:82px;object-fit:cover;border-radius:6px;background:#edf0f3}.asicc-gallery-review-fields{flex:1;min-width:180px;display:grid;gap:7px}.asicc-gallery-review-fields textarea{width:100%}
+
+.asicc-author-menu summary{list-style:none;cursor:pointer}.asicc-author-menu summary::-webkit-details-marker{display:none}.asicc-author-menu a{display:block;background:#fff;border:1px solid #ccd8d4;padding:5px 8px;border-radius:6px;margin-top:4px;font-size:12px;color:#205744;white-space:nowrap}.asicc-author-menu a:focus-visible{outline:2px solid #478b69}
+.board-title-wrap:has(.resource-comments-link){flex-wrap:wrap}.resource-comments-link{font-size:12px;color:#205744;text-decoration:underline;background:transparent;border:0;cursor:pointer;padding:3px 0;flex-basis:100%;text-align:left}
+
+.asicc-toast-global{position:fixed;z-index:3000;top:clamp(12px,3vh,32px);right:clamp(12px,3vw,32px);width:max-content;max-width:min(440px,calc(100vw - 24px));display:flex;align-items:center;gap:12px;padding:13px 16px;background:#edf7f0;border:1px solid #8ab99d;color:#215d3b;border-radius:10px;box-shadow:0 5px 24px #0002;font-size:14px;overflow-wrap:anywhere}
+.asicc-toast-global[hidden]{display:none!important}.asicc-toast-global[data-error="true"]{background:#fff1f0;border-color:#e6aaa6;color:#971b1b}.asicc-toast-global button{background:none;border:0;color:inherit;font-size:22px;cursor:pointer;line-height:1;padding:4px;margin-inline-start:auto}
+.asicc-author-menu summary{display:flex;gap:5px;font-weight:600}.asicc-author-menu summary:hover{color:#205744}.asicc-author-menu a{font-weight:600}
+
+/* Compact row-local messaging controls, isolated from other admin buttons. */
+.asicc-admin-table .admin-dm-cell{width:132px;min-width:132px;max-width:155px;white-space:normal;overflow-wrap:anywhere}
+.asicc-admin-table .admin-dm-controls{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:4px}
+.asicc-admin-table .admin-dm-controls select{width:64px;max-width:100%;font-size:12px;padding:3px 4px;min-height:27px;border:1px solid #c9d1ce;border-radius:4px;background:white}
+.asicc-admin-table .admin-dm-save{width:auto;min-width:0;min-height:27px;padding:3px 8px;font-size:12px;white-space:nowrap;line-height:1.2;border-radius:5px}
+.asicc-admin-table .admin-dm-result{font-size:11px;color:#23654b;white-space:normal;line-height:1.3}
+.asicc-admin-table .admin-dm-result[data-error="true"]{color:#b42318}
+
+/* Round 11: shared member-space controls. No public header/navigation changes. */
+.member-ui {--member-control-border:#c9d1ce;--member-control-radius:8px;--member-green:#376a5b;min-width:0}
+.member-ui :is(.btn,.board-mini-btn,.files-mini-btn){border-radius:var(--member-control-radius);box-sizing:border-box;font-size:13px;line-height:1.3;min-height:34px;padding:7px 13px;max-width:100%;white-space:normal;text-align:center;overflow-wrap:anywhere}
+.member-ui :is(.board-mini-btn,.files-mini-btn){min-height:30px;padding:5px 9px;font-size:12px;border:1px solid var(--member-control-border);background:white;color:#40574c}
+.member-ui :is(.board-mini-primary,.files-mini-btn.board-mini-primary){background:#eaf3ee;border-color:#a5c9b7;color:#315d4a}
+.member-ui :is(.board-mini-danger,.files-mini-danger,.member-danger){color:#a54c42;border-color:#d9b3ac}
+.member-ui .btn-dark{background:#292929;color:white;min-height:38px}
+.member-ui .btn-dark:hover{background:#171717;color:white}
+.member-ui :is(.btn,.board-mini-btn,.files-mini-btn,.board-category-tab):focus-visible{outline:2px solid var(--member-green);outline-offset:2px}
+.member-ui :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]),select,textarea):not(.sr-only){box-sizing:border-box;border:1px solid var(--member-control-border);border-radius:var(--member-control-radius);background:white;color:inherit;font:inherit;font-size:14px;min-width:0;max-width:100%;padding:10px 12px}
+.member-ui :is(input,select,textarea):focus-visible{outline:2px solid var(--member-green);outline-offset:1px}
+.member-ui .board-search-wrap input{padding-left:42px;min-height:42px}
+.member-ui .board-editor select{width:100%}
+.member-ui .board-category-tabs{gap:7px;flex-wrap:wrap}
+.member-ui .board-category-tab{border-radius:999px;min-height:34px;padding:7px 14px;font-size:13px;white-space:normal;line-height:1.3}
+.member-ui .board-category-tab[aria-pressed="true"],.member-ui .board-category-tab[aria-selected="true"]{background:var(--member-green);color:white;border-color:var(--member-green)}
+.member-ui #gallery-filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) minmax(0,1.4fr);align-items:end!important;gap:12px}
+.member-ui #gallery-filters label{min-width:0}
+.member-ui #gallery-filters :is(input,select){width:100%;min-height:42px}
+.member-ui .gallery-view-heading{gap:12px;align-items:flex-end}
+.member-ui .gallery-view-heading #gallery-filters{flex:1 1 530px;min-width:0;max-width:760px}
+.member-ui #gallery-view-toolbar{display:flex;flex-direction:column}
+.member-ui #gallery-filters[hidden],.member-ui [hidden]{display:none!important}
+.member-ui :is(.board-toolbar,.files-toolbar,.gallery-view-heading){min-width:0}
+.member-ui :is(.board-comment-actions,.board-reply-form-actions,.message-actions,#album-actions){flex-wrap:wrap}
+.member-ui .board-list-card{min-width:0}
+@media(max-width:650px){.member-ui .board-category-tab{padding:7px 10px;font-size:12px}.member-ui #gallery-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.member-ui #gallery-filters label:last-child{grid-column:1/-1}.member-ui .gallery-view-heading{gap:8px}.member-ui .board-toolbar .btn{align-self:flex-end}.member-ui .gallery-media-caption .row{flex-wrap:wrap}.member-ui .gallery-form label{min-width:0}}

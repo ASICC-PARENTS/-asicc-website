@@ -5,12 +5,12 @@ export const getStaticPaths = langPaths;
 const lang = Astro.params.lang as Lang;
 const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
 ---
-<Base lang={lang} rest="membres/board/" title={L(lang,{ko:'회원 소통 게시판',fr:'Forum des membres'})} noindex>
+<Base lang={lang} rest="membres/board/" title={L(lang,{ko:'회원게시판',fr:'Forum des membres'})} noindex>
   <section class="wrap m-shell board-shell">
-    <div class="stack gap-16" id="board-root" data-lang={lang} data-login-url={href(lang,'membres/login/')}>
+    <div class="stack gap-16 member-ui" id="board-root" data-lang={lang} data-login-url={href(lang,'membres/login/')}>
       <a href={href(lang,'membres/')} class="small">← {L(lang,{ko:'회원공간',fr:'Espace membres'})}</a>
-      <h1 class="h2">{L(lang,{ko:'회원 소통 게시판',fr:'Forum des membres'})}</h1>
-      <p class="muted">{L(lang,{ko:'일반회원은 읽기, 협회회원·특별회원·운영진은 글쓰기와 댓글이 가능합니다.',fr:'Les membres généraux peuvent consulter les messages. La publication et les commentaires sont réservés aux membres de l’association, aux membres spéciaux et aux administrateurs.'})}</p>
+      <h1 class="h2">{L(lang,{ko:'회원게시판',fr:'Forum des membres'})}</h1>
+      <p class="muted">{L(lang,{ko:'일반회원은 읽기, 정회원·특별회원·관리자는 글쓰기와 댓글이 가능합니다.',fr:'Les membres généraux peuvent consulter les messages. La publication et les commentaires sont réservés aux membres de l’association, aux membres spéciaux et aux administrateurs.'})}</p>
       <details class="card" style="padding:14px"><summary>{L(lang,{ko:'게시판 이용 규칙',fr:'Règles du forum'})}</summary><p class="small muted" style="margin-top:10px">{L(lang,{ko:'비방·괴롭힘·고의적 분란 조장·허위정보·개인정보 공개·스팸을 금지합니다. 운영진은 위반 게시물을 숨기거나 삭제하고 계정의 이용 권한을 제한할 수 있습니다. 이의제기는 contact@asicc-parents.fr로 문의해 주세요.',fr:'Les attaques, le harcèlement, les provocations délibérées, les fausses informations, la divulgation de données et les spams sont interdits. La modération peut masquer ou supprimer des contenus et limiter les accès. Recours : contact@asicc-parents.fr.'})}</p></details>
       {!live && <div class="card auth-card" role="status">{L(lang,{ko:'게시판은 보안 점검 중으로 아직 공개되지 않았습니다.',fr:'Le forum est désactivé pendant les vérifications de sécurité.'})}</div>}
       <div id="board-app" hidden={!live} class="stack gap-16">
@@ -28,6 +28,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
               <option value="free">{L(lang,{ko:'자유',fr:'Libre'})}</option>
               <option value="give">{L(lang,{ko:'무료나눔',fr:'Dons'})}</option>
               <option value="market">{L(lang,{ko:'중고거래',fr:'Occasion'})}</option>
+              <option value="info">{L(lang,{ko:'정보',fr:'Informations'})}</option>
               <option value="question">{L(lang,{ko:'질문',fr:'Questions'})}</option>
             </select>
             <button id="board-write-toggle" type="button" class="btn btn-dark" hidden>+ {L(lang,{ko:'글쓰기',fr:'Écrire un message'})}</button>
@@ -37,6 +38,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
             <button class="board-category-tab" type="button" data-board-tab="free" aria-pressed="false">{L(lang,{ko:'자유',fr:'Libre'})}</button>
             <button class="board-category-tab" type="button" data-board-tab="give" aria-pressed="false">{L(lang,{ko:'무료나눔',fr:'Dons'})}</button>
             <button class="board-category-tab" type="button" data-board-tab="market" aria-pressed="false">{L(lang,{ko:'중고거래',fr:'Occasion'})}</button>
+            <button class="board-category-tab" type="button" data-board-tab="info" aria-pressed="false">{L(lang,{ko:'정보',fr:'Informations'})}</button>
             <button class="board-category-tab" type="button" data-board-tab="question" aria-pressed="false">{L(lang,{ko:'질문',fr:'Questions'})}</button>
           </nav>
           <form id="post-form" class="card board-editor stack gap-12" hidden>
@@ -46,6 +48,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
               <option value="free">{L(lang,{ko:'자유',fr:'Libre'})}</option>
               <option value="give">{L(lang,{ko:'무료나눔',fr:'Don gratuit'})}</option>
               <option value="market">{L(lang,{ko:'중고거래',fr:'Vente d’occasion'})}</option>
+              <option value="info">{L(lang,{ko:'정보',fr:'Information'})}</option>
               <option value="question">{L(lang,{ko:'질문',fr:'Question'})}</option>
             </select>
             <label for="post-title">{L(lang,{ko:'제목',fr:'Titre'})}</label>
@@ -96,7 +99,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
             <p id="photo-help" class="small muted" role="status">{L(lang,{ko:'사진 첨부는 비공개 저장소 연결 후 사용할 수 있습니다.',fr:'L’ajout de photos sera activé après la configuration du stockage privé.'})}</p>
             <p class="small muted">{L(lang,{ko:'최대 5,000자(서식 코드 포함), 사진 최대 10장 · 고화질 자동 압축(총용량 제한 없음).',fr:'5 000 caractères maximum (mise en forme incluse), 10 photos maximum, compressées sans limite totale de taille.'})}</p>
             <div class="board-editor-actions row gap-12">
-              <button class="btn btn-dark" id="post-save" type="submit">{L(lang,{ko:'등록하기',fr:'Publier'})}</button>
+              <button class="btn btn-dark" id="post-save" type="submit">{L(lang,{ko:'등록',fr:'Publier'})}</button>
               <button class="btn btn-ghost" id="post-cancel" type="button">{L(lang,{ko:'취소',fr:'Annuler'})}</button>
             </div>
           </form>
@@ -133,6 +136,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
 <script>
   import { getApps, initializeApp } from 'firebase/app';
   import { getAuth, onAuthStateChanged, getIdToken } from 'firebase/auth';
+  import {displayAuthor,dmAllowed,syncOwnAlias,type PublicAuthor} from '../../../scripts/members/member-access';
   import { getFirestore, doc, collection, getDoc, getDocs, query, orderBy, limit, setDoc, updateDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
   import { firebaseConfig } from '../../../firebase-config';
   import { BOARD_PHOTO_API } from '../../../config/board-photos';
@@ -140,19 +144,23 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
   type TimestampLike = { toDate?:()=>Date };
   type BoardData = { id:string;title:string;body:string;authorUid:string;authorName:string;deleted:boolean;createdAt?:TimestampLike;updatedAt?:TimestampLike };
   type CommentData = { id:string;body:string;authorUid:string;authorName:string;deleted:boolean;createdAt?:TimestampLike;updatedAt?:TimestampLike };
-  type Category = 'free'|'give'|'market'|'question';
-  const CATEGORY_KO:Record<Category,string>={free:'자유',give:'무료나눔',market:'중고거래',question:'질문'};
-  const CATEGORY_FR:Record<Category,string>={free:'Libre',give:'Don gratuit',market:'Occasion',question:'Question'};
-  const categoryNames=Object.keys(CATEGORY_KO) as Category[];
-  // Store category in title so the existing restrictive Firestore create/update rules stay unchanged.
+  type Category = string;
+  const CATEGORY_KO:Record<Category,string>={free:'자유',give:'무료나눔',market:'중고거래',info:'정보',question:'질문'};
+  const CATEGORY_FR:Record<Category,string>={free:'Libre',give:'Don gratuit',market:'Occasion',info:'Information',question:'Question'};
+  let categoryNames=Object.keys(CATEGORY_KO) as Category[];
+  // Category IDs remain stable even if an administrator renames their labels.
+  // This preserves the existing restrictive boardPosts Firestore schema.
   const titleInfo=(stored:string):{category:Category;title:string}=>{
-    const found=/^\[(자유|무료나눔|중고거래|질문)\]\s+/.exec(stored);
-    if(!found)return {category:'free',title:stored};
-    const category=categoryNames.find(key=>CATEGORY_KO[key]===found[1])||'free';
-    return {category,title:stored.slice(found[0].length)};
+    const stable=/^\[cat:([a-z][a-z0-9-]{1,23})\]\s+/.exec(stored);
+    if(stable)return {category:stable[1],title:stored.slice(stable[0].length)};
+    // Legacy label-based titles are still readable. No existing member migration needed.
+    const legacy=/^\[([^\]\n]{1,28})\]\s+/.exec(stored);
+    if(!legacy)return {category:'free',title:stored};
+    const category=categoryNames.find(key=>CATEGORY_KO[key]===legacy[1])||'free';
+    return {category,title:stored.slice(legacy[0].length)};
   };
-  const storedTitle=(category:Category,title:string)=>`[${CATEGORY_KO[category]}] ${title}`;
-  const categoryLabel=(category:Category)=>fr?CATEGORY_FR[category]:CATEGORY_KO[category];
+  const storedTitle=(category:Category,title:string)=>`[cat:${category}] ${title}`;
+  const categoryLabel=(category:Category)=>fr?(CATEGORY_FR[category]||category):(CATEGORY_KO[category]||category);
   // Reply's parent ID is encoded in body; the current comment Firestore schema has no parentId field.
   const REPLY_PREFIX=/^\[ASICC_REPLY_V1:([A-Za-z0-9]{20})\]\n/;
   const replyInfo=(body:string)=>{
@@ -160,36 +168,38 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
     return {parentId:match?.[1]||null,text:match?body.slice(match[0].length):body};
   };
   const replyBody=(parentId:string,text:string)=>`[ASICC_REPLY_V1:${parentId}]\n${text}`;
+  // The original comment is level 1. A reply can go as deep as level 5.
+  // Parent IDs stay encoded in body for compatibility with existing Firestore rules.
+  const MAX_COMMENT_DEPTH=5;
   const root=document.getElementById('board-root') as HTMLElement|null;
   const by=<T extends HTMLElement>(id:string)=>document.getElementById(id) as T|null;
   const fr=root?.dataset.lang==='fr';
   const tr=(ko:string,french:string)=>fr?french:ko;
   const status=by<HTMLElement>('board-status');
-  const notify=(v:string,bad=false)=>{if(status){status.textContent=v;status.hidden=!v;status.style.color=bad?'#b42318':'';}};
+  import {toastResult} from '../../../scripts/members/toast';
+  import {formatParisDate} from '../../../scripts/members/display-date';
+const notify=(v:string,bad=false)=>{if(status){status.textContent=v;status.hidden=!v;status.style.color=bad?'#b42318':'';}toastResult(v,bad);};
   const clearNotice=()=>notify('');
   const el=(tag:string,text?:string)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;return node;};
-  const stamp=(v?:TimestampLike)=>{
-    try{
-      const date=v?.toDate?.();if(!date)return '';
-      return new Intl.DateTimeFormat(fr?'fr-FR':'ko-KR',{
-        timeZone:'Europe/Paris',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false
-      }).format(date).replace(/\.\s*/g,'. ');
-    }catch{return '';}
-  };
+  const stamp=(v?:TimestampLike)=>formatParisDate(v);
   const wasEdited=(created?:TimestampLike,updated?:TimestampLike)=>{
     try {return !!(created?.toDate&&updated?.toDate&&updated.toDate().getTime()-created.toDate().getTime()>1000);}catch{return false;}
   };
   const dateLabel=(created?:TimestampLike,updated?:TimestampLike)=>`${stamp(created)}${wasEdited(created,updated)?tr(' · 수정됨',' · modifié'):''}`;
   const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
   const auth=getAuth(app), db=getFirestore(app);
-  const aliases=new Map<string,Promise<string>>();
-  const nicknameOf=(authorUid:string):Promise<string>=>{
-    if(!authorUid)return Promise.resolve(tr('회원','Membre'));
-    if(!aliases.has(authorUid))aliases.set(authorUid,getDoc(doc(db,'publicNames',authorUid)).then(snap=>
-      snap.exists()&&typeof snap.data().nickname==='string'?snap.data().nickname:tr('기존 회원','Ancien membre')
-    ).catch(()=>tr('기존 회원','Ancien membre')));
+  const aliases=new Map<string,Promise<PublicAuthor>>();
+  const publicInfo=(authorUid:string):Promise<PublicAuthor>=>{
+    if(!authorUid)return Promise.resolve({nickname:tr('회원','Membre'),role:'general'});
+    if(!aliases.has(authorUid))aliases.set(authorUid,getDoc(doc(db,'publicNames',authorUid)).then(snap=>({
+      nickname:snap.exists()&&typeof snap.data().nickname==='string'?snap.data().nickname:tr('기존 회원','Ancien membre'),
+      role:snap.exists()&&typeof snap.data().role==='string'?snap.data().role:'',canReceiveDM:snap.data()?.canReceiveDM===true
+    })).catch(()=>({nickname:tr('기존 회원','Ancien membre'),role:''})));
     return aliases.get(authorUid)!;
   };
+  const nicknameOf=(id:string)=>publicInfo(id).then(x=>x.nickname);
+  const roleName=(r:string)=>({general:tr('일반회원','Membre général'),member:tr('정회원','Membre régulier'),special:tr('특별회원','Membre spécial'),admin:tr('관리자','Administrateur')} as Record<string,string>)[r]||tr('회원','Membre');
+  let viewerDM=false;const messageUrl='../messages/';
   let uid='',name='',role='',posts:BoardData[]=[],selected:BoardData|null=null;
   let editingPostId:string|null=null, photoBusy=false;
   let photoCaret:Range|null=null;
@@ -340,7 +350,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
         :tr('사진 첨부는 비공개 저장소 연결 후 사용할 수 있습니다.','L’ajout de photos sera activé après la configuration du stockage privé.');
       photoHelp.style.color='';
     }
-    const btn=by<HTMLButtonElement>('post-save');if(btn)btn.textContent=tr('등록하기','Publier');
+    const btn=by<HTMLButtonElement>('post-save');if(btn)btn.textContent=tr('등록','Publier');
   }
   function showWriter(post?:BoardData){
     if(!canWrite()||!editor)return;
@@ -354,7 +364,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
       const title=by<HTMLInputElement>('post-title');if(title)title.value=plainTitle;
       const select=by<HTMLSelectElement>('post-category');if(select)select.value=category;
       setEditorBody(editor,post.body);updatePhotoCounter();void populatePhotos(editor);
-      const btn=by<HTMLButtonElement>('post-save');if(btn)btn.textContent=tr('수정 저장','Enregistrer les modifications');
+      const btn=by<HTMLButtonElement>('post-save');if(btn)btn.textContent=tr('저장','Enregistrer');
     }
     by<HTMLInputElement>('post-title')?.focus();
   }
@@ -398,8 +408,27 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       const author=el('span',tr('회원','Membre'));author.className='board-author';
       const date=el('span',stamp(post.createdAt));date.className='board-date';
       row.append(number,subject,author,date);list.append(row);
-      void nicknameOf(post.authorUid).then(nick=>{if(row.isConnected)author.textContent=nick;});
+      void publicInfo(post.authorUid).then(info=>{if(row.isConnected){displayAuthor(author,info,post.authorUid,uid,role,viewerDM,fr,messageUrl,'',db,post.deleted?undefined:{kind:'board',post:post.id,comment:''});}});
     });
+  }
+  async function reportBoardEntry(kind:'post'|'comment',postId:string,commentId?:string){
+    const reason=prompt(tr('운영진에게 전달할 신고 사유를 입력해 주세요.','Motif du signalement destiné aux administrateurs :'));
+    if(reason===null)return;
+    const text=reason.trim();if(!text||text.length>1500)return notify(tr('신고 사유를 입력해 주세요.','Indiquez un motif.'),true);
+    try{
+      const request=doc(collection(db,'suggestions'));
+      await setDoc(request,{
+        uid,category:'confidential',subject:kind==='post'?tr('게시글 신고','Signalement de publication'):tr('댓글 신고','Signalement de commentaire'),
+        body:`${kind==='post'?'게시글':'댓글'} ID: ${postId}${commentId?' / '+commentId:''}\n신고 내용: ${text}`,
+        status:'received',createdAt:serverTimestamp()
+      });
+      if(photoApi)try{
+        const token=await getIdToken(auth.currentUser!);
+        const response=await fetch(photoApi+'/api/notify',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({kind:'suggestion',id:request.id})});
+        if(!response.ok)console.warn('Report email notification pending:',response.status);
+      }catch(error){console.warn('Report email not connected',error);}
+      notify(tr('운영진에게 신고가 접수되었습니다.','Signalement transmis aux administrateurs.'));
+    }catch(error){console.error(error);notify(tr('신고 접수에 실패했습니다.','Échec du signalement.'),true);}
   }
   async function openPost(post:BoardData){
     clearNotice();
@@ -412,7 +441,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       title.append(badge,document.createTextNode(plainTitle));
     }
     if(body){renderBoardBody(body,post.body);void populatePhotos(body);}
-    if(meta){meta.textContent=dateLabel(post.createdAt,post.updatedAt);void nicknameOf(post.authorUid).then(nick=>{if(selected?.id===post.id)meta.textContent=`${nick} · ${dateLabel(post.createdAt,post.updatedAt)}`;});}
+    if(meta){meta.textContent=dateLabel(post.createdAt,post.updatedAt);void publicInfo(post.authorUid).then(info=>{if(selected?.id===post.id)displayAuthor(meta,info,post.authorUid,uid,role,viewerDM,fr,messageUrl,dateLabel(post.createdAt,post.updatedAt),db,post.deleted?undefined:{kind:'board',post:post.id,comment:''});});}
     actions?.replaceChildren();
     
     if(!post.deleted){
@@ -425,7 +454,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       }
 
       if(canModerate() && post.authorUid!==uid){
-        const hide=el('button',tr('숨기기','Masquer')) as HTMLButtonElement;
+        const hide=el('button',tr('비공개','Masquer')) as HTMLButtonElement;
         hide.type='button';
         hide.className='board-mini-btn';
         hide.addEventListener('click',()=>void hidePost(post));
@@ -442,6 +471,11 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       }
     }
 
+    if(!post.deleted&&post.authorUid!==uid){
+      const report=el('button',tr('신고','Signaler')) as HTMLButtonElement;
+      report.type='button';report.className='board-mini-btn';
+      report.addEventListener('click',()=>void reportBoardEntry('post',post.id));actions?.append(report);
+    }
     show('comment-form',canWrite()&&!post.deleted);await refreshComments(post.id);
   }
   function back(){clearNotice();selected=null;show('post-detail',false);show('post-form',false);show('board-list-panel',true);show('board-toolbar',true);show('board-category-tabs',true);}
@@ -455,7 +489,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       const batch=writeBatch(db);
       batch.set(doc(db,'hiddenPosts',post.id),{title:post.title,body:post.body,authorUid:post.authorUid,hiddenBy:uid,hiddenAt:serverTimestamp()});
       batch.update(doc(db,'boardPosts',post.id),{deleted:true,title:'[숨김 처리된 게시글]',body:'[숨김 처리된 게시글]',updatedAt:serverTimestamp()});
-      await batch.commit();back();await refreshPosts();
+      await batch.commit();back();notify(tr('게시글 숨김 처리가 완료되었습니다.','Message masqué.'));await refreshPosts();
     }
     catch(e){console.error(e);notify(tr('숨김 처리 실패','Impossible de masquer.'),true);}
   }
@@ -523,7 +557,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
 
       await batch.commit();
       back();
-      await refreshPosts();
+      await loadBoardCategories();await refreshPosts();
       notify(tr('게시글이 삭제되었습니다.','Message supprimé.'));
     }catch(e){
       console.error(e);
@@ -539,8 +573,8 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
     if(!reason)return;
 
     if(!confirm(tr(
-      '댓글을 완전히 삭제할까요? 복구할 수 없습니다.',
-      'Supprimer définitivement ce commentaire ?'
+      replyInfo(c.body).parentId?'답글을 완전히 삭제할까요? 복구할 수 없습니다.':'댓글을 완전히 삭제할까요? 복구할 수 없습니다.',
+      replyInfo(c.body).parentId?'Supprimer définitivement cette réponse ?':'Supprimer définitivement ce commentaire ?'
     )))return;
 
     try{
@@ -567,8 +601,8 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       await refreshComments(postId);
 
       notify(tr(
-        '댓글이 삭제되었습니다.',
-        'Commentaire supprimé.'
+        replyInfo(c.body).parentId?'답글이 삭제되었습니다.':'댓글이 삭제되었습니다.',
+        replyInfo(c.body).parentId?'Réponse supprimée.':'Commentaire supprimé.'
       ));
     }catch(e){
       console.error(e);
@@ -579,16 +613,25 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
     }
   }
 
-  function renderComment(c:CommentData,postId:string,rootId:string,isReply:boolean,orphan=false):HTMLElement{
+  function renderComment(c:CommentData,postId:string,depth:number,orphan=false):HTMLElement{
     const detail=replyInfo(c.body);
+    const isReply=!!detail.parentId;
+    const kind=tr(isReply?'답글':'댓글',isReply?'Réponse':'Commentaire');
     const wrap=el('div');wrap.className=`board-comment-entry${isReply?' board-reply-entry':''}`;
-    const meta=el('div',dateLabel(c.createdAt,c.updatedAt));meta.className='board-comment-meta small muted';
-    void nicknameOf(c.authorUid).then(nick=>{if(meta.isConnected)meta.textContent=`${nick} · ${dateLabel(c.createdAt,c.updatedAt)}`;});
+    wrap.dataset.depth=String(depth);
+    const meta=el('div',`${kind} · ${dateLabel(c.createdAt,c.updatedAt)}`);meta.className='board-comment-meta small muted';
+    void publicInfo(c.authorUid).then(info=>{if(meta.isConnected)displayAuthor(meta,info,c.authorUid,uid,role,viewerDM,fr,messageUrl,`${kind} · ${dateLabel(c.createdAt,c.updatedAt)}`,db,c.deleted?undefined:{kind:'board',post:postId,comment:c.id});});
     const body=el('p',detail.text);body.className='board-comment-text';
-    if(orphan){const note=el('p',tr('원댓글이 삭제된 답글','Réponse dont le commentaire initial a été supprimé'));note.className='small muted';wrap.append(note);}
+    if(orphan){const note=el('p',tr('연결된 상위 댓글·답글을 찾을 수 없습니다.','Le commentaire parent est introuvable.'));note.className='small muted';wrap.append(note);}
     wrap.append(meta,body);
     const btns=el('div');btns.className='board-comment-actions';
-    if(canWrite()&&!c.deleted){
+    if(!c.deleted&&c.authorUid!==uid){
+      const report=el('button',tr('신고','Signaler')) as HTMLButtonElement;
+      report.type='button';report.className='board-mini-btn';
+      report.addEventListener('click',()=>void reportBoardEntry('comment',postId,c.id));btns.append(report);
+    }
+    // A fifth-level reply has no further reply action; edits and deletion remain available.
+    if(canWrite()&&!c.deleted&&depth<MAX_COMMENT_DEPTH){
       const reply=el('button',tr('답글','Répondre')) as HTMLButtonElement;
       reply.className='board-mini-btn';reply.type='button';
       reply.addEventListener('click',()=>{
@@ -596,24 +639,24 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
         if(existing){existing.remove();return;}
         const replyForm=el('form') as HTMLFormElement;replyForm.className='board-reply-form';
         const textarea=el('textarea') as HTMLTextAreaElement;
-        textarea.required=true;textarea.maxLength=Math.max(1,2000-replyBody(rootId,'').length);textarea.rows=2;
+        textarea.required=true;textarea.maxLength=Math.max(1,2000-replyBody(c.id,'').length);textarea.rows=2;
         textarea.placeholder=tr('답글을 입력하세요','Écrire une réponse');
         textarea.setAttribute('aria-label',tr('답글 내용','Contenu de la réponse'));
         const actions=el('div');actions.className='board-reply-form-actions';
-        const submit=el('button',tr('답글 등록','Publier')) as HTMLButtonElement;
+        const submit=el('button',tr('답글 등록','Publier la réponse')) as HTMLButtonElement;
         submit.type='submit';submit.className='board-mini-btn board-mini-primary';
         const cancel=el('button',tr('취소','Annuler')) as HTMLButtonElement;
         cancel.type='button';cancel.className='board-mini-btn';cancel.addEventListener('click',()=>replyForm.remove());
         actions.append(submit,cancel);replyForm.append(textarea,actions);wrap.append(replyForm);
         textarea.focus();
         replyForm.addEventListener('submit',async event=>{
-          event.preventDefault();if(!canWrite()||!selected||selected.id!==postId)return;
-          const text=textarea.value.trim();const encoded=replyBody(rootId,text);
+          event.preventDefault();if(!canWrite()||!selected||selected.id!==postId||depth>=MAX_COMMENT_DEPTH)return;
+          const text=textarea.value.trim();const encoded=replyBody(c.id,text);
           if(!text||encoded.length>2000)return notify(tr('답글 길이가 제한을 초과했어요.','Réponse trop longue.'),true);
           submit.disabled=true;
           try{
             await setDoc(doc(collection(db,'boardPosts',postId,'comments')),{body:encoded,authorUid:uid,authorName:name,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),deleted:false});
-            await refreshComments(postId);
+            notify(tr('답글이 등록되었습니다.','Réponse publiée.'));await refreshComments(postId);
           }catch(error){console.error(error);notify(tr('답글 등록 실패','Échec de la réponse.'),true);submit.disabled=false;}
         });
       });btns.append(reply);
@@ -622,24 +665,24 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       const edit=el('button',tr('수정','Modifier')) as HTMLButtonElement;
       edit.type='button';edit.className='board-mini-btn';
       edit.addEventListener('click',async()=>{
-        const updated=prompt(tr('댓글 수정','Modifier le commentaire'),detail.text);
+        const updated=prompt(tr(isReply?'답글 수정':'댓글 수정',isReply?'Modifier la réponse':'Modifier le commentaire'),detail.text);
         if(updated===null)return;
         const text=updated.trim(),encoded=detail.parentId?replyBody(detail.parentId,text):text;
-        if(!text||encoded.length>2000)return notify(tr('댓글 길이를 확인하세요.','Commentaire trop long.'),true);
-        try{await updateDoc(doc(db,'boardPosts',postId,'comments',c.id),{body:encoded,updatedAt:serverTimestamp()});await refreshComments(postId);}
-        catch(error){console.error(error);notify(tr('댓글 수정 실패','Échec de la modification.'),true);}
+        if(!text||encoded.length>2000)return notify(tr('글자 수를 확인하세요.','Contenu trop long.'),true);
+        try{await updateDoc(doc(db,'boardPosts',postId,'comments',c.id),{body:encoded,updatedAt:serverTimestamp()});notify(tr('댓글 수정이 완료되었습니다.','Commentaire modifié.'));await refreshComments(postId);}
+        catch(error){console.error(error);notify(tr('수정 실패','Échec de la modification.'),true);}
       });btns.append(edit);
     }
     if(!c.deleted&&canModerate()&&c.authorUid!==uid){
-      const hide=el('button',tr('숨기기','Masquer')) as HTMLButtonElement;
+      const hide=el('button',tr('비공개','Masquer')) as HTMLButtonElement;
       hide.type='button';hide.className='board-mini-btn';
       hide.addEventListener('click',async()=>{
-        if(!confirm(tr('댓글을 숨길까요?','Masquer ce commentaire ?')))return;
+        if(!confirm(tr(isReply?'답글을 숨길까요?':'댓글을 숨길까요?',isReply?'Masquer cette réponse ?':'Masquer ce commentaire ?')))return;
         try{
           const batch=writeBatch(db);
           batch.set(doc(db,'hiddenComments',`${postId}_${c.id}`),{postId,commentId:c.id,body:c.body,authorUid:c.authorUid,hiddenBy:uid,hiddenAt:serverTimestamp()});
           batch.update(doc(db,'boardPosts',postId,'comments',c.id),{body:'[숨김 처리된 댓글]',deleted:true,updatedAt:serverTimestamp()});
-          await batch.commit();await refreshComments(postId);
+          await batch.commit();notify(tr('숨김 처리가 완료되었습니다.','Commentaire masqué.'));await refreshComments(postId);
         }catch(error){console.error(error);notify(tr('숨김 실패','Impossible de masquer.'),true);}
       });btns.append(hide);
     }
@@ -655,32 +698,68 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
     const list=by<HTMLElement>('comment-list');if(!list)return;
     list.replaceChildren();
     try{
-      // No reply-count cap. Comments are sorted by creation time; replies stay one level deep.
       const snap=await getDocs(query(collection(db,'boardPosts',postId,'comments'),orderBy('createdAt','asc')));
       const all=snap.docs.map(d=>({id:d.id,...d.data()} as CommentData));
       const count=by<HTMLElement>('comment-count');if(count)count.textContent=`(${all.length})`;
       if(!all.length){list.append(el('p',tr('등록된 댓글이 없습니다.','Aucun commentaire.')));return;}
       const indexed=new Map(all.map(c=>[c.id,c]));
       const children=new Map<string,CommentData[]>();
-      const roots:{comment:CommentData;orphan:boolean}[]=[];
+      const roots:CommentData[]=[];
+      const seen=new Set<string>();
       for(const c of all){
-        const info=replyInfo(c.body);const parent=info.parentId?indexed.get(info.parentId):undefined;
-        if(parent&&parent.id!==c.id&&!replyInfo(parent.body).parentId){
-          const siblings=children.get(parent.id)||[];siblings.push(c);children.set(parent.id,siblings);
-        }else roots.push({comment:c,orphan:!!info.parentId&&!parent});
+        const parentId=replyInfo(c.body).parentId;
+        if(parentId&&parentId!==c.id&&indexed.has(parentId)){
+          const siblings=children.get(parentId)||[];siblings.push(c);children.set(parentId,siblings);
+        }else roots.push(c);
       }
-      for(const {comment,orphan} of roots){
-        const group=el('section');group.className='board-comment-group';
-        group.append(renderComment(comment,postId,comment.id,false,orphan));
-        const replies=children.get(comment.id)||[];
-        if(replies.length){
-          const nest=el('div');nest.className='board-replies';
-          replies.forEach(reply=>nest.append(renderComment(reply,postId,comment.id,true)));
-          group.append(nest);
+      const renderTree=(comment:CommentData,depth:number,orphan=false):HTMLElement=>{
+        seen.add(comment.id);
+        const group=el('div');group.className='board-comment-node';
+        group.append(renderComment(comment,postId,depth,orphan));
+        if(depth<MAX_COMMENT_DEPTH){
+          const replies=(children.get(comment.id)||[]).filter(c=>!seen.has(c.id));
+          if(replies.length){
+            const nest=el('div');nest.className='board-replies';
+            for(const reply of replies)if(!seen.has(reply.id))nest.append(renderTree(reply,depth+1));
+            if(nest.childElementCount)group.append(nest);
+          }
         }
-        list.append(group);
+        return group;
+      };
+      for(const rootComment of roots){
+        if(seen.has(rootComment.id))continue;
+        const group=el('section');group.className='board-comment-group';
+        group.append(renderTree(rootComment,1,!!replyInfo(rootComment.body).parentId));list.append(group);
+      }
+      // Safely display malformed/cyclic or deeper legacy replies without losing data.
+      for(const comment of all){
+        if(seen.has(comment.id))continue;
+        const group=el('section');group.className='board-comment-group';
+        group.append(renderTree(comment,1,true));list.append(group);
       }
     }catch(error){console.error(error);notify(tr('댓글을 불러오지 못했습니다.','Impossible de charger les commentaires.'),true);}
+  }
+  // Categories are maintained in the admin screen, without code edits.
+  async function loadBoardCategories(){
+    try{
+      const snap=await getDoc(doc(db,'siteSettings','boardCategories'));
+      const raw=snap.exists()?snap.data().items:null;
+      if(!Array.isArray(raw)||!raw.length)return;
+      const categories=raw.filter((x):x is {id:string;ko:string;fr:string}=>
+        !!x&&typeof x.id==='string'&&/^[a-z][a-z0-9-]{1,23}$/.test(x.id)&&typeof x.ko==='string'&&typeof x.fr==='string').slice(0,20);
+      if(!categories.length)return;
+      categoryNames=categories.map(x=>x.id);
+      categories.forEach(x=>{CATEGORY_KO[x.id]=x.ko;CATEGORY_FR[x.id]=x.fr;});
+      const filter=by<HTMLSelectElement>('board-category-filter'),compose=by<HTMLSelectElement>('post-category'),tabs=by<HTMLElement>('board-category-tabs');
+      if(filter){filter.replaceChildren();const all=el('option',tr('전체 분류','Toutes les catégories')) as HTMLOptionElement;all.value='all';filter.append(all);}
+      compose?.replaceChildren();tabs?.replaceChildren();
+      if(tabs){const all=el('button',tr('전체','Tout')) as HTMLButtonElement;all.type='button';all.dataset.boardTab='all';all.className='board-category-tab is-active';all.setAttribute('aria-pressed','true');tabs.append(all);}
+      categories.forEach(x=>{
+        for(const sel of [filter,compose]){if(!sel)continue;const opt=el('option',categoryLabel(x.id)) as HTMLOptionElement;opt.value=x.id;sel.append(opt);}
+        if(tabs){const b=el('button',categoryLabel(x.id)) as HTMLButtonElement;b.type='button';b.dataset.boardTab=x.id;b.className='board-category-tab';b.setAttribute('aria-pressed','false');tabs.append(b);}
+      });
+      if(tabs&&filter){tabs.querySelectorAll<HTMLButtonElement>('[data-board-tab]').forEach(b=>b.addEventListener('click',()=>{filter.value=b.dataset.boardTab||'all';updateCategoryTabs();renderPosts();}));}
+    }catch(e){console.warn('Category defaults retained',e);}
   }
   if(import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true') onAuthStateChanged(auth,async user=>{
     if(!user){location.replace(root?.dataset.loginUrl||'/');return;}
@@ -689,9 +768,9 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       if(!user.emailVerified)throw Error('verify');
       const snap=await getDoc(doc(db,'members',user.uid));
       if(!snap.exists()||snap.data().status!=='approved')throw Error('profile');
-      uid=user.uid;role=snap.data().role;name=snap.data().nickname||'기존회원';
+      uid=user.uid;role=snap.data().role;name=snap.data().nickname||'기존회원';viewerDM=dmAllowed(snap.data());aliases.set(uid,Promise.resolve({nickname:name,role,canReceiveDM:viewerDM}));void syncOwnAlias(db,uid,snap.data()).catch(console.warn);
       show('board-content',true);show('post-form',false);show('board-write-toggle',canWrite());notify(tr('게시판을 열었습니다.','Forum ouvert.'));
-      await refreshPosts();
+      await loadBoardCategories();await refreshPosts();
     }catch(e){console.error(e);notify(tr('접근 권한이 없습니다. 인증 후 로그인해 주세요.','Accès refusé. Vérifiez votre compte.'),true);}
   });
   by<HTMLInputElement>('board-search')?.addEventListener('input',renderPosts);
@@ -726,8 +805,8 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
     const body=serializeEditor(editor),plain=boardText(body).trim(),pics=photoKeys(editor);
     if(!plainTitle||title.length>120||(!plain&&!pics.length)||body.length>5000||numPhotos()>10)
       return notify(tr('제목·내용 또는 길이를 확인하세요. (서식 포함 5,000자)','Vérifiez le titre, le contenu et la limite de 5 000 caractères.'),true);
-    const btn=by<HTMLButtonElement>('post-save');if(btn)btn.disabled=true;
-    try{
+    const btn=by<HTMLButtonElement>('post-save');if(btn?.disabled)return;const old=btn?.textContent;if(btn){btn.disabled=true;btn.textContent=tr('저장 중…','Enregistrement…');}
+    let saved=false;try{
       const editing=posts.find(p=>p.id===editingPostId);
       if(editing){
         if(!canEdit(editing.authorUid))return notify(tr('수정 권한이 없습니다.','Modification refusée.'),true);
@@ -735,12 +814,12 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       }else{
         await setDoc(doc(collection(db,'boardPosts')),{title,body,authorUid:uid,authorName:name,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),deleted:false});
       }
-      const editedId=editingPostId;resetEditor();show('post-form',false);
+      saved=true;const editedId=editingPostId;resetEditor();show('post-form',false);
       await refreshPosts();const result=posts.find(p=>p.id===editedId);
       if(result)await openPost(result);else back();
       notify(tr('저장되었습니다.','Message enregistré.'));
-    }catch(error){console.error(error);notify(tr('저장에 실패했습니다.','Échec de l’enregistrement.'),true);}
-    finally{if(btn)btn.disabled=false;}
+    }catch(error){console.error(error);notify(saved?tr('저장은 완료되었지만 화면 갱신에 실패했습니다.','Message enregistré, actualisation impossible.'):tr('저장에 실패했습니다.','Échec de l’enregistrement.'),true);}
+    finally{if(btn){btn.disabled=false;btn.textContent=old||tr('저장','Enregistrer');}}
   });
   // Browser native editing commands are used only for trusted toolbar actions.
   document.querySelectorAll<HTMLButtonElement>('#post-form [data-format]').forEach(button=>{
@@ -803,7 +882,8 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
   by<HTMLFormElement>('comment-form')?.addEventListener('submit',async e=>{
     e.preventDefault();if(!canWrite()||!selected)return;const body=by<HTMLTextAreaElement>('comment-body')?.value.trim()||'';
     if(!body||body.length>2000)return notify(tr('댓글을 확인하세요.','Vérifiez le commentaire.'),true);
-    try{await setDoc(doc(collection(db,'boardPosts',selected.id,'comments')),{body,authorUid:uid,authorName:name,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),deleted:false});by<HTMLFormElement>('comment-form')?.reset();await refreshComments(selected.id);}
-    catch(e){console.error(e);notify(tr('댓글 등록 실패','Impossible de publier le commentaire.'),true);}
+    const button=(e.currentTarget as HTMLFormElement).querySelector<HTMLButtonElement>('button[type=submit]');if(button?.disabled)return;if(button)button.disabled=true;
+    try{await setDoc(doc(collection(db,'boardPosts',selected.id,'comments')),{body,authorUid:uid,authorName:name,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),deleted:false});by<HTMLFormElement>('comment-form')?.reset();notify(tr('댓글이 등록되었습니다.','Commentaire publié.'));await refreshComments(selected.id);}
+    catch(e){console.error(e);notify(tr('댓글 등록 실패','Impossible de publier le commentaire.'),true);}finally{if(button)button.disabled=false;}
   });
 </script>

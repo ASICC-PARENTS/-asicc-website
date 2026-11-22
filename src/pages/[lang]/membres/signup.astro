@@ -15,7 +15,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
         </span>
         <h1 class="h2">{L(lang, { ko: '회원가입', fr: 'Créer un compte' })}</h1>
         <p class="muted">{L(lang, {
-          ko: '먼저 일반회원으로 무료 가입합니다. 이메일 인증 후 학습자료실과 게시판 열람이 가능하며, 협회회원 또는 특별회원 승급을 신청할 수 있습니다.',
+          ko: '먼저 일반회원으로 무료 가입합니다. 이메일 인증 후 학습자료실과 게시판 열람이 가능하며, 정회원 또는 특별회원 승급을 신청할 수 있습니다.',
           fr: 'Inscrivez-vous d’abord comme membre général. Après validation de votre adresse e-mail, vous pourrez consulter les ressources pédagogiques et le forum, puis demander un statut de membre de l’association ou de membre spécial.'
         })}</p>
       </div>
@@ -29,7 +29,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   </label>
   <input id="signup-name" name="name" type="text" autocomplete="name" maxlength="80" required />
   <p class="small muted">
-    {L(lang, { ko: '회원 자격 확인 및 협회 관리에 사용하며 다른 회원에게 공개하지 않습니다.', fr: 'Utilisé pour la gestion des membres, sans affichage aux autres membres.' })}
+    {L(lang, { ko: '학생의 개인정보와 회원 간 신뢰를 보호하기 위해 실제 법적 성명을 확인합니다. 실명은 운영진만 열람하고 게시글·댓글에는 닉네임만 표시됩니다.', fr: 'Votre identité réelle est demandée pour protéger les enfants et instaurer la confiance. Elle n’est visible que par les administrateurs.' })}
   </p>
 </div>
 
@@ -43,6 +43,19 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   </p>
 </div>
 
+        <div class="stack gap-8">
+          <label for="signup-account-type">{L(lang,{ko:'가입자 유형',fr:'Type de compte'})}</label>
+          <select id="signup-account-type" name="accountType" required>
+            <option value="" disabled selected>{L(lang,{ko:'가입자 유형을 선택하세요',fr:'Choisissez votre type de compte'})}</option>
+            <option value="adult">{L(lang,{ko:'만 18세 이상 학부모·보호자·관계자',fr:'Adulte de 18 ans ou plus / parent / responsable'})}</option>
+            <option value="student">{L(lang,{ko:'재학생·졸업생·전학생 본인',fr:'Élève ou ancien élève'})}</option>
+          </select>
+          <p class="small muted">{L(lang,{ko:'학생 및 졸업·전학생은 생년월일을 입력해 주세요. 미성년자는 개인 쪽지가 기본적으로 비활성화되며, 운영진이 보호자 동의를 확인한 프로젝트에 한해 예외적으로 허용할 수 있습니다.',fr:'Les élèves et anciens élèves indiquent leur date de naissance. La messagerie est désactivée par défaut pour les mineurs, sauf dérogation limitée à un projet approuvé après accord parental.'})}</p>
+        </div>
+        <div id="signup-birth-wrap" class="stack gap-8" hidden>
+          <label for="signup-birth">{L(lang,{ko:'생년월일',fr:'Date de naissance'})}</label><input id="signup-birth" name="birthDate" type="date" min="1900-01-01" />
+          <p class="small muted">{L(lang,{ko:'성인 여부 및 쪽지 이용 확인용이며 다른 회원에게 공개하지 않습니다.',fr:'Réservée à la vérification de l’âge, non publique.'})}</p>
+        </div>
         <div class="stack gap-8">
           <label for="signup-email">{L(lang, { ko: '이메일', fr: 'Adresse e-mail' })}</label>
           <input id="signup-email" name="email" type="email" autocomplete="email" maxlength="200" required />
@@ -60,9 +73,9 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
           <summary><strong>{L(lang,{ko:'회원 등급 및 이용 권한 안내',fr:'Catégories de membres et droits d’accès'})}</strong></summary>
           <ul class="small" style="margin-top:12px">
             <li>{L(lang,{ko:'일반회원: 이메일 인증 후 학습자료와 게시판 열람',fr:'Membre général : accès aux ressources et lecture du forum après vérification de l’e-mail'})}</li>
-            <li>{L(lang,{ko:'협회회원: 재학생 학부모, 운영진 승인 후 게시글·댓글 작성 및 갤러리 열람',fr:'Membre de l’association : parent d’élève, publication et galerie après approbation'})}</li>
-            <li>{L(lang,{ko:'특별회원: 졸업·전학생, 그 학부모, 교사·기여자 등 운영진이 인정한 회원. 협회회원과 동일한 홈페이지 이용 권한',fr:'Membre spécial : ancien élève, parent d’ancien élève, enseignant ou contributeur reconnu. Même accès aux espaces du site que les membres de l’association'})}</li>
-            <li>{L(lang,{ko:'운영진: 회원 심사·관리 및 온라인 협회사무실 접근. 지정된 운영진만 권한 부여 가능',fr:'Administrateur : examen des demandes, gestion des comptes et bureau privé, sur nomination'})}</li>
+            <li>{L(lang,{ko:'정회원: 재학생 학부모, 운영진 승인 후 게시글·댓글 작성 및 갤러리 열람',fr:'Membre de l’association : parent d’élève, publication et galerie après approbation'})}</li>
+            <li>{L(lang,{ko:'특별회원: 졸업·전학생, 그 학부모, 교사·기여자 등 운영진이 인정한 회원. 정회원과 동일한 홈페이지 이용 권한',fr:'Membre spécial : ancien élève, parent d’ancien élève, enseignant ou contributeur reconnu. Même accès aux espaces du site que les membres de l’association'})}</li>
+            <li>{L(lang,{ko:'관리자: 회원 심사·관리 및 온라인 협회사무실 접근. 지정된 운영진만 권한 부여 가능',fr:'Administrateur : examen des demandes, gestion des comptes et bureau privé, sur nomination'})}</li>
           </ul>
           <p class="small muted">{L(lang,{ko:'먼저 일반회원으로 가입하고 승급은 별도 신청합니다. 홈페이지 등급과 정관상 의결권은 별개입니다.',fr:'Toute personne s’inscrit d’abord comme membre général. L’accès au site est distinct des droits statutaires de l’association.'})}</p>
         </details>
@@ -70,7 +83,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
           <summary><strong>{L(lang,{ko:'개인정보 수집·처리 안내',fr:'Informations sur les données personnelles'})}</strong></summary>
           <div class="small stack gap-8" style="padding-top:12px">
             <p>{L(lang,{ko:'관리 주체: ASICC 학부모협회 · 문의: contact@asicc-parents.fr',fr:'Responsable : association ASICC · Contact : contact@asicc-parents.fr'})}</p>
-            <p>{L(lang,{ko:'수집: 실명, 닉네임, 이메일, 계정 인증정보, 회원 등급 및 가입 확인 기록. 승급 신청 때에는 자녀의 이름·학교·학년·보호자 관계와 관련 이력을 추가로 수집합니다.',fr:'Données : nom, pseudonyme, e-mail, informations d’authentification, statut et preuve de prise de connaissance des règles ; pour les demandes de statut, nom, école, classe et lien avec l’enfant.'})}</p>
+            <p>{L(lang,{ko:'수집: 실명, 닉네임, 이메일, 계정 인증정보, 회원 등급 및 가입 확인 기록, 학생 본인의 생년월일(성인 여부 및 쪽지 이용 확인용, 비공개). 승급 신청 때에는 자녀의 이름·학교·학년·보호자 관계와 관련 이력을 추가로 수집합니다.',fr:'Données : nom, pseudonyme, e-mail, informations d’authentification, statut et preuve de prise de connaissance des règles, date de naissance des élèves (vérification de l’âge et de la messagerie, non publique) ; pour les demandes de statut, nom, école, classe et lien avec l’enfant.'})}</p>
             <p>{L(lang,{ko:'목적: 계정 운영, 자격 심사, 접근권한 확인, 게시판 표시, 회원 문의 처리. 실명·이메일·자녀 정보는 일반 회원에게 공개하지 않으며, 게시글·댓글에는 닉네임을 표시합니다.',fr:'Finalités : gestion du compte, vérification des droits, affichage du pseudo sur le forum et suivi des demandes. Les autres membres ne voient pas le nom réel, l’e-mail ni les données des enfants.'})}</p>
             <p>{L(lang,{ko:'협회 운영진과 필요한 서비스 제공자가 관련 정보에 접근할 수 있습니다. 보관기간과 정보 열람·정정·삭제 등 권리는 개인정보 처리방침을 참고하세요.',fr:'Les administrateurs habilités et les prestataires nécessaires peuvent traiter ces données. Consultez la politique de confidentialité pour les durées de conservation et vos droits.'})}</p>
             <a href={`${href(lang,'legal/')}#privacy`} target="_blank" rel="noopener noreferrer">{L(lang,{ko:'개인정보 처리방침 전문 보기',fr:'Voir la politique de confidentialité'})}</a>
@@ -142,6 +155,11 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   import { getApps, initializeApp } from 'firebase/app';
   import { getAuth, createUserWithEmailAndPassword, sendEmailVerification, onAuthStateChanged, getIdToken, deleteUser } from 'firebase/auth';
   import { getFirestore, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
+  import {validBirthDate} from '../../../scripts/members/member-access';
+  const accountControl=document.querySelector<HTMLSelectElement>('#signup-account-type');
+  const birthControl=document.querySelector<HTMLInputElement>('#signup-birth');
+  function showBirth(){const student=accountControl?.value==='student';const wrap=document.getElementById('signup-birth-wrap');if(wrap)wrap.hidden=!student;if(birthControl){birthControl.required=student;birthControl.max=new Date().toISOString().slice(0,10);if(!student)birthControl.value='';}}
+  accountControl?.addEventListener('change',showBirth);showBirth();
   import { firebaseConfig } from '../../../firebase-config';
 
   const form = document.querySelector<HTMLFormElement>('#asicc-signup');
@@ -238,10 +256,13 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       const data=new FormData(form);
       const name=String(data.get('name')??'').trim();
       const nickname=String(data.get('nickname')??'').trim().normalize('NFKC');
+      const accountType=String(data.get('accountType')||'');
+      const birthDate=String(data.get('birthDate')||'');
+      if(accountType==='student'&&!validBirthDate(birthDate)){show(label('생년월일을 확인해 주세요.','Vérifiez votre date de naissance.'));return;}
       const email=String(data.get('email')??'').trim().toLowerCase();
       const password=String(data.get('password')??'');
       const confirm=String(data.get('confirm')??'');
-      if(!name||name.length>80||!nicknameOkay(nickname)||!email||password.length<8){
+      if(!name||name.length>80||!nicknameOkay(nickname)||!['adult','student'].includes(accountType)||!email||password.length<8){
         show(label('실명, 닉네임(한글·라틴문자·숫자 2~24자)과 비밀번호를 확인해 주세요. 운영진을 사칭하는 닉네임은 허용되지 않습니다.','Vérifiez le nom, le pseudo (2 à 24 lettres coréennes/latines ou chiffres) et le mot de passe. Les pseudos réservés sont interdits.'),true);return;
       }
       if(password!==confirm){show(label('비밀번호가 일치하지 않습니다.','Les mots de passe ne correspondent pas.'),true);return;}
@@ -258,11 +279,11 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
         const nicknameKey=nickname.toLowerCase();
         const batch=writeBatch(db);
         batch.set(doc(db,'members',createdUser.uid),{
-          name,nickname,nicknameKey,email,role:'general',status:'approved',
+          name,nickname,nicknameKey,email,accountType,...(accountType==='student'?{birthDate}:{}),role:'general',status:'approved',
           consent:true,termsVersion:'2026-11',termsAcceptedAt:serverTimestamp(),createdAt:serverTimestamp()
         });
         batch.set(doc(db,'nicknames',nicknameKey),{uid:createdUser.uid,nickname,createdAt:serverTimestamp()});
-        batch.set(doc(db,'publicNames',createdUser.uid),{nickname,updatedAt:serverTimestamp()});
+        batch.set(doc(db,'publicNames',createdUser.uid),{nickname,role:'general',canReceiveDM:false,updatedAt:serverTimestamp()});
         try{await batch.commit();}
         catch(e){
           console.error('ASICC profile/nickname reservation error:',e);

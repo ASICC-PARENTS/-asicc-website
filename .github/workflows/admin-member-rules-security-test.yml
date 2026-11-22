@@ -1,0 +1,30 @@
+name: ASICC Member Admin Rules Security Test
+on:
+  push:
+    branches: [test-cms-fr]
+    paths:
+      - 'firestore.rules.PROPOSED_ONLY'
+      - 'tests/admin-member-rules.test.mjs'
+      - '.github/workflows/admin-member-rules-security-test.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  admin-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install project dependencies
+        run: npm ci
+      - name: Install rules testing library
+        run: npm install --no-save @firebase/rules-unit-testing@4.0.1
+      - name: Test admin and member permissions in a local Firestore emulator
+        run: npx --yes firebase-tools@latest emulators:exec --only firestore --project demo-asicc-admin-rules --config firebase.test.json 'node --test tests/admin-member-rules.test.mjs'

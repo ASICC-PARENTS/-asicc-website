@@ -23,7 +23,7 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
         <section class="card stack gap-12" style="padding:24px">
           <h2 class="h3">{L(lang,{ko:'기본 정보',fr:'Informations personnelles'})}</h2>
           <p id="profile-current"></p>
-          <p id="profile-email" class="muted small"></p>
+          <p id="profile-email" class="muted small"></p><p id="profile-age" class="muted small" hidden></p>
           <form id="realname-request" class="stack gap-8">
             <label for="requested-name">{L(lang,{ko:'성명 변경 신청 (운영진 승인)',fr:'Demander une correction du nom (approbation requise)'})}</label>
             <input id="requested-name" name="requestedName" maxlength="80" autocomplete="name" required />
@@ -41,6 +41,12 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
           </form>
           <p class="small muted">{L(lang,{ko:'기존 게시글과 댓글에도 새 닉네임을 표시합니다. 실명은 비공개로 유지합니다.',fr:'Les anciens messages et commentaires afficheront également votre nouveau pseudo. Votre nom réel reste privé.'})}</p>
         </section>
+        <section class="card stack gap-12" style="padding:24px">
+          <h2 class="h3">{L(lang,{ko:'회원 탈퇴 요청',fr:'Demander la clôture du compte'})}</h2>
+          <p class="small muted">{L(lang,{ko:'탈퇴를 요청하면 운영진에게 비공개로 전달됩니다. 이 버튼을 눌러도 계정이 바로 삭제되지는 않습니다. 운영진이 확인한 뒤 개인정보 삭제 절차를 안내합니다.',fr:'Votre demande sera transmise de façon confidentielle aux administrateurs. Elle ne supprime pas immédiatement le compte. L’administration vous précisera la procédure de suppression des données.'})}</p>
+          <p id="withdrawal-request-state" class="small muted"></p>
+          <button class="btn btn-ghost" type="button" id="withdrawal-request-button" style="align-self:flex-start">{L(lang,{ko:'탈퇴 요청 보내기',fr:'Demander la clôture'})}</button>
+        </section>
       </div>
     </div>
   </section>
@@ -49,15 +55,18 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
   import { getApps,initializeApp } from 'firebase/app';
   import { getAuth,onAuthStateChanged,getIdToken } from 'firebase/auth';
   import { getFirestore,doc,getDoc,setDoc,updateDoc,writeBatch,serverTimestamp } from 'firebase/firestore';
+  import {dmAllowed,ageOn,type AccountAccess} from '../../../scripts/members/member-access';
   import { firebaseConfig } from '../../../firebase-config';
+  import { BOARD_PHOTO_API } from '../../../config/board-photos';
   const root=document.querySelector<HTMLElement>('#profile-root');
   const fr=root?.dataset.lang==='fr';
   const tr=(ko:string,french:string)=>fr?french:ko;
   const status=document.querySelector<HTMLElement>('#profile-status');
-  const say=(txt:string,bad=false)=>{if(status){status.textContent=txt;status.style.color=bad?'#b42318':'#067647';}};
+  import {toastResult} from '../../../scripts/members/toast';
+const say=(txt:string,bad=false)=>{if(status){status.textContent=txt;status.style.color=bad?'#b42318':'#067647';}toastResult(txt,bad);};
   const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
   const auth=getAuth(app),db=getFirestore(app);
-  let uid='',profile:{name:string;email:string;nickname?:string;nicknameKey?:string}|null=null;
+  let uid='',profile:(AccountAccess & {name:string;email:string;nicknameKey?:string})|null=null;
   const validNick=(n:string)=>{
     const plain=n.normalize('NFD').toLowerCase().replace(/\p{M}/gu,'');
     return Array.from(n).length>=2&&Array.from(n).length<=24
@@ -78,11 +87,11 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
       if(!snap.exists()||snap.data().status!=='approved')throw Error('inactive');
       uid=user.uid;profile=snap.data() as typeof profile;
       document.querySelector<HTMLElement>('#profile-current')!.textContent=tr(`성명: ${profile!.name} / 닉네임: ${profile!.nickname||'미설정'}`,`Nom : ${profile!.name} / pseudo : ${profile!.nickname||'non défini'}`);
-      document.querySelector<HTMLElement>('#profile-email')!.textContent=profile!.email;
+      document.querySelector<HTMLElement>('#profile-email')!.textContent=profile!.email;const ageLabel=document.querySelector<HTMLElement>('#profile-age')!;if(profile!.birthDate){const age=ageOn(profile!.birthDate);ageLabel.hidden=false;ageLabel.textContent=tr(`생년월일: ${profile!.birthDate} · ${age===null?'나이 미확인':`만 ${age}세`} (정정은 운영진에게 요청)`,`Date de naissance : ${profile!.birthDate} · ${age===null?'non confirmé':`${age} ans`} (correction auprès de l’administration)`);}
       document.querySelector<HTMLInputElement>('#new-nickname')!.value=profile!.nickname||'';
       document.querySelector<HTMLElement>('#profile-fields')!.hidden=false;
       say(tr('내 정보가 표시됐습니다.','Profil chargé.'));
-      await loadNameRequest();
+      await Promise.all([loadNameRequest(),loadWithdrawalState()]);
     }catch(e){console.error(e);say(tr('회원정보를 불러올 수 없습니다.','Impossible de charger le profil.'),true);}
   });
   document.querySelector<HTMLFormElement>('#nickname-form')?.addEventListener('submit',async e=>{
@@ -96,13 +105,52 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
       const batch=writeBatch(db);
       batch.update(doc(db,'members',uid),{nickname,nicknameKey});
       batch.set(doc(db,'nicknames',nicknameKey),{uid,nickname,createdAt:serverTimestamp()});
-      batch.set(doc(db,'publicNames',uid),{nickname,updatedAt:serverTimestamp()});
+      batch.set(doc(db,'publicNames',uid),{nickname,role:profile.role||'general',canReceiveDM:dmAllowed(profile),updatedAt:serverTimestamp()});
       if(profile.nicknameKey)batch.delete(doc(db,'nicknames',profile.nicknameKey));
       await batch.commit();profile={...profile,nickname,nicknameKey};
       document.querySelector<HTMLElement>('#profile-current')!.textContent=tr(`성명: ${profile.name} / 닉네임: ${nickname}`,`Nom : ${profile.name} / pseudo : ${nickname}`);
       say(tr('닉네임을 변경했습니다.','Pseudo modifié.'));
     }catch(err){console.error(err);say(tr('변경하지 못했습니다. 다른 닉네임을 선택하거나 운영진에게 문의해 주세요.','Modification impossible. Choisissez un autre pseudo ou contactez l’association.'),true);}
     finally{if(button)button.disabled=false;}
+  });
+  async function loadWithdrawalState(){
+    if(!uid)return;
+    const state=document.querySelector<HTMLElement>('#withdrawal-request-state');
+    const button=document.querySelector<HTMLButtonElement>('#withdrawal-request-button');
+    try{
+      const snap=await getDoc(doc(db,'memberWithdrawalRequests',uid));
+      if(snap.exists()){
+        if(state)state.textContent=tr('탈퇴 요청이 운영진에게 접수된 상태입니다.','Votre demande de départ a été transmise aux administrateurs.');
+        if(button)button.disabled=true;
+      }else{
+        if(state)state.textContent='';
+        if(button)button.disabled=false;
+      }
+    }catch(e){
+      console.error('withdrawal state',e);
+      if(state)state.textContent=tr('탈퇴 신청 상태를 확인할 수 없습니다.','Impossible de vérifier votre demande.');
+      if(button)button.disabled=true;
+    }
+  }
+  document.querySelector<HTMLButtonElement>('#withdrawal-request-button')?.addEventListener('click',async()=>{
+    if(!uid||!profile)return;
+    if(!confirm(tr('회원 탈퇴를 운영진에게 요청하시겠습니까? 지금 바로 계정이 삭제되는 것은 아닙니다.',
+      'Souhaitez-vous demander la clôture de votre compte ? Le compte ne sera pas supprimé immédiatement.')))return;
+    const button=document.querySelector<HTMLButtonElement>('#withdrawal-request-button');
+    if(button)button.disabled=true;
+    try{
+      await setDoc(doc(db,'memberWithdrawalRequests',uid),{
+        uid,name:profile.name,email:profile.email,status:'pending',requestedAt:serverTimestamp()
+      });
+      try{const endpoint=BOARD_PHOTO_API.trim().replace(/\/$/,'');if(endpoint)await fetch(endpoint+'/api/notify',{method:'POST',headers:{Authorization:'Bearer '+await getIdToken(auth.currentUser!), 'Content-Type':'application/json'},body:JSON.stringify({kind:'withdrawal',id:uid})});}catch(error){console.warn('Email not configured',error);}
+      say(tr('탈퇴 요청이 운영진에게 전달됐습니다.','Votre demande a été envoyée aux administrateurs.'));
+      await loadWithdrawalState();
+    }catch(e){
+      console.error('withdrawal request',e);
+      say(tr('탈퇴 요청을 보내지 못했습니다. 운영진에게 이메일로 문의해 주세요.',
+        'Demande non transmise. Contactez l’association par e-mail.'),true);
+      if(button)button.disabled=false;
+    }
   });
   document.querySelector<HTMLFormElement>('#realname-request')?.addEventListener('submit',async e=>{
     e.preventDefault();if(!uid||!profile)return;
@@ -114,6 +162,7 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
       if(!old.exists())await setDoc(ref,{uid,...request});
       else if(old.data().status==='rejected')await updateDoc(ref,request);
       else{say(tr('이미 심사 중이거나 승인된 신청이 있습니다.','Une demande est déjà en cours ou traitée.'),true);return;}
+      try{const endpoint=BOARD_PHOTO_API.trim().replace(/\/$/,'');if(endpoint)await fetch(endpoint+'/api/notify',{method:'POST',headers:{Authorization:'Bearer '+await getIdToken(auth.currentUser!), 'Content-Type':'application/json'},body:JSON.stringify({kind:'name',id:uid})});}catch(error){console.warn('Email not configured',error);}
       say(tr('운영진에게 실명 변경을 신청했습니다.','Demande transmise à l’administration.'));await loadNameRequest();
     }catch(err){console.error(err);say(tr('신청을 저장하지 못했습니다.','Impossible d’enregistrer la demande.'),true);}
   });
