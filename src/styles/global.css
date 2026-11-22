@@ -1040,3 +1040,10 @@ html[lang="fr"] a[href^="http"] { overflow-wrap: anywhere; }
 .member-ui :is(.board-comment-actions,.board-reply-form-actions,.message-actions,#album-actions){flex-wrap:wrap}
 .member-ui .board-list-card{min-width:0}
 @media(max-width:650px){.member-ui .board-category-tab{padding:7px 10px;font-size:12px}.member-ui #gallery-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.member-ui #gallery-filters label:last-child{grid-column:1/-1}.member-ui .gallery-view-heading{gap:8px}.member-ui .board-toolbar .btn{align-self:flex-end}.member-ui .gallery-media-caption .row{flex-wrap:wrap}.member-ui .gallery-form label{min-width:0}}
+
+/* Search fields with a leading magnifier need room for the icon.
+   The shared member input reset above has higher specificity than the old
+   .board-search-wrap input rule, so target these two fields explicitly. */
+.member-ui :is(#files-search, #board-search) {
+  padding-left: 48px;
+}
