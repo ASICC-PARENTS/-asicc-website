@@ -96,6 +96,7 @@ test('when opened, verified member and special may create albums and upload phot
     const owner=ctx('member');
     await assertSucceeds(setDoc(doc(owner,'galleryItems','review-photo'),
       gallery('member','album-member','consent_uncertain')));
+    await assertFails(updateDoc(doc(owner,'galleryItems','review-photo'),{status:'published',updatedAt:serverTimestamp()}));
     await assertSucceeds(updateDoc(doc(owner,'galleryItems','review-photo'),{
       status:'pending',updatedAt:serverTimestamp()
     }));

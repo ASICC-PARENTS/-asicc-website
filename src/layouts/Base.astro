@@ -85,7 +85,7 @@ const current = (p: string) => rest.startsWith(p);
           <!-- 로그인 버튼의 색상이 바뀌는 같은 CSS 클래스에서 자물쇠 아이콘도 교체 -->
           <svg class="members-icon-closed" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
           <svg class="members-icon-open" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.95-0.6"/></svg>
-          <span class="lbl" data-members-label>{lang === 'ko' ? '로그인/회원가입' : 'Connexion / Inscription'}</span>
+          <span class="lbl" data-members-label>{lang === 'ko' ? '로그인/회원가입' : 'Connexion / Inscription'}</span><span data-asicc-unread class="asicc-unread" hidden aria-live="polite"></span>
         </a>
         <button type="button" class="menu-btn" id="menuBtn" aria-controls="nav" aria-expanded="false" aria-label={t(lang, 'nav.menu')}>
           <svg class="ic-open" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
@@ -170,6 +170,8 @@ const current = (p: string) => rest.startsWith(p);
   <script>
     import { getApps, initializeApp } from 'firebase/app';
     import { getAuth, onAuthStateChanged } from 'firebase/auth';
+    import {getFirestore,doc,getDoc,collection,query,where,onSnapshot} from 'firebase/firestore';
+    import {dmAllowed,syncOwnAlias} from '../scripts/members/member-access';
     import { firebaseConfig } from '../firebase-config';
     const membersButton = document.querySelector<HTMLAnchorElement>('[data-members-lock]');
     const membersLabel = membersButton?.querySelector<HTMLElement>('[data-members-label]');
@@ -194,9 +196,17 @@ const current = (p: string) => rest.startsWith(p);
       const auth = getAuth(app);
       // The header reflects the Firebase sign-in state. Access control for
       // individual member pages remains enforced separately by Firestore.
-      onAuthStateChanged(auth, (user) => {
-        setMembersLock(Boolean(user?.emailVerified));
-      });
+      const db=getFirestore(app);let stopUnread:(()=>void)|undefined;let generation=0;
+      function unreadBadge(count:number){document.querySelectorAll<HTMLElement>('[data-asicc-unread]').forEach(n=>{n.hidden=count===0;n.textContent=count?`N ${count}`:'';n.setAttribute('aria-label',isKorean?`읽지 않은 쪽지 ${count}개`:`${count} messages non lus`);});}
+      async function bindUnread(){const seq=++generation;stopUnread?.();stopUnread=undefined;unreadBadge(0);const u=auth.currentUser;if(!u?.emailVerified)return;
+        try{const p=await getDoc(doc(db,'members',u.uid));if(seq!==generation||!p.exists()||!dmAllowed(p.data()))return;
+          void syncOwnAlias(db,u.uid,p.data()).catch(console.warn);
+          const setting=await getDoc(doc(db,'siteSettings','messaging'));if(seq!==generation||setting.data()?.enabled!==true)return;
+          stopUnread=onSnapshot(query(collection(db,'privateMessages'),where('recipientUid','==',u.uid)),snap=>{if(seq===generation)unreadBadge(snap.docs.filter(d=>!d.data().readAt).length);},()=>unreadBadge(0));
+        }catch(error){console.debug('ASICC unread status unavailable',error);}}
+      onAuthStateChanged(auth, (user) => {setMembersLock(Boolean(user?.emailVerified));void bindUnread();});
+      window.addEventListener('pagehide',()=>{generation++;stopUnread?.();});
+      window.addEventListener('pageshow',e=>{if(e.persisted)void bindUnread();});
       // If a user verifies their email in a different browser tab, update
       // the header when they return without requiring a full page refresh.
       const refreshVerification = async () => {
@@ -204,7 +214,7 @@ const current = (p: string) => rest.startsWith(p);
         if (!current || current.emailVerified) return;
         try {
           await current.reload();
-          setMembersLock(Boolean(auth.currentUser?.emailVerified));
+          setMembersLock(Boolean(auth.currentUser?.emailVerified));void bindUnread();
         } catch (error) {
           console.debug('ASICC header verification refresh unavailable:', error);
         }

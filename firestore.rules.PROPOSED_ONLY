@@ -53,7 +53,7 @@ function validRegistration(uid) {
   return signedIn() && request.auth.uid == uid
     && request.resource.data.keys().hasOnly([
       'name','nickname','nicknameKey','email','role','status','consent',
-      'termsVersion','termsAcceptedAt','createdAt','accountType'
+      'termsVersion','termsAcceptedAt','createdAt','accountType','birthDate'
     ])
     && request.resource.data.keys().hasAll([
       'name','nickname','nicknameKey','email','role','status','consent',
@@ -65,6 +65,8 @@ function validRegistration(uid) {
     && nicknameValid(request.resource.data.nickname,request.resource.data.nicknameKey)
     && request.resource.data.email == request.auth.token.email
     && request.resource.data.accountType in ['adult','student']
+    && ((request.resource.data.accountType == 'adult' && request.resource.data.get('birthDate','') == '')
+      || (request.resource.data.accountType == 'student' && validBirthDate(request.resource.data.get('birthDate',''))))
     && request.resource.data.role == 'general'
     && request.resource.data.status == 'approved'
     && request.resource.data.consent == true
@@ -94,10 +96,17 @@ function validSelfNicknameUpdate(uid) {
       return isAdmin() && uid != request.auth.uid
         && changed.hasOnly([
           'role','status','name','nickname','nicknameKey','phone',
-          'levels','children','memberKind','memberRelation','accountType'
+          'levels','children','memberKind','memberRelation','accountType','birthDate','adultAt','dmMode','dmUpdatedBy','dmUpdatedAt'
         ])
         && validRole(request.resource.data.role)
         && request.resource.data.get('accountType','') in ['','adult','student']
+        && request.resource.data.get('dmMode','auto') in ['auto','on','off']
+        && (!changed.hasAny(['dmUpdatedBy','dmUpdatedAt']) || (request.resource.data.dmUpdatedBy == request.auth.uid && request.resource.data.dmUpdatedAt == request.time))
+        && (!changed.hasAny(['dmMode']) || request.resource.data.dmMode != 'on' || dmAllowedFor(request.resource.data))
+        && (request.resource.data.get('birthDate','') == '' || validBirthDate(request.resource.data.birthDate))
+        && (resource.data.get('birthDate','') == '' || request.resource.data.get('birthDate','') != '')
+        && (request.resource.data.get('adultAt',null) == null || (request.resource.data.adultAt is timestamp && validBirthDate(request.resource.data.get('birthDate',''))))
+        && (!changed.hasAny(['birthDate']) || changed.hasAny(['adultAt']) || request.resource.data.get('adultAt',null) == null)
         && request.resource.data.status in ['approved','suspended']
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
@@ -163,8 +172,8 @@ match /publicNames/{uid} {
     && request.resource.data.keys().hasAll(['nickname','updatedAt','canReceiveDM'])
     && request.resource.data.updatedAt == request.time
     && request.resource.data.canReceiveDM is bool
-    && request.resource.data.canReceiveDM == (getAfter(memberDoc(uid)).data.get('accountType','') == 'adult' && getAfter(memberDoc(uid)).data.status == 'approved')
-    && (request.resource.data.get('role','') == '' || request.resource.data.role == getAfter(memberDoc(uid)).data.role)
+    && request.resource.data.canReceiveDM == dmAllowedFor(getAfter(memberDoc(uid)).data)
+    && request.resource.data.get('role','') == getAfter(memberDoc(uid)).data.role
     && getAfter(memberDoc(uid)).data.nickname == request.resource.data.nickname
     && getAfter(memberDoc(uid)).data.nicknameKey == request.resource.data.nickname.lower();
   allow delete: if false;
@@ -334,8 +343,8 @@ function validUpgrade(uid) {
         ;
     }
     function resourceCategoryAllowed(category) {
-      return category is string && category.size() <= 24
-        && (category in ['kindergarten','elementary','middle','common','other','general']
+      return category is string && category.size() <= 24 && !(category in ['common','general'])
+        && (category in ['kindergarten','elementary','middle','other']
           || (exists(/databases/$(database)/documents/siteSettings/resourceCategories)
             && category in get(/databases/$(database)/documents/siteSettings/resourceCategories).data.get('keys',[])));
     }
@@ -521,11 +530,13 @@ function validUpgrade(uid) {
             && request.resource.data.title is string && request.resource.data.title.size() <= 150
             && request.resource.data.description is string && request.resource.data.description.size() <= 3000)
           || (resource.data.authorUid == request.auth.uid && resource.data.status == 'draft'
-            && request.resource.data.status in ['pending','published']
+            && ((resource.data.reviewReason == 'consent_uncertain' && request.resource.data.status == 'pending')
+              || (resource.data.reviewReason == '' && request.resource.data.status == 'published'))
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt']))
           || (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
               'title','description','albumId','sortOrder','status','updatedAt'])
              && request.resource.data.status in ['draft','pending','published','hidden','rejected']
+             && (resource.data.status != 'draft' || request.resource.data.status != 'published' || (resource.data.authorUid == request.auth.uid && resource.data.reviewReason == ''))
              && request.resource.data.albumId is string
              && exists(galleryAlbum(request.resource.data.albumId)))
         );
@@ -862,10 +873,17 @@ function validUpgrade(uid) {
       allow update, delete: if false;
     }
 
+    function validBirthDate(value) {
+      return value is string && value.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$');
+    }
+    function dmAllowedFor(p) {
+      return p.status == 'approved' && p.get('dmMode','auto') != 'off'
+        && ((p.get('accountType','') == 'adult' && p.get('birthDate','') == '')
+          || (p.get('accountType','') in ['student','adult'] && validBirthDate(p.get('birthDate',''))
+            && p.get('adultAt',null) is timestamp && p.adultAt <= request.time));
+    }
     function isAdultAccount(uid) {
-      return exists(memberDoc(uid))
-        && get(memberDoc(uid)).data.status == 'approved'
-        && get(memberDoc(uid)).data.get('accountType','') == 'adult';
+      return exists(memberDoc(uid)) && dmAllowedFor(get(memberDoc(uid)).data);
     }
     function messagingEnabled() {
       return exists(/databases/$(database)/documents/siteSettings/messaging)
@@ -886,8 +904,9 @@ function validUpgrade(uid) {
         && request.resource.data.recipientUid is string
         && request.resource.data.recipientUid != request.auth.uid
         && isAdultAccount(request.resource.data.recipientUid)
-        && (me().role in ['member','special','admin']
-          || get(memberDoc(request.resource.data.recipientUid)).data.role == 'admin')
+        && (me().role == 'admin'
+          || get(memberDoc(request.resource.data.recipientUid)).data.role == 'admin'
+          || (me().role in ['member','special'] && get(memberDoc(request.resource.data.recipientUid)).data.role in ['member','special']))
         && request.resource.data.body is string && request.resource.data.body.size() >= 1
         && request.resource.data.body.size() <= 2000
         && request.resource.data.createdAt == request.time

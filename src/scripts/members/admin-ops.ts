@@ -17,8 +17,7 @@ const initialBoard=[
 ];
 const initialResources=[
   {id:'kindergarten',ko:'유치원',fr:'Maternelle'}, {id:'elementary',ko:'초등학교',fr:'Élémentaire'},
-  {id:'middle',ko:'중학교',fr:'Collège'}, {id:'common',ko:'공통',fr:'Commun'},
-  {id:'other',ko:'기타',fr:'Autres'}, {id:'general',ko:'일반',fr:'Général'}
+  {id:'middle',ko:'중학교',fr:'Collège'}, {id:'other',ko:'기타',fr:'Autres'}
 ];
 type Category={id:string;ko:string;fr:string};
 const stringify=(a:Category[])=>a.map(c=>`${c.id} | ${c.ko} | ${c.fr}`).join('\n');
@@ -36,7 +35,7 @@ async function readSettings(){
     ['boardCategories','ops-board-categories',initialBoard],['resourceCategories','ops-resource-categories',initialResources]
   ] as const){
     const snap=await getDoc(doc(db,'siteSettings',docId));const data=snap.data()?.items;
-    const rows=Array.isArray(data)&&data.length?data:initial;
+    const rows=(Array.isArray(data)&&data.length?data:initial).filter(x=>docId!=='resourceCategories'||!['common','general'].includes(x.id));
     const n=by<HTMLTextAreaElement>(control);if(n)n.value=stringify(rows);
   }
   const gallery=await getDoc(doc(db,'siteSettings','gallery'));
@@ -50,7 +49,7 @@ async function saveCategories(kind:'board'|'resource'){
   const control=kind==='board'?'ops-board-categories':'ops-resource-categories';
   try{
     const items=parse(by<HTMLTextAreaElement>(control)?.value||'');
-    if(kind==='resource'&&!items.some(x=>x.id==='general'))throw Error('자료실 "일반" 분류는 유지해 주세요.');
+    if(kind==='resource'&&items.some(x=>['common','general'].includes(x.id)))throw Error('공통·일반 분류는 제외하고 기타를 사용해 주세요.');
     if(kind==='board'&&(!items.some(x=>x.id==='info')||!items.some(x=>x.id==='question')))throw Error('정보 또는 질문 분류를 유지해 주세요.');
     await setDoc(doc(db,'siteSettings',id),{items,keys:items.map(x=>x.id),updatedBy:uid,updatedAt:serverTimestamp()});
     say(tr('분류 설정을 저장했습니다. 회원 화면을 새로고침하면 반영됩니다.','Catégories enregistrées. Actualisez le site.'));
@@ -58,15 +57,14 @@ async function saveCategories(kind:'board'|'resource'){
 }
 by<HTMLButtonElement>('ops-save-board-categories')?.addEventListener('click',()=>void saveCategories('board'));
 by<HTMLButtonElement>('ops-save-resource-categories')?.addEventListener('click',()=>void saveCategories('resource'));
-by<HTMLButtonElement>('ops-save-toggles')?.addEventListener('click',async()=>{
-  if(!admin)return;
-  const isOpen=by<HTMLInputElement>('ops-gallery-open')?.checked===true;
-  const enabled=by<HTMLInputElement>('ops-messaging-open')?.checked===true;
+by<HTMLButtonElement>('ops-save-gallery')?.addEventListener('click',async()=>{
+  if(!admin)return;const isOpen=by<HTMLInputElement>('ops-gallery-open')?.checked===true;
   if(isOpen&&!confirm(tr('갤러리를 회원에게 공개합니다. 초상권 정책 확정과 원본 보관 준비를 확인했나요?','Confirmez-vous l’ouverture de la galerie après vérification des autorisations ?')))return;
-  try{await setDoc(doc(db,'siteSettings','gallery'),{isOpen,updatedBy:uid,updatedAt:serverTimestamp()});
-    await setDoc(doc(db,'siteSettings','messaging'),{enabled,updatedBy:uid,updatedAt:serverTimestamp()});
-    say(tr('갤러리 및 쪽지 설정을 저장했습니다.','Paramètres enregistrés.'));
-  }catch(e){console.error(e);say(tr('저장하지 못했습니다. Firebase 규칙을 확인하세요.','Enregistrement impossible. Vérifiez les règles Firebase.'),true);}
+  try{await setDoc(doc(db,'siteSettings','gallery'),{isOpen,updatedBy:uid,updatedAt:serverTimestamp()});say(tr('갤러리 설정을 저장했습니다.','Galerie enregistrée.'));}catch(e){console.error(e);say(tr('저장 실패: Firebase 규칙을 확인하세요.','Enregistrement impossible.'),true);}
+});
+by<HTMLButtonElement>('ops-save-toggles')?.addEventListener('click',async()=>{
+  if(!admin)return;const enabled=by<HTMLInputElement>('ops-messaging-open')?.checked===true;
+  try{await setDoc(doc(db,'siteSettings','messaging'),{enabled,updatedBy:uid,updatedAt:serverTimestamp()});say(tr('쪽지 설정을 저장했습니다.','Messagerie enregistrée.'));}catch(e){console.error(e);say(tr('저장 실패: Firebase 규칙을 확인하세요.','Enregistrement impossible.'),true);}
 });
 async function showInbox(){
   const target=by<HTMLElement>('ops-inbox');if(!target)return;

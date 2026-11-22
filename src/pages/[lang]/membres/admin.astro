@@ -86,8 +86,9 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
           <div class="stack gap-8" style="border:1px solid #dce0e7;border-radius:10px;padding:16px">
             <label class="row gap-12" style="align-items:center"><input type="checkbox" id="ops-gallery-open"/> <strong>{L(lang,{ko:'갤러리 회원 공개',fr:'Ouvrir la galerie aux membres'})}</strong></label>
             <p class="small muted">{L(lang,{ko:'기본은 비공개입니다. 공개하면 일반 등록된 사진과 운영진이 승인한 사진이 정회원·특별회원·운영진에게 표시됩니다. 현재 파일은 Backblaze B2에만 저장되고 Google Drive 원본 자동 보관은 실행되지 않습니다. 초상권 정책 확정 전에는 공개하지 마세요.',fr:'Fermée par défaut. Les photos directement publiées ou approuvées seront visibles aux membres autorisés. Les fichiers restent sur Backblaze B2 ; aucune sauvegarde Google Drive. Ne pas ouvrir avant la validation des règles relatives au droit à l’image.'})}</p>
+            <button type="button" class="btn btn-dark" id="ops-save-gallery" style="align-self:flex-start">{L(lang,{ko:'갤러리 공개 설정 저장',fr:'Enregistrer la galerie'})}</button>
             <label class="row gap-12" style="align-items:center"><input type="checkbox" id="ops-messaging-open"/> <strong>{L(lang,{ko:'성인 회원 쪽지 기능 활성화',fr:'Activer la messagerie pour les adultes'})}</strong></label>
-            <button type="button" class="btn btn-dark" id="ops-save-toggles" style="align-self:flex-start">{L(lang,{ko:'공개·쪽지 설정 저장',fr:'Enregistrer les paramètres'})}</button>
+            <button type="button" class="btn btn-dark" id="ops-save-toggles" style="align-self:flex-start">{L(lang,{ko:'쪽지 설정 저장',fr:'Enregistrer la messagerie'})}</button>
           </div>
           <div class="stack gap-12" style="border:1px solid #dce0e7;border-radius:10px;padding:16px">
             <h3 class="h3">{L(lang,{ko:'게시판 분류 관리',fr:'Catégories du forum'})}</h3>
@@ -184,9 +185,12 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
                   <select id="admin-edit-account-type">
                     <option value="">{L(lang,{ko:'미확인 — 쪽지 차단',fr:'Non confirmé — bloqué'})}</option>
                     <option value="adult">{L(lang,{ko:'성인',fr:'Adulte'})}</option>
-                    <option value="student">{L(lang,{ko:'학생 본인 (쪽지 금지)',fr:'Élève — messagerie interdite'})}</option>
+                    <option value="student">{L(lang,{ko:'재학생·졸업·전학생 본인',fr:'Élève / ancien élève'})}</option>
                   </select>
                 </label>
+                <label class="stack gap-8"><span>{L(lang,{ko:'생년월일 (학생 본인)',fr:'Date de naissance (élève)'})}</span><input id="admin-edit-birth" type="date" min="1900-01-01"/><span id="admin-edit-age" class="small muted"></span></label>
+                <label class="stack gap-8"><span>{L(lang,{ko:'생년월일 확인',fr:'Vérification de l’âge'})}</span><span><input id="admin-edit-birth-verified" type="checkbox"/> {L(lang,{ko:'운영진이 생년월일을 확인함',fr:'Date vérifiée par l’administration'})}</span></label>
+                <label class="stack gap-8"><span>{L(lang,{ko:'쪽지 기능 활성화',fr:'Accès à la messagerie'})}</span><select id="admin-edit-dm-mode"><option value="auto">{L(lang,{ko:'자동 (성인 및 회원 등급 기준)',fr:'Automatique (âge et rôle)'})}</option><option value="on">{L(lang,{ko:'활성화 (성인만)',fr:'Activer (adultes uniquement)'})}</option><option value="off">{L(lang,{ko:'비활성화',fr:'Désactiver'})}</option></select><span id="admin-edit-dm-state" class="small muted"></span></label>
                 <label class="stack gap-8"><span>{L(lang,{ko:'가입 구분',fr:'Catégorie'})}</span>
                   <select id="admin-edit-kind">
                     <option value="">{L(lang,{ko:'미설정',fr:'Non renseigné'})}</option>
@@ -311,14 +315,15 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   import { getAuth, onAuthStateChanged, getIdToken } from 'firebase/auth';
   import {
     getFirestore, doc, getDoc, getDocs, query, collection, where,
-    limit, updateDoc, runTransaction, serverTimestamp, writeBatch, setDoc, type Timestamp,
+    limit, updateDoc, runTransaction, serverTimestamp, writeBatch, setDoc, Timestamp,
     type DocumentData
   } from 'firebase/firestore';
   import { firebaseConfig } from '../../../firebase-config';
+  import {dmAllowed,validBirthDate,adulthoodDate,ageOn} from '../../../scripts/members/member-access';
 
   type Child = {studentName:string;school:string;grade:string};
   type Member = { id: string; name: string; nickname?:string; nicknameKey?:string; email: string; phone?: string;
-    levels?: string[]; children?: Child[]; memberKind?: string; memberRelation?: string; accountType?: string;
+    levels?: string[]; children?: Child[]; memberKind?: string; memberRelation?: string; accountType?: string; birthDate?:string; adultAt?:Timestamp|null; dmMode?:string;
     role: string; status: string; createdAt?: Timestamp | number | string | null;
     withdrawnAt?: Timestamp | number | string | null }; 
   type Withdrawal = { uid: string; name: string; email: string; status: string; requestedAt?: Timestamp | number | null };
@@ -440,7 +445,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
           if (!memberSnap.exists() || memberSnap.data().role !== 'general'
               || memberSnap.data().status !== 'approved') throw Error('profile-changed');
           tx.update(memberRef, { role: freshRole });
-          if(memberSnap.data().nickname)tx.set(doc(db,'publicNames',item.uid),{nickname:memberSnap.data().nickname,role:freshRole,canReceiveDM:memberSnap.data().accountType==='adult'&&memberSnap.data().status==='approved',updatedAt:serverTimestamp()});
+          if(memberSnap.data().nickname)tx.set(doc(db,'publicNames',item.uid),{nickname:memberSnap.data().nickname,role:freshRole,canReceiveDM:dmAllowed(memberSnap.data()),updatedAt:serverTimestamp()});
         }
         tx.update(requestRef, {
           status: approve ? 'approved' : 'rejected',
@@ -602,6 +607,17 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       .some(word=>plain.includes(word.normalize('NFD')));
   };
   let editingMember:Member|null=null;
+  function updateAgeDisplay(){
+    const birthDate=el<HTMLInputElement>('admin-edit-birth')?.value||'';const age=ageOn(birthDate);
+    const ageLabel=el<HTMLElement>('admin-edit-age');if(ageLabel)ageLabel.textContent=age===null?tr('생년월일 미확인','Âge non confirmé'):tr(`만 ${age}세 · ${age>=18?'성인':'미성년자'}`,`${age} ans · ${age>=18?'majeur':'mineur'}`);
+    const accountType=el<HTMLSelectElement>('admin-edit-account-type')?.value||'';
+    const verified=el<HTMLInputElement>('admin-edit-birth-verified')?.checked;
+    const dmMode=el<HTMLSelectElement>('admin-edit-dm-mode')?.value||'auto';
+    const allowed=dmAllowed({status:editingMember?.status,accountType,birthDate,adultAt:verified&&validBirthDate(birthDate)?Timestamp.fromDate(adulthoodDate(birthDate)):null,dmMode});
+    const state=el<HTMLElement>('admin-edit-dm-state');if(state)state.textContent=allowed?tr('쪽지 이용 가능 (등급 제한 및 전체 설정 적용)','Messagerie autorisée selon le rôle et le réglage global'):tr('쪽지 이용 불가','Messagerie désactivée');
+  }
+  el<HTMLInputElement>('admin-edit-birth')?.addEventListener('change',()=>{el<HTMLInputElement>('admin-edit-birth-verified')!.checked=false;updateAgeDisplay();});
+  for(const id of ['admin-edit-birth-verified','admin-edit-account-type','admin-edit-dm-mode'])el<HTMLElement>(id)?.addEventListener('change',updateAgeDisplay);
   const childBox=()=>el<HTMLElement>('admin-edit-children');
   function addChildInput(child:Child={studentName:'',school:'',grade:''}){
     const box=childBox();if(!box||box.children.length>=5)return;
@@ -629,6 +645,10 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     input('admin-edit-name',member.name||'');input('admin-edit-nickname',member.nickname||'');
     input('admin-edit-phone',member.phone||'');input('admin-edit-relation',member.memberRelation??upgradeHistory.get(member.id)?.relation??'');
     const account=el<HTMLSelectElement>('admin-edit-account-type');if(account)account.value=member.accountType||'';
+    input('admin-edit-birth',member.birthDate||'');
+    el<HTMLInputElement>('admin-edit-birth-verified')!.checked=!!member.adultAt;
+    el<HTMLSelectElement>('admin-edit-dm-mode')!.value=member.dmMode||'auto';
+    updateAgeDisplay();
     const kind=el<HTMLSelectElement>('admin-edit-kind');if(kind)kind.value=member.memberKind??upgradeHistory.get(member.id)?.kind??'';
     dialog.querySelectorAll<HTMLInputElement>('input[name="admin-level"]').forEach(e=>e.checked=(member.levels||[]).includes(e.value));
     const box=childBox();if(box)box.replaceChildren();
@@ -666,12 +686,21 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       editorError(tr('학생은 최대 5명이며, 입력한 학생의 이름·학교·학년을 모두 기입해 주세요.',
         'Maximum 5 élèves, avec nom, établissement et classe pour chacun.'));return;
     }
-    const desired={name,phone,levels,children,memberKind,memberRelation,accountType};
+    const birthDate=el<HTMLInputElement>('admin-edit-birth')?.value||'';
+    const verified=el<HTMLInputElement>('admin-edit-birth-verified')?.checked===true;
+    const dmMode=el<HTMLSelectElement>('admin-edit-dm-mode')?.value||'auto';
+    if((accountType==='student'||birthDate||verified)&&!validBirthDate(birthDate)){editorError(tr('생년월일을 확인해 주세요.','Vérifiez la date de naissance.'));return;}
+    if(member.birthDate&&!birthDate){editorError(tr('기존 생년월일을 임의로 삭제할 수 없습니다.','La date existante ne peut pas être effacée.'));return;}
+    const adultAt=verified?Timestamp.fromDate(adulthoodDate(birthDate)):null;
+    if(dmMode==='on'&&!dmAllowed({status:'approved',accountType,birthDate,adultAt,dmMode})){editorError(tr('미성년자 또는 나이 미확인 계정은 활성화할 수 없습니다.','Un mineur ou un compte non vérifié ne peut pas être activé.'));return;}
+    const desired={name,phone,levels,children,memberKind,memberRelation,accountType,birthDate,adultAt,dmMode};
+    const dmChanged=accountType!==(member.accountType||'')||birthDate!==(member.birthDate||'')||(adultAt?.toMillis()||0)!==(member.adultAt?.toMillis()||0)||dmMode!==(member.dmMode||'auto');
+    const accessAudit=dmChanged?{dmUpdatedBy:meUid,dmUpdatedAt:serverTimestamp()}:{};
     const old={name:member.name||'',phone:member.phone||'',levels:member.levels||[],
       children:member.children??upgradeHistory.get(member.id)?.children??[],
       memberKind:member.memberKind??upgradeHistory.get(member.id)?.kind??'',
       memberRelation:member.memberRelation??upgradeHistory.get(member.id)?.relation??'',
-      accountType:member.accountType||''};
+      accountType:member.accountType||'',birthDate:member.birthDate||'',adultAt:member.adultAt||null,dmMode:member.dmMode||'auto'};
     const nicknameChanged=nicknameKey!==(member.nicknameKey||member.nickname?.toLowerCase()||'');
     if(JSON.stringify(desired)===JSON.stringify(old)&&!nicknameChanged){
       showMessage(tr('변경된 내용이 없습니다.','Aucune modification.'));closeMemberEditor();return;
@@ -690,19 +719,19 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
           const original=fresh.data();
           if(original.nicknameKey!==member.nicknameKey||original.nickname!==member.nickname)throw Error('profile-changed');
           if(targetNick.exists())throw Error('nickname-taken');
-          const update={...desired,nickname,nicknameKey};
+          const update={...desired,...accessAudit,nickname,nicknameKey};
           tx.update(memberRef,update);
           tx.set(newNickRef,{uid:member.id,nickname,createdAt:serverTimestamp()});
-          tx.set(doc(db,'publicNames',member.id),{nickname,role:original.role,canReceiveDM:accountType==='adult'&&original.status==='approved',updatedAt:serverTimestamp()});
+          tx.set(doc(db,'publicNames',member.id),{nickname,role:original.role,canReceiveDM:dmAllowed({...original,...desired}),updatedAt:serverTimestamp()});
           if(oldKey&&oldKey!==nicknameKey)tx.delete(doc(db,'nicknames',oldKey));
         });
       }else{
         // Keep public DM eligibility in sync with the administrator's verified account type.
         const batch=writeBatch(db);
-        batch.update(memberRef,desired);
+        batch.update(memberRef,{...desired,...accessAudit});
         batch.set(doc(db,'publicNames',member.id),{
           nickname:member.nickname,role:member.role,
-          canReceiveDM:accountType==='adult'&&member.status==='approved',updatedAt:serverTimestamp()
+          canReceiveDM:dmAllowed({...member,...desired}),updatedAt:serverTimestamp()
         });
         await batch.commit();
       }
@@ -741,7 +770,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     try{
       const memberBatch=writeBatch(db);
       memberBatch.update(doc(db,'members',member.id),{role,status});
-      if(member.nickname)memberBatch.set(doc(db,'publicNames',member.id),{nickname:member.nickname,role,canReceiveDM:member.accountType==='adult'&&status==='approved',updatedAt:serverTimestamp()});
+      if(member.nickname)memberBatch.set(doc(db,'publicNames',member.id),{nickname:member.nickname,role,canReceiveDM:dmAllowed({...member,status}),updatedAt:serverTimestamp()});
       await memberBatch.commit();
       saved=true;
       showMessage(tr('회원 등급 및 계정 상태 수정이 완료되었습니다.','Le statut et l’état du compte ont été mis à jour.'));

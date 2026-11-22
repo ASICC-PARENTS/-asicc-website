@@ -37,7 +37,7 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
         <div class="member-top-actions">
           <a class="btn btn-ghost" href={href(lang,'membres/profile/')}>{L(lang,{ko:'내 정보 관리',fr:'Mon profil'})}</a>
           <a class="btn btn-ghost" href={href(lang,'membres/upgrade/')} id="upgrade-shortcut" hidden>{L(lang,{ko:'승급 신청',fr:'Demander un statut'})}</a>
-          <a class="btn btn-ghost" id="member-messages-shortcut" href={href(lang,'membres/messages/')}>{L(lang,{ko:'회원 쪽지함',fr:'Messages privés'})}</a>
+          <a class="btn btn-ghost" id="member-messages-shortcut" href={href(lang,'membres/messages/')}>{L(lang,{ko:'쪽지함',fr:'Messages privés'})} <span data-asicc-unread class="asicc-unread" hidden aria-live="polite"></span></a>
           <a class="btn btn-ghost" href={href(lang,'membres/suggestions/')}>{L(lang,{ko:'협회에 건의',fr:'Écrire à l’association'})}</a>
           <button id="member-signout" type="button" class="btn btn-ghost">{L(lang,{ko:'로그아웃',fr:'Déconnexion'})}</button>
         </div>
@@ -50,7 +50,7 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
           <a class="btn btn-ghost member-bottom-link" href={href(lang,'membres/learning/')}>{L(lang,{ko:'학습자료실 가기',fr:'Accéder aux ressources'})} →</a>
         </section>
         <section class="card member-panel stack gap-12">
-          <div class="member-panel-title"><h2 class="h3">{L(lang,{ko:'회원 게시판',fr:'Forum des membres'})}</h2><span aria-hidden="true">💬</span></div>
+          <div class="member-panel-title"><h2 class="h3">{L(lang,{ko:'회원게시판',fr:'Forum des membres'})}</h2><span aria-hidden="true">💬</span></div>
           <p id="board-privilege" class="small muted"></p>
           <div id="recent-posts" class="member-feed stack gap-8"></div>
           <a class="btn btn-ghost member-bottom-link" href={href(lang,'membres/board/')}>{L(lang,{ko:'회원게시판 가기',fr:'Accéder au forum'})} →</a>
@@ -87,8 +87,9 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
 <script>
 import {getApps,initializeApp} from 'firebase/app';
 import {getAuth,onAuthStateChanged,signOut,getIdToken} from 'firebase/auth';
-import {getFirestore,doc,getDoc,getDocs,getDocsFromServer,collection,query,orderBy,limit} from 'firebase/firestore';
+import {getFirestore,doc,getDoc,getDocs,getDocsFromServer,collection,query,where,orderBy,limit} from 'firebase/firestore';
 import {firebaseConfig} from '../../../firebase-config';
+import {dmAllowed} from '../../../scripts/members/member-access';
 const root=document.querySelector<HTMLElement>('#member-root');const fr=root?.dataset.lang==='fr';
 const tr=(ko:string,french:string)=>fr?french:ko;
 const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
@@ -100,7 +101,7 @@ async function displayFeed(id:string,collectionName:string,max=5){
  const target=by(id);if(!target)return;
  try{
    const previewLimit=collectionName==='boardPosts'?20:collectionName==='learningResources'||collectionName==='galleryItems'?10:max;
-   const feedQuery=query(collection(db,collectionName),orderBy('createdAt','desc'),limit(previewLimit));
+   const feedQuery=collectionName==='galleryItems'?query(collection(db,collectionName),where('status','==','published')):query(collection(db,collectionName),orderBy('createdAt','desc'),limit(previewLimit));
    // A deletion must not remain visible because of an old local Firestore snapshot.
    const snap=collectionName==='learningResources'?await getDocsFromServer(feedQuery):await getDocs(feedQuery);
    // A Firestore draft can exist even when its binary upload failed.
@@ -110,11 +111,11 @@ async function displayFeed(id:string,collectionName:string,max=5){
      if(collectionName==='boardPosts')return data.deleted!==true;
      if(collectionName==='learningResources'||collectionName==='galleryItems')return data.status==='published'||(!data.status&&typeof data.storagePath==='string'&&!!data.storagePath);
      return true;
-   }).slice(0,max);
+   }).sort((a,b)=>(b.data().createdAt?.toMillis?.()||0)-(a.data().createdAt?.toMillis?.()||0)).slice(0,max);
    target.replaceChildren();
    if(id==='recent-learning')note('recent-learning-count',tr(`최근 등록 자료 ${docs.length}개`,`${docs.length} ressources récentes`));
    if(!docs.length){target.textContent=tr('등록된 자료가 없습니다.','Aucun contenu.');return;}
-   docs.forEach(d=>{const data=d.data();target.append(item(String(data.title||data.filename||tr('제목 없는 자료','Sans titre')).slice(0,120),collectionName==='boardPosts'?tr('게시글','Message'):String(data.mime||tr('자료','Ressource'))));});
+   docs.forEach(d=>{const data=d.data();target.append(item(String((collectionName==='galleryItems'?(data.description||tr('갤러리 사진·동영상','Média de galerie')):data.title||data.filename)||tr('제목 없는 자료','Sans titre')).slice(0,120),collectionName==='boardPosts'?tr('게시글','Message'):String(data.mime||tr('자료','Ressource'))));});
  }catch(err){console.error(err);if(id==='recent-learning')note('recent-learning-count',tr('최근 등록 자료','Ressources récentes'));target.textContent=tr('자료를 불러오지 못했습니다.','Impossible de charger les données.');}
 }
 // Browser Back/Forward Cache may restore an old dashboard DOM without rerunning auth.
@@ -131,8 +132,8 @@ if(import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true')onAuthStateChanged(auth
    note('member-email',String(data.email||''));
    note('member-role',({general:tr('일반회원','Membre général'),member:tr('정회원','Membre'),special:tr('특별회원','Membre spécial'),admin:tr('운영진','Administrateur')} as Record<string,string>)[role]||role);
    const full=['member','special','admin'].includes(role);
-   const messageLink=by('member-messages-shortcut');if(messageLink)messageLink.hidden=data.accountType!=='adult';
-   if(data.accountType!=='adult'){const status=by('member-dashboard-status');if(status)status.textContent=tr('학생 본인 계정에는 회원 간 개인 쪽지가 제공되지 않습니다.','La messagerie privée est indisponible pour les comptes d’élèves.');}
+   const messageLink=by('member-messages-shortcut');if(messageLink)messageLink.hidden=!dmAllowed(data);
+   if(!dmAllowed(data)){const status=by('member-dashboard-status');if(status)status.textContent=tr('미성년자, 성인 여부 미확인 또는 이용 제한 계정에는 개인 쪽지가 제공되지 않습니다.','Messagerie indisponible : compte mineur, non vérifié ou restreint.');}
    const upgrade=by('upgrade-shortcut');if(upgrade)upgrade.hidden=role!=='general';
    const admin=by('admin-shortcut');if(admin)admin.hidden=role!=='admin';
    const office=by('office-shortcut');if(office)office.hidden=role!=='admin';

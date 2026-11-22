@@ -297,7 +297,7 @@ test('student registration can only publish a non-messageable public alias', asy
   const b=writeBatch(db);
   b.set(doc(db,'members',studentId),{
     name:'Student Test',nickname:'YoungGuest',nicknameKey:'youngguest',
-    email:EMAIL(studentId),role:'general',status:'approved',accountType:'student',
+    email:EMAIL(studentId),role:'general',status:'approved',accountType:'student',birthDate:'2015-01-01',
     consent:true,termsVersion:'2026-11',termsAcceptedAt:serverTimestamp(),createdAt:serverTimestamp()
   });
   b.set(doc(db,'nicknames','youngguest'),{uid:studentId,nickname:'YoungGuest',createdAt:serverTimestamp()});
@@ -901,4 +901,31 @@ test('admin may anonymize historical authorName without rewriting the body', asy
   await assertSucceeds(updateDoc(doc(db,'boardPosts','post1'),{authorName:'기존회원',updatedAt:serverTimestamp()}));
   await assertSucceeds(updateDoc(doc(db,'boardPosts','post1','comments','comment-permission-test'),{authorName:'기존회원',updatedAt:serverTimestamp()}));
   await assertFails(updateDoc(doc(context(uid.special),'boardPosts','post1'),{authorName:'other',updatedAt:serverTimestamp()}));
+});
+
+// Independent age-control fixtures so earlier test order is not required.
+test('age-confirmed adult alumni may message, minors remain blocked, manual off overrides age', async()=>{
+  const adminDb=context(uid.admin);
+  await assertSucceeds(setDoc(doc(adminDb,'siteSettings','messaging'),{enabled:true,updatedBy:uid.admin,updatedAt:serverTimestamp()}));
+  const adult='adultalumni',minor='minoralumni',unconfirmed='unconfirmedstudent';
+  await env.withSecurityRulesDisabled(async c=>{
+    for(const [id,birthDate,adultAt] of [[adult,'2000-01-01',new Date('2018-01-01T00:00:00Z')],[minor,'2015-01-01',new Date('2033-01-01T00:00:00Z')],[unconfirmed,'2000-01-01',null]]) {
+      await setDoc(doc(c.firestore(),'members',id),{...profile(id,'special'),accountType:'student',birthDate,adultAt,dmMode:'auto'});
+    }
+  });
+  const message=(senderUid,recipientUid)=>({senderUid,recipientUid,body:'Age test',readAt:null,createdAt:serverTimestamp()});
+  await assertSucceeds(setDoc(doc(context(adult),'privateMessages','adult-alumni-out'),message(adult,uid.member)));
+  await assertSucceeds(setDoc(doc(context(uid.member),'privateMessages','adult-alumni-in'),message(uid.member,adult)));
+  await assertFails(setDoc(doc(context(minor),'privateMessages','minor-alumni-out'),message(minor,uid.member)));
+  await assertFails(setDoc(doc(context(uid.member),'privateMessages','minor-alumni-in'),message(uid.member,minor)));
+  await assertFails(setDoc(doc(context(unconfirmed),'privateMessages','unconfirmed-out'),message(unconfirmed,uid.member)));
+  await assertFails(updateDoc(doc(context(minor),'members',minor),{adultAt:new Date('2010-01-01'),dmMode:'on'}));
+  await assertFails(updateDoc(doc(adminDb,'members',minor),{dmMode:'on'}));
+  await assertFails(setDoc(doc(context(minor),'privateMessages','minor-on-out'),message(minor,uid.member)));
+  await assertSucceeds(updateDoc(doc(adminDb,'members',adult),{dmMode:'off'}));
+  await assertFails(setDoc(doc(context(adult),'privateMessages','adult-off-out'),message(adult,uid.member)));
+  await assertFails(setDoc(doc(context(uid.member),'privateMessages','adult-off-in'),message(uid.member,adult)));
+  await assertSucceeds(updateDoc(doc(adminDb,'members',adult),{dmMode:'auto'}));
+  await assertSucceeds(setDoc(doc(context(adult),'privateMessages','adult-reenabled'),message(adult,uid.member)));
+  await assertFails(getDoc(doc(context(uid.member),'members',minor)));
 });

@@ -5,11 +5,11 @@ export const getStaticPaths = langPaths;
 const lang = Astro.params.lang as Lang;
 const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
 ---
-<Base lang={lang} rest="membres/board/" title={L(lang,{ko:'회원 소통 게시판',fr:'Forum des membres'})} noindex>
+<Base lang={lang} rest="membres/board/" title={L(lang,{ko:'회원게시판',fr:'Forum des membres'})} noindex>
   <section class="wrap m-shell board-shell">
     <div class="stack gap-16" id="board-root" data-lang={lang} data-login-url={href(lang,'membres/login/')}>
       <a href={href(lang,'membres/')} class="small">← {L(lang,{ko:'회원공간',fr:'Espace membres'})}</a>
-      <h1 class="h2">{L(lang,{ko:'회원 소통 게시판',fr:'Forum des membres'})}</h1>
+      <h1 class="h2">{L(lang,{ko:'회원게시판',fr:'Forum des membres'})}</h1>
       <p class="muted">{L(lang,{ko:'일반회원은 읽기, 정회원·특별회원·운영진은 글쓰기와 댓글이 가능합니다.',fr:'Les membres généraux peuvent consulter les messages. La publication et les commentaires sont réservés aux membres de l’association, aux membres spéciaux et aux administrateurs.'})}</p>
       <details class="card" style="padding:14px"><summary>{L(lang,{ko:'게시판 이용 규칙',fr:'Règles du forum'})}</summary><p class="small muted" style="margin-top:10px">{L(lang,{ko:'비방·괴롭힘·고의적 분란 조장·허위정보·개인정보 공개·스팸을 금지합니다. 운영진은 위반 게시물을 숨기거나 삭제하고 계정의 이용 권한을 제한할 수 있습니다. 이의제기는 contact@asicc-parents.fr로 문의해 주세요.',fr:'Les attaques, le harcèlement, les provocations délibérées, les fausses informations, la divulgation de données et les spams sont interdits. La modération peut masquer ou supprimer des contenus et limiter les accès. Recours : contact@asicc-parents.fr.'})}</p></details>
       {!live && <div class="card auth-card" role="status">{L(lang,{ko:'게시판은 보안 점검 중으로 아직 공개되지 않았습니다.',fr:'Le forum est désactivé pendant les vérifications de sécurité.'})}</div>}
@@ -136,6 +136,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
 <script>
   import { getApps, initializeApp } from 'firebase/app';
   import { getAuth, onAuthStateChanged, getIdToken } from 'firebase/auth';
+  import {displayAuthor,dmAllowed,syncOwnAlias,type PublicAuthor} from '../../../scripts/members/member-access';
   import { getFirestore, doc, collection, getDoc, getDocs, query, orderBy, limit, setDoc, updateDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
   import { firebaseConfig } from '../../../firebase-config';
   import { BOARD_PHOTO_API } from '../../../config/board-photos';
@@ -192,17 +193,18 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
   const dateLabel=(created?:TimestampLike,updated?:TimestampLike)=>`${stamp(created)}${wasEdited(created,updated)?tr(' · 수정됨',' · modifié'):''}`;
   const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
   const auth=getAuth(app), db=getFirestore(app);
-  const aliases=new Map<string,Promise<{nickname:string;role:string}>>();
-  const publicInfo=(authorUid:string):Promise<{nickname:string;role:string}>=>{
+  const aliases=new Map<string,Promise<PublicAuthor>>();
+  const publicInfo=(authorUid:string):Promise<PublicAuthor>=>{
     if(!authorUid)return Promise.resolve({nickname:tr('회원','Membre'),role:'general'});
     if(!aliases.has(authorUid))aliases.set(authorUid,getDoc(doc(db,'publicNames',authorUid)).then(snap=>({
       nickname:snap.exists()&&typeof snap.data().nickname==='string'?snap.data().nickname:tr('기존 회원','Ancien membre'),
-      role:snap.exists()&&typeof snap.data().role==='string'?snap.data().role:''
+      role:snap.exists()&&typeof snap.data().role==='string'?snap.data().role:'',canReceiveDM:snap.data()?.canReceiveDM===true
     })).catch(()=>({nickname:tr('기존 회원','Ancien membre'),role:''})));
     return aliases.get(authorUid)!;
   };
   const nicknameOf=(id:string)=>publicInfo(id).then(x=>x.nickname);
   const roleName=(r:string)=>({general:tr('일반회원','Membre général'),member:tr('정회원','Membre régulier'),special:tr('특별회원','Membre spécial'),admin:tr('운영진','Administrateur')} as Record<string,string>)[r]||tr('회원','Membre');
+  let viewerDM=false;const messageUrl='../messages/';
   let uid='',name='',role='',posts:BoardData[]=[],selected:BoardData|null=null;
   let editingPostId:string|null=null, photoBusy=false;
   let photoCaret:Range|null=null;
@@ -411,7 +413,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       const author=el('span',tr('회원','Membre'));author.className='board-author';
       const date=el('span',stamp(post.createdAt));date.className='board-date';
       row.append(number,subject,author,date);list.append(row);
-      void publicInfo(post.authorUid).then(info=>{if(row.isConnected){author.textContent=info.nickname+' · '+roleName(info.role);}});
+      void publicInfo(post.authorUid).then(info=>{if(row.isConnected){displayAuthor(author,info,post.authorUid,uid,role,viewerDM,fr,messageUrl);}});
     });
   }
   async function reportBoardEntry(kind:'post'|'comment',postId:string,commentId?:string){
@@ -444,7 +446,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       title.append(badge,document.createTextNode(plainTitle));
     }
     if(body){renderBoardBody(body,post.body);void populatePhotos(body);}
-    if(meta){meta.textContent=dateLabel(post.createdAt,post.updatedAt);void publicInfo(post.authorUid).then(info=>{if(selected?.id===post.id)meta.textContent=`${info.nickname} · ${roleName(info.role)} · ${dateLabel(post.createdAt,post.updatedAt)}`;});}
+    if(meta){meta.textContent=dateLabel(post.createdAt,post.updatedAt);void publicInfo(post.authorUid).then(info=>{if(selected?.id===post.id)displayAuthor(meta,info,post.authorUid,uid,role,viewerDM,fr,messageUrl,dateLabel(post.createdAt,post.updatedAt));});}
     actions?.replaceChildren();
     
     if(!post.deleted){
@@ -623,7 +625,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
     const wrap=el('div');wrap.className=`board-comment-entry${isReply?' board-reply-entry':''}`;
     wrap.dataset.depth=String(depth);
     const meta=el('div',`${kind} · ${dateLabel(c.createdAt,c.updatedAt)}`);meta.className='board-comment-meta small muted';
-    void publicInfo(c.authorUid).then(info=>{if(meta.isConnected)meta.textContent=`${kind} · ${info.nickname} · ${roleName(info.role)} · ${dateLabel(c.createdAt,c.updatedAt)}`;});
+    void publicInfo(c.authorUid).then(info=>{if(meta.isConnected)displayAuthor(meta,info,c.authorUid,uid,role,viewerDM,fr,messageUrl,`${kind} · ${dateLabel(c.createdAt,c.updatedAt)}`);});
     const body=el('p',detail.text);body.className='board-comment-text';
     if(orphan){const note=el('p',tr('연결된 상위 댓글·답글을 찾을 수 없습니다.','Le commentaire parent est introuvable.'));note.className='small muted';wrap.append(note);}
     wrap.append(meta,body);
@@ -771,7 +773,7 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
       if(!user.emailVerified)throw Error('verify');
       const snap=await getDoc(doc(db,'members',user.uid));
       if(!snap.exists()||snap.data().status!=='approved')throw Error('profile');
-      uid=user.uid;role=snap.data().role;name=snap.data().nickname||'기존회원';
+      uid=user.uid;role=snap.data().role;name=snap.data().nickname||'기존회원';viewerDM=dmAllowed(snap.data());aliases.set(uid,Promise.resolve({nickname:name,role,canReceiveDM:viewerDM}));void syncOwnAlias(db,uid,snap.data()).catch(console.warn);
       show('board-content',true);show('post-form',false);show('board-write-toggle',canWrite());notify(tr('게시판을 열었습니다.','Forum ouvert.'));
       await loadBoardCategories();await refreshPosts();
     }catch(e){console.error(e);notify(tr('접근 권한이 없습니다. 인증 후 로그인해 주세요.','Accès refusé. Vérifiez votre compte.'),true);}

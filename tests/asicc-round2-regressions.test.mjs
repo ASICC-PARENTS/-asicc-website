@@ -33,7 +33,7 @@ test('gallery upload requires moderated state; album rights protect shared media
 test('private messages block student or unknown accounts server side',()=>{
   assert.match(rules,/function isAdultAccount\(uid\)/);
   assert.match(rules,/isAdultAccount\(request\.resource\.data\.recipientUid\)/);
-  assert.match(messages,/accountType!=='adult'/);
+  assert.match(messages,/!dmAllowed\(me\.data\(\)\)/);
   assert.match(admin,/admin-edit-account-type/);
 });
 test('admin categories, review inbox and email notification must use explicit configuration',()=>{

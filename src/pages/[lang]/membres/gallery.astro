@@ -27,6 +27,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
           <strong>{L(lang,{ko:'운영진 전용 비공개 시험 화면',fr:'Espace de test privé réservé à l’administration'})}</strong>
           <p class="small muted">{L(lang,{ko:'갤러리는 비공개 시험 상태입니다. 실제 학생 사진을 등록하지 말고 테스트 파일만 사용해 주세요. 현재 저장소는 Backblaze B2이며 Google Drive 자동 보관은 연결·실행되지 않습니다.',fr:'La galerie est fermée. Utilisez uniquement des fichiers de test. L’archivage Google Drive n’est pas encore connecté.'})}</p>
         </section>
+        <div id="gallery-preview-controls" class="row gap-8" hidden><button class="btn btn-ghost" type="button" id="gallery-member-preview">{L(lang,{ko:'정회원 화면 미리보기',fr:'Aperçu membre'})}</button><span id="gallery-preview-note" class="small muted" hidden>{L(lang,{ko:'정식 공개 후 정회원 화면 예시입니다. 실제 공개 설정은 변경되지 않습니다.',fr:'Simulation après ouverture. La galerie reste inchangée.'})}</span></div>
         <div class="row gap-12" style="flex-wrap:wrap;align-items:center">
           <label class="stack gap-8"><span>{L(lang,{ko:'학교 구분',fr:'Établissement'})}</span><select id="album-school-filter"><option value="all">{L(lang,{ko:'전체',fr:'Tous'})}</option><option value="kindergarten">{L(lang,{ko:'유치원',fr:'Maternelle'})}</option><option value="elementary">{L(lang,{ko:'초등학교',fr:'Élémentaire'})}</option><option value="middle">{L(lang,{ko:'중학교',fr:'Collège'})}</option><option value="common">{L(lang,{ko:'공통 행사',fr:'Événements communs'})}</option></select></label>
           <label class="stack gap-8"><span>{L(lang,{ko:'연도',fr:'Année'})}</span><select id="album-year-filter"><option value="all">{L(lang,{ko:'전체',fr:'Toutes'})}</option></select></label>
@@ -49,7 +50,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
           </div>
           <form id="media-upload-form" class="card gallery-form stack gap-12">
             <h3 class="h3">{L(lang,{ko:'사진·동영상 등록',fr:'Ajouter des photos et vidéos'})}</h3>
-            <p class="small muted">{L(lang,{ko:'여러 개를 함께 선택해도 사진과 동영상은 각각 하나의 항목으로 표시됩니다. 다른 사람의 얼굴이 포함된 경우 게시 동의 여부를 확인해 주세요.',fr:'Vous pouvez sélectionner plusieurs fichiers, chacun étant présenté séparément. Vérifiez les autorisations des personnes reconnaissables.'})}</p>
+            <p class="small muted">{L(lang,{ko:'다른 회원과 학생들의 초상권 및 개인정보를 존중하여 책임감 있게 사진과 동영상을 등록해 주시기 바랍니다. 운영진은 개인정보 보호 및 원활한 갤러리 운영을 위해 필요한 경우 게시된 사진이나 동영상을 수정, 비공개 또는 삭제할 수 있습니다.',fr:'Merci de publier les photos et vidéos de manière responsable, dans le respect du droit à l’image et de la vie privée des membres et des élèves. L’administration peut, si nécessaire, modifier, masquer ou supprimer les médias publiés.'})}</p>
             <label>{L(lang,{ko:'파일 선택 (사진 여러 장·영상 포함)',fr:'Sélectionner les fichiers'})}<input type="file" id="gallery-files" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" multiple required /></label>
             <div id="gallery-file-review" class="stack gap-8"></div>
             <p class="small muted">{L(lang,{ko:'현재 갤러리 파일은 비공개 Backblaze B2에만 저장됩니다. 사진은 웹용으로 축소되며 원본은 별도 보관되지 않습니다. 동영상은 파일당 20MB 이하의 MP4·WebM만 지원합니다. Google Drive는 Goodstack 승인 전까지 연결하지 않습니다.',fr:'Les fichiers sont stockés uniquement dans le stockage privé Backblaze B2. Les photos sont optimisées, sans sauvegarde des originaux ; vidéos MP4/WebM de 20 Mo maximum. Google Drive ne sera pas connecté avant validation Goodstack.'})}</p>

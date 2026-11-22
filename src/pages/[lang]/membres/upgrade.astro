@@ -20,9 +20,10 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
 {!live && <div class="card">{L(lang,{ko:'아직 이용할 수 없습니다.',fr:'Service indisponible.'})}</div>}
 <p id="upgrade-status" role="status" class="small"></p>
 <form id="full-upgrade-form" hidden={!live} class="card stack gap-16" style="padding:26px">
+  <p id="upgrade-birth-info" class="small muted" hidden></p>
   <label for="full-role">{L(lang,{ko:'신청 등급',fr:'Statut demandé'})}</label>
   <select id="full-role" required>
-    <option value="member">{L(lang,{ko:'정회원 (국제섹션 재학생 학부모)',fr:'Membre de l’association (parent d’élève)'})}</option>
+    <option value="member">{L(lang,{ko:'정회원 (국제섹션 재학생 및 학부모)',fr:'Membre régulier (élève ou parent d’élève)'})}</option>
     <option value="special">{L(lang,{ko:'특별회원',fr:'Membre spécial'})}</option>
   </select>
   <div id="full-special-kind" class="stack gap-8" hidden>
@@ -70,7 +71,7 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
   const say=(s:string,bad=false)=>{const p=document.querySelector<HTMLElement>('#upgrade-status');if(p){p.textContent=s;p.style.color=bad?'#b42318':'#067647';}};
   const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
   const auth=getAuth(app),db=getFirestore(app);
-  let uid='',profile:{name:string;email:string;role:string}|null=null;
+  let uid='',profile:{name:string;email:string;role:string;accountType?:string;birthDate?:string}|null=null;
   const container=document.querySelector<HTMLElement>('#full-children')!;
   function addChild(){
     if(container.children.length>=5)return;
@@ -102,6 +103,8 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
       await user.reload();await getIdToken(user,true);if(!user.emailVerified)throw Error('verify');
       const snap=await getDoc(doc(db,'members',user.uid));if(!snap.exists()||snap.data().status!=='approved')throw Error('profile');
       uid=user.uid;profile=snap.data() as typeof profile;
+      const birthInfo=document.querySelector<HTMLElement>('#upgrade-birth-info');
+      if(birthInfo&&(profile?.accountType==='student'||profile?.birthDate)){birthInfo.hidden=false;birthInfo.textContent=profile.birthDate?tr(`등록된 생년월일: ${profile.birthDate} (회원정보에 유지됩니다.)`,`Date de naissance enregistrée : ${profile.birthDate} (conservée dans votre profil).`):tr('생년월일이 등록되지 않았습니다. 운영진에게 확인을 요청해 주세요.','Date de naissance manquante : contactez l’administration.');}
       if(profile?.role!=='general'){say(tr('현재 등급에서는 승급 신청이 필요하지 않습니다.','Ce statut ne nécessite pas de demande.'));return;}
       const req=await getDoc(doc(db,'upgradeRequests',uid));
       if(req.exists()&&req.data().status!=='rejected'){

@@ -17,10 +17,10 @@ test('no legacy-member badge synchronization when registration has not started',
 });
 test('board, learning resources and gallery display public nickname plus current role',()=>{
   assert.match(board,/publicInfo\(post\.authorUid\)/);
-  assert.match(board,/roleName\(info\.role\)/);
+  assert.match(board,/displayAuthor\(author,info,post\.authorUid/);
   assert.match(area,/publicAuthor\(item\.authorUid/);
   assert.match(area,/publicAuthor\(comment\.authorUid\)/);
-  assert.match(area,/authorLabel\(authorInfo\)/);
+  assert.match(area,/displayAuthor\(author,authorInfo,item\.authorUid/);
   assert.match(gallery,/authorName\(photo\.authorUid\)/);
   assert.match(gallery,/authorName\(album\.ownerUid\)/);
 });
@@ -33,8 +33,8 @@ test('board category IDs survive future label renaming',()=>{
 });
 test('minor accounts are not selectable as message recipients and cannot send server side',()=>{
   assert.match(messages,/\.filter\(x=>!!x\.nickname&&x\.canReceiveDM\)/);
-  assert.match(members,/messageLink\.hidden=data\.accountType!=='adult'/);
-  assert.match(rules,/request\.resource\.data\.canReceiveDM == \(getAfter\(memberDoc\(uid\)\)\.data\.get\('accountType',''\) == 'adult'/);
+  assert.match(members,/messageLink\.hidden=!dmAllowed\(data\)/);
+  assert.match(rules,/request\.resource\.data\.canReceiveDM == dmAllowedFor\(getAfter\(memberDoc\(uid\)\)\.data\)/);
   assert.match(rules,/isAdultAccount\(request\.resource\.data\.recipientUid\)/);
 });
 test('gallery is closed before launch and provides admin-only tools',()=>{
