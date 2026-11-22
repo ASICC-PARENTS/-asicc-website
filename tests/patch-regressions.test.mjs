@@ -44,6 +44,7 @@ test('visit tracking has no client Firestore writes and uses optional single Clo
   assert.doesNotMatch(base,/recordMemberActivity|lastSeenAt/);
   assert.doesNotMatch(activity,/updateDoc|serverTimestamp|setDoc/);
   assert.doesNotMatch(rules,/validSelfActivityUpdate/);
-  assert.match(rules,/allow update: if validAdminMessagingUpdate\(uid\) \|\| validSelfNicknameUpdate\(uid\) \|\| validAdminMemberUpdate\(uid\)/);
+  assert.match(rules,/function validAdminNicknameOnlyUpdate\(uid\)\s*\{/);
+  assert.match(rules,/allow update:\s*if\s+validAdminMessagingUpdate\(uid\)\s*\|\|\s*validSelfNicknameUpdate\(uid\)\s*\|\|\s*validAdminNicknameOnlyUpdate\(uid\)\s*\|\|\s*validAdminMemberUpdate\(uid\)\s*;/);
   assert.match(rules,/changed\.hasOnly\(\['dmMode','dmUpdatedBy','dmUpdatedAt'\]\)/);
 });
