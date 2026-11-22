@@ -40,6 +40,42 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   <a class="btn btn-ghost" href={href(lang,'membres/office/')}>{L(lang,{ko:'온라인 협회 사무실',fr:'Bureau de l’association'})}</a>
   <a class="btn btn-ghost" href="https://app.pagescms.org/" target="_blank" rel="noopener noreferrer">{L(lang,{ko:'홈페이지 CMS 열기',fr:'Ouvrir le CMS'})} ↗</a>
 </div>
+        <section class="card auth-card asicc-admin-hub stack gap-16" aria-labelledby="asicc-admin-hub-heading">
+  <div class="asicc-admin-hub-heading">
+    <div>
+      <h2 id="asicc-admin-hub-heading" class="h3">{L(lang,{ko:'빠른 업무 메뉴',fr:'Accès rapides'})}</h2>
+      <p class="small muted">{L(lang,{ko:'아래 메뉴에서 업무를 선택하세요. 기존 관리 기능은 이 페이지 아래에 그대로 있습니다.',fr:'Choisissez une tâche ci-dessous. Les outils de gestion existants restent disponibles plus bas.'})}</p>
+    </div>
+  </div>
+  <div class="asicc-admin-hub-group stack gap-8">
+    <h3 class="asicc-admin-hub-category">{L(lang,{ko:'관리자 업무',fr:'Gestion administrative'})}</h3>
+    <div class="asicc-admin-hub-grid">
+      <a class="asicc-admin-hub-link" href="#ops-inbox-heading"><strong>{L(lang,{ko:'통합 처리 대기',fr:'Demandes en attente'})}</strong><span>{L(lang,{ko:'승급 · 실명 변경 · 건의',fr:'Statuts · noms · suggestions'})}</span></a>
+      <a class="asicc-admin-hub-link" href="#members-heading"><strong>{L(lang,{ko:'회원관리',fr:'Gestion des membres'})}</strong><span>{L(lang,{ko:'회원 정보 · 등급 · 탈퇴',fr:'Profils · statuts · départs'})}</span></a>
+      <a class="asicc-admin-hub-link" href={href(lang,'membres/gallery/')+'?view=review'}><strong>{L(lang,{ko:'사진 검토',fr:'Validation des photos'})}</strong><span>{L(lang,{ko:'검토 대기 · 승인 · 비공개',fr:'En attente · publier · masquer'})}</span></a>
+      <a class="asicc-admin-hub-link" href="#admin-suggestions-panel"><strong>{L(lang,{ko:'건의·요청 관리',fr:'Suggestions et demandes'})}</strong><span>{L(lang,{ko:'통합 처리에서 확인',fr:'Examiner les demandes privées'})}</span></a>
+    </div>
+  </div>
+  <div class="asicc-admin-hub-group stack gap-8">
+    <h3 class="asicc-admin-hub-category">{L(lang,{ko:'콘텐츠 관리',fr:'Gestion des contenus'})}</h3>
+    <div class="asicc-admin-hub-grid">
+      <a class="asicc-admin-hub-link" href="https://app.pagescms.org/" target="_blank" rel="noopener noreferrer"><strong>{L(lang,{ko:'소식 관리 ↗',fr:'Actualités ↗'})}</strong><span>{L(lang,{ko:'공지 · 행사 · 대외활동 · 언론·기고 / CMS',fr:'Annonces · événements · relations · presse / CMS'})}</span></a>
+      <a class="asicc-admin-hub-link" href="https://app.pagescms.org/" target="_blank" rel="noopener noreferrer"><strong>{L(lang,{ko:'행사 일정 관리 ↗',fr:'Calendrier ↗'})}</strong><span>{L(lang,{ko:'일정 등록 · 수정 · 삭제 / CMS',fr:'Créer · modifier · supprimer / CMS'})}</span></a>
+      <a class="asicc-admin-hub-link" href="https://app.pagescms.org/" target="_blank" rel="noopener noreferrer"><strong>{L(lang,{ko:'홈페이지 CMS 전체 관리 ↗',fr:'Toutes les rubriques CMS ↗'})}</strong><span>{L(lang,{ko:'기타 홈페이지 콘텐츠 편집',fr:'Modifier les autres contenus du site'})}</span></a>
+    </div>
+    <p class="small muted asicc-admin-hub-note">{L(lang,{ko:'현재 소식은 CMS에서 한국어·프랑스어를 각각 작성합니다. 한 화면 동시 작성 기능은 다음 CMS 개편에서 적용합니다.',fr:'Les actualités en coréen et en français sont actuellement saisies séparément dans le CMS. La saisie conjointe sera ajoutée ultérieurement.'})}</p>
+  </div>
+  <div class="asicc-admin-hub-group stack gap-8">
+    <h3 class="asicc-admin-hub-category">{L(lang,{ko:'홈페이지 운영',fr:'Administration du site'})}</h3>
+    <div class="asicc-admin-hub-grid">
+      <a class="asicc-admin-hub-link" href="#admin-board-management-heading"><strong>{L(lang,{ko:'게시판 관리',fr:'Gestion du forum'})}</strong><span>{L(lang,{ko:'게시판 분류 관리',fr:'Catégories du forum'})}</span></a>
+      <a class="asicc-admin-hub-link" href="#admin-home-banners"><strong>{L(lang,{ko:'메인 배너 관리',fr:'Bannières d’accueil'})}</strong><span>{L(lang,{ko:'배너 1 · 배너 2',fr:'Bannière 1 · Bannière 2'})}</span></a>
+      <a class="asicc-admin-hub-link" href="#operations-heading"><strong>{L(lang,{ko:'홈페이지 운영 설정',fr:'Paramètres du site'})}</strong><span>{L(lang,{ko:'갤러리 · 쪽지 · 학습자료',fr:'Galerie · messages · ressources'})}</span></a>
+      <a class="asicc-admin-hub-link" href="#visits-heading"><strong>{L(lang,{ko:'방문 통계',fr:'Statistiques de visite'})}</strong><span>{L(lang,{ko:'Cloudflare · Firebase 확인',fr:'Cloudflare · Firebase'})}</span></a>
+      <a class="asicc-admin-hub-link" href="#hidden-heading"><strong>{L(lang,{ko:'숨김 글·댓글 관리',fr:'Contenus masqués'})}</strong><span>{L(lang,{ko:'숨김 내용 확인 · 복구',fr:'Examiner · restaurer'})}</span></a>
+    </div>
+  </div>
+</section>
         <div class="card auth-card stack gap-12">
           <div class="row gap-16" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
             <div class="stack gap-8">
@@ -290,6 +326,23 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
 </Base>
 
 <style>
+/* ASICC administration hub: navigation only; preserves all existing tools below. */
+.asicc-admin-hub {background:linear-gradient(180deg,#ffffff 0%,#fbfdfb 100%);border-color:#dfe8e2;}
+.asicc-admin-hub-heading {display:flex;justify-content:space-between;align-items:center;gap:14px;}
+.asicc-admin-hub-heading p {margin:6px 0 0;}
+.asicc-admin-hub-category {font-size:1rem;font-weight:750;margin:0;color:#284d3c;letter-spacing:-.012em;}
+.asicc-admin-hub-group {min-width:0;}
+.asicc-admin-hub-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,235px),1fr));gap:10px;}
+.asicc-admin-hub-link {display:flex;flex-direction:column;gap:6px;position:relative;min-width:0;min-height:82px;box-sizing:border-box;padding:15px 34px 14px 15px;background:#fff;border:1px solid #dce5df;border-radius:11px;color:inherit;text-decoration:none;transition:border-color .15s,background-color .15s,box-shadow .15s;}
+.asicc-admin-hub-link::after {content:'›';position:absolute;right:14px;top:15px;color:#527363;font-size:24px;line-height:1;}
+.asicc-admin-hub-link strong {font-size:14px;font-weight:750;line-height:1.4;}
+.asicc-admin-hub-link span {font-size:12.5px;line-height:1.5;color:#596e63;}
+.asicc-admin-hub-link:hover {border-color:#87b19b;background:#f4faf6;box-shadow:0 3px 12px rgba(28,73,51,.06);}
+.asicc-admin-hub-link:focus-visible {outline:3px solid #3f9465;outline-offset:2px;}
+.asicc-admin-hub-note {margin:3px 0 0;}
+@media(max-width:600px){.asicc-admin-hub-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.asicc-admin-hub-link{min-height:86px;padding:13px 24px 13px 12px;}.asicc-admin-hub-link strong{font-size:13px;}.asicc-admin-hub-link span{font-size:12px;}.asicc-admin-hub-link::after{right:9px;}}
+@media(max-width:390px){.asicc-admin-hub-grid{grid-template-columns:minmax(0,1fr);}}
+
 .asicc-admin-space-switch {display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-bottom:1px solid #dce5e3;padding:0 0 12px}
 .asicc-admin-space-tab {display:inline-flex;align-items:center;justify-content:center;padding:10px 16px;min-height:40px;border:1px solid #d6e1db;border-radius:9px;color:inherit;text-decoration:none;font-size:14px;font-weight:650}
 .asicc-admin-space-tab.is-active {background:#e7f1ed;border-color:#9cbeb0;color:#245543;font-weight:750}
