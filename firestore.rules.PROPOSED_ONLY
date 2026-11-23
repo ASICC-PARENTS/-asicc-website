@@ -1021,7 +1021,10 @@ function validUpgrade(uid) {
       ])
         && v.enabled is bool
         && validBannerText(v.link, 500)
-        && (v.link.matches('^news/[a-z0-9/_-]+/$') || v.link.matches('^bazaar/([?]event=[a-z0-9-]{12,60})?$') || v.link.matches('^https://[^\\s]+$'))
+        && (v.link.matches('^news/[a-z0-9/_-]+/$')
+          || v.link.matches('^(https://(www[.])?asicc-parents[.]fr/(ko|fr)/)?bazaar/[?]event=[a-z0-9-]{12,60}$')
+          || (v.link.matches('^https://[^\\s]+$')
+            && !v.link.matches('(?i)^https://(www[.])?asicc-parents[.]fr/(ko|fr)/bazaar([/?#].*)?$')))
         && validBannerText(v.eyebrow_ko,100) && validBannerText(v.eyebrow_fr,100)
         && validBannerText(v.title_ko,120) && v.title_ko.size()>0
         && validBannerText(v.title_fr,120) && v.title_fr.size()>0

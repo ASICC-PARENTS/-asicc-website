@@ -91,7 +91,7 @@ const lang = Astro.params.lang as Lang;
 .ba-wrap{max-width:1350px;margin:0 auto;padding:25px 15px 80px;color:#2c2928}.ba-top{display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:1px solid #e9dada;margin-bottom:20px}.ba-top p{font-size:12px;color:#87344d}.ba-top h1{font-size:30px}.ba-wrap a{color:#8f2c46}.ba-block{border:1px solid #e4dfdc;background:#fff;border-radius:13px;padding:22px;margin:20px 0}.ba-block h2{font-size:22px;margin:0 0 14px}.ba-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.ba-kpi{padding:18px;border:1px solid #eee0dc;background:#fff7f5;border-radius:10px}.ba-kpi p{color:#745b5c;margin:0;font-size:13px}.ba-kpi strong{display:block;margin-top:8px;font-size:25px;color:#642c3c;white-space:nowrap}.ba-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:22px 0 13px}.ba-toolbar input{margin-left:6px}.ba-wrap input:not([type=checkbox]),.ba-wrap textarea,.ba-wrap select{padding:9px;border:1px solid #c7c4c1;border-radius:7px;font:inherit;max-width:100%}.ba-wrap button{padding:8px 12px;background:white;border:1px solid #ccc;border-radius:7px;cursor:pointer;color:#382b2e}.ba-wrap .ba-primary{background:#822c43;color:white;border:0;padding:12px 16px}.ba-wrap .ba-danger{color:white;background:#ae2d33;border:0}.ba-table-wrap{overflow:auto}.ba-wrap table{border-collapse:collapse;width:100%;font-size:13px}.ba-wrap th,.ba-wrap td{text-align:left;padding:10px 8px;border-bottom:1px solid #eee;white-space:nowrap}.ba-wrap th{background:#faf3f1;color:#60414a}.ba-wrap details{white-space:normal;min-width:170px}.ba-wrap summary{cursor:pointer;color:#7d2840}.ba-danger-zone{margin-top:30px;background:#fff4f4;padding:15px;border-radius:9px;font-size:13px}.ba-help{font-size:13px;color:#6e6360}.ba-grid{display:grid;grid-template-columns:minmax(220px,1fr) minmax(380px,1.35fr);gap:20px}.ba-product{display:flex;justify-content:space-between;gap:7px;align-items:center;padding:9px;border-bottom:1px solid #eee}.ba-product.selected{background:#fff3ee}.ba-product button{font-size:12px}.ba-product-title{flex:1;white-space:normal!important;text-align:left}.ba-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.ba-fields label{display:flex;flex-direction:column;gap:6px;font-size:13px}.ba-fields label input,.ba-fields textarea{width:100%}.ba-fields label:has(textarea){grid-column:1/-1}.ba-fields button{justify-self:start}.ba-hint{color:#7c615e;font-size:12px;line-height:1.6}.ba-badge{display:inline-block;background:#e8f0ec;color:#2e644b;border-radius:20px;padding:2px 8px;font-size:12px}.ba-red{color:#b52c2c;font-weight:bold}
 
 .ba-event-end{display:flex;justify-content:space-between;align-items:center;gap:20px;background:#fff9f6}.ba-event-end .ba-danger{flex-shrink:0;padding:12px 18px}.ba-preview{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:12px}.ba-eventbar{display:flex;align-items:center;flex-wrap:wrap;gap:12px}.ba-eventbar select{min-width:180px;flex:1}.ba-draft-heading{display:flex;justify-content:space-between;align-items:center;gap:12px}.ba-draft-sub{border-top:1px solid #eae2df;margin-top:20px;padding-top:18px;margin-bottom:10px}.ba-draft-actions{display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end;border-top:1px solid #eae2df;margin-top:20px;padding-top:20px}.ba-draft-product{display:grid;grid-template-columns:auto 38px 38px 1fr auto;align-items:center;gap:4px;padding:8px 3px;border-bottom:1px solid #eee}.ba-draft-product button{padding:6px}.ba-draft-product small{font-size:12px;color:#736666}.ba-history-notice{padding:10px;border:1px solid #e2d6d2;background:#faf8f4;border-radius:8px;font-size:13px;margin-top:10px}
-@media(max-width:800px){.ba-kpis{grid-template-columns:repeat(2,1fr)}.ba-grid{grid-template-columns:1fr}.ba-fields{grid-template-columns:1fr}.ba-kpi strong{font-size:18px}}
+@media(max-width:800px){#ba-product-form,#ba-draft-product-form{scroll-margin-top:90px}.ba-kpis{grid-template-columns:repeat(2,1fr)}.ba-grid{grid-template-columns:1fr}.ba-fields{grid-template-columns:1fr}.ba-kpi strong{font-size:18px}}
 </style>
 <script>
 import {onAuthStateChanged} from 'firebase/auth';
@@ -99,6 +99,53 @@ import {bazaarAuth,adminAction,eFormat,h} from '../../../lib/bazaar/api';
 const $=(selector:string)=>document.querySelector<HTMLElement>(selector)!;
 let products:any[]=[],orders:any[]=[],event:any={},selectedId:string|null=null;
 let selectedEventId:string|null=null,readOnly=false,isCurrent=false,eventList:any[]=[],draftList:any[]=[],draft:any=null,draftSelectedId:string|null=null,draftDirty=false;
+const newProductId=()=>`custom-${crypto.randomUUID().replaceAll('-','')}`;
+const smallScreen=()=>matchMedia('(max-width: 800px)').matches;
+function focusEditor(selector:string){
+ if(!smallScreen())return;
+ const form=$(selector);
+ const field=form.querySelector<HTMLInputElement>('input[name="titleKo"]');
+ field?.focus({preventScroll:true});
+ form.scrollIntoView({block:'start',behavior:'instant'});
+}
+function returnToProduct(container:string,id:string,attribute:string){
+ const parent=$(container);
+ const button=Array.from(parent.querySelectorAll<HTMLButtonElement>(`[data-${attribute}]`))
+  .find(item=>item.getAttribute(`data-${attribute}`)===id);
+ if(button){button.focus({preventScroll:true});button.scrollIntoView({block:'center',behavior:'instant'});}
+ else parent.scrollIntoView({block:'start'});
+}
+async function storeEventPhoto(item:any,eventId:string,file?:File,previous?:any,draftVersion?:string){
+ if(!file&&!item.imageUrl)return {imageUrl:'',photoPath:''};
+ const sameSource=!file&&previous?.imageUrl===item.imageUrl;
+ const sourcePath=sameSource?previous?.photoPath:'';
+ if(sourcePath?.startsWith(`bazaar-photos/${eventId}/${item.id}/`)){
+  return {imageUrl:item.imageUrl,photoPath:sourcePath};
+ }
+ let content:string|undefined;
+ if(!sourcePath){
+  let blob:Blob;
+  try{
+   if(file)blob=file;
+   else{
+    if(!/^https:\/\//i.test(item.imageUrl))throw Error('invalid');
+    const response=await fetch(item.imageUrl,{credentials:'omit',signal:AbortSignal.timeout(15000)});
+    if(!response.ok)throw Error('unavailable');
+    blob=await response.blob();
+   }
+  }catch{
+   throw Error(`‘${item.titleKo}’ 사진을 복사할 수 없습니다. 상품 편집에서 원본 사진 파일을 선택해 주세요.`);
+  }
+  if(!blob.size||blob.size>4*1024*1024)throw Error('사진은 4MB 이하로 선택해 주세요.');
+  content=await new Promise<string>((resolve,reject)=>{
+   const reader=new FileReader();
+   reader.onload=()=>resolve(String(reader.result).split(',')[1]);
+   reader.onerror=()=>reject(Error('사진 파일을 읽지 못했습니다.'));
+   reader.readAsDataURL(blob);
+  });
+ }
+ return adminAction({op:'storePhoto',eventId,id:item.id,sourcePath,content,draft:draftVersion!==undefined,updatedAt:draftVersion});
+}
 const eventName=(x:any)=>`${x.nameKo||x.id} (${x.status==='closed'?'종료':x.status==='published'?'발행됨':'준비 중'})`;
 const draftInfo=(txt:string)=>{$('#ba-draft-info').textContent=txt;};
 const productDraft=()=>({id:'__new__',titleKo:'',titleFr:'',descriptionKo:'',descriptionFr:'',supplier:'K커머셜',retailCents:null,packQty:1,boxPriceTtcCents:0,boxPriceHtCents:null,plannedBoxes:null,limitMode:'unlimited',manualLimit:null,storage:'ambient',imageUrl:'',visible:false,soldQty:0,archivedAt:null});
@@ -168,15 +215,17 @@ function renderProductList(){
  document.querySelectorAll<HTMLButtonElement>('[data-up],[data-down]').forEach(b=>b.addEventListener('click',async()=>{
   const id=b.dataset.up||b.dataset.down;const idx=products.findIndex(p=>p.id===id);const other=idx+(b.dataset.up?-1:1);if(other<0||other>=products.length)return;
   [products[idx],products[other]]=[products[other],products[idx]];
-  await adminAction({op:'reorder',ids:products.map(p=>p.id)});await load();
+  try{await adminAction({op:'reorder',eventId:event.eventId,ids:products.map(p=>p.id)});await load();}
+  catch(e:any){alert(e?.message||'상품 순서를 저장하지 못했습니다.');}
  }));
- document.querySelectorAll<HTMLButtonElement>('[data-select]').forEach(b=>b.addEventListener('click',()=>{selectedId=b.dataset.select||null;renderProductList();renderProductForm();}));
+ document.querySelectorAll<HTMLButtonElement>('[data-select]').forEach(b=>b.addEventListener('click',()=>{selectedId=b.dataset.select||null;renderProductList();focusEditor('#ba-product-form');}));
  if(selectedId)renderProductForm();
 }
 function renderProductForm(){
+ const targetEventId=event.eventId;
  const p=selectedId==='__new__'?productDraft():products.find(p=>p.id===selectedId);if(!p)return;
  const select=(name:string,opts:{value:string;label:string}[],cur:string)=>`<select name="${name}">${opts.map(o=>`<option value="${o.value}" ${o.value===cur?'selected':''}>${o.label}</option>`).join('')}</select>`;
- $('#ba-product-form').innerHTML=`<form id="ba-edit" class="ba-fields">
+ $('#ba-product-form').innerHTML=`<p><strong>${p.id==='__new__'?'새 상품':`편집 중 · ${h(p.titleKo)}`}</strong></p><form id="ba-edit" class="ba-fields">
  <label>상품명 (한국어)<input name="titleKo" value="${h(p.titleKo)}" required/></label><label>Nom (français)<input name="titleFr" value="${h(p.titleFr)}" required/></label>
  <label>고객 판매가격 (€)<input name="retail" type="number" step="0.01" min="0" value="${p.retailCents==null?'':(p.retailCents/100).toFixed(2)}" placeholder="미정"/></label>
  <label>공급업체 ${select('supplier',[{value:'K커머셜',label:'K커머셜'},{value:'누리커넥트',label:'누리커넥트'}],p.supplier)}</label>
@@ -188,24 +237,29 @@ function renderProductForm(){
  <label>수동 한정 수량<input name="manualLimit" type="number" min="0" step="1" value="${p.manualLimit??''}"/></label>
  <label>보관 방법 ${select('storage',[{value:'ambient',label:'상온'},{value:'chilled',label:'냉장'},{value:'frozen',label:'냉동'}],p.storage||'ambient')}</label>
  <label>공개 상태 ${select('visible',[{value:'true',label:'공개'},{value:'false',label:'비공개'}],String(p.visible))}</label>
- <label style="grid-column:1/-1">사진 HTTPS 주소 (기존 저장소 재사용)<input name="imageUrl" value="${h(p.imageUrl||'')}" placeholder="https://…"/></label>
+ <label style="grid-column:1/-1">사진 HTTPS 주소<input name="imageUrl" value="${h(p.imageUrl||'')}" placeholder="https://…"/></label>
+ <label style="grid-column:1/-1">새 사진 파일 (JPEG, PNG, WebP · 4MB 이하)<input type="file" name="photo" accept="image/jpeg,image/png,image/webp"/></label>
+ ${p.imageUrl?`<img src="${h(p.imageUrl)}" alt="${h(p.titleKo)}" width="100" loading="lazy"/>`:''}
  <label style="grid-column:1/-1">상품 설명 (한국어)<textarea name="descriptionKo" rows="4">${h(p.descriptionKo||'')}</textarea></label>
  <label style="grid-column:1/-1">Description (français)<textarea name="descriptionFr" rows="4">${h(p.descriptionFr||'')}</textarea></label>
- <div style="grid-column:1/-1" class="ba-hint">낱개 매입원가 TTC: <strong>${eFormat((p.boxPriceTtcCents||0)/(p.packQty||1))}</strong> · 현재 주문 확보 ${p.soldQty||0}개 · 박스 연동 한도 ${p.plannedBoxes==null?'미설정':p.plannedBoxes*p.packQty}개. HT와 TTC를 모두 입력한 경우 TTC가 발주 기준입니다. 사진 파일 업로드는 기존 ASICC 파일서버 연결 후 활성화합니다.</div>
- <button class="ba-primary" type="submit">${p.id==='__new__'?'새 상품 등록':'상품 변경사항 저장'}</button>${p.id!=='__new__'?`<button id="ba-archive" type="button">${p.archivedAt?'판매 목록에 다시 포함':'상품을 판매 목록에서 제외'}</button>`:''}</form>`;
+ <div style="grid-column:1/-1" class="ba-hint">낱개 매입원가 TTC: <strong>${eFormat((p.boxPriceTtcCents||0)/(p.packQty||1))}</strong> · 현재 주문 확보 ${p.soldQty||0}개 · 박스 연동 한도 ${p.plannedBoxes==null?'미설정':p.plannedBoxes*p.packQty}개. HT와 TTC를 모두 입력한 경우 TTC가 발주 기준입니다. 사진 파일을 선택하면 이 행사에만 저장됩니다.</div>
+ <button class="ba-primary" type="submit">${p.id==='__new__'?'새 상품 등록':'상품 변경사항 저장'}</button><button type="button" id="ba-back-product">상품 목록으로</button>${p.id!=='__new__'?`<button id="ba-archive" type="button">${p.archivedAt?'판매 목록에 다시 포함':'상품을 판매 목록에서 제외'}</button>`:''}</form>`;
+ $('#ba-back-product').onclick=()=>returnToProduct('#ba-product-list',selectedId||'','select');
  $('#ba-edit').addEventListener('submit',async ev=>{
   ev.preventDefault();const fd=new FormData(ev.target as HTMLFormElement);
   const money=(field:string)=>{const raw=String(fd.get(field)||'').trim();return raw===''?null:Math.round(Number(raw)*100)};
   const num=(field:string)=>{const raw=String(fd.get(field)||'').trim();return raw===''?null:Number(raw)};
   const calculatedTtc=fd.get('supplier')==='K커머셜'&&money('boxHt')!=null?Math.round((money('boxHt') as number)*1.055):money('boxTtc');
   const product={...p,titleKo:fd.get('titleKo'),titleFr:fd.get('titleFr'),retailCents:money('retail'),supplier:fd.get('supplier'),packQty:num('packQty'),boxPriceTtcCents:calculatedTtc,boxPriceHtCents:money('boxHt'),plannedBoxes:num('plannedBoxes'),limitMode:fd.get('limitMode'),manualLimit:num('manualLimit'),storage:fd.get('storage'),visible:fd.get('visible')==='true',descriptionKo:fd.get('descriptionKo'),descriptionFr:fd.get('descriptionFr'),imageUrl:fd.get('imageUrl')};
-  try{const newItem=p.id==='__new__';const result=await adminAction(newItem?{op:'addProduct',product}:{op:'saveProduct',id:p.id,product});if(newItem)selectedId=result.id;await load();notify(newItem?'새 상품 등록 완료':'상품 저장 완료');}catch(err:any){alert(err?.message||'저장 실패');}
+  try{const newItem=p.id==='__new__';const id=newItem?newProductId():p.id;
+  const file=fd.get('photo');const photo=await storeEventPhoto({...product,id},targetEventId,file instanceof File&&file.size?file:undefined,p);
+  const result=await adminAction({op:newItem?'addProduct':'saveProduct',eventId:targetEventId,id,product:{...product,...photo}});if(newItem)selectedId=result.id;await load();if(smallScreen())returnToProduct('#ba-product-list',id,'select');notify(newItem?'새 상품 등록 완료':'상품 저장 완료');}catch(err:any){alert(err?.message||'저장 실패');}
  });
  const archive=$('#ba-archive');
  if(archive)archive.addEventListener('click',async()=>{
    const archiveIt=!p.archivedAt;
    if(!confirm(archiveIt?'이 상품을 고객 판매 목록에서 제외할까요? 기존 주문 내역은 유지됩니다.':'이 상품을 관리 목록으로 복원할까요? 복원 후 판매 공개 여부를 별도로 설정해야 합니다.'))return;
-   try{await adminAction({op:'archiveProduct',id:p.id,archive:archiveIt});await load();notify('상품 목록 상태 변경 완료');}catch(e:any){alert(e?.message||'처리 실패');}
+   try{await adminAction({op:'archiveProduct',eventId:targetEventId,id:p.id,archive:archiveIt});await load();notify('상품 목록 상태 변경 완료');}catch(e:any){alert(e?.message||'처리 실패');}
  });
 }
 function renderEvent(){
@@ -256,12 +310,13 @@ function renderDraftProducts(){
  container.innerHTML=draft.items.map((p:any,i:number)=>`<div class="ba-draft-product"><input aria-label="${h(p.titleKo)} 판매 포함" type="checkbox" data-draft-include="${h(p.id)}" ${p.included?'checked':''}/><button type="button" data-draft-up="${h(p.id)}" ${i===0?'disabled':''}>↑</button><button type="button" data-draft-down="${h(p.id)}" ${i===draft.items.length-1?'disabled':''}>↓</button><span>${i+1}. ${h(p.titleKo)}<br/><small>${h(p.supplier)} · ${p.retailCents==null?'가격 미정':eFormat(p.retailCents)} ${p.included?'':'· 이번 행사 제외'}</small></span><button type="button" data-draft-edit="${h(p.id)}">상세 편집</button></div>`).join('');
  container.querySelectorAll<HTMLInputElement>('[data-draft-include]').forEach(el=>el.addEventListener('change',()=>{const p=draft.items.find((x:any)=>x.id===el.dataset.draftInclude);if(p){p.included=el.checked;draftDirty=true;renderDraftProducts();}}));
  container.querySelectorAll<HTMLButtonElement>('[data-draft-up],[data-draft-down]').forEach(b=>b.addEventListener('click',()=>{const idx=draft.items.findIndex((p:any)=>p.id===(b.dataset.draftUp||b.dataset.draftDown)),other=idx+(b.dataset.draftUp?-1:1);if(idx<0||other<0||other>=draft.items.length)return;[draft.items[idx],draft.items[other]]=[draft.items[other],draft.items[idx]];draftDirty=true;renderDraftProducts();}));
- container.querySelectorAll<HTMLButtonElement>('[data-draft-edit]').forEach(b=>b.addEventListener('click',()=>{draftSelectedId=b.dataset.draftEdit||null;renderDraftProductForm();}));
+ container.querySelectorAll<HTMLButtonElement>('[data-draft-edit]').forEach(b=>b.addEventListener('click',()=>{draftSelectedId=b.dataset.draftEdit||null;renderDraftProductForm();focusEditor('#ba-draft-product-form');}));
 }
 function renderDraftProductForm(){
+ const openDraftId=draft.id;
  const creating=draftSelectedId==='__new__';const p=creating?productDraft():draft.items.find((p:any)=>p.id===draftSelectedId);if(!p)return;
  const select=(name:string,opts:string[],current:string)=>`<select name="${name}">${opts.map(x=>`<option value="${h(x)}" ${x===current?'selected':''}>${h(x)}</option>`).join('')}</select>`;
- $('#ba-draft-product-form').innerHTML=`<form id="ba-draft-product-edit" class="ba-fields">
+ $('#ba-draft-product-form').innerHTML=`<p><strong>${creating?'새 상품':`편집 중 · ${h(p.titleKo)}`}</strong></p><form id="ba-draft-product-edit" class="ba-fields">
  <label>상품명 (한국어)<input name="titleKo" value="${h(p.titleKo)}" required/></label><label>Nom (FR)<input name="titleFr" value="${h(p.titleFr)}" required/></label>
  <label>공급업체 ${select('supplier',['K커머셜','누리커넥트'],p.supplier)}</label>
  <label>판매가 € <input name="retail" type="number" min="0" step="0.01" value="${p.retailCents==null?'':p.retailCents/100}"/></label>
@@ -273,10 +328,13 @@ function renderDraftProductForm(){
  <label>수동 판매 한도<input name="manualLimit" type="number" min="0" step="1" value="${p.manualLimit??''}"/></label>
  <label>보관 ${select('storage',['ambient','chilled','frozen'],p.storage)}</label>
  <label style="grid-column:1/-1">상품 사진 HTTPS 주소<input name="imageUrl" value="${h(p.imageUrl||'')}" placeholder="https://…"/></label>
+ <label style="grid-column:1/-1">새 사진 파일 (JPEG, PNG, WebP · 4MB 이하)<input type="file" name="photo" accept="image/jpeg,image/png,image/webp"/></label>
+ ${p.imageUrl?`<img src="${h(p.imageUrl)}" alt="${h(p.titleKo)}" width="100" loading="lazy"/>`:''}
  <label style="grid-column:1/-1">상품 설명 (한국어)<textarea name="descriptionKo" rows="4">${h(p.descriptionKo||'')}</textarea></label>
  <label style="grid-column:1/-1">Description (FR)<textarea name="descriptionFr" rows="4">${h(p.descriptionFr||'')}</textarea></label>
- <p class="ba-hint" style="grid-column:1/-1">K커머셜: HT에서 TVA 5.5%를 더한 TTC 원가 계산. 누리커넥트: 이미 TTC. 사진 파일 직접 업로드는 기존 ASICC B2 업로더 연결 후 활성화합니다.</p>
- <button type="submit" class="ba-primary">${creating?'새 상품 등록 후 선택':'이 상품 변경 적용'}</button></form>`;
+ <p class="ba-hint" style="grid-column:1/-1">K커머셜: HT에서 TVA 5.5%를 더한 TTC 원가 계산. 누리커넥트: 이미 TTC. 기존 사진은 임시저장할 때 이 행사 전용으로 복사됩니다.</p>
+ <button type="submit" class="ba-primary">${creating?'새 상품 등록 후 선택':'이 상품 변경 적용'}</button><button type="button" id="ba-draft-back-product">상품 목록으로</button></form>`;
+ $('#ba-draft-back-product').onclick=()=>returnToProduct('#ba-draft-products',draftSelectedId||'','draft-edit');
  $('#ba-draft-product-edit').addEventListener('submit',async ev=>{
   ev.preventDefault();const fd=new FormData(ev.target as HTMLFormElement);
   const money=(field:string)=>{const v=String(fd.get(field)||'').trim();return v?Math.round(Number(v)*100):null;};
@@ -285,13 +343,43 @@ function renderDraftProductForm(){
   const boxHt=money('boxHt');const boxTtc=supplier==='K커머셜'&&boxHt!=null?Math.round(boxHt*1.055):money('boxTtc');
   const item={...p,titleKo:String(fd.get('titleKo')||''),titleFr:String(fd.get('titleFr')||''),supplier,retailCents:money('retail'),packQty:qty('packQty'),boxPriceTtcCents:boxTtc,boxPriceHtCents:supplier==='K커머셜'?boxHt:null,plannedBoxes:qty('plannedBoxes'),limitMode:String(fd.get('limitMode')),manualLimit:qty('manualLimit'),storage:String(fd.get('storage')),imageUrl:String(fd.get('imageUrl')||''),descriptionKo:String(fd.get('descriptionKo')||''),descriptionFr:String(fd.get('descriptionFr')||''),included:true};
   try{
-   if(creating){const ret=await adminAction({op:'addProduct',product:{...item,visible:false}});item.id=ret.id;draft.items.push(item);draftSelectedId=ret.id;draftInfo('새 상품이 공통 목록에 등록되고 이 행사 초안에도 추가됐습니다. 임시저장하세요.');}
-   else{const idx=draft.items.findIndex((x:any)=>x.id===p.id);draft.items[idx]=item;draftInfo('상품 변경이 초안에 적용됐습니다. 임시저장 또는 발행하세요.');}
+   if(creating)item.id=newProductId();
+   const file=fd.get('photo');
+   if(file instanceof File&&file.size){
+    Object.assign(item,await storeEventPhoto(item,openDraftId,file,p,draft.updatedAt));
+   }else if(item.imageUrl!==p.imageUrl){
+    (item as any).photoPath='';
+   }
+   if(draft?.id!==openDraftId)return;
+   if(creating)draft.items.push(item);
+   else draft.items[draft.items.findIndex((x:any)=>x.id===p.id)]=item;
+   draftSelectedId=item.id;
+   draftInfo('상품 변경이 초안에 적용됐습니다. 임시저장 또는 발행하세요.');
    draftDirty=true;renderDraftProducts();
+   if(smallScreen())returnToProduct('#ba-draft-products',item.id,'draft-edit');
   }catch(e:any){alert(e?.message||'상품 변경 실패');}
  });
 }
-async function saveDraft(){captureDraftEvent();const result=await adminAction({op:'saveDraft',id:draft.id,event:draft.event,items:draft.items,updatedAt:draft.updatedAt});draftDirty=false;draft.updatedAt=result.updatedAt;await refreshEventsOnly();draftInfo('임시저장 완료 · 고객에게는 아직 공개되지 않았습니다.');}
+let draftSavePending=false;
+async function saveDraft(){
+ if(draftSavePending)throw Error('임시저장이 진행 중입니다.');
+ draftSavePending=true;
+ const current=draft;
+ const view=$('#ba-draft-view');
+ view.inert=true;
+ try{
+  captureDraftEvent();
+  const items=[];
+  for(const item of current.items){
+   const photo=await storeEventPhoto(item,current.id,undefined,item,current.updatedAt);
+   items.push({...item,...photo});
+  }
+  const result=await adminAction({op:'saveDraft',id:current.id,event:current.event,items,updatedAt:current.updatedAt});
+  current.items=items;current.updatedAt=result.updatedAt;draftDirty=false;
+  await refreshEventsOnly();
+  draftInfo('임시저장 완료 · 고객에게는 아직 공개되지 않았습니다.');
+ }finally{view.inert=false;draftSavePending=false;}
+}
 $('#ba-draft-save').addEventListener('click',async()=>{try{await saveDraft();}catch(e:any){alert(e?.message||'임시저장 실패');}});
 $('#ba-draft-publish').addEventListener('click',async()=>{
  if(!confirm('이 바자회를 발행할까요? 고객 주문 화면에 판매상품과 일정이 적용됩니다. 기존 행사 기록은 보존됩니다.'))return;
@@ -302,7 +390,7 @@ $('#ba-draft-delete').addEventListener('click',async()=>{
  if(prompt('삭제하려면 "임시저장 삭제"를 입력하세요.')!=='임시저장 삭제')return;
  try{await adminAction({op:'deleteDraft',id:draft.id,confirm:true});draft=null;draftDirty=false;$('#ba-draft-view').hidden=true;$('#ba-dashboard-view').hidden=false;await refreshEventsOnly();notify('임시저장 삭제 완료 · 기존 행사/상품/주문 기록은 그대로입니다.');}catch(e:any){alert(e?.message||'초안 삭제 실패');}
 });
-$('#ba-draft-new-product').addEventListener('click',()=>{draftSelectedId='__new__';renderDraftProductForm();});
+$('#ba-draft-new-product').addEventListener('click',()=>{draftSelectedId='__new__';renderDraftProductForm();focusEditor('#ba-draft-product-form');});
 $('#ba-exit-draft').addEventListener('click',closeDraft);
 $('#ba-draft-event-form').addEventListener('input',()=>{draftDirty=true;});
 $('#ba-draft-event-form').addEventListener('submit',ev=>ev.preventDefault());

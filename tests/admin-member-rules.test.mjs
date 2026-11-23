@@ -142,6 +142,11 @@ test('homepage banner validation rejects extra fields and unsafe links',async()=
   for(const slot of ['bazaar','admissions']){
     const ref=doc(db,'publicHomeBanners',slot);
     await assertSucceeds(setDoc(ref,{...data,link:'bazaar/?event=bazaar-test-original'}));
+    await assertFails(setDoc(ref,{...data,link:'bazaar/'}));
+    await assertFails(setDoc(ref,{...data,link:'https://asicc-parents.fr/ko/bazaar/'}));
+    await assertSucceeds(setDoc(ref,{...data,link:'https://asicc-parents.fr/fr/bazaar/?event=bazaar-test-original'}));
+    await assertSucceeds(setDoc(ref,{...data,link:'news/2026-10-08-admissions/'}));
+    await assertSucceeds(setDoc(ref,{...data,link:'https://example.org/other-event/'}));
     await assertFails(setDoc(ref,{...data,link:'bazaar/?event=bazaar-test-original&other=value'}));
   }
 });

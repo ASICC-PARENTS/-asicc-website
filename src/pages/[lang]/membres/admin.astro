@@ -1161,7 +1161,9 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   type BannerKey = 'bazaar' | 'admissions';
   const bannerKeys:BannerKey[]=['bazaar','admissions'];
   const bannerFields=['eyebrow','title','body','status','button'] as const;
-  const validBannerLink=(link:string)=> /^news\/[a-z0-9/_-]+\/$/.test(link) || /^bazaar\/(\?event=[a-z0-9-]{12,60})?$/.test(link) || /^https:\/\/[^\s]+$/.test(link);
+  const bazaarLink = /^(?:https:\/\/(?:www\.)?asicc-parents\.fr\/(?:ko|fr)\/)?bazaar\/\?event=[a-z0-9-]{12,60}$/;
+  const ownBazaarLink = /^https:\/\/(?:www\.)?asicc-parents\.fr\/(?:ko|fr)\/bazaar(?:[/?#]|$)/i;
+  const validBannerLink=(link:string)=> /^news\/[a-z0-9/_-]+\/$/.test(link) || bazaarLink.test(link) || (/^https:\/\/[^\s]+$/.test(link) && !ownBazaarLink.test(link));
   const bannerEditor=(key:BannerKey)=>document.querySelector<HTMLFormElement>(`[data-banner-editor="${key}"]`);
   function fillBannerEditor(key:BannerKey,data:Record<string,unknown>|null){
     const form=bannerEditor(key);if(!form)return;
@@ -1214,7 +1216,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     const button=form.querySelector<HTMLButtonElement>('[data-banner-save]');
     const fd=new FormData(form);
     const link=String(fd.get('link')??'').trim();
-    const data:Record<string,unknown>={enabled:fd.has('enabled'),link,updatedBy:meUid,updatedAt:serverTimestamp()};
+    const data:Record<string,unknown>={enabled:fd.has('enabled'),link:bazaarLink.test(link)?link.replace(/^https:\/\/[^/]+\/(ko|fr)\//,''):link,updatedBy:meUid,updatedAt:serverTimestamp()};
     if(link.length>500||!validBannerLink(link)){
       bannerFeedback(key,tr('news/글주소/, bazaar/?event=행사ID 또는 https:// 링크를 입력해 주세요.','Utilisez news/identifiant/, bazaar/?event=identifiant ou une URL https://.'),true);return;
     }
