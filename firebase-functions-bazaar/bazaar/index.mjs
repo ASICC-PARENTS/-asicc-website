@@ -61,7 +61,11 @@ function checkBuyerOrder(x){
     if(!/^[a-z0-9-]{2,50}$/.test(id)||!Number.isSafeInteger(qty)||qty<1||qty>100||!cents(priceCents)||idSet.has(id))bad('수량 또는 품목이 올바르지 않습니다.');
     idSet.add(id);return{id,qty,priceCents};
   });
-  return{name,email,phone,items,lang:x.lang==='fr'?'fr':'ko'};
+  if(x.pickupNote!==undefined&&(typeof x.pickupNote!=='string'||x.pickupNote.length>500)){
+    bad(x.lang==='fr'?'Limitez les informations de retrait à 500 caractères.':'판매자에게 전달할 사항은 500자 이내로 입력해 주세요.');
+  }
+  const pickupNote=s(x.pickupNote);
+  return{name,email,phone,items,lang:x.lang==='fr'?'fr':'ko',...(pickupNote?{pickupNote}:{})};
 }
 async function queue(tx,orderId,type,extra={}){
   const id=`${orderId}_${type}`;
@@ -72,12 +76,14 @@ function links(order){
   const base=`https://asicc-parents.fr/${order.lang==='fr'?'fr':'ko'}/bazaar/commande/`;
   return `${base}?id=${encodeURIComponent(order.id)}&token=${encodeURIComponent(order.buyerToken)}`;
 }
-function message(order,type,event){
+export function message(order,type,event){
   const items=order.items.map(i=>`• ${i.titleKo} × ${i.qty} = ${euro(i.qty*i.priceCents)}`).join('\n');
   const bank=`수취인: ${event.beneficiary}\nIBAN: ${event.iban}\n송금 금액: ${euro(order.totalCents)}\n송금 메모: ${order.orderRef}`;
   const intro={receipt:'주문이 접수되었습니다. 아직 입금 확인 또는 주문 확정 상태는 아닙니다.',reported:'송금 완료 알림이 접수되었습니다. 실제 입금 확인 및 주문 확정은 별도로 진행됩니다.',confirmed:'입금이 확인되어 주문이 확정되었습니다. 감사합니다!',cancel:'주문이 취소되었습니다.',bulkCancel:'최종 입금 확인 시점까지 입금이 확인되지 않아 주문이 취소되었습니다. 이미 송금하셨다면 주문번호와 송금일을 contact@asicc-parents.fr 로 알려주세요.',reminder3:'아직 송금 완료 표시가 접수되지 않았습니다. 송금을 마치셨다면 아래 주문 관리 링크에서 알려주세요.',reminderFinal:'송금 마감 안내입니다. 아직 송금 완료 표시가 접수되지 않았습니다.'}[type]||'주문 안내';
   const subject={receipt:'[ASICC] 바자회 주문 접수',reported:'[ASICC] 송금 완료 알림 접수',confirmed:'[ASICC] 바자회 주문 확정',cancel:'[ASICC] 바자회 주문 취소',bulkCancel:'[ASICC] 바자회 주문 취소 안내',reminder3:'[ASICC] 바자회 송금 안내',reminderFinal:'[ASICC] 바자회 송금 마감 안내'}[type]||'[ASICC] 바자회 안내';
-  const text=`${intro}\n\n주문번호: ${order.orderRef}\n주문자: ${order.name}\n\n${items}\n\n주문 총액: ${euro(order.totalCents)}\n\n${['receipt','reported','reminder3','reminderFinal'].includes(type)?bank+'\n\n송금 마감: '+localDate(event.transferCutoff):''}\n\n픽업: ${event.pickupKo}\n\n주문 확인 / 송금 완료 알림 / 취소: ${links(order)}\n\n문의: ${event.contactEmail}`;
+  const noteLabel=order.lang==='fr'?'Informations complémentaires pour le retrait':'판매자에게 전달할 사항';
+  const note=type==='receipt'&&order.pickupNote?`\n\n${noteLabel}\n${order.pickupNote}`: '';
+  const text=`${intro}\n\n주문번호: ${order.orderRef}\n주문자: ${order.name}${note}\n\n${items}\n\n주문 총액: ${euro(order.totalCents)}\n\n${['receipt','reported','reminder3','reminderFinal'].includes(type)?bank+'\n\n송금 마감: '+localDate(event.transferCutoff):''}\n\n픽업: ${event.pickupKo}\n\n주문 확인 / 송금 완료 알림 / 취소: ${links(order)}\n\n문의: ${event.contactEmail}`;
   return{subject,text,html:`<div style="font:15px/1.7 Arial,sans-serif;max-width:650px"><h2>${esc(subject)}</h2><p>${esc(intro)}</p><pre style="white-space:pre-wrap;font:inherit">${esc(text.replace(intro,'').trim())}</pre><p><a href="${esc(links(order))}" style="color:#932b35">주문 관리 페이지 / Consulter la commande</a></p></div>`};
 }
 async function deliver(mailId){

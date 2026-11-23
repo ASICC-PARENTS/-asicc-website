@@ -15,6 +15,7 @@ if (!/^(localhost|127\.0\.0\.1):\d+$/.test(process.env.FIREBASE_STORAGE_EMULATOR
 initializeApp({ projectId, storageBucket: 'demo-asicc-bazaar.appspot.com' });
 const { bazaarAdmin, bazaarCreateOrder, bazaarPublic } = await import('../index.mjs');
 const db = getFirestore();
+const { message } = await import('../bazaar/index.mjs');
 after(() => deleteApp(getApp()));
 
 const otherStaff = { uid: 'bazaar-admin-two', token: { email_verified: true } };
@@ -66,6 +67,20 @@ test('administrators can publish a draft and close it without losing history or 
   await assert.rejects(bazaarCreateOrder.run({ data: { ...buyer, consent: false } }), { code: 'invalid-argument' });
   const receipt = await bazaarCreateOrder.run({ data: buyer, rawRequest: { ip: '127.0.0.2' } });
   assert.equal(receipt.totalCents, 900);
+  const blank = (await db.doc(`bazaarOrders/${receipt.id}`).get()).data();
+  assert.equal(blank.pickupNote,undefined);
+  const fresh = () => randomBytes(16).toString('hex');
+  await assert.rejects(bazaarCreateOrder.run({data:{...buyer,requestId:fresh(),pickupNote:'가'.repeat(501)}}),{code:'invalid-argument'});
+  const pickupNote='4시에 찾으러 갑니다.\n<예시>';
+  const noted = await bazaarCreateOrder.run({data:{...buyer,requestId:fresh(),pickupNote}});
+  const notedOrder = (await db.doc(`bazaarOrders/${noted.id}`).get()).data();
+  assert.equal(notedOrder.pickupNote,pickupNote);
+  const french = message(notedOrder,'receipt',active);
+  assert.ok(french.text.includes('Informations complémentaires pour le retrait\n'+pickupNote));
+  assert.ok(french.html.includes('&lt;예시&gt;'));
+  assert.ok(message({...notedOrder,lang:'ko'},'receipt',active).text.includes('판매자에게 전달할 사항\n'+pickupNote));
+  assert.ok(!message(blank,'receipt',active).text.includes('Informations complémentaires pour le retrait'));
+  await call('bankConfirm',{id:noted.id});
   assert.deepEqual(await bazaarCreateOrder.run({ data: buyer }), receipt);
   await assert.rejects(bazaarCreateOrder.run({ data: {
     ...buyer, requestId: randomBytes(16).toString('hex'), items: [{ id: productId, qty: 2, priceCents: 1 }],
@@ -133,7 +148,9 @@ test('administrators can publish a draft and close it without losing history or 
   assert.equal(historical.products[0].retailCents, 450);
   assert.equal(historical.products[0].imageUrl, product.imageUrl);
   assert.equal(historical.products[0].boxPriceTtcCents, 700);
-  assert.equal(historical.orders[0].totalCents, 900);
-  assert.ok(historical.orders[0].bankConfirmedAt);
-  assert.equal(historical.orders[0].buyerToken, undefined);
+  const prior=historical.orders.find(item=>item.id===receipt.id);
+  assert.equal(prior.totalCents,900);
+  assert.ok(prior.bankConfirmedAt);
+  assert.equal(prior.buyerToken,undefined);
+  assert.equal(historical.orders.find(item=>item.id===noted.id).pickupNote,pickupNote);
 });

@@ -197,7 +197,7 @@ function renderOrders(){
  $('#ba-orders').innerHTML=orders.filter(o=>[o.orderRef,o.name,o.email,o.phone].join(' ').toLowerCase().includes(q)).map(o=>{
  const detail=o.items.map((i:any)=>`<div>${h(i.titleKo)} × ${i.qty} — ${eFormat(i.qty*i.priceCents)}</div>`).join('');
  const status=o.canceledAt?'<span class="ba-red">취소됨</span>':o.bankConfirmedAt?`<span class="ba-badge">확인 ${stamp(o.bankConfirmedAt)}</span>`:`<button data-bank="${h(o.id)}" >입금 확인</button>`;
- return `<tr><td>${h(o.orderRef)}</td><td>${h(o.name)}</td><td>${h(o.phone)}</td><td>${h(o.email)}</td><td><details><summary>${o.items.length}개 항목</summary>${detail}</details></td><td>${eFormat(o.totalCents)}</td><td><input aria-label="고객 송금 완료 신고" type="checkbox" ${o.transferReportedAt?'checked':''} disabled/></td><td>${status}</td></tr>`;
+ return `<tr><td>${h(o.orderRef)}</td><td>${h(o.name)}</td><td>${h(o.phone)}</td><td>${h(o.email)}</td><td><details><summary>${o.items.length}개 항목</summary>${detail}</details>${o.pickupNote?`<p><strong>판매자에게 전달할 사항</strong><br><span style="white-space:pre-wrap;overflow-wrap:anywhere">${h(o.pickupNote)}</span></p>`:''}</td><td>${eFormat(o.totalCents)}</td><td><input aria-label="고객 송금 완료 신고" type="checkbox" ${o.transferReportedAt?'checked':''} disabled/></td><td>${status}</td></tr>`;
  }).join('');
  document.querySelectorAll<HTMLButtonElement>('[data-bank]').forEach(b=>b.addEventListener('click',async()=>{if(!confirm('은행 입금 내역과 일치하는 주문인가요? 확인 후 고객에게 주문 확정 이메일이 발송됩니다.'))return;await adminAction({op:'bankConfirm',id:b.dataset.bank});await load();}));
 }
