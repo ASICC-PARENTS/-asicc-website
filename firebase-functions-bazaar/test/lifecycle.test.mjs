@@ -186,6 +186,7 @@ test('administrators can publish a draft and close it without losing history or 
   await assert.rejects(call('savePurchaseOrder',purchase,otherStaff),failure);
   const confirmed=await call('savePurchaseOrder',{...purchase,revision:savedPurchase.revision,confirm:true});
   await assert.rejects(call('savePurchaseOrder',{...purchase,revision:confirmed.revision}),failure);
+  await assert.rejects(call('savePurchaseOrder',{...purchase,revision:confirmed.revision,confirmClosedEdit:true}),failure);
   assert.deepEqual((await call('listPurchaseOrders',{eventId:draft.id})).documents.map(d=>d.confirmed),[true]);
 
   await assert.rejects(call('finalizeUnpaid',{eventId:draft.id,confirm:false}),{code:'invalid-argument'});
@@ -209,5 +210,35 @@ test('administrators can publish a draft and close it without losing history or 
   assert.equal((await call('finalizeUnpaid',{eventId:draft.id,confirm:true})).canceled,0);
   assert.equal((await call('listPurchaseOrders',{eventId:draft.id})).documents[0].confirmed,true);
 
+  const originalPaidOrder=(await db.doc(`bazaarOrders/${paid.id}`).get()).data();
+  const adjustment={...purchase,revision:confirmed.revision,lines:[
+    {...purchase.lines[0],qty:3,amountCents:2100},
+    {id:'manual-extra',name:'전화로 추가 요청한 품목',unit:'박스',qty:1,priceCents:800,amountCents:800,manual:true},
+  ]};
+  await assert.rejects(call('savePurchaseOrder',adjustment),failure);
+  const adjusted=await call('savePurchaseOrder',{...adjustment,confirmClosedEdit:true},otherStaff);
+  assert.equal(adjusted.confirmed,true);
+  assert.equal(adjusted.updatedBy,otherStaff.uid);
+  assert.deepEqual(adjusted.lines.map(line=>[line.qty,line.amountCents]),[[3,2100],[1,800]]);
+  await assert.rejects(call('savePurchaseOrder',{...adjustment,confirmClosedEdit:true}),failure);
+
+  // Publish the next event, then add a vendor to the archived event.
+  const nextEvent={...storedCopy.event,orderCutoff:new Date(Date.now()+3600000).toISOString(),
+    transferCutoff:new Date(Date.now()+7200000).toISOString(),pickupKo:active.pickupKo,pickupFr:active.pickupFr};
+  const nextDraft=await call('saveDraft',{id:storedCopy.id,updatedAt:storedCopy.updatedAt,event:nextEvent,items:storedCopy.items});
+  process.env.BAZAAR_SMTP_HOST='localhost';
+  await call('publishDraft',{id:storedCopy.id,updatedAt:nextDraft.updatedAt});
+  const extra={...purchase,vendor:'추가 공급업체',revision:0,confirmClosedEdit:true};
+  await call('savePurchaseOrder',extra);
+  await assert.rejects(call('savePurchaseOrder',{...extra,eventId:'bazaar-unknown-event'}),failure);
+  await assert.rejects(call('savePurchaseOrder',extra,{uid:'bazaar-member',token:{email_verified:true}}),{code:'permission-denied'});
+  const docs=(await call('listPurchaseOrders',{eventId:draft.id})).documents;
+  assert.equal(docs.length,2);
+  assert.equal(docs.find(doc=>doc.vendor===purchase.vendor).revision,adjusted.revision);
+  assert.equal((await call('listPurchaseOrders',{eventId:storedCopy.id})).documents.length,0);
+  assert.deepEqual((await db.doc(`bazaarOrders/${paid.id}`).get()).data(),originalPaidOrder);
+  const stored=(await db.collection('bazaarPurchaseOrders').where('eventId','==',draft.id).get()).docs.find(doc=>doc.data().vendor===purchase.vendor);
+  assert.deepEqual((await stored.ref.collection('revisions').doc(String(confirmed.revision)).get()).data(),confirmed);
+  assert.deepEqual((await shop(draft.id)).event,{eventId:draft.id,status:'closed'});
 
 });

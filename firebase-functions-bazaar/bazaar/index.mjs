@@ -317,17 +317,28 @@ export const bazaarAdmin=onCall({...options,secrets:[smtpPassword]},async req=>{
       return {documents:result.docs.map(doc=>doc.data())};
     }
     const document=normalizePurchase(data);
-    if(data.confirm===true&&(!document.lines.length||!document.info.number||!document.info.date))
-      bad('발주번호, 발주일과 품목을 확인해 주세요.');
     const ref=purchaseOrders.doc(createHash('sha256').update(JSON.stringify([eventId,document.vendor])).digest('hex'));
     return db.runTransaction(async tx=>{
-      const [active,previous]=await Promise.all([tx.get(eventRef),tx.get(ref)]);
-      if(active.data()?.eventId!==eventId)throw new HttpsError('failed-precondition','현재 행사에만 발주서를 저장할 수 있습니다.');
+      const [active,previous,archive]=await Promise.all([
+        tx.get(eventRef),tx.get(ref),tx.get(eventArchives.doc(eventId)),
+      ]);
+      const event=active.data()?.eventId===eventId?active.data():archive.data()?.event;
+      const isClosed=closed(event);
+      if(!event||(!isClosed&&event.status!=='published'))
+        throw new HttpsError('failed-precondition','발행 또는 종료된 행사의 발주서만 저장할 수 있습니다.');
+      if(isClosed&&data.confirmClosedEdit!==true)
+        throw new HttpsError('failed-precondition','종료된 행사입니다. 정산 변경 안내를 확인한 뒤 다시 저장해 주세요.');
+      if(!isClosed&&data.confirmClosedEdit===true)
+        throw new HttpsError('failed-precondition','행사 상태가 변경됐습니다. 다시 불러와 주세요.');
       const old=previous.data();
-      if(old?.confirmed||(old?.revision??0)!==data.revision)
+      if((old?.revision??0)!==data.revision||(!isClosed&&old?.confirmed))
         throw new HttpsError('failed-precondition','이미 확정됐거나 변경된 발주서입니다. 다시 불러와 주세요.');
+      const confirmed=old?.confirmed===true||data.confirm===true;
+      if(confirmed&&(!document.lines.length||!document.info.number||!document.info.date))
+        bad('발주번호, 발주일과 품목을 확인해 주세요.');
       const result={...document,eventId,revision:(old?.revision??0)+1,
-        confirmed:data.confirm===true,updatedAt:now(),updatedBy:req.auth.uid};
+        confirmed,updatedAt:now(),updatedBy:req.auth.uid,...(isClosed?{closedAdjustment:true}:{})};
+      if(isClosed&&old)tx.create(ref.collection('revisions').doc(String(old.revision)),old);
       tx.set(ref,result);
       return result;
     });

@@ -158,10 +158,41 @@ function vendors(){return [...new Set([...demands().map(p=>p.vendor),...Object.k
 function makePO(v){const key=v;if(store.settleScope!=='confirmed'||!store.poDrafts[key])return demands().filter(p=>p.vendor===v).map(p=>({id:p.id,name:p.ko,ordered:p.ordered,per:p.pack,qty:p.minimum,unit:'박스',price:p.buy,amount:Math.round(p.minimum*p.buy*100)/100,manual:false}));return store.poDrafts[key]}
 function poTotal(v){return makePO(v).reduce((s,p)=>s+(Number(p.amount)||0),0)}
 function vendorSales(v){return demands().filter(p=>p.vendor===v).reduce((s,p)=>s+p.revenue,0)}
-function renderSettlement(){let ds=demands(),vs=vendors(),sumBuy=vs.reduce((s,v)=>s+poTotal(v),0),sumSales=ds.reduce((s,p)=>s+p.revenue,0);if(!vs.includes(store.vendor))store.vendor=vs[0]||'';if(!vs.length){app.innerHTML=eventHead()+tabs()+'<section class="tabbody"><h2>정산관리</h2>'+banner('집계할 주문이 없습니다.')+'<button class="btn neutral" data-action="scope" data-value="all">전체 유효 주문</button></section>';return;}app.innerHTML=eventHead()+tabs()+'<section class="tabbody"><div class="toolbar"><div><h2>정산관리</h2><p class="muted small">업체별 정산 · 발주서 품목/수량/매입가 직접 수정</p></div><span class="muted small">고객 주문 원본과 발주서는 별개</span></div><div class="notice"><div class="toolbar"><b>집계 기준</b><div class="actions"><button class="filter '+(store.settleScope==='confirmed'?'active':'')+'" data-action="scope" data-value="confirmed">입금 확인 주문</button><button class="filter '+(store.settleScope==='all'?'active':'')+'" data-action="scope" data-value="all">전체 유효 주문</button></div></div><p class="muted tiny" style="margin-top:8px">'+(store.settleScope==='confirmed'?'운영진이 은행 입금을 확인한 주문을 기준으로 합니다.':'취소 주문을 제외하고 미입금 주문까지 포함한 예상 수요입니다.')+'</p></div>'+metrics([['집계 주문',accepted().length+'건'],['고객 판매액',money(sumSales)],['업체 발주액',money(sumBuy)],['예상 판매차액',money(sumSales-sumBuy)]])+'<h3 style="margin:21px 0 11px">업체별 발주 현황</h3><div class="supplier-grid">'+vs.map(v=>{let rr=demands().filter(p=>p.vendor===v);return '<div class="vendor-box '+(store.vendor===v?'active':'')+'"><div class="toolbar"><h3>'+esc(v)+'</h3><button class="linkbtn" data-action="vendor" data-value="'+esc(v)+'">'+(store.vendor===v?'선택됨':'상세·발주')+'</button></div><div class="vendor-stats"><div><span>상품 주문수량</span><b>'+rr.reduce((s,p)=>s+p.ordered,0)+'개</b></div><div><span>발주 수량</span><b>'+esc(quantityByUnit(makePO(v)))+'</b></div><div><span>매입액 TTC</span><b>'+money(poTotal(v))+'</b></div><div><span>판매액</span><b>'+money(vendorSales(v))+'</b></div><div><span>예상 차액</span><b>'+money(vendorSales(v)-poTotal(v))+'</b></div></div></div>'}).join('')+'</div><div class="panel pad" style="margin-top:20px"><div class="toolbar"><div><h3>'+esc(store.vendor)+' · 구매발주서 편집</h3><p class="muted small">'+(poMeta(store.vendor).confirmed?'확정 · 읽기 전용':poMeta(store.vendor).savedAt?'저장된 초안':'작성 중')+' · 집계와 발주서 차이 '+money(poTotal(store.vendor)-finance(demands().filter(p=>p.vendor===store.vendor).reduce((sum,p)=>sum+p.minimum*p.buy,0)))+'</p><p class="muted small">전화주문·추가 구매를 위해 품목, 수량, 단가, 소계를 직접 변경할 수 있습니다.</p></div><button class="btn primary" data-action="po-add">＋ 발주 품목 추가</button></div><div class="sheet" style="max-height:460px"><table style="min-width:900px"><colgroup><col style="width:210px"><col style="width:115px"><col style="width:110px"><col style="width:125px"><col style="width:125px"><col style="width:85px"></colgroup><thead><tr><th>품목 / 구분</th><th>발주수량</th><th>단위</th><th>매입단가 TTC</th><th>품목 소계 TTC</th><th>관리</th></tr></thead><tbody>'+makePO(store.vendor).map(p=>'<tr><td><input class="cell" value="'+esc(p.name)+'" data-po="'+esc(p.id)+'" data-key="name"><div class="muted tiny">'+(p.manual?'수동 추가':'주문 수량 '+p.ordered+'개 · '+p.per+'개/박스')+poWarning(p)+'</div></td><td><input type="number" min="0" step="1" class="cell" value="'+p.qty+'" data-po="'+p.id+'" data-key="qty"></td><td><select class="select" style="width:100%;padding:7px" data-po="'+p.id+'" data-key="unit">'+['박스','개','봉','세트'].map(u=>'<option '+(p.unit===u?'selected':'')+'>'+u+'</option>').join('')+'</select></td><td><input type="number" min="0" step="0.01" class="cell" value="'+p.price+'" data-po="'+p.id+'" data-key="price"></td><td><input type="number" min="0" step="0.01" class="cell" value="'+p.amount+'" data-po="'+p.id+'" data-key="amount"></td><td><button class="linkbtn" data-action="po-del" data-id="'+p.id+'">삭제</button></td></tr>').join('')+'</tbody></table></div><div class="summary-bar"><span><b>'+esc(store.vendor)+'</b> 총 발주금액 TTC</span><strong>'+money(poTotal(store.vendor))+'</strong></div><div class="actions" style="justify-content:flex-end"><button class="btn neutral" data-action="po-reset">자동 산출로 초기화</button><button class="btn neutral" data-action="po-settings">발주 정보 편집</button><button class="btn neutral" data-action="po-save">발주서 초안 저장</button><button class="btn neutral" data-action="po-confirm">발주서 확정</button><button class="btn neutral" data-action="one-pdf">PDF</button><button class="btn neutral" data-action="one-excel">Excel</button><button class="btn primary" data-action="po-preview">구매발주서 미리보기</button></div></div>'+banner('고객 판매 실적과 발주서는 별도로 보존합니다. 구매발주서의 수동 변경이 고객 주문액이나 상품 원본을 수정하지 않습니다.')+'<div class="panel pad"><div class="toolbar"><div><h3>전체 업체 구매발주서</h3><p class="muted small">공급업체용 자료에는 고객정보와 판매금액이 포함되지 않습니다.</p></div><button class="btn neutral" data-action="all-po">전체 업체 검토</button><button class="btn neutral" data-action="all-pdf">전체 PDF</button><button class="btn neutral" data-action="all-excel">전체 Excel</button></div></div></section>'}
+const closedPurchaseWarning='종료된 행사의 발주 내역을 수정합니다. 이미 업체에 보낸 발주서가 있으면 변경사항을 별도로 전달하세요. 고객 주문과 입금 기록은 그대로 유지됩니다.';
+function canEditPurchase(){
+ const event=selectedEvent();
+ return !!event&&store.settleScope==='confirmed'&&(current()||event===model.active&&!poMeta(store.vendor).confirmed);
+}
+function closedPurchaseControls(){
+ if(!current())return '';
+ return banner(esc(closedPurchaseWarning),'warning')+
+  (store.settleScope==='confirmed'?'<div class="actions"><button class="btn neutral" data-action="po-new-vendor">＋ 업체 발주서 추가</button></div>':'');
+}
+function addPurchaseVendor(){
+ modal('업체 발주서 추가','종료 후 추가 발주',
+  banner(esc(closedPurchaseWarning),'warning')+'<label class="field">공급업체명<input id="po-vendor-name" maxlength="120"></label>',
+  '<button class="btn neutral" data-action="close">취소</button><button class="btn primary" data-action="po-vendor-save">추가</button>');
+ $('#po-vendor-name').focus();
+}
+function renderSettlement(){let ds=demands(),vs=vendors(),sumBuy=vs.reduce((s,v)=>s+poTotal(v),0),sumSales=ds.reduce((s,p)=>s+p.revenue,0);if(!vs.includes(store.vendor))store.vendor=vs[0]||'';if(!vs.length){app.innerHTML=eventHead()+tabs()+'<section class="tabbody"><h2>정산관리</h2>'+closedPurchaseControls()+banner('집계할 주문이 없습니다.')+'<div class="actions"><button class="btn neutral" data-action="scope" data-value="confirmed">입금 확인 주문</button><button class="btn neutral" data-action="scope" data-value="all">전체 유효 주문</button></div></section>';return;}app.innerHTML=eventHead()+tabs()+'<section class="tabbody"><div class="toolbar"><div><h2>정산관리</h2><p class="muted small">업체별 정산 · 발주서 품목/수량/매입가 직접 수정</p></div><span class="muted small">고객 주문 원본과 발주서는 별개</span></div>'+closedPurchaseControls()+'<div class="notice"><div class="toolbar"><b>집계 기준</b><div class="actions"><button class="filter '+(store.settleScope==='confirmed'?'active':'')+'" data-action="scope" data-value="confirmed">입금 확인 주문</button><button class="filter '+(store.settleScope==='all'?'active':'')+'" data-action="scope" data-value="all">전체 유효 주문</button></div></div><p class="muted tiny" style="margin-top:8px">'+(store.settleScope==='confirmed'?'운영진이 은행 입금을 확인한 주문을 기준으로 합니다.':'취소 주문을 제외하고 미입금 주문까지 포함한 예상 수요입니다.')+'</p></div>'+metrics([['집계 주문',accepted().length+'건'],['고객 판매액',money(sumSales)],['업체 발주액',money(sumBuy)],['예상 판매차액',money(sumSales-sumBuy)]])+'<h3 style="margin:21px 0 11px">업체별 발주 현황</h3><div class="supplier-grid">'+vs.map(v=>{let rr=demands().filter(p=>p.vendor===v);return '<div class="vendor-box '+(store.vendor===v?'active':'')+'"><div class="toolbar"><h3>'+esc(v)+'</h3><button class="linkbtn" data-action="vendor" data-value="'+esc(v)+'">'+(store.vendor===v?'선택됨':'상세·발주')+'</button></div><div class="vendor-stats"><div><span>상품 주문수량</span><b>'+rr.reduce((s,p)=>s+p.ordered,0)+'개</b></div><div><span>발주 수량</span><b>'+esc(quantityByUnit(makePO(v)))+'</b></div><div><span>매입액 TTC</span><b>'+money(poTotal(v))+'</b></div><div><span>판매액</span><b>'+money(vendorSales(v))+'</b></div><div><span>예상 차액</span><b>'+money(vendorSales(v)-poTotal(v))+'</b></div></div></div>'}).join('')+'</div><div class="panel pad" style="margin-top:20px"><div class="toolbar"><div><h3>'+esc(store.vendor)+' · 구매발주서 편집</h3><p class="muted small">'+(poMeta(store.vendor).confirmed?(current()?'확정 · 종료 후 수정 가능':'확정 · 읽기 전용'):poMeta(store.vendor).savedAt?'저장된 초안':'작성 중')+' · 집계와 발주서 차이 '+money(poTotal(store.vendor)-finance(demands().filter(p=>p.vendor===store.vendor).reduce((sum,p)=>sum+p.minimum*p.buy,0)))+'</p><p class="muted small">전화주문·추가 구매를 위해 품목, 수량, 단가, 소계를 직접 변경할 수 있습니다.</p></div><button class="btn primary" data-action="po-add">＋ 발주 품목 추가</button></div><div class="sheet" style="max-height:460px"><table style="min-width:900px"><colgroup><col style="width:210px"><col style="width:115px"><col style="width:110px"><col style="width:125px"><col style="width:125px"><col style="width:85px"></colgroup><thead><tr><th>품목 / 구분</th><th>발주수량</th><th>단위</th><th>매입단가 TTC</th><th>품목 소계 TTC</th><th>관리</th></tr></thead><tbody>'+makePO(store.vendor).map(p=>'<tr><td><input class="cell" value="'+esc(p.name)+'" data-po="'+esc(p.id)+'" data-key="name"><div class="muted tiny">'+(p.manual?'수동 추가':'주문 수량 '+p.ordered+'개 · '+p.per+'개/박스')+poWarning(p)+'</div></td><td><input type="number" min="0" step="1" class="cell" value="'+p.qty+'" data-po="'+p.id+'" data-key="qty"></td><td><select class="select" style="width:100%;padding:7px" data-po="'+p.id+'" data-key="unit">'+['박스','개','봉','세트'].map(u=>'<option '+(p.unit===u?'selected':'')+'>'+u+'</option>').join('')+'</select></td><td><input type="number" min="0" step="0.01" class="cell" value="'+p.price+'" data-po="'+p.id+'" data-key="price"></td><td><input type="number" min="0" step="0.01" class="cell" value="'+p.amount+'" data-po="'+p.id+'" data-key="amount"></td><td><button class="linkbtn" data-action="po-del" data-id="'+p.id+'">삭제</button></td></tr>').join('')+'</tbody></table></div><div class="summary-bar"><span><b>'+esc(store.vendor)+'</b> 총 발주금액 TTC</span><strong id="po-edit-total">'+money(poTotal(store.vendor))+'</strong></div><div class="actions" style="justify-content:flex-end"><button class="btn neutral" data-action="po-reset">자동 산출로 초기화</button><button class="btn neutral" data-action="po-settings">발주 정보 편집</button><button class="btn neutral" data-action="po-save">'+(current()&&poMeta(store.vendor).confirmed?'수정사항 저장':'발주서 초안 저장')+'</button>'+(poMeta(store.vendor).confirmed?'':'<button class="btn neutral" data-action="po-confirm">발주서 확정</button>')+'<button class="btn neutral" data-action="one-pdf">PDF</button><button class="btn neutral" data-action="one-excel">Excel</button><button class="btn primary" data-action="po-preview">구매발주서 미리보기</button></div></div>'+banner('고객 판매 실적과 발주서는 별도로 보존합니다. 구매발주서의 수동 변경이 고객 주문액이나 상품 원본을 수정하지 않습니다.')+'<div class="panel pad"><div class="toolbar"><div><h3>전체 업체 구매발주서</h3><p class="muted small">공급업체용 자료에는 고객정보와 판매금액이 포함되지 않습니다.</p></div><button class="btn neutral" data-action="all-po">전체 업체 검토</button><button class="btn neutral" data-action="all-pdf">전체 PDF</button><button class="btn neutral" data-action="all-excel">전체 Excel</button></div></div></section>'}
 function assertConfirmedScope(){if(store.settleScope!=='confirmed')throw new Error('발주서를 다운로드하려면 입금 확인 주문으로 전환해 주세요.');}
 function editablePO(vendor){return store.poDrafts[vendor]??=makePO(vendor);}
-function poChange(el){const p=editablePO(store.vendor).find(p=>p.id===el.dataset.po);if(!p)return;const k=el.dataset.key;let value=el.value;if(['qty','price','amount'].includes(k))value=Math.max(0,Number(value)||0);p[k]=value;if(k==='qty'||k==='price')p.amount=Math.round(p.qty*p.price*100)/100;if(k==='amount'&&p.qty>0)p.price=Math.round(p.amount/p.qty*10000)/10000;rerender();}
+function poChange(el){
+ const p=editablePO(store.vendor).find(p=>p.id===el.dataset.po);
+ if(!p)return;
+ const key=el.dataset.key;
+ const value=['qty','price','amount'].includes(key)?Math.max(0,Number(el.value)||0):el.value;
+ p[key]=value;
+ const row=el.closest('tr');
+ if(key==='qty'||key==='price'){
+  p.amount=finance(p.qty*p.price);
+  row.querySelector('[data-key=amount]').value=p.amount;
+ }else if(key==='amount'&&p.qty>0){
+  p.price=Math.round(p.amount/p.qty*10000)/10000;
+  row.querySelector('[data-key=price]').value=p.price;
+ }
+ $('#po-edit-total').textContent=money(poTotal(store.vendor));
+}
 function previewPO(v){let ps=makePO(v),meta=poMeta(v);modal('구매발주서 / Bon de commande',v,'<div class="po-preview"><div class="toolbar"><div><div class="brand" style="font-size:17px;color:var(--wine)">ASICC</div><p class="tiny muted">Association de la Section Internationale Coréenne à Courbevoie</p><p class="tiny">contact@asicc-parents.fr</p></div><div class="small" style="text-align:right">발주처: ASICC<br>공급업체: <b>'+esc(v)+'</b><br>발주번호: '+esc(meta.number)+'<br>발주일: '+esc(meta.date||'')+'</div></div><h2 style="margin-top:26px">BON DE COMMANDE<br><small style="font-size:12px;letter-spacing:0;font-weight:500">구매발주서</small></h2><p>'+metadata.slice(2).filter(([key])=>meta[key]).map(([key,label])=>esc(label)+': '+esc(meta[key])).join('<br>')+'</p><table><thead><tr><th>품목</th><th>수량</th><th>단위</th><th>매입 단가 TTC</th><th>합계 TTC</th></tr></thead><tbody>'+ps.map(p=>'<tr><td>'+esc(p.name)+'</td><td>'+p.qty+'</td><td>'+esc(p.unit)+'</td><td>'+money(p.price)+'</td><td><b>'+money(p.amount)+'</b></td></tr>').join('')+'</tbody></table><div class="summary-bar"><b>총 매입액 TTC</b><strong>'+money(poTotal(v))+'</strong></div><div class="notice">납품 주소·예정일·담당자·SIRET는 확인된 공식 정보로 실제 생성할 때 입력합니다.<br>공급업체용 문서에 고객 판매가격·협회 수익률·고객 개인정보를 포함하지 않습니다.</div></div>','<button class="btn neutral" data-action="close">수정 화면으로</button><button class="btn neutral" data-action="one-pdf">PDF 다운로드</button><button class="btn neutral" data-action="one-excel">Excel 다운로드</button>')}
 function addPOModal(){modal('발주 품목 추가',store.vendor+' · 수동 추가','<div class="form-grid"><label class="field wide">품목명<input id="po-new-name" placeholder="예: 추가 구매 김치"></label><label class="field">발주수량<input id="po-new-qty" type="number" min="1" value="1"></label><label class="field">단위<select id="po-new-unit"><option>박스</option><option>개</option><option>봉</option><option>세트</option></select></label><label class="field">매입 단가 TTC (€)<input id="po-new-price" type="number" min="0" step="0.01" value="0"></label></div>','<button class="btn neutral" data-action="close">취소</button><button class="btn primary" data-action="po-add-save">발주서에 추가</button>')}
 function rerender(){
@@ -170,8 +201,9 @@ function rerender(){
  if(page==='orders')renderOrders();
  if(page==='settlement')renderSettlement();
  if(page==='products'&&productView==='catalog')app.querySelectorAll('[data-key=boxes],[data-key=manualLimit],[data-key=limitMode]').forEach(el=>el.disabled=true);
- if(page==='products'&&current()&&productView!=='catalog'||page==='settlement'&&(!canReconcile()||store.settleScope!=='confirmed'||poMeta(store.vendor).confirmed)){
-  app.querySelectorAll(page==='products'?'[data-prod],[data-toggle],[data-po]':'[data-po]').forEach(el=>el.disabled=true);
+ if(page==='products'&&current()&&productView!=='catalog'||page==='settlement'&&!canEditPurchase()){
+  app.querySelectorAll(page==='products'?'[data-prod],[data-toggle]':
+   '[data-po],[data-action=po-add],[data-action=po-del],[data-action=po-reset],[data-action=po-settings],[data-action=po-save],[data-action=po-confirm]').forEach(el=>el.disabled=true);
  }
 }
 app.addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(!b)return;const a=b.dataset.action;
@@ -187,7 +219,7 @@ if(a==='save-product')run(b,saveProducts);
 if(a==='order-filter'){store.orderFilter=b.dataset.value;rerender();}if(a==='order-detail')orderModal(b.dataset.id);
 if(a==='confirm')void confirmOrder(b.dataset.id,b);
 if(a==='scope'){store.settleScope=b.dataset.value;rerender();}if(a==='vendor'){store.vendor=b.dataset.value;rerender();}if(a==='po-add')addPOModal();if(a==='po-del'){const ar=editablePO(store.vendor);if(confirm('발주서에서 해당 품목을 삭제할까요? 고객 주문 원본은 유지됩니다.')){const x=ar.findIndex(p=>p.id===b.dataset.id);if(x>=0)ar.splice(x,1);rerender();}}
-if(a==='po-reset'){if(confirm('이 업체 발주서의 수동 변경을 초기화할까요?')){delete store.poDrafts[store.vendor];rerender();}}
+if(a==='po-reset'){if(confirm('이 업체 발주서의 수동 변경을 초기화할까요?')){delete store.poDrafts[store.vendor];editablePO(store.vendor);rerender();}}
 if(a==='po-preview')previewPO(store.vendor);if(a==='all-po')modal('전체 업체 구매발주서 검토','업체별 구매발주서 분리 작성',vendors().map(v=>'<div class="modal-row"><b>'+esc(v)+'</b><span>'+money(poTotal(v))+'</span><button class="linkbtn" data-action="show-po" data-value="'+esc(v)+'">미리보기</button></div>').join(''),'<button class="btn neutral" data-action="close">닫기</button>');
 });
 $('#modal').addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(!b)return;const a=b.dataset.action;
@@ -198,7 +230,7 @@ if(a==='import-apply'){let ids=[...document.querySelectorAll('[data-import]:chec
 if(a==='po-add-save'){const name=$('#po-new-name').value.trim(),qty=Number($('#po-new-qty').value),price=Number($('#po-new-price').value);if(!name||!(qty>0)||!(price>=0)){alert('품목명·수량·단가를 확인해 주세요.');return}editablePO(store.vendor).push({id:newId(),name,ordered:0,per:0,qty,unit:$('#po-new-unit').value,price,amount:Math.round(qty*price*100)/100,manual:true});closeModal();rerender();}
 if(a==='show-po'){store.vendor=b.dataset.value;previewPO(store.vendor);}
 });
-app.addEventListener('change',e=>{const el=e.target;if(page==='products'&&current()&&productView!=='catalog'||page==='settlement'&&(!canReconcile()||store.settleScope!=='confirmed'||poMeta(store.vendor).confirmed))return;if(el.dataset.prod){productChange(el);return}if(el.dataset.toggle){let p=store.products.find(p=>p.id===el.dataset.toggle);if(p)p.active=el.checked;return}if(el.dataset.po){poChange(el);return}if(el.id==='order-sort'){store.orderSort=el.value;rerender();return}});
+app.addEventListener('change',e=>{const el=e.target;if(page==='products'&&current()&&productView!=='catalog'||page==='settlement'&&!canEditPurchase())return;if(el.dataset.prod){productChange(el);return}if(el.dataset.toggle){let p=store.products.find(p=>p.id===el.dataset.toggle);if(p)p.active=el.checked;return}if(el.dataset.po){poChange(el);return}if(el.id==='order-sort'){store.orderSort=el.value;rerender();return}});
 app.addEventListener('input',e=>{const el=e.target;if(el.id==='product-search'){productFilter=el.value;const pos=el.selectionStart;rerender();const n=$('#product-search');n.focus();n.setSelectionRange(pos,pos)}if(el.id==='order-search'){store.search=el.value;const pos=el.selectionStart;rerender();const n=$('#order-search');n.focus();n.setSelectionRange(pos,pos)}});
 function quantityByUnit(lines){
  const totals=new Map();
@@ -334,10 +366,12 @@ async function saveProductDetail(id){
 }
 async function savePurchase(confirmOrder){
  assertConfirmedScope();
+ const isClosed=current();
+ if(isClosed&&!confirm(closedPurchaseWarning+'\n\n변경사항을 저장할까요?'))return;
  const vendor=store.vendor,meta=poMeta(vendor);
  const lines=makePO(vendor).map(({price,amount,...row})=>({...row,priceCents:Math.round(price*100),amountCents:Math.round(amount*100)}));
  const result=await request('savePurchaseOrder',{
-  eventId:selectedEvent().id,vendor,lines,info:meta,revision:meta.revision??0,confirm:confirmOrder,
+  eventId:selectedEvent().id,vendor,lines,info:meta,revision:meta.revision??0,confirm:confirmOrder,confirmClosedEdit:isClosed,
  });
  Object.assign(meta,{confirmed:result.confirmed,revision:result.revision,savedAt:result.updatedAt});
  rerender();
@@ -367,15 +401,16 @@ function handleScreenAction(action,button){
  }
  const readonlyActions=['add-product','delete-product','save-product','edit-product','import'];
  if(current()&&productView!=='catalog'&&readonlyActions.includes(action))return true;
- const poActions=['po-add','po-del','po-reset','po-settings','po-save','po-confirm'];
- if(poActions.includes(action)){
-  if(poMeta(store.vendor).confirmed||!canReconcile())return true;
-  if(store.settleScope!=='confirmed'){alert('발주서를 수정하려면 입금 확인 주문으로 전환해 주세요.');return true;}
+ if(action==='po-new-vendor'){
+  if(current()&&canEditPurchase())addPurchaseVendor();
+  return true;
  }
+ const poActions=['po-add','po-del','po-reset','po-settings','po-save','po-confirm'];
+ if(poActions.includes(action)&&!canEditPurchase())return true;
  if(action==='po-settings'){poSettings();return true;}
  if(action==='po-save'){run(button,()=>savePurchase(false));return true;}
  if(action==='po-confirm'){
-  if(confirm('발주서를 확정할까요? 확정한 발주서는 다시 수정할 수 없습니다.'))
+  if(current()||confirm('발주서를 확정할까요? 진행 중에는 확정한 발주서를 수정할 수 없습니다.'))
    run(button,()=>savePurchase(true));
   return true;
  }
@@ -419,8 +454,16 @@ function handleModalAction(action,button){
   });
   return true;
  }
+ if(action==='po-vendor-save'){
+  if(!current()||!canEditPurchase())return true;
+  const vendor=$('#po-vendor-name').value.trim();
+  if(!vendor){alert('공급업체명을 입력해 주세요.');return true;}
+  if(!vendors().includes(vendor))store.poDrafts[vendor]=[];
+  store.vendor=vendor;
+  closeModal();rerender();return true;
+ }
  if(action==='save-meta'){
-  if(canReconcile()&&!poMeta(store.vendor).confirmed)
+  if(canEditPurchase())
    for(const [key] of metadata)poMeta(store.vendor)[key]=$('#meta-'+key).value;
   closeModal();rerender();return true;
  }
@@ -434,7 +477,7 @@ function handleModalAction(action,button){
  }
  if(['all-pdf','all-excel','one-pdf','one-excel'].includes(action)){run(button,async()=>{assertConfirmedScope();exportAction(action);});return true;}
  if(current()&&productView!=='catalog'&&['save-product-detail','import-apply'].includes(action))return true;
- if(action==='po-add-save'&&!canReconcile())return true;
+ if(action==='po-add-save'&&!canEditPurchase())return true;
  return false;
 }
 
