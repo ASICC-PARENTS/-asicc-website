@@ -13,7 +13,7 @@ if (!/^(localhost|127\.0\.0\.1):\d+$/.test(process.env.FIREBASE_STORAGE_EMULATOR
   throw new Error('Run this test in the local Storage emulator.');
 }
 initializeApp({ projectId, storageBucket: 'demo-asicc-bazaar.appspot.com' });
-const { bazaarAdmin, bazaarCreateOrder, bazaarPublic } = await import('../index.mjs');
+const { bazaarAdmin, bazaarBuyerAction, bazaarCreateOrder, bazaarPublic, bazaarReminders } = await import('../index.mjs');
 const db = getFirestore();
 const { message } = await import('../bazaar/index.mjs');
 after(() => deleteApp(getApp()));
@@ -153,4 +153,61 @@ test('administrators can publish a draft and close it without losing history or 
   assert.ok(prior.bankConfirmedAt);
   assert.equal(prior.buyerToken,undefined);
   assert.equal(historical.orders.find(item=>item.id===noted.id).pickupNote,pickupNote);
+
+  const baseCatalog = await call('getCatalog');
+  const newCatalog = await call('saveCatalog',{
+    revision:baseCatalog.revision,items:baseCatalog.items.map(p=>({...p,titleKo:'기본 상품'})),
+  });
+  await assert.rejects(call('saveCatalog',baseCatalog,otherStaff),failure);
+  assert.equal((await call('getCatalog')).items[0].titleKo,'기본 상품');
+  assert.equal((await shop(draft.id)).products[0].titleKo,'현재 행사 상품');
+  const loadedDraft=(await call('createDraft')).draft;
+  assert.equal(loadedDraft.items[0].titleKo,'기본 상품');
+  const copiedSave=await call('saveDraft',{id:loadedDraft.id,updatedAt:loadedDraft.updatedAt,
+    event:loadedDraft.event,items:loadedDraft.items});
+  const storedCopy=(await call('getDraft',{id:loadedDraft.id})).draft;
+  assert.equal(storedCopy.updatedAt,copiedSave.updatedAt);
+  const storedProduct=storedCopy.items.find(item=>item.id===productId);
+  assert.match(storedProduct.photoPath,new RegExp(`^bazaar-photos/${loadedDraft.id}/`));
+  assert.equal((await bucket.file(storedProduct.photoPath).download())[0].toString('base64'),originalBytes);
+
+  const edits={eventId:draft.id,revision:current.event.productRevision,
+    items:current.products.map(p=>({...p,titleKo:'행사 상품만 변경'}))};
+  await assert.rejects(call('saveEventProducts',{...edits,eventId},otherStaff),failure);
+  await call('saveEventProducts',edits);
+  await assert.rejects(call('saveEventProducts',edits,otherStaff),failure);
+  assert.equal((await call('getCatalog')).revision,newCatalog.revision);
+  assert.equal((await call('getCatalog')).items[0].titleKo,'기본 상품');
+  assert.equal((await call('dashboard',{eventId})).products[0].retailCents,450);
+
+  const purchase={eventId:draft.id,vendor:'누리커넥트',revision:0,info:{date:'2026-11-27',number:'TEST-PO-1'},
+    lines:[{id:productId,name:'상품',unit:'박스',qty:2,priceCents:700,amountCents:1400,ordered:13,per:12}]};
+  const savedPurchase=await call('savePurchaseOrder',purchase);
+  await assert.rejects(call('savePurchaseOrder',purchase,otherStaff),failure);
+  const confirmed=await call('savePurchaseOrder',{...purchase,revision:savedPurchase.revision,confirm:true});
+  await assert.rejects(call('savePurchaseOrder',{...purchase,revision:confirmed.revision}),failure);
+  assert.deepEqual((await call('listPurchaseOrders',{eventId:draft.id})).documents.map(d=>d.confirmed),[true]);
+
+  await assert.rejects(call('finalizeUnpaid',{eventId:draft.id,confirm:false}),{code:'invalid-argument'});
+  await assert.rejects(call('finalizeUnpaid',{eventId:draft.id,confirm:true}),{code:'invalid-argument'});
+  delete process.env.BAZAAR_SMTP_HOST;
+  const place=()=>bazaarCreateOrder.run({data:{...buyer,eventId:draft.id,requestId:fresh(),
+    items:[{id:productId,qty:2,priceCents:650}]}});
+  const paid=await place(), unpaid=await place();
+  await bazaarBuyerAction.run({data:{id:unpaid.id,token:unpaid.token,action:'report'}});
+  await call('bankConfirm',{id:paid.id,eventId:draft.id});
+  await db.doc('bazaarMeta/event').update({
+    orderCutoff:'2026-01-02T11:00:00.000Z',transferCutoff:'2026-01-02T17:00:00.000Z',
+    finalizeNotBefore:'2026-01-05T08:00:00.000Z',
+  });
+  await bazaarReminders.run({});
+  assert.equal((await db.doc(`bazaarOrders/${unpaid.id}`).get()).data().canceledAt,null);
+  const final=await call('finalizeUnpaid',{eventId:draft.id,confirm:true});
+  assert.equal(final.canceled,1);
+  assert.equal((await db.doc(`bazaarOrders/${unpaid.id}`).get()).data().cancelReason,'unpaidFinalization');
+  assert.equal((await db.doc(`bazaarOrders/${paid.id}`).get()).data().canceledAt,null);
+  assert.equal((await call('finalizeUnpaid',{eventId:draft.id,confirm:true})).canceled,0);
+  assert.equal((await call('listPurchaseOrders',{eventId:draft.id})).documents[0].confirmed,true);
+
+
 });

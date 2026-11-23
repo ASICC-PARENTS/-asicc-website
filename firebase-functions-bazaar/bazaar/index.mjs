@@ -17,6 +17,56 @@ const orders=db.collection('bazaarOrders');
 const outbox=db.collection('bazaarOutbox');
 const eventArchives=db.collection('bazaarEvents');
 const eventDrafts=db.collection('bazaarDrafts');
+const catalogRef=db.doc('bazaarMeta/baseCatalog');
+const purchaseOrders=db.collection('bazaarPurchaseOrders');
+const catalogPhotoScope='base-catalog';
+function catalogItems(rows){
+  return rows.map(({soldQty,bazaarEventId,plannedBoxes,manualLimit,limitMode,...p})=>p)
+    .sort((a,b)=>a.displayOrder-b.displayOrder);
+}
+function catalogSnapshot(products){
+  return catalogItems(products.empty?catalogue:snapshotProducts(products));
+}
+function initializeCatalog(tx, products){
+  const items=catalogSnapshot(products);
+  if(Buffer.byteLength(JSON.stringify(items))>800000)bad('기본 상품 정보가 너무 많습니다.');
+  tx.create(catalogRef,{revision:1,items,updatedAt:now()});
+}
+function normalizeCatalog(rows){
+  if(!Array.isArray(rows)||rows.length>70)bad('기본 상품 목록을 확인해 주세요.');
+  const ids=new Set();
+  return rows.map((item,index)=>{
+    const id=s(item.id);
+    if(!productIdValid(id)||ids.has(id))bad('기본 상품 ID가 올바르지 않습니다.');
+    ids.add(id);
+    const p=validateProduct({...item,imageUrl:item.photoPath?'':item.imageUrl,limitMode:'unlimited',visible:false},{soldQty:0});
+    return {...catalogItems([p])[0],id,visible:item.visible===true,displayOrder:index+1,
+      photoPath:s(item.photoPath),archivedAt:null};
+  });
+}
+async function copyProductPhoto(eventId,id,product){
+  if(!product.photoPath||typeof product.photoPath!=='string'||product.photoPath.startsWith(`bazaar-photos/${eventId}/${id}/`))
+    return eventPhoto(eventId,id,product);
+  if(product.photoPath.split('/')[2]!==id)bad('선택한 상품의 사진을 확인해 주세요.');
+  try{return await storePhoto(eventId,id,{sourcePath:product.photoPath});}
+  catch{throw new HttpsError('failed-precondition','행사 사진을 복사하지 못했습니다. 원본 사진과 행사 자료는 유지됩니다.');}
+}
+function normalizePurchase(data){
+  const vendor=s(data.vendor);
+  if(!vendor||vendor.length>120||!Array.isArray(data.lines)||data.lines.length>100)bad('발주서 정보를 확인해 주세요.');
+  const lines=data.lines.map(line=>{
+    const name=s(line.name),unit=s(line.unit);
+    if(!name||name.length>200||!['박스','개','봉','세트'].includes(unit)
+      ||!Number.isSafeInteger(line.qty)||line.qty<0||line.qty>10000
+      ||!cents(line.priceCents)||!cents(line.amountCents))bad('발주 품목·단위를 확인해 주세요.');
+    return {id:s(line.id).slice(0,70),name,unit,qty:line.qty,priceCents:line.priceCents,
+      amountCents:line.amountCents,manual:line.manual===true,ordered:Number.isSafeInteger(line.ordered)?line.ordered:0,
+      per:Number.isSafeInteger(line.per)?line.per:0};
+  });
+  const keys=['number','date','contact','email','deliveryDate','location','notes','owner'];
+  const info=Object.fromEntries(keys.map(key=>[key,s(data.info?.[key]).slice(0,key==='notes'?2000:200)]));
+  return {vendor,lines,info};
+}
 const allowed=['https://asicc-parents.fr','https://www.asicc-parents.fr','http://localhost:4321','http://127.0.0.1:4321'];
 const options={cors:allowed,region:'europe-west1',maxInstances:15};
 const s=x=>typeof x==='string'?x.trim():'';
@@ -73,7 +123,8 @@ async function queue(tx,orderId,type,extra={}){
   return id;
 }
 function links(order){
-  const base=`https://asicc-parents.fr/${order.lang==='fr'?'fr':'ko'}/bazaar/commande/`;
+  const origin=process.env.FUNCTIONS_EMULATOR==='true'?'http://127.0.0.1:4321':'https://asicc-parents.fr';
+  const base=`${origin}/${order.lang==='fr'?'fr':'ko'}/bazaar/commande/`;
   return `${base}?id=${encodeURIComponent(order.id)}&token=${encodeURIComponent(order.buyerToken)}`;
 }
 export function message(order,type,event){
@@ -237,10 +288,101 @@ export const bazaarAdmin=onCall({...options,secrets:[smtpPassword]},async req=>{
       throw new HttpsError('failed-precondition','현재 행사가 변경되어 저장하지 못했습니다. 행사 목록에서 다시 확인해 주세요.');
     }
   };
+  if(op==='getCatalog'){
+    const [saved,legacy]=await Promise.all([catalogRef.get(),products.get()]);
+    return saved.exists?saved.data():{revision:0,items:catalogSnapshot(legacy)};
+  }
+  if(op==='saveCatalog'){
+    const items=await Promise.all(normalizeCatalog(data.items).map(async item=>{
+      if(item.photoPath&&!item.photoPath.startsWith(`bazaar-photos/${catalogPhotoScope}/${item.id}/`)){
+        const photo=await storePhoto(catalogPhotoScope,item.id,{sourcePath:item.photoPath});
+        return {...item,...photo};
+      }
+      return item.photoPath?{...item,...await eventPhoto(catalogPhotoScope,item.id,item)}:item;
+    }));
+    if(Buffer.byteLength(JSON.stringify(items))>800000)bad('기본 상품 정보가 너무 많습니다.');
+    return db.runTransaction(async tx=>{
+      const snapshot=await tx.get(catalogRef);
+      const revision=snapshot.data()?.revision??0;
+      if(revision!==data.revision)throw new HttpsError('failed-precondition','기본 목록이 변경됐습니다. 다시 불러와 주세요.');
+      tx.set(catalogRef,{revision:revision+1,items,updatedAt:now()});
+      return {revision:revision+1,items};
+    });
+  }
+  if(op==='listPurchaseOrders'||op==='savePurchaseOrder'){
+    const eventId=s(data.eventId);
+    if(!validEventId(eventId))bad('행사 주소를 확인해 주세요.');
+    if(op==='listPurchaseOrders'){
+      const result=await purchaseOrders.where('eventId','==',eventId).get();
+      return {documents:result.docs.map(doc=>doc.data())};
+    }
+    const document=normalizePurchase(data);
+    if(data.confirm===true&&(!document.lines.length||!document.info.number||!document.info.date))
+      bad('발주번호, 발주일과 품목을 확인해 주세요.');
+    const ref=purchaseOrders.doc(createHash('sha256').update(JSON.stringify([eventId,document.vendor])).digest('hex'));
+    return db.runTransaction(async tx=>{
+      const [active,previous]=await Promise.all([tx.get(eventRef),tx.get(ref)]);
+      if(active.data()?.eventId!==eventId)throw new HttpsError('failed-precondition','현재 행사에만 발주서를 저장할 수 있습니다.');
+      const old=previous.data();
+      if(old?.confirmed||(old?.revision??0)!==data.revision)
+        throw new HttpsError('failed-precondition','이미 확정됐거나 변경된 발주서입니다. 다시 불러와 주세요.');
+      const result={...document,eventId,revision:(old?.revision??0)+1,
+        confirmed:data.confirm===true,updatedAt:now(),updatedBy:req.auth.uid};
+      tx.set(ref,result);
+      return result;
+    });
+  }
+  if(op==='saveEventProducts'){
+    if(!Array.isArray(data.items)||data.items.length>70)bad('행사 상품 목록을 확인해 주세요.');
+    const ids=data.items.map(p=>s(p.id));
+    if(new Set(ids).size!==ids.length||ids.some(id=>!productIdValid(id)))bad('상품 ID를 확인해 주세요.');
+    requireCurrentEvent((await eventRef.get()).data());
+    const photos=await Promise.all(data.items.map(p=>copyProductPhoto(data.eventId,p.id,p)));
+    return db.runTransaction(async tx=>{
+      const [active,result,base]=await Promise.all([tx.get(eventRef),tx.get(products),tx.get(catalogRef)]);
+      requireCurrentEvent(active.data());
+      const revision=active.data().productRevision??0;
+      if(data.revision!==revision)throw new HttpsError('failed-precondition','상품이 변경됐습니다. 다시 불러와 주세요.');
+      const previous=new Map(result.docs.map(doc=>[doc.id,doc]));
+      if(new Set([...previous.keys(),...ids]).size>70)bad('상품 수가 많습니다.');
+      if(!base.exists)initializeCatalog(tx,result);
+      for(const doc of result.docs){if(!ids.includes(doc.id))tx.update(doc.ref,{visible:false,archivedAt:now()});}
+      data.items.forEach((item,index)=>{
+        const doc=previous.get(item.id);
+        const wasInEvent=!active.data().scopedProducts||doc?.data()?.bazaarEventId===data.eventId;
+        const old=(wasInEvent&&doc?.data())||{soldQty:0};
+        const p=validateProduct({...item,imageUrl:item.photoPath?'':item.imageUrl},old);
+        tx.set(products.doc(item.id),{...old,...p,...photos[index],displayOrder:index+1,
+          bazaarEventId:data.eventId,archivedAt:null});
+      });
+      tx.update(eventRef,{productRevision:revision+1});
+      return {revision:revision+1};
+    });
+  }
+  if(op==='cancelOrder'){
+    const id=s(data.id);
+    if(!/^[A-Za-z0-9]{15,40}$/.test(id)||data.confirm!==true)bad('취소할 주문을 확인해 주세요.');
+    const mailId=await db.runTransaction(async tx=>{
+      const ref=orders.doc(id);
+      const [active,snapshot]=await Promise.all([tx.get(eventRef),tx.get(ref)]);
+      const order=snapshot.data();
+      if(!order||active.data()?.eventId!==data.eventId||order.eventId!==data.eventId||order.bankConfirmedAt)
+        throw new HttpsError('failed-precondition','현재 행사의 미입금 주문만 취소할 수 있습니다.');
+      if(order.canceledAt)return null;
+      const stock=await Promise.all(order.items.map(item=>tx.get(products.doc(item.id))));
+      stock.forEach((doc,i)=>{if(doc.exists)tx.update(doc.ref,{soldQty:FieldValue.increment(-order.items[i].qty)});});
+      tx.update(ref,{canceledAt:now(),cancelReason:'admin'});
+      return queue(tx,id,'cancel');
+    });
+    if(mailId)await deliver(mailId).catch(error=>console.error('Bazaar cancellation delivery failed',error));
+    return {ok:true};
+  }
   if(op==='storePhoto'){
     const eventId=s(data.eventId),id=s(data.id);
     if(!validEventId(eventId)||!productIdValid(id))bad('행사와 상품을 확인해 주세요.');
-    if(data.draft===true){
+    if(data.catalog===true){
+      if(eventId!==catalogPhotoScope||data.sourcePath)bad('기본 상품 사진 요청을 확인해 주세요.');
+    }else if(data.draft===true){
       const draft=(await eventDrafts.doc(eventId).get()).data();
       if(!draft||draft.updatedAt!==data.updatedAt)throw new HttpsError('failed-precondition','초안이 변경되었습니다. 다시 불러와 주세요.');
     }else{
@@ -300,7 +442,8 @@ export const bazaarAdmin=onCall({...options,secrets:[smtpPassword]},async req=>{
     return{events:events.sort((a,b)=>b.serial-a.serial||b.createdAt.localeCompare(a.createdAt)),drafts:drafts.docs.map(d=>({id:d.id,nameKo:d.data().event?.nameKo||'임시저장',serial:d.data().serial||0,updatedAt:d.data().updatedAt||''}))};
   }
   if(op==='createDraft'){
-    const [cur,ps,archives,existingDrafts]=await Promise.all([eventRef.get(),products.get(),eventArchives.get(),eventDrafts.get()]);
+    const [cur,ps,archives,existingDrafts,base]=await Promise.all([eventRef.get(),products.get(),eventArchives.get(),eventDrafts.get(),catalogRef.get()]);
+    const items=base.exists?base.data().items.map(p=>({...p,limitMode:'unlimited',plannedBoxes:null,manualLimit:null})):ps.empty?catalogue:snapshotProducts(ps);
     if(existingDrafts.size>=10)throw new HttpsError('resource-exhausted','임시저장 바자회가 너무 많습니다.');
     if(ps.size>70)throw new HttpsError('failed-precondition','상품이 70개를 초과하여 별도 저장 구조가 필요합니다.');
     const prev=cur.exists?cur.data():initialEvent;
@@ -308,7 +451,7 @@ export const bazaarAdmin=onCall({...options,secrets:[smtpPassword]},async req=>{
     const freshFirst=prev.status==='draft'&&!prev.publishedAt&&existingDrafts.empty;
     const serial=freshFirst?(prev.serial||1):maxSerial+1;
     const id=`bazaar-${Date.now()}-${randomBytes(6).toString('hex')}`;
-    const draft={id,serial,status:'draft',createdAt:now(),updatedAt:now(),event:{...prev,eventId:id,serial,nameKo:`${serial}차 ASICC 온라인 바자회`,nameFr:`Vente solidaire ASICC n°${serial}`,orderCutoff:'',transferCutoff:'',pickupKo:'',pickupFr:'',finalizedAt:null,endedAt:null,publishedAt:null,createdAt:now(),status:'draft'},items:ps.docs.map(d=>({...d.data(),id:d.id,included:!d.data().archivedAt&&d.data().visible===true,soldQty:0})).sort((a,b)=>a.displayOrder-b.displayOrder)};
+    const draft={id,serial,status:'draft',createdAt:now(),updatedAt:now(),event:{...prev,eventId:id,serial,nameKo:`${serial}차 ASICC 온라인 바자회`,nameFr:`Vente solidaire ASICC n°${serial}`,orderCutoff:'',transferCutoff:'',pickupKo:'',pickupFr:'',finalizedAt:null,endedAt:null,publishedAt:null,createdAt:now(),status:'draft'},items:items.map(p=>({...p,included:!p.archivedAt&&p.visible===true,soldQty:0})).sort((a,b)=>a.displayOrder-b.displayOrder)};
     await eventDrafts.doc(id).create(draft);
     return{draft};
   }
@@ -325,12 +468,13 @@ export const bazaarAdmin=onCall({...options,secrets:[smtpPassword]},async req=>{
     if(!Array.isArray(data.items)||data.items.length>70)bad('상품 목록을 확인해 주세요.');
     const ids=data.items.map(x=>s(x?.id));if(new Set(ids).size!==ids.length||ids.some(x=>!/^[a-z0-9-]{2,50}$/.test(x)))bad('중복되거나 잘못된 상품 ID가 있습니다.');
     const previousItems=new Map(snap.data().items.map(item=>[item.id,item]));
+    const baseIds=new Set(((await catalogRef.get()).data()?.items??[]).map(p=>p.id));
     const items=await Promise.all(data.items.map(async (item,i)=>{
       const previous=previousItems.get(ids[i]);
-      if(!previous&&!/^custom-[a-f0-9]{32}$/.test(ids[i]))bad('초안의 상품 ID를 확인해 주세요.');
+      if(!previous&&!/^custom-[a-f0-9]{32}$/.test(ids[i])&&!baseIds.has(ids[i]))bad('초안의 상품 ID를 확인해 주세요.');
       const included=item.included===true;
       const checked=validateProduct({...item,imageUrl:item.photoPath?'':item.imageUrl,visible:false},{soldQty:0});
-      const photo=await eventPhoto(id,ids[i],item);
+      const photo=await copyProductPhoto(id,ids[i],item);
       return{...checked,...photo,visible:included,id:ids[i],included,displayOrder:i+1,
         soldQty:0,archivedAt:included?null:(previous?.archivedAt||null)};
     }));
@@ -375,7 +519,7 @@ export const bazaarAdmin=onCall({...options,secrets:[smtpPassword]},async req=>{
       if(!/^FR\d{2}[A-Z0-9]{23}$/.test(s(e.iban))||!e.beneficiary||!e.pickupKo||!e.pickupFr)bad('IBAN, 수취인과 픽업 안내를 모두 입력해 주세요.');
       if(!draft.items.some(p=>p.included))bad('판매할 상품을 하나 이상 선택해 주세요.');
       if(draft.items.some(p=>p.included&&(p.retailCents==null||p.archivedAt)))bad('선택한 상품의 판매가격을 모두 확정해 주세요.');
-      const [old,ps]=await Promise.all([tx.get(eventRef),tx.get(products)]);
+      const [old,ps,base]=await Promise.all([tx.get(eventRef),tx.get(products),tx.get(catalogRef)]);
       const previous=old.data();
       if(previous?.status==='published'&&!previous.finalizedAt){
         throw new HttpsError('failed-precondition','진행 중인 바자회를 먼저 종료해 주세요.');
@@ -393,6 +537,7 @@ export const bazaarAdmin=onCall({...options,secrets:[smtpPassword]},async req=>{
         const archive=eventArchives.doc(previous.eventId);
         if(!(await tx.get(archive)).exists)archiveEvent(tx,archive,previous,ps,now());
       }
+      if(!base.exists)initializeCatalog(tx,ps);
       const byId=new Map(draft.items.map(p=>[p.id,p]));
       const catalogueIds=new Set(ps.docs.map(p=>p.id));
       if(new Set([...catalogueIds,...byId.keys()]).size>70)bad('상품 수가 많습니다.');
@@ -404,7 +549,7 @@ export const bazaarAdmin=onCall({...options,secrets:[smtpPassword]},async req=>{
         tx.set(products.doc(productId),{...fields,bazaarEventId:id,visible:included&&!item.archivedAt,soldQty:0});
       }
       tx.set(eventRef,{...e,status:'published',publishedAt:now(),endedAt:null,finalizedAt:null,
-        scopedProducts:true,reconciliationStartedAt:null,reconciledAt:null,finalizeNotBefore:new Date(Date.parse(e.orderCutoff)+69*3600000).toISOString()});
+        scopedProducts:true,productRevision:0,reconciliationStartedAt:null,reconciledAt:null,finalizeNotBefore:new Date(Date.parse(e.orderCutoff)+69*3600000).toISOString()});
       tx.delete(snap.ref);
       return{ok:true,eventId:id};
     });
@@ -428,6 +573,7 @@ export const bazaarAdmin=onCall({...options,secrets:[smtpPassword]},async req=>{
       const snapshot=await tx.get(products);
       if(snapshot.size>=70)bad('상품 수가 많습니다.');
       tx.create(products.doc(id),{...checked,...photo,bazaarEventId:data.eventId,displayOrder:snapshot.size+1,soldQty:0,archivedAt:null,createdAt:now()});
+      tx.update(eventRef,{productRevision:FieldValue.increment(1)});
     });
     return{ok:true,id};
   }
@@ -439,6 +585,7 @@ export const bazaarAdmin=onCall({...options,secrets:[smtpPassword]},async req=>{
       const doc=await tx.get(ref);
       if(!doc.exists)throw new HttpsError('not-found','상품을 찾을 수 없습니다.');
       tx.update(ref,{archivedAt:data.archive===true?now():null,visible:false});
+      tx.update(eventRef,{productRevision:FieldValue.increment(1)});
     });
     return{ok:true};
   }
@@ -452,6 +599,7 @@ export const bazaarAdmin=onCall({...options,secrets:[smtpPassword]},async req=>{
       const ref=products.doc(id),d=await tx.get(ref);
       if(!d.exists)throw new HttpsError('not-found','상품을 찾을 수 없습니다.');
       tx.update(ref,{...validateProduct({...data.product,imageUrl:data.product?.photoPath?'':data.product?.imageUrl},d.data()),...photo,bazaarEventId:data.eventId});
+      tx.update(eventRef,{productRevision:FieldValue.increment(1)});
     });return{ok:true};
   }
   if(op==='reorder'){
@@ -462,6 +610,7 @@ export const bazaarAdmin=onCall({...options,secrets:[smtpPassword]},async req=>{
       const ps=await tx.get(products);
       if(ids.length!==ps.size||ps.docs.some(d=>!ids.includes(d.id)))bad('상품 목록이 변경되었습니다. 다시 불러와 주세요.');
       ids.forEach((id,i)=>tx.update(products.doc(id),{displayOrder:i+1}));
+      tx.update(eventRef,{productRevision:FieldValue.increment(1)});
     });
     return{ok:true};
   }
@@ -481,7 +630,9 @@ export const bazaarAdmin=onCall({...options,secrets:[smtpPassword]},async req=>{
     if(!/^[A-Za-z0-9]{15,40}$/.test(orderId))bad('주문 번호를 확인해 주세요.');
     const ref=orders.doc(orderId);let mailId=null;
     await db.runTransaction(async tx=>{
-      const snap=await tx.get(ref);
+      const [snap,active]=await Promise.all([tx.get(ref),data.eventId?tx.get(eventRef):null]);
+      if(data.eventId&&(active?.data()?.eventId!==data.eventId||snap.data()?.eventId!==data.eventId))
+        throw new HttpsError('failed-precondition','선택한 행사와 주문을 다시 확인해 주세요.');
       if(!snap.exists)throw new HttpsError('not-found','주문을 찾을 수 없습니다.');
       const o=snap.data();if(o.canceledAt)throw new HttpsError('failed-precondition','취소된 주문은 확인할 수 없습니다.');
       if(!o.bankConfirmedAt){tx.update(ref,{bankConfirmedAt:now()});mailId=await queue(tx,o.id,'confirmed');}

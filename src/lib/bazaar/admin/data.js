@@ -1,0 +1,54 @@
+const storageLabels = {ambient:'상온', chilled:'냉장', frozen:'냉동'};
+const storageValues = Object.fromEntries(Object.entries(storageLabels).map(([key,value])=>[value,key]));
+const paris = new Intl.DateTimeFormat('sv-SE',{
+  timeZone:'Europe/Paris', year:'numeric', month:'2-digit', day:'2-digit',
+  hour:'2-digit', minute:'2-digit', hourCycle:'h23',
+});
+const local = value => value ? paris.format(new Date(value)).replace(' ','T') : '';
+export function parisToIso(value) {
+  if (!value) return '';
+  const time = Date.parse(value+'Z');
+  const candidates = [1,2].map(offset=>new Date(time-offset*3600000)).filter(date=>local(date)===value);
+  if (candidates.length!==1) throw new Error('프랑스 현지시간으로 확정할 수 없는 시각입니다. 다른 시각을 선택하세요.');
+  return candidates[0].toISOString();
+}
+export function productViewModel(p) {
+  return {
+    id:p.id, ko:p.titleKo, fr:p.titleFr, koDesc:p.descriptionKo, frDesc:p.descriptionFr,
+    vendor:p.supplier, photo:p.imageUrl||'', photoPath:p.photoPath||'', emoji:'📦',
+    buy:p.boxPriceTtcCents/100, originalBuy:p.boxPriceTtcCents/100, boxHt:p.boxPriceHtCents??null,
+    sale:p.retailCents==null?'':p.retailCents/100, pack:p.packQty,
+    storage:storageLabels[p.storage]||p.storage,
+    boxes:p.plannedBoxes??'', limitMode:p.limitMode==='box'?'auto':p.limitMode||'unlimited',
+    manualLimit:p.manualLimit??'', active:p.included??(p.visible&&!p.archivedAt),
+  };
+}
+export function productPayload(p) {
+  return {
+    id:p.id, titleKo:p.ko, titleFr:p.fr, descriptionKo:p.koDesc, descriptionFr:p.frDesc,
+    supplier:p.vendor, imageUrl:p.photo, photoPath:p.photoPath, packQty:Number(p.pack),
+    storage:storageValues[p.storage]||p.storage||'ambient',
+    boxPriceTtcCents:Math.round(p.buy*100), boxPriceHtCents:p.buy===p.originalBuy?p.boxHt:null,
+    retailCents:p.sale===''?null:Math.round(p.sale*100), plannedBoxes:p.boxes===''?null:Number(p.boxes),
+    manualLimit:p.manualLimit===''?null:Number(p.manualLimit), limitMode:p.limitMode==='auto'?'box':p.limitMode,
+    included:p.active, visible:p.active,
+  };
+}
+export function eventViewModel(event, items=[], orders=[]) {
+  const products = items.map(productViewModel);
+  return {
+    id:event.eventId, name:event.nameKo, round:event.serial, raw:event, products,
+    status:event.status==='published'?'active':event.status==='closed'?'past':'draft',
+    orderDeadline:local(event.orderCutoff), transferDeadline:local(event.transferCutoff),
+    pickupKo:event.pickupKo, pickupFr:event.pickupFr,
+    orders:orders.map(order=>({
+      id:order.id, ref:order.orderRef, name:order.name, email:order.email, phone:order.phone,
+      memo:order.pickupNote||'', date:local(order.createdAt).replace('T',' '),
+      reportedAt:local(order.transferReportedAt).replace('T',' '),
+      verifiedAt:local(order.bankConfirmedAt).replace('T',' '),
+      status:order.canceledAt?'canceled':order.bankConfirmedAt?'confirmed':order.transferReportedAt?'reported':'unpaid',
+      items:order.items.map(item=>[item.titleKo,item.qty,item.priceCents/100,item.id,item]),
+    })),
+    poDrafts:Object.create(null), poMeta:Object.create(null),
+  };
+}
