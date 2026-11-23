@@ -91,18 +91,38 @@ function archiveEvent(tx, ref, event, products, at) {
   }
   tx.create(ref,archive);
 }
-const safeOrder=x=>{const {buyerToken,requestFingerprint,...rest}=x;return rest};
+const safeOrder=x=>{const {buyerToken,requestFingerprint,createdBy,parentId,...rest}=x;return rest};
+const orderItem=(p,id,qty)=>({id,qty,priceCents:p.retailCents,titleKo:p.titleKo,titleFr:p.titleFr,supplier:p.supplier,
+  descriptionKo:p.descriptionKo||'',descriptionFr:p.descriptionFr||'',imageUrl:p.imageUrl||'',
+  storage:p.storage||'ambient',packQty:p.packQty,boxPriceTtcCents:p.boxPriceTtcCents,
+  boxPriceHtCents:p.boxPriceHtCents??null,plannedBoxes:p.plannedBoxes??null});
+const totalFor=items=>items.reduce((total,item)=>total+item.qty*item.priceCents,0);
+function orderTotal(items){
+  const total=totalFor(items);
+  if(!cents(total)||total===0)bad('금액을 확인해 주세요.');
+  return total;
+}
+function assertOrderEvent(event,eventId){
+  if(event?.eventId!==eventId||!['published','closed'].includes(event.status)||event.finalizedAt)
+    throw new HttpsError('failed-precondition','현재 관리 중인 행사를 다시 확인해 주세요. 최종 입금 대조가 시작된 행사에는 주문을 변경할 수 없습니다.');
+}
+function assertAvailable(product,delta,id){
+  if(!product||delta<=0)return;
+  const limit=stockCap(product);
+  if(limit!=null&&(product.soldQty||0)+delta>limit)
+    throw new HttpsError('failed-precondition',`${product.titleKo||id}의 재고가 부족합니다.`);
+}
 const pickPublic=p=>({id:p.id,titleKo:p.titleKo,titleFr:p.titleFr,descriptionKo:p.descriptionKo||'',descriptionFr:p.descriptionFr||'',priceCents:p.retailCents,storage:p.storage||'ambient',imageUrl:p.imageUrl||'',displayOrder:p.displayOrder,stockCap:stockCap(p),stockRemaining:stockCap(p)==null?null:Math.max(0,stockCap(p)-(p.soldQty||0))});
 async function requireAdmin(req){
   if(!req.auth?.uid) throw new HttpsError('unauthenticated','관리자 로그인이 필요합니다.');
   const profile=(await db.collection('members').doc(req.auth.uid).get()).data();
   if(req.auth.token?.email_verified!==true||profile?.status!=='approved'||profile.role!=='admin') throw new HttpsError('permission-denied','바자회 관리자 권한이 없습니다.');
 }
-function checkBuyerOrder(x){
+function checkBuyerOrder(x,{emailOptional=false}={}){
   if(!x||typeof x!=='object')bad('주문 정보를 확인해 주세요.');
   const name=s(x.name),email=s(x.email).toLowerCase(),phone=s(x.phone);
   if(name.length<2||name.length>100)bad('성함을 확인해 주세요.');
-  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>200)bad('이메일을 확인해 주세요.');
+  if((email||!emailOptional)&&(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>200))bad('이메일을 확인해 주세요.');
   if(phone.replace(/\D/g,'').length<8||phone.length>40)bad('전화번호를 확인해 주세요.');
   if(!Array.isArray(x.items)||x.items.length<1||x.items.length>30)bad('장바구니를 확인해 주세요.');
   const idSet=new Set();
@@ -213,10 +233,9 @@ export const bazaarCreateOrder=onCall({...options,secrets:[smtpPassword]},async 
       const data=snapshots[i].data(),{qty,id}=buyer.items[i];
       if(!data?.visible||data.archivedAt||!cents(data.retailCents))throw new HttpsError('failed-precondition',`품목 ${id}의 판매가 중단되었습니다.`);
       if(data.retailCents!==buyer.items[i].priceCents)throw new HttpsError('failed-precondition','상품 가격이 변경되었습니다. 다시 확인해 주세요.');
-      const limit=stockCap(data);
-      if(limit!=null&&(data.soldQty||0)+qty>limit)throw new HttpsError('failed-precondition',`${data.titleKo}의 재고가 부족합니다.`);
+      assertAvailable(data,qty,id);
       total+=data.retailCents*qty;
-      itemDetails.push({id,qty,priceCents:data.retailCents,titleKo:data.titleKo,titleFr:data.titleFr,supplier:data.supplier,descriptionKo:data.descriptionKo||'',descriptionFr:data.descriptionFr||'',imageUrl:data.imageUrl||'',storage:data.storage,packQty:data.packQty,boxPriceTtcCents:data.boxPriceTtcCents,boxPriceHtCents:data.boxPriceHtCents,plannedBoxes:data.plannedBoxes});
+      itemDetails.push(orderItem(data,id,qty));
     }
     if(!cents(total)||total===0)bad('금액을 확인해 주세요.');
     const orderRef=`ASICC-${new Date().getUTCFullYear().toString().slice(-2)}-${ref.id.slice(0,10).toUpperCase()}`;
@@ -247,8 +266,12 @@ export const bazaarBuyerAction=onCall({...options,secrets:[smtpPassword]},async 
     if(o.eventId!==(currentEvent?.eventId||initialEvent.eventId))throw new HttpsError('failed-precondition','이전 바자회 주문은 온라인으로 변경할 수 없습니다. 협회에 문의해 주세요.');
     if(o.canceledAt)throw new HttpsError('failed-precondition','이미 취소된 주문입니다.');
     if(action==='report'){
-      if(!o.transferReportedAt){tx.update(ref,{transferReportedAt:now()});mailId=await queue(tx,id,'reported');}
-      return{order:safeOrder({...o,transferReportedAt:o.transferReportedAt||now()}),changed:!!mailId};
+      const reportedAt=o.transferReportedAt||now();
+      if(!o.transferReportedAt){
+        tx.update(ref,{transferReportedAt:reportedAt});
+        if(o.email)mailId=await queue(tx,id,'reported');
+      }
+      return{order:safeOrder({...o,transferReportedAt:reportedAt}),changed:!o.transferReportedAt};
     }
     if(!ackNoTransfer)bad('송금하지 않았음을 확인해야 합니다.');
     if(o.transferReportedAt||o.bankConfirmedAt)throw new HttpsError('failed-precondition','송금 신고 또는 입금 확인된 주문은 온라인으로 취소할 수 없습니다. 협회에 문의해 주세요.');
@@ -256,7 +279,7 @@ export const bazaarBuyerAction=onCall({...options,secrets:[smtpPassword]},async 
     const snaps=await Promise.all(refs.map(r=>tx.get(r)));
     snaps.forEach((snap,i)=>{if(snap.exists)tx.update(snap.ref,{soldQty:FieldValue.increment(-o.items[i].qty)});});
     tx.update(ref,{canceledAt:now(),cancelReason:'buyer'});
-    mailId=await queue(tx,id,'cancel');
+    if(o.email)mailId=await queue(tx,id,'cancel');
     return{order:safeOrder({...o,canceledAt:now()}),changed:true};
   });
   if(mailId)await deliver(mailId);
@@ -370,6 +393,101 @@ export const bazaarAdmin=onCall({...options,secrets:[smtpPassword]},async req=>{
       return {revision:revision+1};
     });
   }
+  if(op==='createManualOrder'){
+    const eventId=s(data.eventId),source=s(data.source),parentId=s(data.parentId);
+    const requestId=s(data.requestId);
+    if(!validEventId(eventId)||!['phone','additional'].includes(source)||!/^[a-f0-9]{32}$/.test(requestId)
+      ||parentId&&(!/^[a-zA-Z0-9]{15,40}$/.test(parentId)||source!=='additional'))bad('주문 유형과 대상 행사를 확인해 주세요.');
+    const buyer=checkBuyerOrder(data,{emailOptional:true});
+    const ref=orders.doc(requestId),token=randomBytes(32).toString('hex');
+    const fingerprint=createHash('sha256').update(JSON.stringify({eventId,source,parentId,buyer,uid:req.auth.uid})).digest('hex');
+    const result=await db.runTransaction(async tx=>{
+      const [active,existing,parent]=await Promise.all([
+        tx.get(eventRef),tx.get(ref),parentId?tx.get(orders.doc(parentId)):null,
+      ]);
+      if(existing.exists){
+        const order=existing.data();
+        if(order.requestFingerprint!==fingerprint)throw new HttpsError('already-exists','같은 요청 번호에 다른 주문이 있습니다.');
+        return {id:order.id,orderRef:order.orderRef,totalCents:order.totalCents};
+      }
+      const event=active.data();
+      assertOrderEvent(event,eventId);
+      if(parentId&&(!parent?.exists||parent.data().eventId!==eventId||parent.data().canceledAt))
+        throw new HttpsError('failed-precondition','추가 구매와 연결할 주문을 다시 확인해 주세요.');
+      const snapshots=await Promise.all(buyer.items.map(item=>tx.get(products.doc(item.id))));
+      const items=snapshots.map((snapshot,i)=>{
+        const product=snapshot.data(),{id,qty,priceCents}=buyer.items[i];
+        if(!product?.visible||product.archivedAt||event.scopedProducts&&product.bazaarEventId!==eventId||!cents(product.retailCents))
+          throw new HttpsError('failed-precondition','이 행사에서 판매하는 상품을 선택해 주세요.');
+        if(product.retailCents!==priceCents)throw new HttpsError('failed-precondition','상품 가격이 변경됐습니다. 화면을 다시 불러와 주세요.');
+        assertAvailable(product,qty,id);
+        return orderItem(product,id,qty);
+      });
+      const totalCents=orderTotal(items);
+      const prefix=source==='phone'?'TEL':'ADD';
+      const orderRef=`ASICC-${prefix}-${ref.id.slice(0,16).toUpperCase()}`;
+      tx.create(ref,{...buyer,id:ref.id,eventId,eventSnapshot:event,orderRef,source,
+        ...(parentId?{parentId,parentOrderRef:parent.data().orderRef}:{}),createdBy:req.auth.uid,
+        requestFingerprint:fingerprint,buyerToken:token,createdAt:now(),items,totalCents,
+        transferReportedAt:null,bankConfirmedAt:null,canceledAt:null,reminder3At:null,reminderFinalAt:null});
+      snapshots.forEach((snapshot,i)=>tx.update(snapshot.ref,{soldQty:FieldValue.increment(items[i].qty)}));
+      if(buyer.email)await queue(tx,ref.id,'receipt');
+      return {id:ref.id,orderRef,totalCents};
+    });
+    if(buyer.email)await deliver(`${result.id}_receipt`).catch(error=>console.error('Bazaar receipt delivery failed',error));
+    return result;
+  }
+  if(op==='orderCorrections'||op==='correctOrder'){
+    const id=s(data.id),eventId=s(data.eventId);
+    if(!/^[a-zA-Z0-9]{15,40}$/.test(id)||!validEventId(eventId))bad('주문 번호와 행사를 확인해 주세요.');
+    const ref=orders.doc(id);
+    if(op==='orderCorrections'){
+      const order=(await ref.get()).data();
+      if(order?.eventId!==eventId)throw new HttpsError('not-found','해당 행사에서 주문을 찾을 수 없습니다.');
+      const history=await ref.collection('corrections').orderBy('revision','desc').get();
+      return {history:history.docs.map(item=>item.data())};
+    }
+    const reason=s(data.reason);
+    if(data.confirm!==true||!reason||reason.length>500||!Array.isArray(data.items)||data.items.length>30)
+      bad('정정 사유와 수정할 수량을 확인해 주세요.');
+    const quantities=new Map();
+    for(const row of data.items){
+      if(!productIdValid(s(row?.id))||!Number.isSafeInteger(row.qty)||row.qty<0||row.qty>100||quantities.has(row.id))
+        bad('수정할 품목과 수량을 확인해 주세요.');
+      quantities.set(row.id,row.qty);
+    }
+    return db.runTransaction(async tx=>{
+      const [active,snapshot]=await Promise.all([tx.get(eventRef),tx.get(ref)]);
+      const event=active.data(),order=snapshot.data();
+      assertOrderEvent(event,eventId);
+      const revision=order?.revision??0;
+      if(order?.eventId!==eventId||order.canceledAt||revision!==data.revision)
+        throw new HttpsError('failed-precondition','주문 상태가 변경됐습니다. 주문을 다시 확인해 주세요.');
+      if(quantities.size!==order.items.length||order.items.some(item=>!quantities.has(item.id)))
+        bad('기존 품목의 수량만 정정할 수 있습니다. 추가 구매는 별도 주문으로 등록해 주세요.');
+      const items=order.items.map(item=>({...item,qty:quantities.get(item.id)})).filter(item=>item.qty>0);
+      if(order.items.every(item=>quantities.get(item.id)===item.qty))bad('변경된 수량이 없습니다.');
+      const totalCents=orderTotal(items);
+      if((order.transferReportedAt||order.bankConfirmedAt)&&totalCents!==order.totalCents)
+        throw new HttpsError('failed-precondition','송금 신고 또는 입금 확인된 주문의 총액은 변경할 수 없습니다.');
+      const stock=await Promise.all(order.items.map(item=>tx.get(products.doc(item.id))));
+      stock.forEach((doc,i)=>{
+        const item=order.items[i],delta=quantities.get(item.id)-item.qty;
+        const p=doc.data();
+        const matches=p&&(!event.scopedProducts||p.bazaarEventId===eventId);
+        if(delta>0&&(!matches||!p.visible||p.archivedAt))
+          throw new HttpsError('failed-precondition','현재 판매 중인 품목의 수량만 늘릴 수 있습니다.');
+        if(!matches||!delta)return;
+        assertAvailable(p,delta,item.id);
+        tx.update(doc.ref,{soldQty:FieldValue.increment(delta)});
+      });
+      const changed={revision:revision+1,at:now(),by:req.auth.uid,reason,
+        before:{items:order.items,totalCents:order.totalCents},after:{items,totalCents}};
+      tx.create(ref.collection('corrections').doc(String(changed.revision)),changed);
+      tx.update(ref,{items,totalCents,revision:changed.revision});
+      return {id,totalCents,revision:changed.revision};
+    });
+  }
   if(op==='cancelOrder'){
     const id=s(data.id);
     if(!/^[A-Za-z0-9]{15,40}$/.test(id)||data.confirm!==true)bad('취소할 주문을 확인해 주세요.');
@@ -383,7 +501,7 @@ export const bazaarAdmin=onCall({...options,secrets:[smtpPassword]},async req=>{
       const stock=await Promise.all(order.items.map(item=>tx.get(products.doc(item.id))));
       stock.forEach((doc,i)=>{if(doc.exists)tx.update(doc.ref,{soldQty:FieldValue.increment(-order.items[i].qty)});});
       tx.update(ref,{canceledAt:now(),cancelReason:'admin'});
-      return queue(tx,id,'cancel');
+      return order.email?queue(tx,id,'cancel'):null;
     });
     if(mailId)await deliver(mailId).catch(error=>console.error('Bazaar cancellation delivery failed',error));
     return {ok:true};
@@ -640,15 +758,16 @@ export const bazaarAdmin=onCall({...options,secrets:[smtpPassword]},async req=>{
     const orderId=s(data.id);
     if(!/^[A-Za-z0-9]{15,40}$/.test(orderId))bad('주문 번호를 확인해 주세요.');
     const ref=orders.doc(orderId);let mailId=null;
-    await db.runTransaction(async tx=>{
+    const changed=await db.runTransaction(async tx=>{
       const [snap,active]=await Promise.all([tx.get(ref),data.eventId?tx.get(eventRef):null]);
       if(data.eventId&&(active?.data()?.eventId!==data.eventId||snap.data()?.eventId!==data.eventId))
         throw new HttpsError('failed-precondition','선택한 행사와 주문을 다시 확인해 주세요.');
       if(!snap.exists)throw new HttpsError('not-found','주문을 찾을 수 없습니다.');
       const o=snap.data();if(o.canceledAt)throw new HttpsError('failed-precondition','취소된 주문은 확인할 수 없습니다.');
-      if(!o.bankConfirmedAt){tx.update(ref,{bankConfirmedAt:now()});mailId=await queue(tx,o.id,'confirmed');}
+      if(!o.bankConfirmedAt){tx.update(ref,{bankConfirmedAt:now()});if(o.email)mailId=await queue(tx,o.id,'confirmed');return true;}
+      return false;
     });
-    if(mailId)await deliver(mailId);return{ok:true,changed:!!mailId};
+    if(changed&&mailId)await deliver(mailId);return{ok:true,changed};
   }
   if(op==='finalizeUnpaid'){
     if(data.confirm!==true)bad('최종 계좌 대조 후 확인해야 합니다.');
@@ -674,7 +793,8 @@ export const bazaarAdmin=onCall({...options,secrets:[smtpPassword]},async req=>{
         const refs=o.items.map(i=>products.doc(i.id));const stock=await Promise.all(refs.map(r=>tx.get(r)));
         stock.forEach((p,i)=>{if(p.exists)tx.update(p.ref,{soldQty:FieldValue.increment(-o.items[i].qty)});});
         tx.update(ref,{canceledAt:now(),cancelReason:'unpaidFinalization'});
-        mailId=await queue(tx,o.id,'bulkCancel');canceled++;
+        if(o.email)mailId=await queue(tx,o.id,'bulkCancel');
+        canceled++;
       });
       if(mailId)await deliver(mailId);
     }
@@ -697,7 +817,7 @@ export const bazaarReminders=onSchedule({schedule:'every 15 minutes',timeZone:'E
   const allCurrent=await orders.where('eventId','==',e.eventId||initialEvent.eventId).get();
   const pending=allCurrent.docs.filter(d=>!d.data().bankConfirmedAt);
   for(const snap of pending){
-    const o=snap.data();if(o.canceledAt)continue;
+    const o=snap.data();if(o.canceledAt||!o.email)continue;
     // Retry all queued receipts and other messages regardless of reminder eligibility.
     const mails=await outbox.where('orderId','==',o.id).get();
     for(const m of mails.docs)if(!m.data().sentAt)await deliver(m.id);

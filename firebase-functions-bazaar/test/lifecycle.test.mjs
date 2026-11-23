@@ -189,6 +189,42 @@ test('administrators can publish a draft and close it without losing history or 
   await assert.rejects(call('savePurchaseOrder',{...purchase,revision:confirmed.revision,confirmClosedEdit:true}),failure);
   assert.deepEqual((await call('listPurchaseOrders',{eventId:draft.id})).documents.map(d=>d.confirmed),[true]);
 
+  delete process.env.BAZAAR_SMTP_HOST;
+  const manual={eventId:draft.id,requestId:fresh(),source:'phone',name:'Phone Buyer',phone:buyer.phone,
+    items:[{id:productId,qty:2,priceCents:650}]};
+  await assert.rejects(call('createManualOrder',manual,{uid:'bazaar-member',token:{email_verified:true}}),{code:'permission-denied'});
+  await assert.rejects(call('createManualOrder',{...manual,eventId}),failure);
+  const phoneOrder=await call('createManualOrder',manual);
+  assert.match(phoneOrder.orderRef,/^ASICC-TEL-/);
+  assert.deepEqual(await call('createManualOrder',manual),phoneOrder);
+  const orderRef=db.doc(`bazaarOrders/${phoneOrder.id}`);
+  const original=(await orderRef.get()).data();
+  assert.equal(original.source,'phone');
+  assert.equal(original.email,'');
+  assert.equal((await db.doc(`bazaarOutbox/${phoneOrder.id}_receipt`).get()).exists,false);
+  const correction={eventId:draft.id,id:phoneOrder.id,revision:0,confirm:true,reason:'전화로 수량 확인',
+    items:[{id:productId,qty:1}]};
+  await assert.rejects(call('correctOrder',{...correction,reason:''}),{code:'invalid-argument'});
+  await assert.rejects(call('correctOrder',{...correction,confirm:false}),{code:'invalid-argument'});
+  await call('correctOrder',correction,otherStaff);
+  await assert.rejects(call('correctOrder',correction),failure);
+  const [history]=(await call('orderCorrections',correction)).history;
+  assert.deepEqual(history.before,{items:original.items,totalCents:1300});
+  assert.equal(history.after.totalCents,650);
+  assert.equal(history.by,otherStaff.uid);
+  await call('bankConfirm',{id:phoneOrder.id,eventId:draft.id});
+  await assert.rejects(call('correctOrder',{...correction,revision:1,items:[{id:productId,qty:2}]}),failure);
+  const additional=await call('createManualOrder',{...manual,requestId:fresh(),source:'additional',
+    parentId:phoneOrder.id,email:'addon@example.test'});
+  assert.match(additional.orderRef,/^ASICC-ADD-/);
+  assert.notEqual(additional.id,phoneOrder.id);
+  assert.equal((await db.doc(`bazaarOrders/${additional.id}`).get()).data().parentOrderRef,phoneOrder.orderRef);
+  assert.equal((await db.doc(`bazaarOutbox/${additional.id}_receipt`).get()).exists,true);
+  const additionalRecord=(await db.doc(`bazaarOrders/${additional.id}`).get()).data();
+  await assert.rejects(bazaarBuyerAction.run({data:{id:additional.id,token:additionalRecord.buyerToken,action:'edit'}}),{code:'invalid-argument'});
+  await call('bankConfirm',{id:additional.id,eventId:draft.id});
+  assert.equal((await orderRef.get()).data().totalCents,650);
+
   await assert.rejects(call('finalizeUnpaid',{eventId:draft.id,confirm:false}),{code:'invalid-argument'});
   await assert.rejects(call('finalizeUnpaid',{eventId:draft.id,confirm:true}),{code:'invalid-argument'});
   delete process.env.BAZAAR_SMTP_HOST;
@@ -205,6 +241,7 @@ test('administrators can publish a draft and close it without losing history or 
   assert.equal((await db.doc(`bazaarOrders/${unpaid.id}`).get()).data().canceledAt,null);
   const final=await call('finalizeUnpaid',{eventId:draft.id,confirm:true});
   assert.equal(final.canceled,1);
+  await assert.rejects(call('createManualOrder',{...manual,requestId:fresh()}),failure);
   assert.equal((await db.doc(`bazaarOrders/${unpaid.id}`).get()).data().cancelReason,'unpaidFinalization');
   assert.equal((await db.doc(`bazaarOrders/${paid.id}`).get()).data().canceledAt,null);
   assert.equal((await call('finalizeUnpaid',{eventId:draft.id,confirm:true})).canceled,0);

@@ -132,10 +132,85 @@ function productChange(el){const arr=productView==='catalog'?store.catalog:store
   el.value=k==='manualLimit'?lim(p):p[k];return;
  }
  if(k==='roi'){if(unit(p)>0&&p.buy>0)p.sale=finance(unit(p)*(1+val/100));}else p[k]=['buy','sale'].includes(k)?finance(val):val;let row=app.querySelector('[data-row="'+p.id+'"]');if(!row)return;const unitcell=row.querySelector('[data-derived=unit]');if(unitcell)unitcell.textContent=unit(p)>0?money(unit(p)):'—';const rcell=row.querySelector('[data-key=roi]');if(rcell&&k!=='roi')rcell.value=roi(p);const scell=row.querySelector('[data-key=sale]');if(scell&&k==='roi')scell.value=p.sale.toFixed(2);const limitcell=row.querySelector('[data-key=manualLimit]');if(limitcell&&productView==='event'){limitcell.disabled=p.limitMode!=='manual';if(p.limitMode==='auto'||k==='limitMode')limitcell.value=Number.isFinite(lim(p))?lim(p):''}$('#product-status').textContent='● 저장하지 않은 변경사항이 있습니다.';}
+const orderSources={web:'웹 주문',phone:'전화 주문',additional:'추가 구매'};
+const canManageOrder=()=>canReconcile()&&!selectedEvent().raw.finalizedAt;
+function orderSource(order){return orderSources[order.source]||orderSources.web;}
 const orderFields=['주문번호','주문자','주문일시','연락처','이메일','상품 주문내역','총 주문액','송금 신고','은행 입금 확인','비고','주문 상태','관리'];
-function filteredOrders(){return store.orders.filter(o=>(store.orderFilter==='all'||(store.orderFilter==='pending'?o.status==='reported':o.status===store.orderFilter))&&[o.ref,o.name,o.phone,o.email,o.memo,...o.items.map(i=>i[0])].join(' ').toLowerCase().includes(store.search.toLowerCase())).sort((a,b)=>store.orderSort==='amount'?total(b)-total(a):store.orderSort==='name'?a.name.localeCompare(b.name,'ko'):store.orderSort==='old'?store.orders.indexOf(b)-store.orders.indexOf(a):store.orders.indexOf(a)-store.orders.indexOf(b))}
-function renderOrders(){let ls=filteredOrders();const filters=[['all','전체'],['pending','송금 신고 · 확인 대기'],['unpaid','송금 신고 없음'],['confirmed','입금 확인'],['canceled','취소']];app.innerHTML=eventHead()+tabs()+'<section class="tabbody"><div class="toolbar"><div><h2>주문관리</h2><p class="muted small">PC는 엑셀형 주문표 · 모바일은 카드형 주문 목록</p></div><span class="muted small">주문 1건당 1행</span></div>'+banner('<b>은행 입금 확인 대기 '+store.orders.filter(o=>o.status==='reported').length+'건</b> · 고객의 송금 신고만으로 주문이 확정되지 않습니다.','warning')+'<div class="toolbar"><div class="actions"><input class="search" id="order-search" placeholder="이름 · 주문번호 · 연락처 · 비고 검색" value="'+esc(store.search)+'"><select class="select" id="order-sort"><option value="new">최신 주문순</option><option value="old">오래된 주문순</option><option value="amount">주문금액 높은 순</option><option value="name">이름순</option></select></div><span class="muted tiny">전체 '+store.orders.length+'건</span></div><div class="filters">'+filters.map(([f,t])=>'<button class="filter '+(f===store.orderFilter?'active':'')+'" data-action="order-filter" data-value="'+f+'">'+t+' ('+store.orders.filter(o=>f==='all'||(f==='pending'?o.status==='reported':o.status===f)).length+')</button>').join('')+'</div><div class="sheet"><table style="min-width:1470px"><colgroup>'+[110,110,95,126,160,195,105,118,125,90,112,105].map(x=>'<col style="width:'+x+'px">').join('')+'</colgroup><thead><tr>'+orderFields.map((x,i)=>'<th class="'+(i===0?'sticky-one':i===1?'sticky-two':'')+'">'+x+'</th>').join('')+'</tr></thead><tbody>'+ls.map(o=>{const st=statuses[o.status];return '<tr><td class="sticky-one"><b style="color:var(--wine)">'+esc(o.ref)+'</b></td><td class="sticky-two"><b>'+esc(o.name)+'</b></td><td class="tiny">'+esc(o.date)+'</td><td>'+esc(o.phone)+'</td><td class="tiny">'+esc(o.email)+'</td><td>'+o.items.map(i=>esc(i[0])+' ×'+i[1]).join(' · ')+'</td><td><b>'+money(total(o))+'</b></td><td><span class="state '+(o.status==='reported'||o.status==='confirmed'?'reported':'unpaid')+'">'+(o.status==='reported'||o.status==='confirmed'?'신고 완료':'미신고')+'</span></td><td>'+(o.status==='confirmed'?'<span class="state confirmed">✓ 확인 완료</span>':o.status==='canceled'?'—':'<button class="linkbtn dark" data-action="confirm" data-id="'+o.id+'">입금 확인</button>')+'</td><td>'+(o.memo?'<button class="linkbtn warn" data-action="order-detail" data-id="'+o.id+'">● 비고 있음</button>':'—')+'</td><td><span class="state '+st[1]+'">'+st[0]+'</span></td><td><button class="linkbtn" data-action="order-detail" data-id="'+o.id+'">상세 보기</button></td></tr>'}).join('')+'</tbody></table></div><div class="order-cards">'+ls.map(o=>'<div class="order-card" data-action="order-detail" data-id="'+o.id+'"><div class="toolbar"><div><b style="color:var(--wine)">'+esc(o.ref)+'</b><p style="margin-top:4px"><b>'+esc(o.name)+'</b></p></div><span class="state '+o.status+'">'+statuses[o.status][0]+'</span></div><div class="toolbar" style="margin-top:11px"><strong>'+money(total(o))+'</strong><span class="muted small">'+esc(o.date)+(o.memo?' · 📝 비고':'')+' ›</span></div></div>').join('')+'</div><div class="footbar"><span class="muted small">표시 '+ls.length+'건 · 주문 내역은 수정하지 않습니다.</span></div></section>';$('#order-sort').value=store.orderSort}
-function orderModal(id){let o=store.orders.find(o=>o.id===id);if(!o)return;modal(o.ref+' · '+o.name,'주문 상세 및 입금 처리 이력','<div class="modal-row"><span>연락처</span><b>'+esc(o.phone)+'</b></div><div class="modal-row"><span>이메일</span>'+esc(o.email)+'</div><h3 style="margin:17px 0 6px">상품 내역</h3>'+o.items.map(i=>'<div class="modal-row"><span>'+esc(i[0])+' ×'+i[1]+'</span><b>'+money(i[1]*i[2])+'</b></div>').join('')+'<div class="summary-bar"><b>총 주문액</b><strong>'+money(total(o))+'</strong></div>'+(o.memo?'<h3>판매자에게 전달할 사항</h3>'+banner(esc(o.memo),'warning'):'')+'<h3>입금 처리</h3><p class="muted small" style="margin:8px 0">'+statuses[o.status][0]+(o.verifiedAt?' · '+esc(o.verifiedAt):'')+'</p>'+banner('송금 신고와 은행의 실제 입금 확인은 서로 다른 단계입니다.'),'<button class="btn neutral" data-action="close">닫기</button>'+(canReconcile()&&(o.status==='unpaid'||o.status==='reported')?'<button class="btn primary" data-action="confirm" data-id="'+o.id+'">실제 은행 입금 확인</button><button class="btn neutral" data-action="cancel-order" data-id="'+o.id+'">주문 취소</button>':''));}
+function filteredOrders(){return store.orders.filter(o=>(store.orderFilter==='all'||(store.orderFilter==='pending'?o.status==='reported':o.status===store.orderFilter))&&[o.ref,o.name,o.phone,o.email,o.memo,orderSource(o),o.parentOrderRef,...o.items.map(i=>i[0])].join(' ').toLowerCase().includes(store.search.toLowerCase())).sort((a,b)=>store.orderSort==='amount'?total(b)-total(a):store.orderSort==='name'?a.name.localeCompare(b.name,'ko'):store.orderSort==='old'?store.orders.indexOf(b)-store.orders.indexOf(a):store.orders.indexOf(a)-store.orders.indexOf(b))}
+function renderOrders(){let ls=filteredOrders();const filters=[['all','전체'],['pending','송금 신고 · 확인 대기'],['unpaid','송금 신고 없음'],['confirmed','입금 확인'],['canceled','취소']];app.innerHTML=eventHead()+tabs()+'<section class="tabbody"><div class="toolbar"><div><h2>주문관리</h2><p class="muted small">PC는 엑셀형 주문표 · 모바일은 카드형 주문 목록</p></div><div class="actions"><span class="muted small">주문 1건당 1행</span>'+(canManageOrder()?'<button class="btn primary" data-action="manual-order">＋ 전화 주문·추가 구매</button>':'')+'</div></div>'+banner('<b>은행 입금 확인 대기 '+store.orders.filter(o=>o.status==='reported').length+'건</b> · 고객의 송금 신고만으로 주문이 확정되지 않습니다.','warning')+'<div class="toolbar"><div class="actions"><input class="search" id="order-search" placeholder="이름 · 주문번호 · 연락처 · 비고 검색" value="'+esc(store.search)+'"><select class="select" id="order-sort"><option value="new">최신 주문순</option><option value="old">오래된 주문순</option><option value="amount">주문금액 높은 순</option><option value="name">이름순</option></select></div><span class="muted tiny">전체 '+store.orders.length+'건</span></div><div class="filters">'+filters.map(([f,t])=>'<button class="filter '+(f===store.orderFilter?'active':'')+'" data-action="order-filter" data-value="'+f+'">'+t+' ('+store.orders.filter(o=>f==='all'||(f==='pending'?o.status==='reported':o.status===f)).length+')</button>').join('')+'</div><div class="sheet"><table style="min-width:1470px"><colgroup>'+[110,110,95,126,160,195,105,118,125,90,112,105].map(x=>'<col style="width:'+x+'px">').join('')+'</colgroup><thead><tr>'+orderFields.map((x,i)=>'<th class="'+(i===0?'sticky-one':i===1?'sticky-two':'')+'">'+x+'</th>').join('')+'</tr></thead><tbody>'+ls.map(o=>{const st=statuses[o.status];return '<tr><td class="sticky-one"><b style="color:var(--wine)">'+esc(o.ref)+'</b><div class="muted tiny">'+orderSource(o)+'</div></td><td class="sticky-two"><b>'+esc(o.name)+'</b></td><td class="tiny">'+esc(o.date)+'</td><td>'+esc(o.phone)+'</td><td class="tiny">'+esc(o.email)+'</td><td>'+o.items.map(i=>esc(i[0])+' ×'+i[1]).join(' · ')+'</td><td><b>'+money(total(o))+'</b></td><td><span class="state '+(o.status==='reported'||o.status==='confirmed'?'reported':'unpaid')+'">'+(o.status==='reported'||o.status==='confirmed'?'신고 완료':'미신고')+'</span></td><td>'+(o.status==='confirmed'?'<span class="state confirmed">✓ 확인 완료</span>':o.status==='canceled'?'—':'<button class="linkbtn dark" data-action="confirm" data-id="'+o.id+'">입금 확인</button>')+'</td><td>'+(o.memo?'<button class="linkbtn warn" data-action="order-detail" data-id="'+o.id+'">● 비고 있음</button>':'—')+'</td><td><span class="state '+st[1]+'">'+st[0]+'</span></td><td><button class="linkbtn" data-action="order-detail" data-id="'+o.id+'">상세 보기</button></td></tr>'}).join('')+'</tbody></table></div><div class="order-cards">'+ls.map(o=>'<div class="order-card" data-action="order-detail" data-id="'+o.id+'"><div class="toolbar"><div><b style="color:var(--wine)">'+esc(o.ref)+'</b><div class="muted tiny">'+orderSource(o)+'</div><p style="margin-top:4px"><b>'+esc(o.name)+'</b></p></div><span class="state '+o.status+'">'+statuses[o.status][0]+'</span></div><div class="toolbar" style="margin-top:11px"><strong>'+money(total(o))+'</strong><span class="muted small">'+esc(o.date)+(o.memo?' · 📝 비고':'')+' ›</span></div></div>').join('')+'</div><div class="footbar"><span class="muted small">표시 '+ls.length+'건 · 접수된 주문의 정정은 운영진이 사유와 이력을 남겨 처리합니다.</span></div></section>';$('#order-sort').value=store.orderSort}
+function orderModal(id){let o=store.orders.find(o=>o.id===id);if(!o)return;modal(o.ref+' · '+o.name,orderSource(o)+(o.parentOrderRef?' · 원주문 '+o.parentOrderRef:''),'<div class="modal-row"><span>연락처</span><b>'+esc(o.phone)+'</b></div><div class="modal-row"><span>이메일</span>'+esc(o.email)+'</div><h3 style="margin:17px 0 6px">상품 내역</h3>'+o.items.map(i=>'<div class="modal-row"><span>'+esc(i[0])+' ×'+i[1]+'</span><b>'+money(i[1]*i[2])+'</b></div>').join('')+'<div class="summary-bar"><b>총 주문액</b><strong>'+money(total(o))+'</strong></div>'+(o.memo?'<h3>판매자에게 전달할 사항</h3>'+banner(esc(o.memo),'warning'):'')+'<h3>입금 처리</h3><p class="muted small" style="margin:8px 0">'+statuses[o.status][0]+(o.verifiedAt?' · '+esc(o.verifiedAt):'')+'</p>'+banner('송금 신고와 은행의 실제 입금 확인은 서로 다른 단계입니다.'),'<button class="btn neutral" data-action="close">닫기</button>'+(canReconcile()&&(o.status==='unpaid'||o.status==='reported')?'<button class="btn primary" data-action="confirm" data-id="'+o.id+'">실제 은행 입금 확인</button><button class="btn neutral" data-action="cancel-order" data-id="'+o.id+'">주문 취소</button>':'')+orderTools(o));}
+function orderTools(order){
+ let buttons=order.revision?'<button class="btn neutral" data-action="order-history" data-id="'+esc(order.id)+'">정정 이력</button>':'';
+ if(canManageOrder()&&order.status!=='canceled'){
+  buttons+='<button class="btn neutral" data-action="manual-order" data-id="'+esc(order.id)+'">이 주문에 추가 구매 등록</button>';
+  buttons+='<button class="btn neutral" data-action="order-correct" data-id="'+esc(order.id)+'">관리자 정정</button>';
+ }
+ return buttons;
+}
+let manualRequest;
+function manualOrderModal(parentId){
+ const original=store.orders.find(o=>o.id===parentId);
+ const products=store.products.filter(p=>p.active&&p.sale!=='');
+ if(!products.length){alert('등록할 수 있는 판매 상품이 없습니다.');return;}
+ const parent=original?'<p class="small">연결 주문: '+esc(original.ref)+'</p>':'';
+ modal('전화 주문·추가 구매 등록',selectedEvent().name,
+  banner('별도 주문번호가 발급됩니다. 고객이 안내받을 이메일을 제공한 경우에만 입력하세요.')+parent+
+  '<div class="form-grid"><label class="field">주문 유형<select id="manual-source" '+(original?'disabled':'')+'>'+
+  (original?'<option value="additional">추가 구매</option>':'<option value="phone">전화 주문</option><option value="additional">추가 구매</option>')+
+  '</select></label><label class="field">안내 언어<select id="manual-lang"><option value="ko">한국어</option><option value="fr">Français</option></select></label>'+
+  '<label class="field">주문자<input id="manual-name" maxlength="100" value="'+esc(original?.name)+'"></label>'+
+  '<label class="field">전화번호<input type="tel" id="manual-phone" maxlength="40" value="'+esc(original?.phone)+'"></label>'+
+  '<label class="field wide">이메일 (선택)<input type="email" id="manual-email" maxlength="200"></label>'+
+  '<label class="field wide">전달 사항 (선택)<textarea id="manual-note" maxlength="500"></textarea></label></div>'+
+  '<h3>수량을 입력할 상품</h3>'+products.map(p=>'<label class="modal-row"><span>'+esc(p.ko)+' · '+money(p.sale)+
+    '</span><input class="cell" style="max-width:100px" type="number" min="0" max="100" step="1" value="0" data-manual-item="'+esc(p.id)+
+    '" data-price="'+Math.round(p.sale*100)+'"></label>').join(''),
+  '<button class="btn neutral" data-action="close">취소</button><button class="btn primary" data-action="manual-order-save" data-id="'+esc(original?.id)+'">별도 주문 등록</button>');
+}
+async function saveManualOrder(parentId){
+ const items=[...root.querySelectorAll('[data-manual-item]')].filter(el=>Number(el.value)!==0).map(el=>({
+  id:el.dataset.manualItem,qty:Number(el.value),priceCents:Number(el.dataset.price),
+ }));
+ const data={eventId:selectedEvent().id,source:$('#manual-source').value,parentId,
+  name:$('#manual-name').value.trim(),phone:$('#manual-phone').value.trim(),email:$('#manual-email').value.trim(),
+  lang:$('#manual-lang').value,pickupNote:$('#manual-note').value,items};
+ if(!items.length||data.name.length<2||data.phone.replace(/\D/g,'').length<8||!$('#manual-email').validity.valid){
+  throw new Error('주문자 이름, 전화번호와 상품 수량을 확인해 주세요. 이메일은 공란으로 둘 수 있습니다.');
+ }
+ const signature=JSON.stringify(data);
+ if(manualRequest?.signature!==signature)manualRequest={signature,id:crypto.randomUUID().replaceAll('-','')};
+ const result=await request('createManualOrder',{...data,requestId:manualRequest.id});
+ manualRequest=null;
+ closeModal();await load();
+ orderModal(result.id);
+}
+function correctionModal(id){
+ const order=store.orders.find(o=>o.id===id);
+ if(!order||!canManageOrder()||order.status==='canceled')return;
+ modal('관리자 주문 정정',order.ref,
+  banner('불가피한 정정에만 사용하세요. 기존 품목의 수량을 바꾸면 사유와 변경 전후 내역이 남습니다. 추가 구매는 별도 주문으로 등록하세요.','warning')+
+  order.items.map(([name,qty,price,itemId])=>'<label class="modal-row"><span>'+esc(name)+' · '+money(price)+'</span><input class="cell" style="max-width:100px" type="number" min="0" max="100" step="1" value="'+qty+'" data-order-quantity="'+esc(itemId)+'"></label>').join('')+
+  '<label class="field">정정 사유<textarea id="order-correction-reason" maxlength="500" required></textarea></label>',
+  '<button class="btn neutral" data-action="close">취소</button><button class="btn primary" data-action="order-correct-save" data-id="'+esc(id)+'">정정 저장</button>');
+}
+async function saveCorrection(id){
+ const order=store.orders.find(o=>o.id===id);
+ if(!order||!canManageOrder())return;
+ const reason=$('#order-correction-reason').value.trim();
+ if(!reason)throw new Error('정정 사유를 입력해 주세요.');
+ const items=[...root.querySelectorAll('[data-order-quantity]')].map(el=>({id:el.dataset.orderQuantity,qty:Number(el.value)}));
+ if(!confirm('이 주문을 정정할까요? 원본과 정정 사유가 보관됩니다.'))return;
+ await request('correctOrder',{id,eventId:selectedEvent().id,revision:order.revision,reason,items,confirm:true});
+ closeModal();await load();orderModal(id);
+}
+async function showOrderHistory(id){
+ const order=store.orders.find(o=>o.id===id);
+ if(!order)return;
+ const {history}=await request('orderCorrections',{id,eventId:selectedEvent().id});
+ const describe=state=>esc(state.items.map(item=>item.titleKo+' × '+item.qty).join(' · '))+' / '+money(state.totalCents/100);
+ modal('주문 정정 이력',order.ref,history.map(h=>'<section class="panel pad"><h3>정정 '+h.revision+'회</h3>'+
+  '<p>'+esc(h.at)+' · '+esc(h.by)+'</p><p>'+esc(h.reason)+'</p><p>정정 전: '+describe(h.before)+'</p><p>정정 후: '+describe(h.after)+'</p></section>').join('')||'<p>정정 이력이 없습니다.</p>');
+}
 function accepted(){return store.orders.filter(o=>store.settleScope==='confirmed'?o.status==='confirmed':o.status!=='canceled')}
 function demands(){
  const records=new Map();
@@ -216,6 +291,7 @@ if(a==='add-product'){
  ar.push(p);rerender();editProduct(p.id);
 }
 if(a==='save-product')run(b,saveProducts);
+if(a==='manual-order'&&canManageOrder())manualOrderModal();
 if(a==='order-filter'){store.orderFilter=b.dataset.value;rerender();}if(a==='order-detail')orderModal(b.dataset.id);
 if(a==='confirm')void confirmOrder(b.dataset.id,b);
 if(a==='scope'){store.settleScope=b.dataset.value;rerender();}if(a==='vendor'){store.vendor=b.dataset.value;rerender();}if(a==='po-add')addPOModal();if(a==='po-del'){const ar=editablePO(store.vendor);if(confirm('발주서에서 해당 품목을 삭제할까요? 고객 주문 원본은 유지됩니다.')){const x=ar.findIndex(p=>p.id===b.dataset.id);if(x>=0)ar.splice(x,1);rerender();}}
@@ -427,6 +503,12 @@ async function confirmOrder(id,button){
   });
 }
 function handleModalAction(action,button){
+ const id=button.dataset.id;
+ if(action==='manual-order'&&canManageOrder()){manualOrderModal(id);return true;}
+ if(action==='manual-order-save'&&canManageOrder()){run(button,()=>saveManualOrder(id));return true;}
+ if(action==='order-correct'){correctionModal(id);return true;}
+ if(action==='order-correct-save'){run(button,()=>saveCorrection(id));return true;}
+ if(action==='order-history'){run(button,()=>showOrderHistory(id));return true;}
  if(action==='confirm'){void confirmOrder(button.dataset.id,button);return true;}
  if(action==='open-past'){
   const record=model.past[Number($('#past-selector').value)];

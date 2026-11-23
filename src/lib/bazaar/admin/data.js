@@ -43,6 +43,7 @@ export function eventViewModel(event, items=[], orders=[]) {
     pickupKo:event.pickupKo, pickupFr:event.pickupFr,
     orders:orders.map(order=>({
       id:order.id, ref:order.orderRef, name:order.name, email:order.email, phone:order.phone,
+      source:order.source||'web', parentOrderRef:order.parentOrderRef||'', revision:order.revision??0,
       memo:order.pickupNote||'', date:local(order.createdAt).replace('T',' '),
       reportedAt:local(order.transferReportedAt).replace('T',' '),
       verifiedAt:local(order.bankConfirmedAt).replace('T',' '),
