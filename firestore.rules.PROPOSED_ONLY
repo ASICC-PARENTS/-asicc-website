@@ -1021,7 +1021,7 @@ function validUpgrade(uid) {
       ])
         && v.enabled is bool
         && validBannerText(v.link, 500)
-        && (v.link.matches('^news/[a-z0-9/_-]+/$') || v.link.matches('^https://[^\\s]+$'))
+        && (v.link.matches('^news/[a-z0-9/_-]+/$') || v.link.matches('^bazaar/([?]event=[a-z0-9-]{12,60})?$') || v.link.matches('^https://[^\\s]+$'))
         && validBannerText(v.eyebrow_ko,100) && validBannerText(v.eyebrow_fr,100)
         && validBannerText(v.title_ko,120) && v.title_ko.size()>0
         && validBannerText(v.title_fr,120) && v.title_fr.size()>0
@@ -1048,6 +1048,16 @@ function validUpgrade(uid) {
     }
 
     // Anything not explicitly approved above is denied.
+
+    // 바자회 데이터는 인증·권한을 확인하는 Cloud Functions를 통해서만 접근합니다.
+    match /bazaarProducts/{id} { allow read, write: if false; }
+    match /bazaarOrders/{id} { allow read, write: if false; }
+    match /bazaarMeta/{id} { allow read, write: if false; }
+    match /bazaarOutbox/{id} { allow read, write: if false; }
+    match /bazaarRateLimits/{id} { allow read, write: if false; }
+    match /bazaarEvents/{id} { allow read, write: if false; }
+    match /bazaarDrafts/{id} { allow read, write: if false; }
+
     match /{document=**} { allow read, write: if false; }
   }
 }

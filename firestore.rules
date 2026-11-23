@@ -83,6 +83,16 @@ service cloud.firestore {
       allow read, delete: if isAdmin();
     }
 
+
+    // 바자회 데이터는 인증·권한을 확인하는 Cloud Functions를 통해서만 접근합니다.
+    match /bazaarProducts/{id} { allow read, write: if false; }
+    match /bazaarOrders/{id} { allow read, write: if false; }
+    match /bazaarMeta/{id} { allow read, write: if false; }
+    match /bazaarOutbox/{id} { allow read, write: if false; }
+    match /bazaarRateLimits/{id} { allow read, write: if false; }
+    match /bazaarEvents/{id} { allow read, write: if false; }
+    match /bazaarDrafts/{id} { allow read, write: if false; }
+
     // ---------- 임원 인수인계 자료 ----------
     match /handover/{id} { allow read, write: if isAdmin(); }
   }

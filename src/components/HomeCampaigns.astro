@@ -57,7 +57,7 @@ const donationReady = (v: string) => /^https:\/\/www\.helloasso\.com\//i.test(v)
   const bannerCollection = /^(www\.)?asicc-parents\.fr$/i.test(location.hostname)
     ? 'publicHomeBanners' : 'publicHomeBannersTest';
   const validLink = (link: unknown): link is string => typeof link === 'string'
-    && link.length <= 500 && (/^news\/[a-z0-9/_-]+\/$/.test(link) || /^https:\/\/[^\s]+$/.test(link));
+    && link.length <= 500 && (/^news\/[a-z0-9/_-]+\/$/.test(link) || /^bazaar\/(\?event=[a-z0-9-]{12,60})?$/.test(link) || /^https:\/\/[^\s]+$/.test(link));
   for (const key of ['bazaar','admissions'] as const) {
     const banner = document.querySelector<HTMLElement>(`[data-editorial-banner="${key}"]`);
     if (!banner) continue;

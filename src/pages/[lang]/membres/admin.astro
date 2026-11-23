@@ -69,6 +69,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     <h3 class="asicc-admin-hub-category">{L(lang,{ko:'홈페이지 운영',fr:'Administration du site'})}</h3>
     <div class="asicc-admin-hub-grid">
       <a class="asicc-admin-hub-link" href="#admin-board-management-heading"><strong>{L(lang,{ko:'게시판 관리',fr:'Gestion du forum'})}</strong><span>{L(lang,{ko:'게시판 분류 관리',fr:'Catégories du forum'})}</span></a>
+      <a class="asicc-admin-hub-link" href={href(lang,'bazaar/admin/')}><strong>{L(lang,{ko:'온라인 바자회 관리',fr:'Gestion du bazar en ligne'})}</strong><span>{L(lang,{ko:'행사 · 상품 · 주문 · 입금',fr:'Événements · produits · commandes · paiements'})}</span></a>
       <a class="asicc-admin-hub-link" href="#admin-home-banners"><strong>{L(lang,{ko:'메인 배너 관리',fr:'Bannières d’accueil'})}</strong><span>{L(lang,{ko:'배너 1 · 배너 2',fr:'Bannière 1 · Bannière 2'})}</span></a>
       <a class="asicc-admin-hub-link" href="#operations-heading"><strong>{L(lang,{ko:'홈페이지 운영 설정',fr:'Paramètres du site'})}</strong><span>{L(lang,{ko:'갤러리 · 쪽지 · 학습자료',fr:'Galerie · messages · ressources'})}</span></a>
       <a class="asicc-admin-hub-link" href="#visits-heading"><strong>{L(lang,{ko:'방문 통계',fr:'Statistiques de visite'})}</strong><span>{L(lang,{ko:'Cloudflare · Firebase 확인',fr:'Cloudflare · Firebase'})}</span></a>
@@ -311,7 +312,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
             </div>
             <label class="stack gap-6"><span>{L(lang,{ko:'바로가기 주소',fr:'Lien du bouton'})}</span>
               <input name="link" type="text" value={item.link} maxlength="500" required placeholder="news/2026-10-08-admissions/"/>
-              <span class="small muted">{L(lang,{ko:'내부 공지: news/글주소/ · 외부 링크: https://... (게시 완료된 공지만 연결하세요)',fr:'Article interne : news/identifiant/ · lien externe : https://... (article publié uniquement)'})}</span>
+              <span class="small muted">{L(lang,{ko:'내부 공지: news/글주소/ · 바자회: bazaar/?event=행사ID · 외부 링크: https://...',fr:'Article : news/identifiant/ · bazar : bazaar/?event=identifiant · lien externe : https://...'})}</span>
             </label>
             <div class="row gap-12" style="flex-wrap:wrap;align-items:center">
               <button type="submit" class="btn btn-dark" data-banner-save>{L(lang,{ko:'저장',fr:'Enregistrer'})}</button>
@@ -1160,7 +1161,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   type BannerKey = 'bazaar' | 'admissions';
   const bannerKeys:BannerKey[]=['bazaar','admissions'];
   const bannerFields=['eyebrow','title','body','status','button'] as const;
-  const validBannerLink=(link:string)=> /^news\/[a-z0-9/_-]+\/$/.test(link) || /^https:\/\/[^\s]+$/.test(link);
+  const validBannerLink=(link:string)=> /^news\/[a-z0-9/_-]+\/$/.test(link) || /^bazaar\/(\?event=[a-z0-9-]{12,60})?$/.test(link) || /^https:\/\/[^\s]+$/.test(link);
   const bannerEditor=(key:BannerKey)=>document.querySelector<HTMLFormElement>(`[data-banner-editor="${key}"]`);
   function fillBannerEditor(key:BannerKey,data:Record<string,unknown>|null){
     const form=bannerEditor(key);if(!form)return;
@@ -1215,7 +1216,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     const link=String(fd.get('link')??'').trim();
     const data:Record<string,unknown>={enabled:fd.has('enabled'),link,updatedBy:meUid,updatedAt:serverTimestamp()};
     if(link.length>500||!validBannerLink(link)){
-      bannerFeedback(key,tr('링크는 news/글주소/ 또는 https:// 로 시작해야 합니다.','Utilisez news/identifiant/ ou une URL https://.'),true);return;
+      bannerFeedback(key,tr('news/글주소/, bazaar/?event=행사ID 또는 https:// 링크를 입력해 주세요.','Utilisez news/identifiant/, bazaar/?event=identifiant ou une URL https://.'),true);return;
     }
     for(const field of bannerFields)for(const loc of ['ko','fr'] as const){
       const value=String(fd.get(`${field}_${loc}`)??'').trim();

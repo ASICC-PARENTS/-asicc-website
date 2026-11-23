@@ -139,6 +139,11 @@ test('homepage banner validation rejects extra fields and unsafe links',async()=
   await assertFails(setDoc(doc(db,'publicHomeBanners','other'),data));
   await assertSucceeds(setDoc(path,data));
   await assertSucceeds(updateDoc(path,{title_ko:'수정됨',updatedAt:serverTimestamp()}));
+  for(const slot of ['bazaar','admissions']){
+    const ref=doc(db,'publicHomeBanners',slot);
+    await assertSucceeds(setDoc(ref,{...data,link:'bazaar/?event=bazaar-test-original'}));
+    await assertFails(setDoc(ref,{...data,link:'bazaar/?event=bazaar-test-original&other=value'}));
+  }
 });
 
 

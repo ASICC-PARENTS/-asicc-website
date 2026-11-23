@@ -45,5 +45,6 @@
   },
   "storage": {
     "rules": "storage.rules"
-  }
+  },
+  "functions": [{ "source": "firebase-functions-bazaar", "codebase": "bazaar" }]
 }
