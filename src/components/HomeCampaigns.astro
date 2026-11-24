@@ -3,7 +3,9 @@ import { L, href, type Lang } from '../i18n/ui';
 import campaigns from '../data/cms/home-campaigns.json';
 interface Props { lang: Lang; }
 const { lang } = Astro.props;
-const { bazaar, admissions, donation } = campaigns;
+const { bazaar: originalBazaar, admissions, donation } = campaigns;
+const integration = import.meta.env.PUBLIC_ASICC_INTEGRATION_TEST === 'true';
+const bazaar = integration ? {...originalBazaar,enabled:true,link:'bazaar/',button:{ko:'온라인 바자회 보기',fr:'Voir le bazar en ligne'},status:{ko:'통합 테스트 · 실제 송금 금지',fr:'Site de test · Aucun virement réel'}} : originalBazaar;
 // Static, CMS-controlled fallbacks are visible even before Firebase loads.
 // Administrators may temporarily override the two editorial banners in Firestore.
 const editorial = [
@@ -34,10 +36,10 @@ const donationReady = (v: string) => /^https:\/\/www\.helloasso\.com\//i.test(v)
       <h2>{L(lang,donation.title)}</h2>
       <p>{L(lang,donation.body)}</p>
       <div class="support-actions">
-        {donationReady(donation.membershipUrl) && <a class="btn support-fee-button" href={donation.membershipUrl} target="_blank" rel="noopener noreferrer">{L(lang,{ko:'연회비 납부하기',fr:'Payer la cotisation'})} ↗</a>}
-        {donationReady(donation.donationUrl) && <a class="btn btn-dark support-donate-button" href={donation.donationUrl} target="_blank" rel="noopener noreferrer">{L(lang,{ko:'자유 후원하기',fr:'Faire un don libre'})} ↗</a>}
+        {!integration && donationReady(donation.membershipUrl) && <a class="btn support-fee-button" href={donation.membershipUrl} target="_blank" rel="noopener noreferrer">{L(lang,{ko:'연회비 납부하기',fr:'Payer la cotisation'})} ↗</a>}
+        {!integration && donationReady(donation.donationUrl) && <a class="btn btn-dark support-donate-button" href={donation.donationUrl} target="_blank" rel="noopener noreferrer">{L(lang,{ko:'자유 후원하기',fr:'Faire un don libre'})} ↗</a>}
       </div>
-      <div class="bank-transfer">
+      <div class="bank-transfer" hidden={integration}>
         <strong>{L(lang,donation.bankLabel)}</strong>
         <span class="bank-holder">{donation.bankName}</span>
         <code>{donation.iban}</code>
@@ -65,6 +67,7 @@ const donationReady = (v: string) => /^https:\/\/www\.helloasso\.com\//i.test(v)
       // Removing the admin override falls back to the bundled CMS values after reload.
       if (!snap.exists()) { if (banner.dataset.override === 'true') window.location.reload(); return; }
       const item=snap.data();
+      if(import.meta.env.PUBLIC_ASICC_INTEGRATION_TEST==='true' && key==='bazaar' && !/^bazaar\/(\?event=[a-z0-9-]{12,60})?$/.test(item.link||''))return;
       if (!validLink(item.link) || typeof item.enabled !== 'boolean') return;
       const lang = location.pathname.startsWith(BASE+'fr/') ? 'fr' : 'ko';
       for (const field of ['eyebrow','title','body','button','status'] as const) {
