@@ -73,7 +73,7 @@ async function invoke(name:string,payload:any={}){
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw Object.assign(new Error(result.error?.message || '바자회 서버에 연결하지 못했습니다.'),
-      { code: `functions/${result.error?.code || 'unavailable'}` });
+      { code: `functions/${result.error?.code || 'unavailable'}`, status: response.status, details: result.error?.details });
   }
   return result.data;
 }

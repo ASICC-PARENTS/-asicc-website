@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { createFirestore } from './firestore.mjs';
 import { createPhotos } from './photos.mjs';
 import { createMail, mailFields } from './mail.mjs';
@@ -18,14 +18,20 @@ const productRef = db.doc(`bazaarProducts/${productId}`);
 const eventRef = db.doc('bazaarMeta/event');
 
 async function call(route, data, token, expected = 200) {
+  const { status, result } = await callTimed(route, data, token);
+  assert.equal(status, expected, JSON.stringify(result));
+  return result.data ?? result.error;
+}
+
+async function callTimed(route, data, token, ip, discardResponse = false) {
+  const start = performance.now();
   const response = await fetch(`${origin}/api/${route}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'http://127.0.0.1:4321',
-      ...(token && { Authorization: `Bearer ${token}` }) },
+      ...(token && { Authorization: `Bearer ${token}` }), ...(ip && { 'CF-Connecting-IP': ip }) },
     body: JSON.stringify({ data })
   });
-  const result = await response.json();
-  assert.equal(response.status, expected, JSON.stringify(result));
-  return result.data ?? result.error;
+  if (discardResponse) await response.body.cancel();
+  return { status: response.status, result: discardResponse ? null : await response.json(), elapsed: performance.now() - start };
 }
 
 async function authRequest(path, data, owner) {
@@ -294,4 +300,135 @@ test('Brevo retries quota-limited delivery with one idempotency key and a test-o
   assert.equal(await fault.deliver(uncertain.id,message),false);
   assert.equal(failedCalls,1);
   assert.equal((await uncertain.get()).data().deliveryUncertain,true);
+});
+
+test('concurrent checkouts preserve stock, receipts and administrator changes', { timeout: 150000 }, async t => {
+  const fixtureEvent = 'bazaar-stock-' + id();
+  const staff = await identity('admin', true);
+  const accessRef = db.doc('bazaarMeta/access');
+  const [previousEvent, previousAccess] = await db.getAll(eventRef, accessRef);
+  const createdProducts = [];
+  t.after(async () => {
+    const [orders, receipts, active] = await Promise.all([
+      db.collection('bazaarOrders').where('eventId', '==', fixtureEvent).get(),
+      db.collection('bazaarOutbox').where('eventId', '==', fixtureEvent).get(),
+      eventRef.get()
+    ]);
+    const cleanup = db.batch();
+    for (const snapshot of [...orders.docs, ...receipts.docs]) cleanup.delete(snapshot.ref);
+    for (const ref of createdProducts) cleanup.delete(ref);
+    if (active.data()?.eventId === fixtureEvent) {
+      if (previousEvent.exists) cleanup.set(eventRef, previousEvent.data());
+      else cleanup.delete(eventRef);
+    }
+    if (previousAccess.exists) cleanup.set(accessRef, previousAccess.data());
+    else cleanup.delete(accessRef);
+    cleanup.delete(db.doc('members/' + staff.localId));
+    await cleanup.commit();
+    await authRequest('projects/' + project + '/accounts:delete', { localId: staff.localId }, true);
+  });
+  await accessRef.set({ adminUids: [staff.localId] });
+  await eventRef.set({
+    eventId: fixtureEvent, status: 'published', scopedProducts: true, orderCutoff: when(300000),
+    transferCutoff: when(600000), beneficiary: 'Synthetic fixture', iban: 'FR7612345678901234567890123'
+  });
+  const preset = {
+    titleKo: '테스트 품목', titleFr: 'Produit test', supplier: 'K커머셜', imageUrl: '', storage: 'ambient',
+    visible: true, retailCents: 450, packQty: 12, boxPriceTtcCents: 700, limitMode: 'manual',
+    soldQty: 0, displayOrder: 1, bazaarEventId: fixtureEvent
+  };
+  const createProduct = async limit => {
+    const ref = db.collection('bazaarProducts').doc('stock-' + id());
+    await ref.create({ ...preset, manualLimit: limit });
+    createdProducts.push(ref);
+    return ref;
+  };
+  const buyer = (...products) => ({
+    eventId: fixtureEvent, requestId: id(), name: 'Synthetic Buyer', phone: '0612345678', email: 'buyer@example.test',
+    consent: true, lang: 'fr', items: products.map(ref => ({ id: ref.id, qty: 1, priceCents: 450 }))
+  });
+  let address = 0;
+  const submit = (payload, discardResponse = false) => callTimed('bazaarCreateOrder', payload, undefined, '192.0.2.' + ++address, discardResponse);
+  const failures = [];
+  function record(label, rows, expected) {
+    const counts = {};
+    for (const row of rows) counts[row.status] = (counts[row.status] ?? 0) + 1;
+    const averageMs = Math.round(rows.reduce((total, row) => total + row.elapsed, 0) / rows.length);
+    console.log(JSON.stringify({ label, counts, averageMs, maxMs: Math.round(Math.max(...rows.map(row => row.elapsed))) }));
+    try { assert.deepEqual(counts, expected, label); } catch (error) { failures.push(error.message); }
+  }
+  async function checkReceipts(rows) {
+    const ids = [...new Set(rows.flatMap(row => row.result.data?.id ? [row.result.data.id] : []))];
+    assert.ok((await db.getAll(...ids.map(orderId => db.doc('bazaarOutbox/' + orderId + '_receipt'))))
+      .every(doc => doc.data()?.type === 'receipt'));
+    return ids;
+  }
+  let expectedOrders = 0;
+  for (const [label, stock, number, expected] of [
+    ['stock 1 / 3', 1, 3, { 200: 1, 412: 2 }], ['stock 5 / 10', 5, 10, { 200: 5, 412: 5 }],
+    ['sufficient stock / 10', 20, 10, { 200: 10 }]
+  ]) {
+    const product = await createProduct(stock);
+    const rows = await Promise.all(Array.from({ length: number }, () => submit(buyer(product))));
+    record(label, rows, expected);
+    for (const row of rows.filter(row => row.status === 412)) {
+      assert.deepEqual(row.result.error.details, { reason: 'stock', productId: product.id, available: 0 });
+    }
+    const accepted = await checkReceipts(rows);
+    expectedOrders += accepted.length;
+    assert.equal((await product.get()).data().soldQty, accepted.length);
+    assert.ok(accepted.length <= stock);
+  }
+  const bundled = [await createProduct(1), await createProduct(3)];
+  const bundleRows = await Promise.all(Array.from({ length: 3 }, () => submit(buyer(...bundled))));
+  record('multiple products / 3', bundleRows, { 200: 1, 412: 2 });
+  const bundleIds = await checkReceipts(bundleRows);
+  expectedOrders += bundleIds.length;
+  for (const ref of bundled) assert.equal((await ref.get()).data().soldQty, bundleIds.length);
+
+  const repeated = await createProduct(5);
+  const payload = buyer(repeated);
+  const clicks = await Promise.all([submit(payload), submit(payload), submit(payload)]);
+  record('duplicate clicks / 3', clicks, { 200: 3 });
+  const original = clicks.find(row => row.status === 200)?.result.data;
+  assert.ok(original);
+  for (const row of clicks.filter(row => row.status === 200)) assert.deepEqual(row.result.data, original);
+  assert.deepEqual(await checkReceipts(clicks), [original.id]);
+  expectedOrders++;
+
+  const lostProduct = await createProduct(3);
+  const lostRequest = buyer(lostProduct);
+  const discarded = await submit(lostRequest, true);
+  const savedId = createHash('sha256').update('bazaar-order:' + lostRequest.requestId).digest('hex').slice(0, 32);
+  const stored = (await db.doc('bazaarOrders/' + savedId).get()).data();
+  assert.ok(stored);
+  const recovered = await submit(lostRequest);
+  record('discarded response and retry', [discarded, recovered], { 200: 2 });
+  assert.equal(recovered.result.data.id, savedId);
+  assert.equal(recovered.result.data.token, stored.buyerToken);
+  await checkReceipts([recovered]);
+  assert.equal((await lostProduct.get()).data().soldQty, 1);
+  expectedOrders++;
+
+  const cancel = () => callTimed('bazaarBuyerAction', { id: original.id, token: original.token, action: 'cancel', ackNoTransfer: true });
+  record('repeat cancellations / 2', [await cancel(), await cancel()], { 200: 1, 412: 1 });
+  assert.equal((await repeated.get()).data().soldQty, 0);
+
+  const edited = await createProduct(2);
+  const [saved, bought] = await Promise.all([
+    callTimed('bazaarAdmin', { op: 'saveProduct', eventId: fixtureEvent, id: edited.id, product: { ...preset, manualLimit: 1 } }, staff.idToken),
+    submit(buyer(edited))
+  ]);
+  record('administrator stock update and checkout', [saved, bought], { 200: 2 });
+  await checkReceipts([bought]);
+  expectedOrders += bought.status === 200 ? 1 : 0;
+  const finalProduct = (await edited.get()).data();
+  assert.equal(finalProduct.manualLimit, saved.status === 200 ? 1 : 2);
+  assert.equal(finalProduct.soldQty, bought.status === 200 ? 1 : 0);
+  const orders = await db.collection('bazaarOrders').where('eventId', '==', fixtureEvent).get();
+  const queue = await db.collection('bazaarOutbox').where('eventId', '==', fixtureEvent).get();
+  assert.equal(orders.size, expectedOrders);
+  assert.equal(queue.docs.filter(job => job.data().type === 'receipt').length, orders.size);
+  assert.equal(queue.docs.filter(job => job.data().type === 'cancel').length, 1);
+  assert.deepEqual(failures, []);
 });

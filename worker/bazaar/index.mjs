@@ -8,7 +8,7 @@ import { createPhotos } from './photos.mjs';
 const codes = {
   'invalid-argument': 400, unauthenticated: 401, 'permission-denied': 403,
   'not-found': 404, 'already-exists': 409, 'failed-precondition': 412,
-  'resource-exhausted': 429, unavailable: 503
+  'resource-exhausted': 429, 'checkout-busy': 503, unavailable: 503
 };
 const maxAdminJson = 1_000_000;
 const maxPublicJson = 24_000;
@@ -132,10 +132,12 @@ export default {
       }
       return json({ data: name === 'bazaarAdmin' ? photos.preview(result) : result }, 200, cors);
     } catch (error) {
-      const code = error instanceof BazaarError ? error.code : 'unavailable';
-      if (!(error instanceof BazaarError)) console.error('Bazaar Worker request failed', error.status || error.name);
+      const checkoutBusy = error.status === 'CHECKOUT_CONTENTION';
+      const code = error instanceof BazaarError ? error.code : checkoutBusy ? 'checkout-busy' : 'unavailable';
+      if (!(error instanceof BazaarError) && !checkoutBusy) console.error('Bazaar Worker request failed', error.status || error.name);
       return json({ error: { code, message: error instanceof BazaarError ? error.message
-        : '서비스에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.' } }, codes[code] ?? 500, cors);
+        : '서비스에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+        ...(error instanceof BazaarError && error.details && { details: error.details }) } }, codes[code] ?? 500, cors);
     }
   },
   async scheduled(_event, env, ctx) {

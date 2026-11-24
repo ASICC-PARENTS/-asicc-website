@@ -46,6 +46,10 @@ const lang = Astro.params.lang as Lang;
     <div id="bz-receipt" hidden></div>
   </section>
   </div>
+  <div id="bz-order-feedback" class="bz-note" hidden>
+    <p id="bz-order-message" role="status"></p>
+    <button id="bz-order-retry" class="bz-btn" type="button" hidden></button>
+  </div>
   <p class="bz-contact">{L(lang,{ko:'문의',fr:'Contact'})}: <a href="mailto:contact@asicc-parents.fr">contact@asicc-parents.fr</a></p>
 </div>
 </Base>
@@ -70,7 +74,11 @@ if(requestedEvent)document.querySelectorAll<HTMLAnchorElement>('[data-lang-switc
  url.searchParams.set('event',requestedEvent);
  link.href=url.href;
 });
-let previousRequest='', requestId='';
+type OrderRequest = {
+  eventId:string, consent:boolean, lang:string, name:FormDataEntryValue|null, phone:FormDataEntryValue|null,
+  email:FormDataEntryValue|null, pickupNote:FormDataEntryValue|null, items:{id:string,qty:number,priceCents:number}[], requestId:string
+};
+let pendingOrder:OrderRequest|undefined;
 let products:any[]=[],event:any={},cart:Record<string,number>={},selected:Record<string,number>={},serverOffset=0,submitted=false,submitting=false;
 const $=(s:string)=>root.querySelector<HTMLElement>(s)!;
 const button=(action:string,id:string,label:string,disabled=false)=>`<button data-action="${action}" data-id="${h(id)}" ${disabled?'disabled':''}>${h(label)}</button>`;
@@ -119,7 +127,7 @@ function renderCart(){
   if(closed)$('#bz-checkout').hidden=true;
 }
 root.addEventListener('click',async ev=>{
-  const target=(ev.target as HTMLElement).closest<HTMLButtonElement>('button[data-action]');if(!target||submitted||isClosed())return;
+  const target=(ev.target as HTMLElement).closest<HTMLButtonElement>('button[data-action]');if(!target||submitted||submitting||pendingOrder||isClosed())return;
   const id=target.dataset.id!,p=products.find(x=>x.id===id);if(!p)return;
   const a=target.dataset.action!;
   if(a==='inc')selected[id]=Math.min(100,(selected[id]||1)+1);
@@ -133,30 +141,72 @@ root.addEventListener('click',async ev=>{
   render();
 });
 $('#bz-toggle').addEventListener('click',()=>{if(isClosed())return;$('#bz-checkout').hidden=false;$('#bz-toggle').hidden=true;$('#bz-checkout').scrollIntoView({behavior:'smooth'});});
-$('#bz-form').addEventListener('submit',async ev=>{
-  ev.preventDefault();if(isClosed()||submitted||submitting)return;
+const form=$('#bz-form') as HTMLFormElement;
+const submit=$('#bz-send') as HTMLButtonElement;
+const retry=$('#bz-order-retry') as HTMLButtonElement;
+const submitLabel=submit.textContent;
+const retryLabel=t('주문 접수 확인 및 재시도','Vérifier et réessayer cette commande');
+retry.textContent=retryLabel;
+function showOrderError(error:any) {
+  const {code,status,details}=error??{};
+  const uncertain=!!pendingOrder&&(!status||status>=500||status===408);
+  if(!uncertain)pendingOrder=undefined;
+  let message=t('입력 정보와 장바구니를 확인한 뒤 다시 시도해 주세요.','Vérifiez vos coordonnées et votre panier, puis réessayez.');
+  if(uncertain){
+    message=code==='functions/checkout-busy'
+      ?t('주문이 몰리고 있습니다. 잠시 후 아래 버튼으로 같은 주문을 다시 시도해 주세요.','De nombreuses commandes arrivent en même temps. Réessayez cette même commande dans un instant.')
+      :t('주문 접수 여부를 확인하지 못했습니다. 아래 버튼으로 같은 주문의 접수 여부를 확인하고 필요한 경우 다시 접수해 주세요.',
+        'La confirmation n’a pas pu être affichée. Utilisez le bouton ci-dessous pour vérifier cette même commande et la renvoyer si nécessaire.');
+  }else if(details?.reason==='stock'&&Number.isInteger(details.available)){
+    const product=products.find(item=>item.id===details.productId);
+    const name=product?(lang==='fr'?product.titleFr:product.titleKo):t('상품','Produit');
+    message=details.available===0?t(`${name} 품절입니다. 장바구니를 확인해 주세요.`,`${name} est épuisé. Vérifiez votre panier.`)
+      :t(`${name}은 현재 ${details.available}개까지 주문할 수 있습니다.`,`Vous pouvez commander jusqu’à ${details.available} unité(s) de ${name}.`);
+    if(product){product.stockRemaining=details.available;render();}
+  }else if(status===429){
+    message=t('짧은 시간에 주문 요청이 많습니다. 잠시 후 다시 시도해 주세요.','Trop de demandes en peu de temps. Veuillez réessayer dans un instant.');
+  }else if(status===412){
+    message=t('상품 가격, 판매 상태 또는 주문 마감 시간이 변경되었습니다. 장바구니를 다시 확인해 주세요.',
+      'Le prix, la disponibilité ou la date de clôture a changé. Vérifiez à nouveau votre panier.');
+    void refresh();
+  }
+  $('#bz-order-message').textContent=message;
+  $('#bz-order-feedback').hidden=false;
+  retry.hidden=!uncertain;
+  $('#bz-order-feedback').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+async function sendOrder(){
+  if(submitted||submitting||(!pendingOrder&&isClosed()))return;
   submitting=true;
-  const form=ev.target as HTMLFormElement,fd=new FormData(form),submit=$('#bz-send') as HTMLButtonElement;
+  form.setAttribute('aria-busy','true');
+  retry.disabled=true;retry.textContent=t('확인 중…','Vérification…');
   submit.disabled=true;submit.textContent=t('접수 중…','Envoi…');
   try{
-    const items=products.filter(p=>cart[p.id]>0).map(p=>({id:p.id,qty:cart[p.id],priceCents:p.priceCents}));
-    const request={eventId:event.eventId,consent:fd.has('consent'),lang,
-      name:fd.get('name'),phone:fd.get('phone'),email:fd.get('email'),pickupNote:fd.get('pickupNote'),items};
-    const signature=JSON.stringify(request);
-    if(signature!==previousRequest){
-      requestId=await orderRequestId(event.eventId,request);
-      previousRequest=signature;
+    if(!pendingOrder){
+      const fd=new FormData(form);
+      const items=products.filter(p=>cart[p.id]>0).map(p=>({id:p.id,qty:cart[p.id],priceCents:p.priceCents}));
+      const request={eventId:event.eventId,consent:fd.has('consent'),lang,
+        name:fd.get('name'),phone:fd.get('phone'),email:fd.get('email'),pickupNote:fd.get('pickupNote'),items};
+      pendingOrder={...request, requestId:await orderRequestId(request.eventId,request)};
     }
-    const result=await createOrder({...request,requestId});
+    const result=await createOrder(pendingOrder);
+    if(!result?.id||!result?.token)throw new Error('Order result missing');
+    pendingOrder=undefined;
     submitted=true;$('#bz-checkout').hidden=true;$('#bz-toggle').hidden=true;
+    $('#bz-order-feedback').hidden=true;
     const link=`${root.dataset.orderUrl}?id=${encodeURIComponent(result.id)}#token=${encodeURIComponent(result.token)}`;
+    if($('#bz-shop').hidden)$('#bz-shop').after($('#bz-receipt'));
     $('#bz-receipt').hidden=false;
     $('#bz-receipt').innerHTML=`<div class="bz-receipt"><h3>${t('주문이 접수되었습니다','Votre commande a été enregistrée')}</h3><p>${t('주문번호','Référence')}: <strong>${h(result.orderRef)}</strong></p><p>${t('총 금액','Montant')}: <strong>${eFormat(result.totalCents)}</strong></p><p>${t('수취인','Bénéficiaire')}: ${h(result.beneficiary)}</p><p>IBAN: <strong>${h(result.iban)}</strong> <button class="bz-copy" data-copy="${h(result.iban)}">${t('복사','Copier')}</button></p><p>${t('송금 시 메모','Référence du virement')}: <strong>${h(result.orderRef)}</strong> <button class="bz-copy" data-copy="${h(result.orderRef)}">${t('복사','Copier')}</button></p><p>${t('송금 기한','Date limite du virement')}: <strong>${h(parisDeadline(result.transferCutoff,lang))}</strong></p><p>${t('주문 접수 메일을 발송합니다. 이메일이 도착하지 않으면 아래 주문 확인 링크를 꼭 저장해 주세요.','Un e-mail récapitulatif sera envoyé. Conservez le lien de suivi ci-dessous.')}</p><a href="${h(link)}" rel="noreferrer">${t('송금 완료 신고 / 주문 확인','Signaler le virement / Voir la commande')}</a></div>`;
     $('#bz-receipt').scrollIntoView({behavior:'smooth'});
-  }catch(err:any){alert(err?.message||t('주문 처리 오류가 발생했습니다.','Une erreur est survenue.'));submit.disabled=false;submit.textContent=t('주문 확정 및 송금 안내 받기','Valider ma commande');
-    if(err?.code==='functions/failed-precondition')await refresh();
-  }finally{submitting=false;}
-});
+  }catch(error){showOrderError(error);}
+  finally{
+    submitting=false;form.removeAttribute('aria-busy');
+    retry.disabled=false;retry.textContent=retryLabel;submit.disabled=submitted||!!pendingOrder;submit.textContent=submitLabel;
+  }
+}
+form.addEventListener('submit',ev=>{ev.preventDefault();void sendOrder();});
+retry.addEventListener('click',()=>void sendOrder());
 $('#bz-receipt').addEventListener('click',ev=>{const el=(ev.target as HTMLElement).closest<HTMLElement>('[data-copy]');if(el)navigator.clipboard.writeText(el.dataset.copy||'');});
 let reading=false;
 async function refresh(){

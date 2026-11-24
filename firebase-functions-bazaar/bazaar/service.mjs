@@ -2,9 +2,10 @@ import {randomBytes, timingSafeEqual, createHash} from 'node:crypto';
 import {catalogue, initialEvent} from './products.mjs';
 
 export class BazaarError extends Error {
-  constructor(code, message) {
+  constructor(code, message, details) {
     super(message);
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -121,7 +122,8 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     if(!product||delta<=0)return;
     const limit=stockCap(product);
     if(limit!=null&&(product.soldQty||0)+delta>limit)
-      throw new HttpsError('failed-precondition',`${product.titleKo||id}의 재고가 부족합니다.`);
+      throw new HttpsError('failed-precondition',`${product.titleKo||id}의 재고가 부족합니다.`,
+        { reason:'stock', productId:id, available:Math.max(0,limit-(product.soldQty||0)) });
   }
   const pickPublic=p=>({id:p.id,titleKo:p.titleKo,titleFr:p.titleFr,descriptionKo:p.descriptionKo||'',descriptionFr:p.descriptionFr||'',priceCents:p.retailCents,storage:p.storage||'ambient',imageUrl:p.imageUrl||'',displayOrder:p.displayOrder,stockCap:stockCap(p),stockRemaining:stockCap(p)==null?null:Math.max(0,stockCap(p)-(p.soldQty||0))});
   async function requireAdmin(req){
@@ -201,12 +203,13 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     const ip=s(req.rawRequest?.ip||req.rawRequest?.socket?.remoteAddress||'unknown');
     const ipHash=createHash('sha256').update(ip).digest('hex');
     const throttleRef=db.doc(`bazaarRateLimits/${ipHash}`);
-    const order=await db.runTransaction(async tx=>{
+    const refs=buyer.items.map(i=>products.doc(i.id));
+    const checkout=async tx=>{
       const [eventSnap,rateSnap,existing]=await Promise.all([tx.get(eventRef),tx.get(throttleRef),tx.get(ref)]);
       if(existing.exists){
         const o=existing.data();
         if(o.requestFingerprint!==fingerprint)throw new HttpsError('already-exists','같은 요청 번호에 다른 주문이 있습니다.');
-        return { id:o.id, token:o.buyerToken, ...paymentDetails(o), pickupKo:o.eventSnapshot.pickupKo };
+        return { order:{ id:o.id, token:o.buyerToken, ...paymentDetails(o), pickupKo:o.eventSnapshot.pickupKo } };
       }
       const e=eventSnap.data();
       const rate=rateSnap.data()||{};
@@ -215,7 +218,6 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       if(!e)throw new HttpsError('failed-precondition','바자회 준비 중입니다.');
       if(e.status!=='published'||locked(e)||e.eventId!==requested||!(Date.now()<Date.parse(e.orderCutoff)))throw new HttpsError('failed-precondition','주문 접수가 마감되었습니다.');
       if(!/^FR\d{2}[A-Z0-9 ]{20,}$/.test(s(e.iban).replaceAll(' ','')))throw new HttpsError('failed-precondition','송금계좌 등록 후 주문할 수 있습니다.');
-      const refs=buyer.items.map(i=>products.doc(i.id));
       const snapshots=await Promise.all(refs.map(r=>tx.get(r)));
       const itemDetails=[];let total=0;
       for(let i=0;i<buyer.items.length;i++){
@@ -234,9 +236,12 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       tx.create(ref,data);
       tx.set(throttleRef,{startedMs:(rate.startedMs||0)>windowStart?rate.startedMs:Date.now(),count:(rate.startedMs||0)>windowStart?(rate.count||0)+1:1,expiresAt:new Date(Date.now()+24*3600000).toISOString()});
       await queue(tx,ref.id,'receipt',{eventId:requested});
-      return { id:ref.id, token, ...paymentDetails(data), pickupKo:e.pickupKo };
-    });
-    await deliver(`${order.id}_receipt`).catch(error=>console.error('Bazaar receipt delivery failed',error));
+      return { created:true,order:{ id:ref.id, token, ...paymentDetails(data), pickupKo:e.pickupKo } };
+    };
+    const {order,created}=await (db.runCheckout
+      ? db.runCheckout([eventRef,throttleRef,ref,...refs],checkout)
+      : db.runTransaction(checkout));
+    if(created)await deliver(`${order.id}_receipt`).catch(error=>console.error('Bazaar receipt delivery failed',error));
     return order;
   }
   async function bazaarBuyerAction(req){

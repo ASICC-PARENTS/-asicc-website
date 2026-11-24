@@ -31,6 +31,7 @@ function readFields(value = {}) {
 }
 
 const operators = { '==': 'EQUAL', '<=': 'LESS_THAN_OR_EQUAL', '<': 'LESS_THAN', '>=': 'GREATER_THAN_OR_EQUAL', '>': 'GREATER_THAN' };
+const pauseAfterConflict = attempt => new Promise(resolve => setTimeout(resolve, 25 * 2 ** attempt + Math.random() * 75));
 
 function segment(value) {
   if (typeof value !== 'string' || !value || value.includes('/') || value === '.' || value === '..') {
@@ -157,6 +158,47 @@ export function createFirestore({ projectId, token, fetcher = fetch, emulator })
 
   return {
     doc: document, collection: query, batch, getAll: (...refs) => getMany(refs),
+    async runCheckout(refs, action) {
+      // Check versions at atomic commit instead of upgrading shared read locks.
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const snapshots = new Map((await getMany(refs)).map(snapshot => [snapshot.ref.name, snapshot]));
+        const writer = batch();
+        const get = async ref => {
+          const snapshot = snapshots.get(ref.name);
+          if (!snapshot || writer.writes.length) throw new Error('Invalid checkout read');
+          return snapshot;
+        };
+        const result = await action({ ...writer, get });
+        if (!writer.writes.length) return result;
+        const written = new Set();
+        for (const write of writer.writes) {
+          const name = write.update?.name;
+          const snapshot = snapshots.get(name);
+          if (snapshot) {
+            write.currentDocument = snapshot.exists ? { updateTime: snapshot.updateTime.value } : { exists: false };
+            written.add(name);
+          }
+        }
+        for (const [name, snapshot] of snapshots) {
+          if (!written.has(name)) writer.writes.push({
+            verify: name, currentDocument: snapshot.exists ? { updateTime: snapshot.updateTime.value } : { exists: false }
+          });
+        }
+        try {
+          await writer.commit();
+          return result;
+        } catch (error) {
+          if (!['ABORTED', 'FAILED_PRECONDITION', 'ALREADY_EXISTS'].includes(error.status)) throw error;
+          console.info('Bazaar checkout conflict', error.status, attempt + 1);
+          if (attempt === 3) {
+            console.warn('Bazaar checkout contention exhausted', error.status, attempt + 1);
+            throw Object.assign(new Error('Checkout contention'), { status: 'CHECKOUT_CONTENTION' });
+          }
+          // Spread clients that all read the same popular product version.
+          await new Promise(resolve => setTimeout(resolve, 25 + Math.random() * 250 * 2 ** attempt));
+        }
+      }
+    },
     async runTransaction(action, { readOnly = false } = {}) {
       for (let attempt = 0; attempt < 4; attempt++) {
         let transaction;
@@ -191,7 +233,7 @@ export function createFirestore({ projectId, token, fetcher = fetch, emulator })
         } catch (error) {
           if (error.status === 'ABORTED' && !readOnly && attempt < 3) {
             if (transaction) await request(`${documents}:rollback`, { transaction }).catch(() => {});
-            await new Promise(resolve => setTimeout(resolve, 25 * 2 ** attempt + Math.random() * 75));
+            await pauseAfterConflict(attempt);
             continue;
           }
           if (transaction) await request(`${documents}:rollback`, { transaction }).catch(() => {});
