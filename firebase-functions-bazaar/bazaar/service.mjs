@@ -98,6 +98,12 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     const { iban, beneficiary, transferCutoff } = order.eventSnapshot ?? {};
     return { orderRef: order.orderRef, totalCents: order.totalCents, iban, beneficiary, transferCutoff };
   };
+  const orderNotOpen=event=>!!event.orderStartsAt&&Date.now()<Date.parse(event.orderStartsAt);
+  function eventSchedule(input){
+    const orderStartsAt=s(input.orderStartsAt),pickupAt=s(input.pickupAt),pickupPlace=s(input.pickupPlace).slice(0,300);
+    if((orderStartsAt&&(!Number.isFinite(Date.parse(orderStartsAt))||Date.parse(orderStartsAt)>=Date.parse(input.orderCutoff)))||(pickupAt&&!Number.isFinite(Date.parse(pickupAt))))bad('주문 시작과 픽업 일정을 확인해 주세요.');
+    return {orderStartsAt,pickupAt,pickupPlace};
+  }
   const buyerCanCancel=event=>event?.status==='published'&&Date.now()<Date.parse(event.orderCutoff);
   function buyerOrder(order, event) {
     return {
@@ -184,6 +190,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         `Votre commande a été annulée faute de paiement confirmé. Si vous avez déjà effectué le virement, envoyez sa date et votre référence de commande à ${contact}.`)],
       reminder3:[t('바자회 송금 안내','Rappel de virement'),t('아직 송금 완료 표시가 접수되지 않았습니다. 송금을 마치셨다면 아래 주문 관리 링크에서 알려주세요.',
         'Nous n’avons pas encore reçu votre signalement de virement. Si vous avez déjà payé, signalez-le via le lien de suivi ci-dessous.')],
+      pickup:[t('상품 수령 안내','Retrait des produits'),t('행사 안내에 따라 상품을 수령해 주세요.','Veuillez suivre les indications de retrait.')],
       reminderFinal:[t('바자회 송금 마감 안내','Rappel avant la date limite de virement'),t('송금 마감 안내입니다. 아직 송금 완료 표시가 접수되지 않았습니다.',
         'La date limite de virement approche. Nous n’avons pas encore reçu votre signalement de virement.')]
     })[type]||[t('바자회 안내','Informations sur la vente solidaire'),t('주문 안내','Informations sur votre commande')];
@@ -201,16 +208,20 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     if(['receipt','reported','reminder3','reminderFinal'].includes(type)){
       details.push(`${t('수취인','Bénéficiaire')}: ${event.beneficiary}\nIBAN: ${event.iban}\n${t('송금 금액','Montant du virement')}: ${euro(order.totalCents)}\n${t('송금 메모','Référence du virement')}: ${order.orderRef}\n${t('송금 마감 (파리 시간)','Date limite du virement (heure de Paris)')}: ${localDate(event.transferCutoff,t('ko-KR','fr-FR'))}`);
     }
-    const pickup=t(event.pickupKo||event.pickupFr,event.pickupFr||event.pickupKo);
+    const pickup=[event.pickupAt?localDate(event.pickupAt,t('ko-KR','fr-FR')):'',event.pickupPlace,t(event.pickupKo||event.pickupFr,event.pickupFr||event.pickupKo)].filter(Boolean).join('\n');
     if(pickup&&['receipt','confirmed','reminderFinal','pickup'].includes(type))details.push(`${t('수령','Retrait')}: ${pickup}`);
     details.push(`${t('문의','Contact')}: ${contact}`);
     if(['receipt','confirmed','reminderFinal','pickup'].includes(type)){
       const terms=orderTerms[fr?'fr':'ko'];
       details.push([terms.title,...terms.lines].join('\n'));
     }
+    const actions=['receipt','reminderFinal'].includes(type)&&!order.transferReportedAt&&!order.bankConfirmedAt&&!order.canceledAt?
+      [[t('송금 완료 알리기','Signaler le virement'),'report'],...(buyerCanCancel(event)?[[t('주문 취소하기','Annuler ma commande'),'cancel']]:[])]:[];
+    const linksHtml=actions.map(([label,target])=>'<p><a href="'+esc(url+'&focus='+target)+'">'+esc(label)+'</a></p>').join('');
+    const linksText=actions.map(([label,target])=>label+': '+url+'&focus='+target).join('\n');
     const body=details.join('\n\n');
-    return{subject,text:`${intro}\n\n${body}\n\n${action}: ${url}`,
-      html:`<div style="font:15px/1.7 Arial,sans-serif;max-width:650px"><h2>${esc(subject)}</h2><p>${esc(intro)}</p><pre style="white-space:pre-wrap;font:inherit">${esc(body)}</pre><p><a href="${esc(url)}" style="color:#932b35">${esc(action)}</a></p></div>`};
+    return{subject,text:`${intro}\n\n${body}\n\n${action}: ${url}${linksText?'\n'+linksText:''}`,
+      html:`<div style="font:15px/1.7 Arial,sans-serif;max-width:650px"><h2>${esc(subject)}</h2><p>${esc(intro)}</p><pre style="white-space:pre-wrap;font:inherit">${esc(body)}</pre><p><a href="${esc(url)}" style="color:#932b35">${esc(action)}</a></p>${linksHtml}</div>`};
   }
   const deliver = mailId => sendQueuedMail(mailId, message);
   async function bazaarPublic(req){
@@ -225,7 +236,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       }
       if(closed(current))return {serverNow:now(),event:{eventId,status:'closed'},products:[]};
       const e=current;
-      const safe={eventId,status:e.status||'draft',nameKo:e.nameKo,nameFr:e.nameFr,introKo:e.introKo,introFr:e.introFr,orderCutoff:e.orderCutoff,transferCutoff:e.transferCutoff,pickupKo:e.pickupKo,pickupFr:e.pickupFr,beneficiary:e.beneficiary,iban:e.iban,contactEmail:e.contactEmail,finalizedAt:null};
+      const safe={eventId,status:e.status||'draft',orderStartsAt:e.orderStartsAt||'',pickupAt:e.pickupAt||'',pickupPlace:e.pickupPlace||'',nameKo:e.nameKo,nameFr:e.nameFr,introKo:e.introKo,introFr:e.introFr,orderCutoff:e.orderCutoff,transferCutoff:e.transferCutoff,pickupKo:e.pickupKo,pickupFr:e.pickupFr,beneficiary:e.beneficiary,iban:e.iban,contactEmail:e.contactEmail,finalizedAt:null};
       const ps=e.status==='published' ? snapshotProducts(await tx.get(products)) : [];
       return{serverNow:now(),event:safe,products:ps.filter(p=>!p.archivedAt&&p.visible&&cents(p.retailCents)).map(pickPublic).sort((a,b)=>a.displayOrder-b.displayOrder)};
     },{readOnly:true});
@@ -256,7 +267,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       const windowStart=Date.now()-10*60*1000;
       if((rate.startedMs||0)>windowStart&&(rate.count||0)>=8)throw new HttpsError('resource-exhausted','짧은 시간에 주문 요청이 많습니다. 협회에 문의해 주세요.');
       if(!e)throw new HttpsError('failed-precondition','바자회 준비 중입니다.');
-      if(e.status!=='published'||locked(e)||e.eventId!==requested||!(Date.now()<Date.parse(e.orderCutoff)))throw new HttpsError('failed-precondition','주문 접수가 마감되었습니다.');
+      if(e.status!=='published'||locked(e)||orderNotOpen(e)||e.eventId!==requested||!(Date.now()<Date.parse(e.orderCutoff)))throw new HttpsError('failed-precondition','주문 접수가 마감되었습니다.');
       if(!/^FR\d{2}[A-Z0-9 ]{20,}$/.test(s(e.iban).replaceAll(' ','')))throw new HttpsError('failed-precondition','송금계좌 등록 후 주문할 수 있습니다.');
       const snapshots=await Promise.all(refs.map(r=>tx.get(r)));
       const itemDetails=[];let total=0;
@@ -658,7 +669,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       const freshFirst=prev.status==='draft'&&!prev.publishedAt&&existingDrafts.empty;
       const serial=freshFirst?(prev.serial||1):maxSerial+1;
       const id=`bazaar-${Date.now()}-${randomBytes(6).toString('hex')}`;
-      const draft={id,serial,status:'draft',createdAt:now(),updatedAt:now(),event:{...prev,eventId:id,serial,nameKo:`${serial}차 ASICC 온라인 바자회`,nameFr:`Vente solidaire ASICC n°${serial}`,orderCutoff:'',transferCutoff:'',pickupKo:'',pickupFr:'',finalizedAt:null,endedAt:null,publishedAt:null,createdAt:now(),status:'draft'},items:[]};
+      const draft={id,serial,status:'draft',createdAt:now(),updatedAt:now(),event:{...prev,eventId:id,serial,nameKo:`${serial}차 ASICC 온라인 바자회`,nameFr:`Vente solidaire ASICC n°${serial}`,orderCutoff:'',transferCutoff:'',orderStartsAt:'',pickupAt:'',pickupPlace:'',pickupKo:'',pickupFr:'',finalizedAt:null,endedAt:null,publishedAt:null,createdAt:now(),status:'draft'},items:[]};
       await eventDrafts.doc(id).create(draft);
       return{draft};
     }
@@ -687,7 +698,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
           soldQty:0,archivedAt:included?null:(previous?.archivedAt||null)};
       }));
       const input=data.event||{};
-      const e={...snap.data().event,nameKo:s(input.nameKo).slice(0,120),nameFr:s(input.nameFr).slice(0,120),introKo:s(input.introKo).slice(0,1000),introFr:s(input.introFr).slice(0,1000),pickupKo:s(input.pickupKo).slice(0,500),pickupFr:s(input.pickupFr).slice(0,500),iban:s(input.iban).replaceAll(' ','').toUpperCase(),beneficiary:s(input.beneficiary).slice(0,200),orderCutoff:s(input.orderCutoff),transferCutoff:s(input.transferCutoff)};
+      const e={...snap.data().event,...eventSchedule(input),nameKo:s(input.nameKo).slice(0,120),nameFr:s(input.nameFr).slice(0,120),introKo:s(input.introKo).slice(0,1000),introFr:s(input.introFr).slice(0,1000),pickupKo:s(input.pickupKo).slice(0,500),pickupFr:s(input.pickupFr).slice(0,500),iban:s(input.iban).replaceAll(' ','').toUpperCase(),beneficiary:s(input.beneficiary).slice(0,200),orderCutoff:s(input.orderCutoff),transferCutoff:s(input.transferCutoff)};
       if(!e.nameKo||!e.nameFr)bad('바자회 이름을 입력해 주세요.');
       if(e.iban&&!/^FR\d{2}[A-Z0-9]{23}$/.test(e.iban))bad('IBAN을 확인해 주세요.');
       for(const field of ['orderCutoff','transferCutoff'])if(e[field]&&!Number.isFinite(Date.parse(e[field])))bad('일정 형식을 확인해 주세요.');
@@ -823,7 +834,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       return{ok:true};
     }
     if(op==='saveEvent'){
-      const patch={introKo:s(data.introKo).slice(0,1000),introFr:s(data.introFr).slice(0,1000),pickupKo:s(data.pickupKo).slice(0,500),pickupFr:s(data.pickupFr).slice(0,500),iban:s(data.iban).replaceAll(' ','').toUpperCase(),beneficiary:s(data.beneficiary).slice(0,200),orderCutoff:s(data.orderCutoff),transferCutoff:s(data.transferCutoff)};
+      const patch={...eventSchedule(data),introKo:s(data.introKo).slice(0,1000),introFr:s(data.introFr).slice(0,1000),pickupKo:s(data.pickupKo).slice(0,500),pickupFr:s(data.pickupFr).slice(0,500),iban:s(data.iban).replaceAll(' ','').toUpperCase(),beneficiary:s(data.beneficiary).slice(0,200),orderCutoff:s(data.orderCutoff),transferCutoff:s(data.transferCutoff)};
       if(!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d/.test(patch.orderCutoff)||!Number.isFinite(Date.parse(patch.orderCutoff))||!Number.isFinite(Date.parse(patch.transferCutoff))||Date.parse(patch.orderCutoff)>=Date.parse(patch.transferCutoff))bad('마감 날짜를 확인해 주세요.');
       if(patch.iban&&!/^FR\d{2}[A-Z0-9]{23}$/.test(patch.iban))bad('IBAN을 확인해 주세요.');
       await db.runTransaction(async tx=>{

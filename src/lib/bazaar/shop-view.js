@@ -25,7 +25,7 @@ export function renderShopEvent(event,lang) {
     escape(t(event.introKo,event.introFr))+'</p><div class="bz-shared-info">'+
     info(t('주문 마감','Clôture des commandes'),date(event.orderCutoff))+
     info(t('송금 마감','Date limite de virement'),date(event.transferCutoff))+
-    info(t('상품 수령 안내','Informations de retrait'),t(event.pickupKo,event.pickupFr))+'</div></div>';
+    info(t('상품 수령 안내','Informations de retrait'),[event.pickupAt?date(event.pickupAt):'',event.pickupPlace,t(event.pickupKo,event.pickupFr)].filter(Boolean).join('\n'))+'</div></div>';
 }
 export function renderShopProducts(products,lang,{quantity,controls,price}) {
   const t=(ko,fr)=>localize(lang,ko,fr);

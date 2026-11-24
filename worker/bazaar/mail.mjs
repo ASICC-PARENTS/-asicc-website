@@ -17,6 +17,14 @@ export const eligibleReminder = (order, event, policy, time) => order?.email && 
   && !order.transferReportedAt && !order.bankConfirmedAt && !order.canceledAt
   && time < Date.parse(event.transferCutoff);
 
+function manualStillEligible(job,order,event,time){
+  if(job.type==='cancel')return !!order.canceledAt&&['buyer','admin'].includes(order.cancelReason);
+  if(job.type==='confirmed')return !!order.bankConfirmedAt&&!order.canceledAt;
+  if(job.type==='bulkCancel')return order.cancelReason==='unpaidFinalization';
+  if(job.type==='reminderFinal')return order.eventId===event?.eventId&&!event.finalizedAt&&!event.reconciliationStartedAt&&time<Date.parse(event.transferCutoff)&&!order.canceledAt&&!order.bankConfirmedAt&&!order.transferReportedAt&&!order.reminderFinalAt;
+  return job.type==='other'||!order.canceledAt;
+}
+
 export function createMail(env, db, send = fetch) {
   const outbox = db.collection('bazaarOutbox');
   const provider = env.MAIL_PROVIDER;
@@ -86,12 +94,12 @@ export function createMail(env, db, send = fetch) {
       const order = orderSnap.data();
       const policy = order?.eventId
         ? (await tx.get(db.doc(`bazaarMailPolicies/${order.eventId}`))).data() : undefined;
-      if (!order?.email || !autoMailAllowed(policy,job,order) || retiredTypes.has(job.type) || (job.type==='bulkCancel'&&policy?.bulkCancel!=='auto')
-        || (active && (!eligibleReminder(order,active.data(),policy,time) || order.reminderFinalAt))) {
+      if (!order?.email || !autoMailAllowed(policy,job,order) || retiredTypes.has(job.type) || (job.mode==='manual'?!manualStillEligible(job,order,active?.data(),time):job.type==='bulkCancel'&&policy?.bulkCancel!=='auto')
+        || (active && job.mode!=='manual' && (!eligibleReminder(order,active.data(),policy,time) || order.reminderFinalAt))) {
         tx.update(ref, { status: 'skipped', payload:null, ...reschedule(job.type,null) });
         return null;
       }
-      if (active && Date.parse(policy.reminderAt)>time) {
+      if (active && job.mode!=='manual' && Date.parse(policy.reminderAt)>time) {
         tx.update(ref,reschedule(job.type,policy.reminderAt));
         return null;
       }
@@ -101,7 +109,7 @@ export function createMail(env, db, send = fetch) {
         return null;
       }
       const kind=mailKind(job.type,order);
-      const payload = { ...message(order, job.type, order.eventSnapshot,policy?.templates?.[kind]), to: order.email };
+      const payload = { ...message(order, job.type, order.eventSnapshot,{...policy?.templates?.[kind],...job.template}), to: order.email };
       const providerKey = job.providerKey ?? randomUUID();
       if (!isCapture) {
         const monthly = provider==='resend' ? usage.doc(`resend-month-${quotaDate.format(time).slice(0,7)}`) : null;
@@ -135,7 +143,7 @@ export function createMail(env, db, send = fetch) {
         const [current,active,policy]=await db.getAll(db.doc(`bazaarOrders/${job.orderId}`),db.doc('bazaarMeta/event'),
           db.doc(`bazaarMailPolicies/${job.eventId}`));
         const order=current.data();
-        const obsolete=!order||!autoMailAllowed(policy.data(),job,order)||(job.type==='reminderFinal'
+        const obsolete=!order||!autoMailAllowed(policy.data(),job,order)||(job.mode==='manual'?!manualStillEligible(job,order,active.data(),Date.now()):job.type==='reminderFinal'
           ? !eligibleReminder(current.data(),active.data(),policy.data(),Date.now())
           : job.type==='bulkCancel'&&(policy.data()?.bulkCancel!=='auto'||!order.canceledAt));
         if(obsolete) result={skip:true};
@@ -160,7 +168,7 @@ export function createMail(env, db, send = fetch) {
         tx.set(accepted.ref,{count:(accepted.data()?.count??0)+1});
         tx.update(ref, { sentAt, providerId: result.id, status: 'sent', ...reschedule(job.type,null),
           sendingUntil: null, lastError: null, payload: null,
-          sentSnapshot:{subject:job.payload.subject,text:job.payload.text,to:job.payload.to,mode:'auto'} });
+          sentSnapshot:{subject:job.payload.subject,text:job.payload.text,to:job.payload.to,mode:job.mode||'auto'} });
         return true;
       }
       if(result.retry&&!isCapture){

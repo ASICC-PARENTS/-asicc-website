@@ -141,8 +141,7 @@ export default {
     }
   },
   async scheduled(_event, env, ctx) {
-    const { mail, mailManagement, service } = dependencies(env, '', ctx);
-    if(mail.canSend())await mailManagement.nextReminderBatch();
+    const { mail, service } = dependencies(env, '', ctx);
     await mail.run(service.message);
   }
 };

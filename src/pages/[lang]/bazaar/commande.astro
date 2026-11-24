@@ -38,6 +38,9 @@ function draw(){
  const report=document.querySelector<HTMLButtonElement>('#bo-report');
  report?.addEventListener('click',async()=>{if(!confirm(t('송금을 완료하셨나요?','Avez-vous effectué le virement ?')))return;await change('report');});
  const cancel=document.querySelector<HTMLButtonElement>('#bo-cancel');
+ const focus=fragment.get('focus');
+ if(focus==='report')report?.focus();
+ if(focus==='cancel')cancel?.focus();
  cancel?.addEventListener('click',async()=>{const ack=(document.querySelector<HTMLInputElement>('#bo-ack')?.checked);if(!ack){alert(t('먼저 미송금 확인에 체크해 주세요.','Veuillez confirmer l’absence de virement.'));return;}if(!confirm(t('주문을 취소하시겠습니까? 취소한 주문은 되돌릴 수 없습니다.','Annuler définitivement cette commande ?')))return;await change('cancel',true);});
 }
 async function change(action:string,ackNoTransfer=false){

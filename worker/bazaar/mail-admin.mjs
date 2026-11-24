@@ -4,7 +4,7 @@ import { BazaarError } from '../../firebase-functions-bazaar/bazaar/service.mjs'
 import { eligibleReminder, mailFields } from './mail.mjs';
 
 const choices = ['manual','auto'];
-const manualTypes = ['reminderFinal','bulkCancel','pickup','other'];
+const manualTypes=Object.keys(mailKinds);
 const audiences = ['unpaid','confirmed','canceled','valid'];
 const idPattern = /^[a-z0-9-]{12,60}$/;
 const orderPattern = /^[a-zA-Z0-9]{15,40}$/;
@@ -22,6 +22,9 @@ function formatJob(doc) {
 
 function matchesManual(order,eventId,type,audience,excludeReported) {
   if(!order?.email||order.eventId!==eventId)return false;
+  if(type==='receipt')return !order.canceledAt;
+  if(type==='confirmed')return !!order.bankConfirmedAt&&!order.canceledAt;
+  if(type==='buyerCancel'||type==='adminCancel')return !!order.canceledAt&&order.cancelReason===(type==='buyerCancel'?'buyer':'admin');
   if(type==='bulkCancel')return order.cancelReason==='unpaidFinalization';
   if(type==='reminderFinal'||audience==='unpaid'){
     return !order.canceledAt&&!order.bankConfirmedAt&&(!excludeReported||!order.transferReportedAt);
@@ -118,8 +121,9 @@ export function createMailAdmin(db,mail) {
       const at=Date.parse(data.reminderAt);
       return db.runTransaction(async tx=>{
         const [current,draft,previous]=await Promise.all([tx.get(activeRef),tx.get(db.doc(`bazaarDrafts/${eventId}`)),tx.get(policyRef)]);
-        const event=current.data()?.eventId===eventId?current.data():draft.data()?.event;
-        if(!event||event.finalizedAt||event.reconciliationStartedAt)throw conflict('현재 행사 또는 임시저장의 정책만 변경할 수 있습니다.');
+        const isCurrent=current.data()?.eventId===eventId;
+        const event=isCurrent?current.data():draft.data()?.event;
+        if(!event||(isCurrent&&(event.finalizedAt||event.reconciliationStartedAt)))throw conflict('현재 행사 또는 임시저장의 정책만 변경할 수 있습니다.');
         if(reminderMode==='auto'&&!(Number.isFinite(at)&&at>Date.now()&&at>=Date.parse(event.orderCutoff)
           &&at<Date.parse(event.transferCutoff))){
           throw bad('알림 시각은 주문 마감 이후, 송금 마감 이전이어야 합니다.');
@@ -129,6 +133,8 @@ export function createMailAdmin(db,mail) {
           policy.modes=modes;
           policy.templates=templates?safeTemplates:(previous.data()?.templates||{});
           policy.autoSince={...(previous.data()?.autoSince||{})};
+          policy.enabledSince={...(previous.data()?.enabledSince||{})};
+          for(const kind of Object.keys(mailKinds))if(modes[kind]!=='off'&&policyMode(previous.data(),kind)==='off')policy.enabledSince[kind]=now();
           for(const kind of Object.keys(mailKinds))if(modes[kind]==='auto'&&policyMode(previous.data(),kind)!=='auto')policy.autoSince[kind]=now();
         }
         tx.set(policyRef,{...policy,updatedAt:now(),updatedBy:uid},{merge:true});
@@ -163,20 +169,24 @@ export function createMailAdmin(db,mail) {
         return {ok:true};
       });
     }
-    if(['mailManualPrepare','mailManualComplete','mailManualRelease'].includes(op)){
+    if(['mailManualPrepare','mailManualComplete','mailManualRelease','mailManualQueue'].includes(op)){
       const type=data.type;
       const audience=data.audience;
       const notice=type==='other'?String(data.notice??'').trim():'';
       if(!manualTypes.includes(type)||!audiences.includes(audience)||!Array.isArray(data.ids)
         ||!data.ids.length||data.ids.length>30||data.ids.some(id=>!orderPattern.test(id))
         ||(type==='other'&&(!notice||notice.length>80)))throw bad('공지 종류와 대상을 확인해 주세요.');
-      const key=notice?`other-${createHash('sha256').update(notice).digest('hex').slice(0,16)}`:type;
+      const key=notice?`other-${createHash('sha256').update(notice).digest('hex').slice(0,16)}`:['buyerCancel','adminCancel'].includes(type)?'cancel':type;
+      const jobType=key==='cancel'?'cancel':type;
       const ids=[...new Set(data.ids)];
+      const queueManual=op==='mailManualQueue';
+      const opening=op==='mailManualPrepare'||queueManual;
+      const template=Object.fromEntries(['subjectKo','subjectFr','introKo','introFr'].map(key=>[key,String(data.override?.[key]??'').trim().slice(0,key.startsWith('subject')?150:2500)]).filter(([,value])=>value));
       const targets=ids.map(id=>({order:orders.doc(id),job:outbox.doc(`${id}_${key}`)}));
       return db.runTransaction(async tx=>{
-        if(op==='mailManualPrepare'&&policyMode((await tx.get(policyRef)).data(),type)==='off')throw conflict('이 이메일은 발송이 꺼져 있습니다.');
-        const active=type==='reminderFinal'&&op==='mailManualPrepare'?(await tx.get(activeRef)).data():null;
-        if(type==='reminderFinal'&&op==='mailManualPrepare'&&(active?.eventId!==eventId||active.finalizedAt
+        if(opening&&policyMode((await tx.get(policyRef)).data(),type)==='off')throw conflict('이 이메일은 발송이 꺼져 있습니다.');
+        const active=type==='reminderFinal'&&opening?(await tx.get(activeRef)).data():null;
+        if(type==='reminderFinal'&&opening&&(active?.eventId!==eventId||active.finalizedAt
           ||active.reconciliationStartedAt||!(Date.now()<Date.parse(active.transferCutoff))))throw conflict('송금 마감 이전의 현재 행사만 알림을 준비할 수 있습니다.');
         const rows=await Promise.all(targets.map(async target=>({order:(await tx.get(target.order)).data(),job:await tx.get(target.job)})));
         const recipients=[];
@@ -189,12 +199,18 @@ export function createMailAdmin(db,mail) {
               ||['sending','manualSent','sent'].includes(stored?.status)||stored?.sentAt||stored?.deliveryUncertain
               ||(stored?.status==='manualReserved'&&stored.manualBy!==uid))continue;
             if(stored?.status!=='manualReserved')tx.set(job.ref,{
-              orderId:order.id,eventId,type,notice,createdAt:stored?.createdAt??now(),
+              orderId:order.id,eventId,type:jobType,notice,createdAt:stored?.createdAt??now(),
               status:'manualReserved',manualBy:uid,dueAt:null,urgentDueAt:null,
               manualPreviousStatus:stored?.status??null,manualPreviousDueAt:stored?.dueAt??null
             },{merge:true});
             recipients.push({id:order.id,email:order.email});
-          }else if(stored?.status==='manualReserved'&&stored.manualBy===uid){
+          }else if(queueManual&&stored?.status==='manualReserved'&&stored.manualBy===uid){
+            if(!matchesManual(order,eventId,type,audience,data.excludeReported!==false)||type==='reminderFinal'&&order.reminderFinalAt)continue;
+            const requestedAt=now();
+            tx.update(job.ref,{...mailFields(jobType,requestedAt),status:'queued',mode:'manual',requestedAt,template,
+              manualPreviousStatus:null,manualPreviousDueAt:null});
+            recipients.push({id:order.id});
+          }else if(!queueManual&&stored?.status==='manualReserved'&&stored.manualBy===uid){
             finishManual(tx,job,order,op==='mailManualComplete');
             recipients.push({id:order.id});
           }

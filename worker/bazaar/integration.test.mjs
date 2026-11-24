@@ -168,7 +168,16 @@ test('Worker API with Firebase emulators preserves checkout, admin, inventory, e
   await db.doc(`bazaarMailPolicies/${eventId}`).update({reminderAt});
   await db.doc(`bazaarMailSchedules/${eventId}`).update({runAt:reminderAt});
   assert.ok((await fetch(`${origin}/__scheduled?cron=*`)).ok);
-  assert.equal((await scheduledJob.get()).data().status,'sent');
+  assert.equal((await scheduledJob.get()).exists,false,'Legacy automatic reminder schedules must not send');
+  const reminderFields={eventId,type:'reminderFinal',audience:'unpaid',ids:[scheduledOrder.id]};
+  assert.equal((await admin('mailManualPrepare',reminderFields)).recipients.length,1);
+  assert.equal((await admin('mailManualQueue',{...reminderFields,override:{introFr:'Texte de test'}})).recipients.length,1);
+  assert.equal((await admin('mailManualQueue',reminderFields)).recipients.length,0);
+  assert.ok((await fetch(origin+'/__scheduled?cron=*')).ok);
+  const capturedReminder=(await scheduledJob.get()).data();
+  assert.equal(capturedReminder?.status,'sent');
+  assert.equal(capturedReminder.sentSnapshot.mode,'manual');
+  assert.match(capturedReminder.sentSnapshot.text,/Texte de test/);
   await scheduledOrder.delete();
   for (let i = 0; i < 4; i++) await admin('createManualOrder', { ...buyer, requestId: id(), source: 'phone', email: '' });
   const purchase = { eventId, vendor: '테스트 업체', revision: 0,

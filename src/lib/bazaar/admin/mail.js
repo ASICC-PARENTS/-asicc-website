@@ -82,7 +82,7 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
     }
   };
 
-  let templates={};
+  let templates={},lastBudget;
   function policyEditor(policy){
     const rows=Object.entries(kinds).map(([kind,label])=>{
       const mode=policy.modes?policyMode(policy,kind):kind==='bulkCancel'?policy.bulkCancel:mailKinds[kind];
@@ -119,6 +119,7 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
     cursor=data.cursor;
     messages=append?[...messages,...data.messages]:data.messages;
     const b=data.budget;
+    lastBudget=b;
     templates=data.policy.templates||{};
     const previous=body.querySelector('[data-mail-manual]');
     const upcoming=[data.nextReminderAt,...messages.map(m=>m.dueAt)].filter(Boolean).sort()[0];
@@ -138,8 +139,8 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
   }
 
   function initManual() {
-    body.querySelector('[data-mail-manual]').innerHTML=`<h3>OVH 수동 발송</h3><form data-manual-form class="form-grid">
-      <label class="field">안내 종류 ${select('type',[['reminderFinal','미입금 독촉'],['bulkCancel','최종 미입금 취소'],['pickup','수령 안내'],['other','기타 안내']])}</label>
+    body.querySelector('[data-mail-manual]').innerHTML=`<h3>${t('수동 발송 · Brevo 또는 OVH','Envoi manuel · Brevo ou OVH')}</h3><form data-manual-form class="form-grid">
+      <label class="field">안내 종류 ${select('type',['reminderFinal','bulkCancel','pickup','other','receipt','confirmed','buyerCancel','adminCancel'].map(kind=>[kind,kinds[kind]]))}</label>
       <label class="field">대상 ${select('audience',[['unpaid','미입금'],['valid','전체 유효 주문'],['confirmed','입금 확인'],['canceled','취소 주문']])}</label>
       <label><input name="excludeReported" type="checkbox" checked> 송금 신고 완료 제외</label>
       <label class="field">기타 안내 제목 <input name="notice" maxlength="80"></label>
@@ -149,7 +150,7 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
       <div data-mail-prepared></div></form>`;
     const fields=body.querySelector('[data-manual-form]').elements;
     fields.type.addEventListener('change',()=>{
-      fields.audience.value=fields.type.value==='reminderFinal'?'unpaid':fields.type.value==='bulkCancel'?'canceled':'valid';
+      fields.audience.value=fields.type.value==='reminderFinal'?'unpaid':['bulkCancel','buyerCancel','adminCancel'].includes(fields.type.value)?'canceled':fields.type.value==='confirmed'?'confirmed':'valid';
       fields.excludeReported.checked=fields.type.value==='reminderFinal';
     });
   }
@@ -157,9 +158,13 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
   function renderPrepared(){
     const target=body.querySelector('[data-mail-prepared]');
     if(!target)return;
+    const ko=target.querySelector('[data-override-ko]')?.value||'',french=target.querySelector('[data-override-fr]')?.value||'';
     target.innerHTML=prepared.length?`<p>Bcc 수신자 ${recipients().length}명 · 주문 ${prepared.length}건</p>
       <label class="field wide">OVH 메일의 숨은참조(Bcc)에 붙여넣을 주소 · 중복 제거 완료<textarea readonly aria-label="Bcc 주소">${esc(recipients().join('; '))}</textarea></label>
-      <div class="actions">${button('copy','주소 복사')}${button('excel','Excel 다운로드')}
+      <p>${t('Brevo 선택 주문','Commandes sélectionnées')} ${prepared.length} · ${t('일반 한도 예상 잔여','Solde interne estimé')} ${Math.max(0,(lastBudget?.normalRemaining??0)-prepared.length)}</p>
+      <label>${t('이번 발송에만 적용할 한국어 안내','Texte coréen pour cet envoi uniquement')}<textarea data-override-ko maxlength="2500">${esc(ko)}</textarea></label>
+      <label>${t('이번 발송에만 적용할 프랑스어 안내','Texte français pour cet envoi uniquement')}<textarea data-override-fr maxlength="2500">${esc(french)}</textarea></label>
+      <div class="actions">${button('brevo-preview',t('발송 문구 미리보기','Aperçu du texte'))}${button('brevo-queue',t('Brevo 발송 대기 등록','Mettre en file Brevo'))}${button('copy','주소 복사')}${button('excel','Excel 다운로드')}
       ${button('complete','OVH 발송 완료 기록')}${button('release','발송 준비 해제')}</div>`:'';
   }
 
@@ -209,6 +214,21 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
         if(!ids.length)throw new Error('선택 가능한 주문이 없습니다.');
         await chunks('mailManualPrepare',preparedOptions,ids,rows=>prepared.push(...rows));
         if(!prepared.length)feedback.textContent='조건에 맞는 발송 대상이 없습니다.';
+        await load();
+      }
+      if(click==='brevo-preview'||click==='brevo-queue'){
+        const override={introKo:body.querySelector('[data-override-ko]').value.trim(),introFr:body.querySelector('[data-override-fr]').value.trim()};
+        if(click==='brevo-preview'){
+          alert([override.introKo,override.introFr].filter(Boolean).join('\n\n')||t('저장된 양식 또는 기본 문구를 사용합니다.','Le modèle enregistré ou le texte par défaut sera utilisé.'));
+          return;
+        }
+        const available=Math.min(lastBudget?.normalRemaining??0,lastBudget?.providerAccountRemaining??Infinity);
+        if(prepared.length>available)throw new Error(t('확인된 발송 한도보다 선택 주문이 많습니다.','La sélection dépasse le quota disponible.'));
+        if(!confirm(t('선택한 주문별로 Brevo 발송 대기에 등록할까요?','Ajouter un message Brevo par commande sélectionnée ?')))return;
+        await chunks('mailManualQueue',{...preparedOptions,override},prepared.map(row=>row.id),rows=>{
+          const done=new Set(rows.map(row=>row.id));
+          prepared=prepared.filter(row=>!done.has(row.id));
+        });
         await load();
       }
       if(click==='copy')await navigator.clipboard.writeText(recipients().join('; '));

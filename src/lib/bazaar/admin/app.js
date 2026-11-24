@@ -117,13 +117,14 @@ function pastModal(){
  '<button class="btn primary" data-action="open-past">확인</button>');
  $('#past-selector').value=store.history;
 }
+const parisInput=value=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris',dateStyle:'short',timeStyle:'short',hourCycle:'h23'}).format(new Date(value)).replace(' ','T');
 function draftModal(resume=false){
  const existing=resume?selectedEvent():null, active=existing?.status==='active';
  const field=(id,label,value,type='text')=>'<label class="field">'+label+'<input type="'+type+'" id="'+id+'" value="'+esc(value||'')+'"></label>';
  const area=(id,label,value,max)=>'<label class="field wide">'+label+'<textarea id="'+id+'" maxlength="'+max+'">'+esc(value||'')+'</textarea></label>';
  const date=(id,label,value)=>'<div><b>'+label+' (파리)</b><div class="actions">'+field(id+'-date','날짜',value?.slice(0,10),'date')+field(id+'-time','시간',value?.slice(11,16),'time')+'</div></div>';
  modal(existing?'행사 설정':'새 바자회 만들기','행사 기본 정보 및 구매자 안내',
- '<div class="form-grid">'+(!existing?'<label class="field wide">지난 바자회 상품 복사<select class="select" id="copy-products-from"><option value="">복사하지 않음</option>'+model.past.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.round+'회 · '+p.name)+'</option>').join('')+'</select></label>':'')+field('event-name','행사명 · 한국어',existing?.name)+field('event-name-fr','행사명 · 프랑스어',existing?.raw.nameFr)+area('event-intro-ko','행사 소개 · 한국어',existing?.raw.introKo,1000)+area('event-intro-fr','행사 소개 · 프랑스어',existing?.raw.introFr,1000)+date('event-order','주문 마감',existing?.orderDeadline)+date('event-transfer','송금 마감',existing?.transferDeadline)+area('event-pickup-ko','픽업 안내 · 한국어',existing?.pickupKo,500)+area('event-pickup-fr','픽업 안내 · 프랑스어',existing?.pickupFr,500)+field('event-beneficiary','수취인',existing?.raw.beneficiary)+field('event-iban','IBAN (FR · 27자리)',existing?.raw.iban)+'</div>',
+ '<div class="form-grid">'+(!existing?'<label class="field wide">지난 바자회 상품 복사<select class="select" id="copy-products-from"><option value="">복사하지 않음</option>'+model.past.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.round+'회 · '+p.name)+'</option>').join('')+'</select></label>':'')+field('event-name','행사명 · 한국어',existing?.name)+field('event-name-fr','행사명 · 프랑스어',existing?.raw.nameFr)+area('event-intro-ko','행사 소개 · 한국어',existing?.raw.introKo,1000)+area('event-intro-fr','행사 소개 · 프랑스어',existing?.raw.introFr,1000)+date('event-opening',fr?'Ouverture des commandes':'주문 시작',existing?.raw.orderStartsAt?parisInput(existing.raw.orderStartsAt):'')+date('event-order','주문 마감',existing?.orderDeadline)+date('event-transfer','송금 마감',existing?.transferDeadline)+date('event-pickup',fr?'Date et heure du retrait':'픽업 날짜 및 시간',existing?.raw.pickupAt?parisInput(existing.raw.pickupAt):'')+field('event-pickup-place',fr?'Lieu du retrait':'픽업 장소',existing?.raw.pickupPlace)+area('event-pickup-ko','픽업 안내 · 한국어',existing?.pickupKo,500)+area('event-pickup-fr','픽업 안내 · 프랑스어',existing?.pickupFr,500)+field('event-beneficiary','수취인',existing?.raw.beneficiary)+field('event-iban','IBAN (FR · 27자리)',existing?.raw.iban)+'</div>',
  '<button class="btn neutral" data-action="close">취소</button>'+(existing?.status==='draft'?'<button class="btn neutral" data-action="preview-draft-form">미리보기</button>':'')+'<button class="btn primary" data-action="create-draft">'+(active?'설정 저장':'임시저장')+'</button>');
  $('#event-name').dataset.edit=String(!!existing);
  $('#event-iban').addEventListener('input',ev=>{ev.target.value=ev.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,27).match(/.{1,4}/g)?.join(' ')||'';});
@@ -161,6 +162,12 @@ function renderMain(){
 let productView=new URLSearchParams(location.search).has('catalog')?'catalog':'event',productFilter='',productDirty=false;
 const visibleProducts=()=>productView==='catalog'?store.catalog:store.products.filter(p=>p.active);
 function markProductDirty(){productDirty=true;const el=$('#product-status');if(el){el.textContent=fr?'● Modifications non enregistrées':'● 수정 중 · 저장되지 않음';el.style.color='var(--amber)';}}
+root.addEventListener('click',event=>{
+ const link=event.target.closest('a[href]');
+ if(!productDirty||!link||link.target==='_blank'||event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;
+ if(!confirm(fr?'Quitter sans enregistrer les modifications ?':'저장하지 않은 변경사항을 버리고 이동할까요?')){event.preventDefault();return;}
+ productDirty=false;
+},true);
 window.addEventListener('beforeunload',e=>{if(productDirty){e.preventDefault();e.returnValue='';}});
 function unit(p){return Number(p.pack)>0?Number(p.buy)/Number(p.pack):0}
 function roi(p){return unit(p)>0&&p.sale!==''?((p.sale/unit(p)-1)*100).toFixed(2):''}
@@ -730,7 +737,7 @@ function openShopPreview(snapshot=selectedEvent(),language='ko',device='desktop'
 }
 function readDraftForm(){
  const value=id=>$('#'+id)?.value||'';
- return {nameKo:value('event-name').trim(),nameFr:value('event-name-fr').trim(),introKo:value('event-intro-ko'),introFr:value('event-intro-fr'),orderCutoff:parisToIso(value('event-order-date')&&value('event-order-time')?value('event-order-date')+'T'+value('event-order-time'):''),transferCutoff:parisToIso(value('event-transfer-date')&&value('event-transfer-time')?value('event-transfer-date')+'T'+value('event-transfer-time'):''),pickupKo:value('event-pickup-ko'),pickupFr:value('event-pickup-fr'),beneficiary:value('event-beneficiary'),iban:value('event-iban')};
+ return {orderStartsAt:time('event-opening'),pickupAt:time('event-pickup'),pickupPlace:value('event-pickup-place').trim(),nameKo:value('event-name').trim(),nameFr:value('event-name-fr').trim(),introKo:value('event-intro-ko'),introFr:value('event-intro-fr'),orderCutoff:parisToIso(value('event-order-date')&&value('event-order-time')?value('event-order-date')+'T'+value('event-order-time'):''),transferCutoff:parisToIso(value('event-transfer-date')&&value('event-transfer-time')?value('event-transfer-date')+'T'+value('event-transfer-time'):''),pickupKo:value('event-pickup-ko'),pickupFr:value('event-pickup-fr'),beneficiary:value('event-beneficiary'),iban:value('event-iban')};
 }
 function handleScreenAction(action,button){
  if(['all-pdf','all-excel','one-pdf','one-excel'].includes(action)){run(button,async()=>{assertConfirmedScope();exportAction(action);});return true;}
@@ -746,7 +753,7 @@ function handleScreenAction(action,button){
  if(action==='finalize-unpaid'){if(prompt('은행 최종 대조 완료 후 미입금 주문을 취소합니다. 계속하려면 최종 확인을 입력하세요.')==='최종 확인')run(button,async()=>{let count=0,result;do{result=await request('finalizeUnpaid',{eventId:e.id,confirm:true});count+=result.canceled||0;}while(result.pending);alert(count+'건 취소 완료');location.href=url('',e.id);});return true;}
  if(action==='mail-settings'){
   modal(fr?'Paramètres des e-mails':'이메일 발송 설정','','<div id="event-mail-settings"></div>');
-  mountMailManager($('#event-mail-settings'),e,store.orders,request,canManageOrder(),true);
+  mountMailManager($('#event-mail-settings'),e,store.orders,request,e?.status==='draft'||canManageOrder(),true);
   return true;
  }
  if(action==='edit-draft'){draftModal(true);return true;}
@@ -844,9 +851,7 @@ function handleModalAction(action,button){
   run(button,async()=>{
    const nameKo=$('#event-name').value.trim(),nameFr=$('#event-name-fr').value.trim();
    if(!nameKo||!nameFr)throw new Error('한국어와 프랑스어 행사명을 입력해 주세요.');
-   const fields={nameKo,nameFr,orderCutoff:parisToIso($('#event-order-date').value&&$('#event-order-time').value?$('#event-order-date').value+'T'+$('#event-order-time').value:''),transferCutoff:parisToIso($('#event-transfer-date').value&&$('#event-transfer-time').value?$('#event-transfer-date').value+'T'+$('#event-transfer-time').value:''),introKo:$('#event-intro-ko').value,introFr:$('#event-intro-fr').value,
-    pickupKo:$('#event-pickup-ko').value,pickupFr:$('#event-pickup-fr').value,
-    beneficiary:$('#event-beneficiary').value,iban:$('#event-iban').value};
+   const fields=readDraftForm();
    if(fields.iban&&!/^FR\d{2}[A-Z0-9]{23}$/.test(fields.iban.replaceAll(' ','').toUpperCase()))throw new Error('IBAN을 확인해 주세요.');
    if(fields.orderCutoff&&fields.transferCutoff&&fields.orderCutoff>=fields.transferCutoff)
     throw new Error('송금 마감은 주문 마감 이후로 설정해 주세요.');
