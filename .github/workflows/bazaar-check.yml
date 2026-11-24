@@ -34,3 +34,24 @@ jobs:
           BASE_PATH: /
           PUBLIC_ASICC_BAZAAR_TEST: 'false'
           PUBLIC_ASICC_MEMBERS_ENABLED: 'false'
+  isolated-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install local emulator and Worker CLI
+        run: npm install --global firebase-tools@14 wrangler@4
+      - name: Run isolated integration tests
+        env:
+          CI: 'true'
+          WRANGLER_SEND_METRICS: 'false'
+          FIREBASE_CLI_DISABLE_USAGE_REPORTING: 'true'
+        run: |
+          firebase emulators:exec --only auth,firestore --project demo-asicc-bazaar --config firebase.bazaar.local.json "bash scripts/bazaar-ci-integration.sh"
