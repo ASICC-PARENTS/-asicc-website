@@ -36,7 +36,7 @@ function dependencies(env, origin, ctx) {
   const db = createFirestore({ projectId: env.FIREBASE_PROJECT_ID, token: () => serverToken(env),
     emulator: env.FIRESTORE_EMULATOR_URL });
   const photos = createPhotos(env, db, origin, ctx);
-  const mail = createMail(env, db);
+  const mail = createMail({...env, MAIL_MODE: 'capture'}, db);
   const mailManagement = createMailAdmin(db,mail);
   const service = createBazaar({
     db, FieldValue, eventPhoto: photos.eventPhoto, storePhoto: photos.storePhoto,
