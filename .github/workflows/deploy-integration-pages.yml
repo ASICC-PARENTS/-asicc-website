@@ -50,6 +50,15 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_WORKERS_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: b941b206ccc2aad94ae9b83ada2bc889
+      - name: Verify test Worker API and Firebase connection
+        shell: bash
+        run: |
+          response=$(curl --fail-with-body --silent --show-error \
+            -H 'Origin: https://asicc-integration-test.pages.dev' \
+            -H 'Content-Type: application/json' \
+            --data '{"data":{}}' \
+            https://asicc-bazaar-test-api.falling-hall-f390.workers.dev/api/bazaarPublic)
+          echo "$response" | jq -e '.data.event.eventId and (.data.products | type == "array")' >/dev/null
       - name: Deploy to Cloudflare Pages
         run: npx wrangler@4 pages deploy dist --project-name=asicc-integration-test
         env:
