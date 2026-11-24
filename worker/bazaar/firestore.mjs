@@ -71,7 +71,9 @@ export function createFirestore({ projectId, token, fetcher = fetch, emulator })
     });
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
-      const error = new Error('Firestore request failed');
+      // Keep the server response text for isolated integration diagnostics.
+      // API responses still use a generic message at the Worker boundary.
+      const error = new Error(payload.error?.message || 'Firestore request failed');
       error.status = payload.error?.status ?? String(response.status);
       throw error;
     }

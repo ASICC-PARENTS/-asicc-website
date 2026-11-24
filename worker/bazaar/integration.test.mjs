@@ -315,17 +315,23 @@ test('concurrent checkouts preserve stock, receipts and administrator changes', 
       db.collection('bazaarOutbox').where('eventId', '==', fixtureEvent).get(),
       eventRef.get()
     ]);
-    const cleanup = db.batch();
-    for (const snapshot of [...orders.docs, ...receipts.docs]) cleanup.delete(snapshot.ref);
-    for (const ref of createdProducts) cleanup.delete(ref);
-    if (active.data()?.eventId === fixtureEvent) {
-      if (previousEvent.exists) cleanup.set(eventRef, previousEvent.data());
-      else cleanup.delete(eventRef);
+    const deleteRefs = new Map([...orders.docs, ...receipts.docs].map(snapshot => [snapshot.ref.name, snapshot.ref]));
+    for (const ref of createdProducts) deleteRefs.set(ref.name, ref);
+    deleteRefs.set(db.doc('members/' + staff.localId).name, db.doc('members/' + staff.localId));
+    const refs = [...deleteRefs.values()];
+    for (let offset = 0; offset < refs.length; offset += 400) {
+      const cleanup = db.batch();
+      for (const ref of refs.slice(offset, offset + 400)) cleanup.delete(ref);
+      await cleanup.commit();
     }
-    if (previousAccess.exists) cleanup.set(accessRef, previousAccess.data());
-    else cleanup.delete(accessRef);
-    cleanup.delete(db.doc('members/' + staff.localId));
-    await cleanup.commit();
+    const restore = db.batch();
+    if (active.data()?.eventId === fixtureEvent) {
+      if (previousEvent.exists) restore.set(eventRef, previousEvent.data());
+      else restore.delete(eventRef);
+    }
+    if (previousAccess.exists) restore.set(accessRef, previousAccess.data());
+    else restore.delete(accessRef);
+    await restore.commit();
     await authRequest('projects/' + project + '/accounts:delete', { localId: staff.localId }, true);
   });
   await accessRef.set({ adminUids: [staff.localId] });
