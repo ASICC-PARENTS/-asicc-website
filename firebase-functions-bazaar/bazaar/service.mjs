@@ -599,8 +599,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       return{events:events.sort((a,b)=>b.serial-a.serial||b.createdAt.localeCompare(a.createdAt)),drafts:drafts.docs.map(d=>({id:d.id,nameKo:d.data().event?.nameKo||'임시저장',serial:d.data().serial||0,updatedAt:d.data().updatedAt||''}))};
     }
     if(op==='createDraft'){
-      const [cur,ps,archives,existingDrafts,base]=await Promise.all([eventRef.get(),products.get(),eventArchives.get(),eventDrafts.get(),catalogRef.get()]);
-      const items=base.exists?base.data().items.map(p=>({...p,limitMode:'unlimited',plannedBoxes:null,manualLimit:null})):ps.empty?catalogue:snapshotProducts(ps);
+      const [cur,ps,archives,existingDrafts]=await Promise.all([eventRef.get(),products.get(),eventArchives.get(),eventDrafts.get()]);
       if(existingDrafts.size>=10)throw new HttpsError('resource-exhausted','임시저장 바자회가 너무 많습니다.');
       if(ps.size>70)throw new HttpsError('failed-precondition','상품이 70개를 초과하여 별도 저장 구조가 필요합니다.');
       const prev=cur.exists?cur.data():initialEvent;
@@ -625,7 +624,8 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       if(!Array.isArray(data.items)||data.items.length>70)bad('상품 목록을 확인해 주세요.');
       const ids=data.items.map(x=>s(x?.id));if(new Set(ids).size!==ids.length||ids.some(x=>!/^[a-z0-9-]{2,50}$/.test(x)))bad('중복되거나 잘못된 상품 ID가 있습니다.');
       const previousItems=new Map(snap.data().items.map(item=>[item.id,item]));
-      const baseIds=new Set(((await catalogRef.get()).data()?.items??[]).map(p=>p.id));
+      const base=await catalogRef.get();
+      const baseIds=new Set((base.exists?base.data().items:catalogSnapshot(await products.get())).map(p=>p.id));
       const items=await Promise.all(data.items.map(async (item,i)=>{
         const previous=previousItems.get(ids[i]);
         if(!previous&&!/^custom-[a-f0-9]{32}$/.test(ids[i])&&!baseIds.has(ids[i]))bad('초안의 상품 ID를 확인해 주세요.');
@@ -812,7 +812,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       if(data.confirm!==true)bad('최종 계좌 대조 후 확인해야 합니다.');
       const e=await db.runTransaction(async tx=>{
         const current=(await tx.get(eventRef)).data();
-        if(!current||current.eventId!==data.eventId||Date.now()<Date.parse(current.orderCutoff)||Date.now()<Date.parse(current.transferCutoff)||Date.now()<Date.parse(current.finalizeNotBefore||current.transferCutoff)){
+        if(!current||current.eventId!==data.eventId||!Number.isFinite(Date.parse(current.orderCutoff))||!Number.isFinite(Date.parse(current.transferCutoff))||Date.now()<Date.parse(current.orderCutoff)||Date.now()<Date.parse(current.transferCutoff)){
           bad('최종 은행 대조가 가능한 현재 행사인지 확인해 주세요.');
         }
         if (batchFinalization && current.reconciliationStartedAt) return current;
