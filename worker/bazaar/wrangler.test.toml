@@ -8,7 +8,7 @@ preview_urls = false
 [vars]
 BAZAAR_MODE = "test"
 FIREBASE_PROJECT_ID = "asicc-bazaar-test"
-BAZAAR_SITE_URL = "http://127.0.0.1:4321"
+BAZAAR_SITE_URL = "https://asicc-integration-test.pages.dev"
 MAIL_MODE = "capture"
 
 [triggers]
