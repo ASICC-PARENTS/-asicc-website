@@ -33,6 +33,24 @@ test('product table supports direct ordering and operator-specific column prefer
   assert.match(app,/bazaar-cols-'.*currentUser\?\.uid/s);
 });
 
+test('past-event product import copies product fields into isolated product snapshots',()=>{
+  assert.match(app,/지난 행사에서 가져오기/);
+  assert.match(app,/request\('dashboard',\{eventId:selected\.id\}\)/);
+  assert.match(app,/id:newId\(\),active:true/);
+  assert.match(app,/주문, 고객, 입금 및 정산 기록은 복사하지 않습니다/);
+  assert.match(app,/선택 상품 0개/);
+});
+
+test('product columns use stable IDs and allow individual hidden-column restore',()=>{
+  assert.match(app,/data-column-id=/);
+  assert.match(app,/dataset\.columnId\|\|`column-\$\{i\}`/);
+  assert.match(app,/data-col-menu="restore"/);
+  assert.match(app,/column-drop-before/);
+  assert.match(app,/column-drop-after/);
+  assert.match(app,/columns-desktop/);
+  assert.match(app,/columns-mobile/);
+});
+
 test('buyer preview supports unsaved content, language and viewport controls without enabling orders',()=>{
   assert.match(app,/preview-draft-form/);
   assert.match(app,/data-action="preview-lang"/);
