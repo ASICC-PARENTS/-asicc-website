@@ -311,7 +311,9 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
   function validateProduct(p,existing){
     if(!p||typeof p!=='object')bad('상품을 확인해 주세요.');
     const out={titleKo:s(p.titleKo).slice(0,120),titleFr:s(p.titleFr).slice(0,120),descriptionKo:s(p.descriptionKo).slice(0,3000),descriptionFr:s(p.descriptionFr).slice(0,3000),supplier:s(p.supplier),storage:s(p.storage)||'ambient',imageUrl:s(p.imageUrl),visible:p.visible===true,retailCents:p.retailCents===null?null:Number(p.retailCents),packQty:Number(p.packQty),plannedBoxes:p.plannedBoxes==null?null:Number(p.plannedBoxes),boxPriceTtcCents:Number(p.boxPriceTtcCents),boxPriceHtCents:p.boxPriceHtCents==null?null:Number(p.boxPriceHtCents),limitMode:p.limitMode,manualLimit:p.manualLimit==null?null:Number(p.manualLimit)};
-    if(!out.titleKo||!out.titleFr||!['K커머셜','누리커넥트'].includes(out.supplier))bad('상품명 또는 공급업체가 올바르지 않습니다.');
+    if(!out.titleKo||!out.titleFr)bad('상품명 누락: '+(out.titleKo||out.titleFr||s(p.id)||'이름 없는 상품')); 
+    if(!out.supplier.trim()||out.supplier.length>120||/[\x00-\x1f\x7f]/.test(out.supplier)||out.supplier==='__asicc_new_supplier__')bad(out.titleKo+' — 공급업체명을 확인해 주세요.');
+    out.supplier=out.supplier.trim();
     if(!validUrl(out.imageUrl)||!['ambient','chilled','frozen'].includes(out.storage))bad('상품 이미지 또는 보관 방법을 확인해 주세요.');
     if(out.retailCents!=null&&!cents(out.retailCents))bad('판매가격을 확인해 주세요.');
     if(!Number.isSafeInteger(out.packQty)||out.packQty<1||out.packQty>10000||!cents(out.boxPriceTtcCents)||out.boxPriceHtCents!=null&&!cents(out.boxPriceHtCents))bad('매입가격 또는 박스당 입수량을 확인해 주세요.');
@@ -606,7 +608,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       const freshFirst=prev.status==='draft'&&!prev.publishedAt&&existingDrafts.empty;
       const serial=freshFirst?(prev.serial||1):maxSerial+1;
       const id=`bazaar-${Date.now()}-${randomBytes(6).toString('hex')}`;
-      const draft={id,serial,status:'draft',createdAt:now(),updatedAt:now(),event:{...prev,eventId:id,serial,nameKo:`${serial}차 ASICC 온라인 바자회`,nameFr:`Vente solidaire ASICC n°${serial}`,orderCutoff:'',transferCutoff:'',pickupKo:'',pickupFr:'',finalizedAt:null,endedAt:null,publishedAt:null,createdAt:now(),status:'draft'},items:items.map(p=>({...p,included:!p.archivedAt&&p.visible===true,soldQty:0})).sort((a,b)=>a.displayOrder-b.displayOrder)};
+      const draft={id,serial,status:'draft',createdAt:now(),updatedAt:now(),event:{...prev,eventId:id,serial,nameKo:`${serial}차 ASICC 온라인 바자회`,nameFr:`Vente solidaire ASICC n°${serial}`,orderCutoff:'',transferCutoff:'',pickupKo:'',pickupFr:'',finalizedAt:null,endedAt:null,publishedAt:null,createdAt:now(),status:'draft'},items:[]};
       await eventDrafts.doc(id).create(draft);
       return{draft};
     }
@@ -704,7 +706,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
           tx.set(products.doc(productId),{...fields,bazaarEventId:id,visible:included&&!item.archivedAt,soldQty:0});
         }
         tx.set(eventRef,{...e,status:'published',publishedAt:now(),endedAt:null,finalizedAt:null,
-          scopedProducts:true,productRevision:0,reconciliationStartedAt:null,reconciledAt:null,finalizeNotBefore:new Date(Date.parse(e.orderCutoff)+69*3600000).toISOString()});
+          scopedProducts:true,productRevision:0,reconciliationStartedAt:null,reconciledAt:null,finalizeNotBefore:e.transferCutoff});
         tx.delete(snap.ref);
         return{ok:true,eventId:id};
       });
@@ -776,7 +778,8 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       await db.runTransaction(async tx=>{
         const old=(await tx.get(eventRef)).data()||initialEvent;
         if(closed(old)||old.eventId!==data.eventId)throw new HttpsError('failed-precondition','현재 행사를 다시 불러와 주세요.');
-        tx.set(eventRef,{...old,...patch});
+        if(locked(old))throw new HttpsError('failed-precondition','최종 입금 대조가 시작되어 행사 설정을 변경할 수 없습니다.');
+        tx.set(eventRef,{...old,...patch,finalizeNotBefore:patch.transferCutoff,nameKo:s(data.nameKo||old.nameKo).slice(0,120),nameFr:s(data.nameFr||old.nameFr).slice(0,120)});
       });
       return{ok:true};
     }
@@ -809,7 +812,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       if(data.confirm!==true)bad('최종 계좌 대조 후 확인해야 합니다.');
       const e=await db.runTransaction(async tx=>{
         const current=(await tx.get(eventRef)).data();
-        if(!current||current.eventId!==data.eventId||Date.now()<Date.parse(current.orderCutoff)||Date.now()<Date.parse(current.finalizeNotBefore||'2026-11-30T08:00:00.000Z')){
+        if(!current||current.eventId!==data.eventId||Date.now()<Date.parse(current.orderCutoff)||Date.now()<Date.parse(current.transferCutoff)||Date.now()<Date.parse(current.finalizeNotBefore||current.transferCutoff)){
           bad('최종 은행 대조가 가능한 현재 행사인지 확인해 주세요.');
         }
         if (batchFinalization && current.reconciliationStartedAt) return current;
