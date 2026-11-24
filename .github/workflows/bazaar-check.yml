@@ -1,0 +1,36 @@
+name: Bazaar test branch checks
+on:
+  pull_request:
+    branches: [test-cms-fr]
+  push:
+    branches: [feat/online-bazaar]
+permissions:
+  contents: read
+concurrency:
+  group: bazaar-check-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Check JavaScript syntax
+        run: |
+          node --check src/lib/bazaar/admin/app.js
+          node --check scripts/bazaar-dev.mjs
+          node --check firebase-functions-bazaar/bazaar/service.mjs
+          node --check worker/bazaar/index.mjs
+      - name: Static catalog and navigation tests
+        run: node --test tests/bazaar-catalog.test.mjs tests/bazaar-closure-and-navigation.test.mjs
+      - name: Build without deploying
+        run: npm run build
+        env:
+          SITE_URL: https://example.test
+          BASE_PATH: /
+          PUBLIC_ASICC_BAZAAR_TEST: 'false'
+          PUBLIC_ASICC_MEMBERS_ENABLED: 'false'
