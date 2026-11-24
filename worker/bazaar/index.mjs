@@ -111,7 +111,7 @@ export default {
       const name = url.pathname.slice('/api/'.length);
       if (!url.pathname.startsWith('/api/') || !routeNames.has(name)) return json({}, 404, cors);
       const origin = request.headers.get('Origin');
-      if (origin && origin !== site.origin) return json({}, 403, cors);
+      if (origin && origin !== site.origin && !(env.BAZAAR_MODE === 'test' && origin === 'http://127.0.0.1:4321')) return json({}, 403, cors);
       if (origin) cors = { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Methods': 'POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Max-Age': '600', Vary: 'Origin' };
       if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
