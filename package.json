@@ -8,7 +8,8 @@
     "build": "astro build",
     "preview": "astro preview",
     "deploy": "astro build && firebase deploy",
-    "dev:bazaar": "node scripts/bazaar-dev.mjs"
+    "dev:bazaar": "node scripts/bazaar-dev.mjs",
+    "build:integration": "node scripts/build-integration.mjs"
   },
   "dependencies": {
     "@fontsource/gowun-batang": "^5.3.0",
