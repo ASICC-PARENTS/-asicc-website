@@ -93,8 +93,10 @@ test('administrators can publish a draft and close it without losing history or 
   await call('bankConfirm', { id: receipt.id });
 
   const draft = (await call('createDraft',{},otherStaff)).draft;
-  assert.equal(draft.items[0].imageUrl,product.imageUrl);
-  assert.equal(draft.items[0].retailCents,product.retailCents);
+  assert.deepEqual(draft.items,[]);
+  const baseProduct=(await call('getCatalog')).items.find(item=>item.id===productId);
+  assert.equal(baseProduct.imageUrl,product.imageUrl);
+  assert.equal(baseProduct.retailCents,product.retailCents);
   await assert.rejects(writePhoto({eventId:draft.id,draft:true,updatedAt:draft.updatedAt,content:'eA=='}), {code:'invalid-argument'});
   const copyRequest = {eventId:draft.id,draft:true,updatedAt:draft.updatedAt,sourcePath:product.photoPath};
   const copied = await writePhoto(copyRequest,otherStaff);
@@ -162,9 +164,11 @@ test('administrators can publish a draft and close it without losing history or 
   assert.equal((await call('getCatalog')).items[0].titleKo,'기본 상품');
   assert.equal((await shop(draft.id)).products[0].titleKo,'현재 행사 상품');
   const loadedDraft=(await call('createDraft')).draft;
-  assert.equal(loadedDraft.items[0].titleKo,'기본 상품');
+  assert.deepEqual(loadedDraft.items,[]);
+  const selectedBase=(await call('getCatalog')).items.find(item=>item.id===productId);
+  assert.equal(selectedBase.titleKo,'기본 상품');
   const copiedSave=await call('saveDraft',{id:loadedDraft.id,updatedAt:loadedDraft.updatedAt,
-    event:loadedDraft.event,items:loadedDraft.items});
+    event:loadedDraft.event,items:[{...selectedBase,included:true,limitMode:'unlimited',plannedBoxes:null,manualLimit:null}]});
   const storedCopy=(await call('getDraft',{id:loadedDraft.id})).draft;
   assert.equal(storedCopy.updatedAt,copiedSave.updatedAt);
   const storedProduct=storedCopy.items.find(item=>item.id===productId);
