@@ -72,7 +72,7 @@ test('publishing, closing and changing the next event preserve historical produc
   const first=(await admin('createDraft')).draft;
   assert.deepEqual(first.items,[]);
   const base=(await admin('getCatalog')).items.find(item=>item.id==='k-alt500');
-  const original={...base,included:true,limitMode:'manual',plannedBoxes:null,manualLimit:4,
+  const original={...base,included:true,limitMode:'manual',plannedBoxes:0,manualLimit:4,
     titleKo:'예전 상품',titleFr:'Ancien article',descriptionKo:'예전 설명',descriptionFr:'Ancienne description',
     retailCents:450,boxPriceTtcCents:600,boxPriceHtCents:569};
   Object.assign(original,await photos.storePhoto(first.id,original.id,{content:photo}));

@@ -93,7 +93,7 @@ test('Worker API with Firebase emulators preserves checkout, admin, inventory, e
   assert.match((await directPhoto.json()).error.message, /JPEG/);
   await productRef.set({
     titleKo: '상품', titleFr: 'Produit', supplier: '테스트 업체', imageUrl: '', storage: 'ambient',
-    visible: true, retailCents: 450, packQty: 12, boxPriceTtcCents: 700, limitMode: 'manual',
+    visible: true, retailCents: 450, packQty: 12, boxPriceTtcCents: 700, limitMode: 'manual', plannedBoxes: 0,
     manualLimit: 1, soldQty: 0, displayOrder: 1
   });
   const shop = await call('bazaarPublic', { eventId });
