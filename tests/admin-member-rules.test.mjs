@@ -81,6 +81,46 @@ test('members can request their own withdrawal; admin can review but others cann
     uid:'special',name:'special',email:email('special'),status:'pending',
     requestedAt:serverTimestamp()
   }));
+  await assertSucceeds(updateDoc(doc(context('admin'),'memberWithdrawalRequests','general'),{
+    status:'approved',reviewedBy:'admin',reviewedAt:serverTimestamp()
+  }));
+  await assertFails(updateDoc(doc(context('member'),'memberWithdrawalRequests','general'),{
+    status:'rejected',reviewedBy:'member',reviewedAt:serverTimestamp()
+  }));
+});
+
+test('members can update only their own profile fields and child records',async()=>{
+  const ref=doc(context('member'),'members','member');
+  await assertSucceeds(updateDoc(ref,{
+    city:'Courbevoie',associationInterest:true,memberGalleryConsent:false,memberPublicityConsent:true,
+    children:[{id:'child-1',studentName:'Child',school:'School',grade:'CM1',schoolStatus:'enrolled',galleryConsent:false,publicityConsent:true}]
+  }));
+  await assertFails(updateDoc(ref,{role:'admin'}));
+  await assertFails(updateDoc(doc(context('general'),'members','member'),{city:'Paris'}));
+  await assertFails(updateDoc(ref,{children:[{id:'child-1',studentName:'Child',school:'School',grade:'CM1',galleryConsent:'yes'}]}));
+});
+
+test('consent history is private and append-only; media requests are admin-reviewed',async()=>{
+  const history=doc(context('member'),'memberConsentHistory','consent-1');
+  await assertSucceeds(setDoc(history,{uid:'member',subjectType:'child',subjectId:'child-1',scope:'gallery',granted:false,createdAt:serverTimestamp()}));
+  await assertSucceeds(getDoc(history));
+  await assertFails(getDoc(doc(context('general'),'memberConsentHistory','consent-1')));
+  await assertFails(updateDoc(history,{granted:true}));
+  const request=doc(context('member'),'memberMediaRequests','blur-1');
+  await assertSucceeds(setDoc(request,{uid:'member',kind:'blur',event:'Event',photoUrl:'',location:'left',status:'pending',createdAt:serverTimestamp()}));
+  await assertFails(getDoc(doc(context('general'),'memberMediaRequests','blur-1')));
+  await assertSucceeds(updateDoc(doc(context('admin'),'memberMediaRequests','blur-1'),{status:'completed',reviewedBy:'admin',reviewedAt:serverTimestamp()}));
+  await assertFails(updateDoc(doc(context('member'),'memberMediaRequests','blur-1'),{status:'completed',reviewedBy:'member',reviewedAt:serverTimestamp()}));
+});
+
+test('association withdrawal is separate from website account and admin-only',async()=>{
+  await assertSucceeds(setDoc(doc(context('member'),'associationWithdrawalRequests','member'),{
+    uid:'member',name:'member',email:email('member'),status:'pending',requestedAt:serverTimestamp()
+  }));
+  await assertSucceeds(updateDoc(doc(context('admin'),'associationWithdrawalRequests','member'),{
+    status:'approved',reviewedBy:'admin',reviewedAt:serverTimestamp()
+  }));
+  await assertFails(updateDoc(doc(context('member'),'members','member'),{associationStatus:'withdrawn',role:'general'}));
 });
 
 test('nickname cannot change without coordinated reservation and public alias updates',async()=>{

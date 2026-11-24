@@ -52,6 +52,24 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
           </select>
           <p class="small muted">{L(lang,{ko:'학생 및 졸업·전학생은 생년월일을 입력해 주세요. 미성년자는 개인 쪽지가 기본적으로 비활성화되며, 운영진이 보호자 동의를 확인한 프로젝트에 한해 예외적으로 허용할 수 있습니다.',fr:'Les élèves et anciens élèves indiquent leur date de naissance. La messagerie est désactivée par défaut pour les mineurs, sauf dérogation limitée à un projet approuvé après accord parental.'})}</p>
         </div>
+        <div class="stack gap-8">
+          <label for="signup-city">{L(lang,{ko:'거주 도시',fr:'Ville de résidence'})}</label>
+          <select id="signup-city" name="city" required>
+            <option value="" disabled selected>{L(lang,{ko:'도시를 선택하세요',fr:'Choisissez une ville'})}</option>
+            <option>Courbevoie</option><option>Asnières-sur-Seine</option><option>Bois-Colombes</option>
+            <option>Colombes</option><option>Gennevilliers</option><option>La Garenne-Colombes</option>
+            <option>Paris</option><option>Puteaux</option><option value="other">{L(lang,{ko:'기타',fr:'Autre'})}</option>
+          </select>
+          <input id="signup-city-other" name="cityOther" maxlength="100" placeholder={L(lang,{ko:'도시명을 입력하세요',fr:'Saisissez le nom de la ville'})} hidden />
+        </div>
+        <fieldset class="stack gap-8" style="border:0;padding:0;margin:0">
+          <legend>{L(lang,{ko:'협회 가입 희망 여부',fr:'Souhaitez-vous rejoindre l’association ?'})}</legend>
+          <label class="row gap-12"><input type="radio" name="associationInterest" value="no" required />
+            <span>{L(lang,{ko:'우선 홈페이지 일반회원으로 가입합니다. 협회 가입은 희망하지 않습니다.',fr:'Je crée uniquement un compte du site pour le moment.'})}</span></label>
+          <label class="row gap-12"><input type="radio" name="associationInterest" value="yes" />
+            <span>{L(lang,{ko:'홈페이지 회원가입과 함께 ASICC 협회 가입도 희망합니다. 자격 확인을 위해 별도 승급 신청을 진행하겠습니다.',fr:'Je souhaite aussi rejoindre l’association ASICC et déposerai une demande de statut séparée.'})}</span></label>
+          <p class="small muted">{L(lang,{ko:'홈페이지 계정과 협회 회원 자격은 별개입니다. 희망 여부는 회원 등급이나 이용 권한을 자동으로 변경하지 않습니다.',fr:'Le compte du site et l’adhésion à l’association sont distincts. Cette réponse ne modifie pas automatiquement vos droits.'})}</p>
+        </fieldset>
         <div id="signup-birth-wrap" class="stack gap-8" hidden>
           <label for="signup-birth">{L(lang,{ko:'생년월일',fr:'Date de naissance'})}</label><input id="signup-birth" name="birthDate" type="date" min="1900-01-01" />
           <p class="small muted">{L(lang,{ko:'성인 여부 및 쪽지 이용 확인용이며 다른 회원에게 공개하지 않습니다.',fr:'Réservée à la vérification de l’âge, non publique.'})}</p>
@@ -158,6 +176,9 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   import {validBirthDate} from '../../../scripts/members/member-access';
   const accountControl=document.querySelector<HTMLSelectElement>('#signup-account-type');
   const birthControl=document.querySelector<HTMLInputElement>('#signup-birth');
+  const cityControl=document.querySelector<HTMLSelectElement>('#signup-city');
+  const cityOther=document.querySelector<HTMLInputElement>('#signup-city-other');
+  cityControl?.addEventListener('change',()=>{if(cityOther){cityOther.hidden=cityControl.value!=='other';cityOther.required=cityControl.value==='other';if(cityControl.value!=='other')cityOther.value='';}});
   function showBirth(){const student=accountControl?.value==='student';const wrap=document.getElementById('signup-birth-wrap');if(wrap)wrap.hidden=!student;if(birthControl){birthControl.required=student;birthControl.max=new Date().toISOString().slice(0,10);if(!student)birthControl.value='';}}
   accountControl?.addEventListener('change',showBirth);showBirth();
   import { firebaseConfig } from '../../../firebase-config';
@@ -260,11 +281,13 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       const nickname=String(data.get('nickname')??'').trim().normalize('NFKC');
       const accountType=String(data.get('accountType')||'');
       const birthDate=String(data.get('birthDate')||'');
+      const city=String(data.get('city')||'')==='other'?String(data.get('cityOther')||'').trim():String(data.get('city')||'').trim();
+      const associationInterest=String(data.get('associationInterest')||'');
       if(accountType==='student'&&!validBirthDate(birthDate)){show(label('생년월일을 확인해 주세요.','Vérifiez votre date de naissance.'));return;}
       const email=String(data.get('email')??'').trim().toLowerCase();
       const password=String(data.get('password')??'');
       const confirm=String(data.get('confirm')??'');
-      if(!name||name.length>80||!nicknameOkay(nickname)||!['adult','student'].includes(accountType)||!email||password.length<8){
+      if(!name||name.length>80||!nicknameOkay(nickname)||!['adult','student'].includes(accountType)||!email||password.length<8||!city||city.length>100||!['yes','no'].includes(associationInterest)){
         show(label('실명, 닉네임(한글·라틴문자·숫자 2~24자)과 비밀번호를 확인해 주세요. 운영진을 사칭하는 닉네임은 허용되지 않습니다.','Vérifiez le nom, le pseudo (2 à 24 lettres coréennes/latines ou chiffres) et le mot de passe. Les pseudos réservés sont interdits.'),true);return;
       }
       if(password!==confirm){show(label('비밀번호가 일치하지 않습니다.','Les mots de passe ne correspondent pas.'),true);return;}
@@ -281,7 +304,8 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
         const nicknameKey=nickname.toLowerCase();
         const batch=writeBatch(db);
         batch.set(doc(db,'members',createdUser.uid),{
-          name,nickname,nicknameKey,email,accountType,...(accountType==='student'?{birthDate}:{}),role:'general',status:'approved',
+          name,nickname,nicknameKey,email,accountType,city,associationInterest:associationInterest==='yes',
+          memberGalleryConsent:false,memberPublicityConsent:false,...(accountType==='student'?{birthDate}:{}),role:'general',status:'approved',
           consent:true,termsVersion:'2026-11',termsAcceptedAt:serverTimestamp(),createdAt:serverTimestamp()
         });
         batch.set(doc(db,'nicknames',nicknameKey),{uid:createdUser.uid,nickname,createdAt:serverTimestamp()});

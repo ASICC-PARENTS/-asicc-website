@@ -319,10 +319,22 @@ test('concurrent checkouts preserve stock, receipts and administrator changes', 
     for (const ref of createdProducts) deleteRefs.set(ref.name, ref);
     deleteRefs.set(db.doc('members/' + staff.localId).name, db.doc('members/' + staff.localId));
     const refs = [...deleteRefs.values()];
-    for (let offset = 0; offset < refs.length; offset += 400) {
+    const commitCleanup = async batch => {
+      for (let attempt = 0; ; attempt++) {
+        try { await batch.commit(); return; }
+        catch (error) {
+          const message = String(error?.message || '');
+          const status = String(error?.status || '');
+          const transient = /lock timeout|aborted|deadline exceeded|temporarily unavailable/i.test(message + ' ' + status);
+          if (!transient || attempt >= 3) throw error;
+          await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)));
+        }
+      }
+    };
+    for (let offset = 0; offset < refs.length; offset += 50) {
       const cleanup = db.batch();
-      for (const ref of refs.slice(offset, offset + 400)) cleanup.delete(ref);
-      await cleanup.commit();
+      for (const ref of refs.slice(offset, offset + 50)) cleanup.delete(ref);
+      await commitCleanup(cleanup);
     }
     const restore = db.batch();
     if (active.data()?.eventId === fixtureEvent) {
@@ -331,7 +343,7 @@ test('concurrent checkouts preserve stock, receipts and administrator changes', 
     }
     if (previousAccess.exists) restore.set(accessRef, previousAccess.data());
     else restore.delete(accessRef);
-    await restore.commit();
+    await commitCleanup(restore);
     await authRequest('projects/' + project + '/accounts:delete', { localId: staff.localId }, true);
   });
   await accessRef.set({ adminUids: [staff.localId] });
