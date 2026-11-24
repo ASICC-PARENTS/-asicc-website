@@ -176,7 +176,8 @@ test('Worker API with Firebase emulators preserves checkout, admin, inventory, e
   assert.equal((await call('bazaarPublic', { eventId })).event.status, 'closed');
   await call('bazaarCreateOrder',{...buyer,requestId:id()},undefined,412);
   assert.equal((await admin('savePurchaseOrder', { ...purchase, revision: 1, confirmClosedEdit: true })).revision, 2);
-  await eventRef.update({ orderCutoff: when(-1000) });
+  await admin('finalizeUnpaid', { eventId, confirm: true },400);
+  await eventRef.update({ orderCutoff: when(-2000), transferCutoff: when(-1000) });
   let result, count = 0, pages = 0;
   do {
     result = await admin('finalizeUnpaid', { eventId, confirm: true });
