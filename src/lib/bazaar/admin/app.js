@@ -122,7 +122,10 @@ function renderMain(){
  }}
  app.innerHTML=body;
 }
-let productView=new URLSearchParams(location.search).has('catalog')?'catalog':'event',productFilter='';
+let productView=new URLSearchParams(location.search).has('catalog')?'catalog':'event',productFilter='',productDirty=false;
+const visibleProducts=()=>productView==='catalog'?store.catalog:store.products.filter(p=>p.active);
+function markProductDirty(){productDirty=true;const el=$('#product-status');if(el){el.textContent='● 수정 중 · 저장되지 않음';el.style.color='var(--amber)';}}
+window.addEventListener('beforeunload',e=>{if(productDirty){e.preventDefault();e.returnValue='';}});
 function unit(p){return Number(p.pack)>0?Number(p.buy)/Number(p.pack):0}
 function roi(p){return unit(p)>0&&p.sale!==''?((p.sale/unit(p)-1)*100).toFixed(2):'—'}
 function lim(p){if(p.limitMode==='unlimited')return Infinity;return p.limitMode==='manual'?(Number(p.manualLimit)||0):(Number(p.boxes)||0)*(Number(p.pack)||0)}
@@ -135,10 +138,14 @@ function storageOptions(p){
  const names=['상온','냉장','냉동'];if(p.storage&&!names.includes(p.storage))names.push(p.storage);
  return names.map(name=>'<option value="'+esc(name)+'"'+(name===p.storage?' selected':'')+'>'+esc(name)+'</option>').join('');
 }
-function tableProducts(){const ps=(productView==='catalog'?store.catalog:store.products).filter(x=>(x.ko+' '+x.fr+' '+x.vendor).toLowerCase().includes(productFilter.toLowerCase()));const catalog=productView==='catalog';return '<div class="sheet"><table style="min-width:1880px"><colgroup><col style="width:70px"><col style="width:60px"><col style="width:160px"><col style="width:172px"><col style="width:120px"><col style="width:117px"><col style="width:105px"><col style="width:117px"><col style="width:107px"><col style="width:108px"><col style="width:110px"><col style="width:127px"><col style="width:107px"><col style="width:130px"><col style="width:125px"><col style="width:98px"></colgroup><thead><tr>'+['판매 포함','사진','상품명 · 한국어','상품명 · 프랑스어','공급업체','매입가/박스 €','박스당 수량','개당 원가','판매가/개 €','수익률 %','예상 박스','판매한도 방식','판매한도','보관','설명·사진','관리'].map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+ps.map(p=>'<tr data-row="'+p.id+'"><td><input type="checkbox" data-toggle="'+p.id+'" '+(p.active?'checked':'')+' '+(catalog||current()?'disabled':'')+'></td><td><span class="thumb">'+(p.photo?'<img src="'+esc(p.photo)+'" alt="" width="32">':esc(p.emoji))+'</span></td>'+['ko','fr','vendor','buy','pack'].map(f=>f==='vendor'?'<td><select class="select" style="width:100%;max-width:120px;padding:7px" data-prod="'+p.id+'" data-key="vendor">'+supplierOptions(p)+'</select></td>':'<td><input class="cell" data-prod="'+p.id+'" data-key="'+f+'" '+(['buy','pack'].includes(f)?'type="number" step="any" min="0"':'type="text"')+' value="'+esc(p[f])+'"></td>').join('')+'<td data-derived="unit" data-id="'+p.id+'">'+(unit(p)?money(unit(p)):'—')+'</td><td><input class="cell" type="number" step="0.01" min="0" data-prod="'+p.id+'" data-key="sale" value="'+p.sale+'"></td><td><input class="cell" type="number" step="0.01" data-prod="'+p.id+'" data-key="roi" value="'+roi(p)+'"></td><td><input class="cell" type="number" step="1" min="0" data-prod="'+p.id+'" data-key="boxes" value="'+(p.boxes??'—')+'"></td><td><select class="select" style="padding:7px;max-width:112px" data-prod="'+p.id+'" data-key="limitMode"><option value="auto" '+(p.limitMode==='auto'?'selected':'')+'>자동 계산</option><option value="unlimited" '+(p.limitMode==='unlimited'?'selected':'')+'>제한 없음</option><option value="manual" '+(p.limitMode==='manual'?'selected':'')+'>수동 입력</option></select></td><td><input class="cell" type="number" step="1" min="0" data-prod="'+p.id+'" data-key="manualLimit" value="'+(Number.isFinite(lim(p))?lim(p):'')+'" '+(p.limitMode!=='manual'?'disabled':'')+'></td><td><select class="select" style="width:100%;max-width:125px;padding:7px" data-prod="'+p.id+'" data-key="storage">'+storageOptions(p)+'</select></td><td><button class="linkbtn" data-action="edit-product" data-id="'+p.id+'">설명·사진 ✎</button></td><td><button class="linkbtn" data-action="delete-product" data-id="'+p.id+'">삭제</button></td></tr>').join('')+'</tbody></table></div><p class="muted tiny" style="margin-top:8px">↔ 가로로 스크롤 · 판매가 ↔ 수익률 양방향 계산 · 판매한도 자동/수동 선택 · 상품 하나당 한 행</p>'}
-function renderProducts(){const catalog=productView==='catalog';app.innerHTML=eventHead()+tabs()+'<section class="tabbody"><div class="toolbar"><div><h2>'+(catalog?'기본 상품 목록 관리':'이번 바자회 상품 관리')+'</h2><p class="muted small">'+(catalog?'상시 원본 관리 · 새 바자회 생성 시 복사':esc(selectedEvent()?.name||'')+'에만 적용되는 상품 사본')+'</p></div><div class="actions">'+(catalog?'<button class="btn neutral" data-action="switch-event">← 이번 바자회로</button>':'<button class="btn neutral" data-action="switch-catalog">⚙ 기본 상품 목록 관리</button>')+'</div></div>'+banner(catalog?'<b>원본 상품 관리</b> · 기본 목록을 수정해도 이미 생성된 바자회의 상품에는 영향을 주지 않습니다.':'<b>이번 행사 전용 복사본</b> · 여기서 수정하는 모든 상품 정보는 기본 상품 목록에 반영되지 않습니다.')+'<div class="toolbar"><div class="actions"><input id="product-search" class="search" value="'+esc(productFilter)+'" placeholder="상품 또는 공급업체 검색"><span class="muted small">상품 '+(catalog?store.catalog.length:store.products.length)+'종</span></div><div class="actions">'+(catalog?'':'<button class="btn neutral" data-action="import">＋ 기본 목록에서 가져오기</button>')+'<button class="btn neutral" data-action="add-product">＋ 상품 추가</button></div></div>'+tableProducts()+'<div class="footbar"><span id="product-status" class="muted small">표에서 직접 수정하거나 설명·사진을 열어 편집하세요.</span><button class="btn primary" data-action="save-product">'+(catalog?'기본 목록 저장':'이번 행사 변경사항 저장')+'</button></div></section>'}
-function editProduct(id){const p=(productView==='catalog'?store.catalog:store.products).find(p=>p.id===id);if(!p)return;modal(p.ko+' · 상세 편집',productView==='catalog'?'기본 원본 수정':'이번 바자회에만 적용','<div class="form-grid"><label class="field">상품명 · 한국어<input id="edit-ko" value="'+esc(p.ko)+'"></label><label class="field">상품명 · 프랑스어<input id="edit-fr" value="'+esc(p.fr)+'"></label><label class="field wide">설명 · 한국어<textarea id="edit-kod">'+esc(p.koDesc)+'</textarea></label><label class="field wide">Description · français<textarea id="edit-frd">'+esc(p.frDesc)+'</textarea></label><label class="field wide">상품 사진<input id="edit-photo" type="file" accept="image/jpeg,image/png,image/webp"></label></div>','<button class="btn neutral" data-action="close">취소</button><button class="btn primary" data-action="save-product-detail" data-id="'+p.id+'">수정 적용</button>');}
-function importModal(){let items=store.catalog.filter(c=>!store.products.some(x=>x.id===c.id));modal('기본 상품 목록에서 가져오기','선택한 상품을 현재 바자회에 복사합니다.',items.length?items.map(p=>'<label class="modal-row"><input type="checkbox" data-import="'+p.id+'"><span>'+p.emoji+' <b>'+esc(p.ko)+'</b> · '+esc(p.fr)+'</span><b>'+money(p.sale)+'</b></label>').join(''):banner('기본 목록 상품을 모두 가져왔습니다.'),'<button class="btn neutral" data-action="close">취소</button><button class="btn primary" data-action="import-apply">선택 상품 가져오기</button>')}
+function tableProducts(){const ps=visibleProducts().filter(x=>(x.ko+' '+x.fr+' '+x.vendor).toLowerCase().includes(productFilter.toLowerCase()));const catalog=productView==='catalog';return '<div class="sheet"><table style="min-width:1450px"><colgroup><col style="width:52px"><col style="width:160px"><col style="width:150px"><col style="width:82px"><col style="width:120px"><col style="width:117px"><col style="width:105px"><col style="width:117px"><col style="width:107px"><col style="width:108px"><col style="width:110px"><col style="width:127px"><col style="width:107px"><col style="width:85px"><col style="width:98px"></colgroup><thead><tr>'+['사진','상품명 · 한국어','상품명 · 프랑스어','상품 설명','공급업체','매입가/박스 €','박스당 수량','개당 원가','판매가/개 €','수익률 %','예상 박스','판매한도 방식','판매한도','보관','관리'].map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+ps.map(p=>'<tr data-row="'+p.id+'"><td><button class="thumb" data-action="edit-photo" data-id="'+p.id+'" title="사진 편집">'+(p.photo?'<img src="'+esc(p.photo)+'" alt="" width="32">':'＋')+'</button></td>'+['ko','fr','desc','vendor','buy','pack'].map(f=>f==='desc'?'<td><button class="linkbtn" data-action="edit-product" data-id="'+p.id+'">설명 ✎</button></td>':f==='vendor'?'<td><select class="select" style="width:100%;max-width:120px;padding:7px" data-prod="'+p.id+'" data-key="vendor">'+supplierOptions(p)+'</select></td>':'<td><input class="cell" data-prod="'+p.id+'" data-key="'+f+'" '+(['buy','pack'].includes(f)?'type="number" step="any" min="0"':'type="text"')+' value="'+esc(p[f])+'"></td>').join('')+'<td data-derived="unit" data-id="'+p.id+'">'+(unit(p)?money(unit(p)):'—')+'</td><td><input class="cell" type="number" step="0.01" min="0" data-prod="'+p.id+'" data-key="sale" value="'+p.sale+'"></td><td><input class="cell" type="number" step="0.01" data-prod="'+p.id+'" data-key="roi" value="'+roi(p)+'"></td><td><input class="cell" type="number" step="1" min="0" data-prod="'+p.id+'" data-key="boxes" value="'+(p.boxes??'—')+'"></td><td><select class="select" style="padding:7px;max-width:112px" data-prod="'+p.id+'" data-key="limitMode"><option value="auto" '+(p.limitMode==='auto'?'selected':'')+'>자동 계산</option><option value="unlimited" '+(p.limitMode==='unlimited'?'selected':'')+'>제한 없음</option><option value="manual" '+(p.limitMode==='manual'?'selected':'')+'>수동 입력</option></select></td><td><input class="cell" type="number" step="1" min="0" data-prod="'+p.id+'" data-key="manualLimit" value="'+(Number.isFinite(lim(p))?lim(p):'')+'" '+(p.limitMode!=='manual'?'disabled':'')+'></td><td><select class="select" style="width:100%;max-width:125px;padding:7px" data-prod="'+p.id+'" data-key="storage">'+storageOptions(p)+'</select></td><td><button class="linkbtn" data-action="delete-product" data-id="'+p.id+'">'+(catalog?'삭제':allocated(p)>0?'판매 중지':'행사 제외')+'</button></td></tr>').join('')+'</tbody></table></div><p class="muted tiny" style="margin-top:8px">↔ 가로로 스크롤 · 판매가 ↔ 수익률 양방향 계산 · 판매한도 자동/수동 선택 · 상품 하나당 한 행</p>'}
+function renderProducts(){const catalog=productView==='catalog';app.innerHTML=eventHead()+tabs()+'<section class="tabbody"><div class="toolbar"><div><h2>'+(catalog?'기본 상품 목록 관리':'이번 바자회 상품 관리')+'</h2><p class="muted small">'+(catalog?'상시 원본 관리 · 새 바자회 생성 시 복사':esc(selectedEvent()?.name||'')+'에만 적용되는 상품 사본')+'</p></div><div class="actions">'+(catalog?'<button class="btn neutral" data-action="switch-event">← 이번 바자회로</button>':'<button class="btn neutral" data-action="switch-catalog">⚙ 기본 상품 목록 관리</button>')+'</div></div>'+banner(catalog?'<b>원본 상품 관리</b> · 기본 목록을 수정해도 이미 생성된 바자회의 상품에는 영향을 주지 않습니다.':'<b>이번 행사 전용 복사본</b> · 여기서 수정하는 모든 상품 정보는 기본 상품 목록에 반영되지 않습니다.')+'<div class="toolbar"><div class="actions"><input id="product-search" class="search" value="'+esc(productFilter)+'" placeholder="상품 또는 공급업체 검색"><span class="muted small">상품 '+visibleProducts().length+'종</span></div><div class="actions">'+(catalog?'<button class="btn neutral" data-action="add-product">＋ 상품 추가</button>':'<button class="btn neutral" data-action="reorder-products">진열 순서 변경</button><button class="btn neutral" data-action="import">＋ 기본 목록에서 가져오기</button>')+'<button class="btn neutral" data-action="column-settings">열 설정</button></div></div>'+tableProducts()+'<div class="footbar"><span id="product-status" class="muted small">'+(productDirty?'● 수정 중 · 저장되지 않음':'✓ 저장 완료')+'</span><div class="actions"><button class="btn neutral" data-action="refresh-products">새로고침</button><button class="btn primary" data-action="save-product">'+(catalog?'기본 목록 저장':'이번 행사 변경사항 저장')+'</button></div></div></section>'}
+function editProduct(id,photo=false){
+ const p=(productView==='catalog'?store.catalog:store.products).find(p=>p.id===id);if(!p)return;
+ const content=photo?'<div class="form-grid">'+(p.photo?'<img width="100" src="'+esc(p.photo)+'" alt="">':'')+'<label class="field wide">사진 업로드<input id="edit-photo" type="file" accept="image/jpeg,image/png,image/webp"></label><label class="field wide">사진 URL<input id="photo-url" value="'+esc(p.photo)+'"></label><label><input id="photo-remove" type="checkbox"> 사진 삭제</label></div>':'<div class="form-grid"><label class="field wide">설명 · 한국어<textarea id="edit-kod">'+esc(p.koDesc)+'</textarea></label><label class="field wide">Description · français<textarea id="edit-frd">'+esc(p.frDesc)+'</textarea></label></div>';
+ modal(p.ko+' · '+(photo?'사진':'상품 설명'),p.fr,content,'<button class="btn neutral" data-action="close">취소</button><button class="btn primary" data-action="save-product-detail" data-id="'+p.id+'">수정 적용</button>');
+}
+function importModal(){let items=store.catalog.filter(c=>!store.products.some(x=>x.id===c.id&&x.active));modal('기본 상품 목록에서 가져오기','선택한 상품을 현재 바자회에 복사합니다.',items.length?items.map(p=>'<label class="modal-row"><input type="checkbox" data-import="'+p.id+'"><span>'+p.emoji+' <b>'+esc(p.ko)+'</b> · '+esc(p.fr)+'</span><b>'+money(p.sale)+'</b></label>').join(''):banner('기본 목록 상품을 모두 가져왔습니다.'),'<button class="btn neutral" data-action="close">취소</button><button class="btn primary" data-action="import-apply">선택 상품 가져오기</button>')}
 function productChange(el){const arr=productView==='catalog'?store.catalog:store.products,p=arr.find(x=>x.id===el.dataset.prod);if(!p)return;const k=el.dataset.key;if(productView==='catalog'&&['boxes','manualLimit','limitMode'].includes(k))return;let val=el.value;
  if(k==='vendor'&&val==='__asicc_new_supplier__'){
   const entered=prompt('새 공급업체명을 입력해 주세요 (최대 120자).');
@@ -153,11 +160,11 @@ function productChange(el){const arr=productView==='catalog'?store.catalog:store
   el.value=k==='manualLimit'?lim(p):p[k];return;
  }
  if(k==='roi'){if(unit(p)>0&&p.buy>0)p.sale=finance(unit(p)*(1+val/100));}else p[k]=['buy','sale'].includes(k)?finance(val):val;let row=app.querySelector('[data-row="'+p.id+'"]');if(!row)return;const unitcell=row.querySelector('[data-derived=unit]');if(unitcell)unitcell.textContent=unit(p)>0?money(unit(p)):'—';const rcell=row.querySelector('[data-key=roi]');if(rcell&&k!=='roi')rcell.value=roi(p);const scell=row.querySelector('[data-key=sale]');if(scell&&k==='roi')scell.value=p.sale.toFixed(2);const limitcell=row.querySelector('[data-key=manualLimit]');if(limitcell&&productView==='event'){limitcell.disabled=p.limitMode!=='manual';if(p.limitMode==='auto'||k==='limitMode')limitcell.value=Number.isFinite(lim(p))?lim(p):''}if(k==='vendor'){
-  const oldSheet=app.querySelector('.sheet'),left=oldSheet?.scrollLeft||0,top=oldSheet?.scrollTop||0;
+  markProductDirty();const oldSheet=app.querySelector('.sheet'),left=oldSheet?.scrollLeft||0,top=oldSheet?.scrollTop||0;
   renderProducts();
   const nextSheet=app.querySelector('.sheet');if(nextSheet){nextSheet.scrollLeft=left;nextSheet.scrollTop=top;}
  }
- $('#product-status').textContent='● 저장하지 않은 변경사항이 있습니다.';}
+ markProductDirty();}
 const orderSources={web:'웹 주문',phone:'전화 주문',additional:'추가 구매'};
 const canManageOrder=()=>selectedEvent()?.status!=='draft'&&canReconcile()&&!selectedEvent().raw.finalizedAt;
 function orderSource(order){return orderSources[order.source]||orderSources.web;}
@@ -315,13 +322,15 @@ function rerender(){
 app.addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(!b)return;const a=b.dataset.action;
 if(handleScreenAction(a,b))return;
 if(a==='mode-active')location.href=url('','');if(a==='show-past')pastModal();if(a==='new')$('#global-new').click();
-if(a==='switch-catalog'){productView='catalog';productFilter='';rerender();}if(a==='switch-event'){if(!selectedEvent()){location.href=url('','');return;}productView='event';productFilter='';rerender();}if(a==='edit-product')editProduct(b.dataset.id);if(a==='import')importModal();if(a==='delete-product'){const ar=productView==='catalog'?store.catalog:store.products;const p=ar.find(x=>x.id===b.dataset.id);if(p&&confirm(p.ko+' 상품을 '+(productView==='catalog'?'기본 상품 목록':'이번 바자회')+'에서 삭제할까요?')){ar.splice(ar.indexOf(p),1);rerender();}}
+if(a==='switch-catalog'){if(productDirty&&!confirm('저장하지 않은 변경사항이 있습니다. 목록을 변경할까요?'))return;productView='catalog';productFilter='';rerender();}if(a==='switch-event'){if(productDirty&&!confirm('저장하지 않은 변경사항이 있습니다. 목록을 변경할까요?'))return;if(!selectedEvent()){location.href=url('','');return;}productView='event';productFilter='';rerender();}if(a==='edit-product')editProduct(b.dataset.id);if(a==='edit-photo'&&!current())editProduct(b.dataset.id,true);if(a==='import')importModal();if(a==='delete-product'){const ar=productView==='catalog'?store.catalog:store.products;const p=ar.find(x=>x.id===b.dataset.id);if(p&&confirm(p.ko+' 상품을 '+(productView==='catalog'?'기본 상품 목록':'이번 바자회')+'에서 삭제할까요?')){if(productView==='event'&&(allocated(p)>0||selectedEvent()?.status==='active'))p.active=false;else ar.splice(ar.indexOf(p),1);markProductDirty();rerender();}}
 if(a==='add-product'){
  const ar=productView==='catalog'?store.catalog:store.products;
  const p={id:newId(),ko:'',fr:'',koDesc:'',frDesc:'',vendor:'누리커넥트',buy:0,sale:'',pack:1,storage:'상온',photo:'',photoPath:'',emoji:'📦',active:false,boxes:'',manualLimit:'',limitMode:'unlimited'};
- ar.push(p);rerender();editProduct(p.id);
+ if(productView!=='catalog')return;modal('새 상품 등록','한국어와 프랑스어 이름을 입력하세요.','<div class="form-grid"><label class="field">한국어<input id="new-ko"></label><label class="field">프랑스어<input id="new-fr"></label></div>','<button class="btn neutral" data-action="close">취소</button><button class="btn primary" data-action="new-product-save">추가</button>');
 }
 if(a==='save-product')run(b,saveProducts);
+ if(a==='refresh-products'&&(!productDirty||confirm('저장하지 않은 변경사항을 버리고 새로고침할까요?'))){run(b,async()=>{productDirty=false;await load();});}
+ if(a==='reorder-products'&&!current()){const ps=visibleProducts();modal('상품 진열 순서 변경','위아래로 이동하세요.','<div id="reorder-list">'+ps.map(p=>'<div class="modal-row" data-reorder-id="'+p.id+'"><span>'+esc(p.ko)+'</span><div class="actions"><button class="btn neutral" data-action="move-up">↑</button><button class="btn neutral" data-action="move-down">↓</button></div></div>').join('')+'</div>','<button class="btn neutral" data-action="close">취소</button><button class="btn primary" data-action="reorder-save">적용</button>');}
 if(a==='manual-order'&&canManageOrder())manualOrderModal();
 if(a==='order-filter'){store.orderFilter=b.dataset.value;rerender();}if(a==='order-detail'){
  orderModal(b.dataset.id);
@@ -355,8 +364,11 @@ if(a==='po-preview')previewPO(store.vendor);if(a==='all-po')modal('전체 업체
 $('#modal').addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(!b)return;const a=b.dataset.action;
 if(handleModalAction(a,b))return;
 if(a==='close')closeModal();
-if(a==='save-product-detail')run(b,()=>saveProductDetail(b.dataset.id));
-if(a==='import-apply'){let ids=[...document.querySelectorAll('[data-import]:checked')].map(x=>x.dataset.import);ids.forEach(id=>{let x=store.catalog.find(p=>p.id===id);if(x)store.products.push(defaults(x))});closeModal();rerender();}
+ if(a==='move-up'||a==='move-down'){const row=b.closest('[data-reorder-id]');if(a==='move-up'&&row.previousElementSibling)row.before(row.previousElementSibling),row.parentNode.insertBefore(row,row.previousElementSibling);else if(a==='move-down'&&row.nextElementSibling)row.after(row.nextElementSibling);}
+ if(a==='reorder-save'){const ids=[...$('#reorder-list').children].map(el=>el.dataset.reorderId);const ar=store.products;const map=new Map(ar.map(p=>[p.id,p]));ar.splice(0,ar.length,...ids.map(id=>map.get(id)),...ar.filter(p=>!ids.includes(p.id)));markProductDirty();closeModal();rerender();}
+if(a==='new-product-save'){const ko=$('#new-ko').value.trim(),fr=$('#new-fr').value.trim();if(!ko||!fr){alert('상품명을 모두 입력하세요.');return;}store.catalog.push({id:newId(),ko,fr,koDesc:'',frDesc:'',vendor:'누리커넥트',buy:0,sale:'',pack:1,storage:'상온',photo:'',photoPath:'',emoji:'📦',active:false,boxes:'',manualLimit:'',limitMode:'unlimited'});markProductDirty();closeModal();rerender();}
+ if(a==='save-product-detail')run(b,()=>saveProductDetail(b.dataset.id));
+if(a==='import-apply'){let ids=[...document.querySelectorAll('[data-import]:checked')].map(x=>x.dataset.import);ids.forEach(id=>{let x=store.catalog.find(p=>p.id===id);if(x){const previous=store.products.find(p=>p.id===id);if(previous)previous.active=true;else store.products.push({...defaults(x),active:true});markProductDirty();}});closeModal();rerender();}
 if(a==='po-add-save'){const name=$('#po-new-name').value.trim(),qty=Number($('#po-new-qty').value),price=Number($('#po-new-price').value);if(!name||!(qty>0)||!(price>=0)){alert('품목명·수량·단가를 확인해 주세요.');return}editablePO(store.vendor).push({id:newId(),name,ordered:0,per:0,qty,unit:$('#po-new-unit').value,price,amount:Math.round(qty*price*100)/100,manual:true});closeModal();rerender();}
 if(a==='show-po'){store.vendor=b.dataset.value;previewPO(store.vendor);}
 });
@@ -453,6 +465,7 @@ async function saveProducts(){
  const e=selectedEvent();
  const catalog=productView==='catalog';
  const products=catalog?store.catalog:store.products;
+ for(const [i,p] of products.entries()){if(!p.ko?.trim()||!p.fr?.trim()||!p.vendor?.trim()||!Number.isInteger(Number(p.pack))||Number(p.pack)<1){const row=app.querySelector('[data-row="'+p.id+'"]');row?.scrollIntoView({block:'center'});if(row)row.style.outline='2px solid #b52c2c';throw new Error((i+1)+'행 '+(p.ko||p.fr||'이름 없는 상품')+' — 상품명, 공급업체, 박스당 수량을 확인하세요.');}}
  const items=products.map(productPayload);
  if(catalog){
   const saved=await request('saveCatalog',{revision:catalogRevision,items});
@@ -466,15 +479,16 @@ async function saveProducts(){
   await request('saveEventProducts',{eventId:e.id,revision:e.raw.productRevision??0,items});
   await load();
  }
- rerender();
- $('#product-status').textContent='✓ 저장했습니다.';
+ productDirty=false;rerender();
+ $('#product-status').textContent='✓ 저장 완료';
 }
 async function saveProductDetail(id){
  const catalog=productView==='catalog';
  const p=(catalog?store.catalog:store.products).find(product=>product.id===id);
  if(!p)return;
- const edits={ko:$('#edit-ko').value,fr:$('#edit-fr').value,koDesc:$('#edit-kod').value,frDesc:$('#edit-frd').value};
- const file=$('#edit-photo').files[0];
+ const edits=$('#edit-kod')?{koDesc:$('#edit-kod').value,frDesc:$('#edit-frd').value}:{};
+ const file=$('#edit-photo')?.files[0];
+ if($('#photo-remove')?.checked){p.photo='';p.photoPath='';}else if($('#photo-url')&&$('#photo-url').value.trim()!==p.photo&&!file){p.photo=$('#photo-url').value.trim();p.photoPath='';}
  if(file){
   if(file.size>1024*1024||!['image/jpeg','image/png','image/webp'].includes(file.type))
    throw new Error('1MB 이하 JPEG·PNG·WebP 사진을 선택해 주세요.');
@@ -492,7 +506,7 @@ async function saveProductDetail(id){
   p.photo=saved.imageUrl;p.photoPath=saved.photoPath;
  }
  Object.assign(p,edits);
- closeModal();rerender();
+ markProductDirty();closeModal();rerender();
 }
 async function savePurchase(confirmOrder){
  assertConfirmedScope();
@@ -535,7 +549,7 @@ function handleScreenAction(action,button){
   });
   return true;
  }
- const readonlyActions=['add-product','delete-product','save-product','edit-product','import'];
+ const readonlyActions=['add-product','delete-product','save-product','edit-product','import','edit-photo','reorder-products'];
  if(current()&&productView!=='catalog'&&readonlyActions.includes(action))return true;
  if(action==='po-new-vendor'){
   if(current()&&canEditPurchase())addPurchaseVendor();
