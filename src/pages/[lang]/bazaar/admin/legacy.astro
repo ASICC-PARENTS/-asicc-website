@@ -95,7 +95,7 @@ const lang = Astro.params.lang as Lang;
 </style>
 <script>
 import {onAuthStateChanged} from 'firebase/auth';
-import {bazaarAuth,adminAction,eFormat,h} from '../../../../lib/bazaar/api';
+import {bazaarAuth,adminAction,eFormat,h,showBazaarTestLogin} from '../../../../lib/bazaar/api';
 const $=(selector:string)=>document.querySelector<HTMLElement>(selector)!;
 let products:any[]=[],orders:any[]=[],event:any={},selectedId:string|null=null;
 let selectedEventId:string|null=null,readOnly=false,isCurrent=false,eventList:any[]=[],draftList:any[]=[],draft:any=null,draftSelectedId:string|null=null,draftDirty=false;
@@ -411,10 +411,13 @@ $('#ba-finalize').addEventListener('click',async()=>{
  if(prompt('계속하려면 "최종 확인"이라고 입력하세요.')!=='최종 확인')return;
  try{const r=await adminAction({op:'finalizeUnpaid',confirm:true,eventId:event.eventId});alert(`${r.canceled}개 주문이 취소되었습니다.`);await load();}catch(e:any){alert(e?.message||'처리 실패');}
 });
+const testLogin=document.createElement('div');
+$('#ba-content').before(testLogin);
 onAuthStateChanged(bazaarAuth,async user=>{
  ++loadVersion;
  $('#ba-content').hidden=true;products=[];orders=[];
- if(!user){notify('ASICC 홈페이지에서 운영진 계정으로 로그인한 뒤 이 페이지를 다시 열어 주세요.');return;}
+ testLogin.replaceChildren();
+ if(!user){if(!showBazaarTestLogin(testLogin))notify('ASICC 홈페이지에서 운영진 계정으로 로그인한 뒤 이 페이지를 다시 열어 주세요.');return;}
  try{await user.reload();await user.getIdToken(true);if(bazaarAuth.currentUser?.uid===user.uid)await load();}catch(e:any){notify(e?.message||'관리자 확인 오류');}
 });
 </script>

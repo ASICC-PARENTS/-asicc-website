@@ -5,7 +5,7 @@ const read=p=>readFileSync(new URL(p,import.meta.url),'utf8');
 const publicPage=read('../src/pages/[lang]/bazaar/index.astro');
 const legacy=read('../src/pages/[lang]/bazaar/admin/legacy.astro');
 const adminPage=read('../src/lib/bazaar/admin/app.js');
-const backend=read('../firebase-functions-bazaar/bazaar/index.mjs');
+const backend=read('../firebase-functions-bazaar/bazaar/service.mjs');
 const adminHub=read('../src/pages/[lang]/membres/admin.astro');
 const base=read('../src/layouts/Base.astro');
 
