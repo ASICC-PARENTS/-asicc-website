@@ -34,6 +34,11 @@ jobs:
           BASE_PATH: /
           PUBLIC_ASICC_BAZAAR_TEST: 'false'
           PUBLIC_ASICC_MEMBERS_ENABLED: 'false'
+      - name: Build entire integrated test site
+        run: npm run build:integration
+        env:
+          PUBLIC_ASICC_BAZAAR_TEST_API_KEY: ci-build-fixture-not-a-real-key
+          PUBLIC_ASICC_BAZAAR_TEST_APP_ID: 1:123456789:web:0000000000000000000000
   isolated-integration:
     runs-on: ubuntu-latest
     timeout-minutes: 12
