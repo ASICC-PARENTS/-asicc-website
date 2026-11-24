@@ -12,7 +12,7 @@ const profile=(uid,role='general')=>({name:uid,nickname:uid,nicknameKey:uid,
 
 before(async()=>{
   env=await initializeTestEnvironment({projectId:'demo-asicc-admin-rules',firestore:{
-    rules:fs.readFileSync(new URL('../firestore.rules.PROPOSED_ONLY',import.meta.url),'utf8')
+    rules:fs.readFileSync(new URL('../firestore.rules',import.meta.url),'utf8')
   }});
   await env.withSecurityRulesDisabled(async ctx=>{
     for(const [uid,role] of [['admin','admin'],['general','general'],['member','member'],

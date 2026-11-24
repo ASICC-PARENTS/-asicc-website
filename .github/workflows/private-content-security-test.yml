@@ -1,10 +1,10 @@
 name: ASICC Private Resources Security Test
 on:
   push:
-    branches: [test-cms-fr]
+    branches: [test-cms-fr, feat/online-bazaar]
     paths:
       - 'tests/media-rules.test.mjs'
-      - 'firestore.rules.PROPOSED_ONLY'
+      - 'firestore.rules'
       - '.github/workflows/private-content-security-test.yml'
   workflow_dispatch:
 permissions:

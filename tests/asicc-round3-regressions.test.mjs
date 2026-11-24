@@ -9,7 +9,7 @@ const galleryPage=read('src/pages/[lang]/membres/gallery.astro');
 const admin=read('src/pages/[lang]/membres/admin.astro');
 const ops=read('src/scripts/members/admin-ops.ts');
 const members=read('src/pages/[lang]/membres/index.astro');
-const rules=read('firestore.rules.PROPOSED_ONLY');
+const rules=read('firestore.rules');
 const messages=read('src/scripts/members/messages.ts');
 test('no legacy-member badge synchronization when registration has not started',()=>{
   assert.doesNotMatch(admin,/ops-sync-member-badges/);

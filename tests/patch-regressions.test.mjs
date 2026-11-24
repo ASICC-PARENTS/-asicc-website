@@ -7,7 +7,7 @@ const admin=read('src/pages/[lang]/membres/admin.astro');
 const member=read('src/pages/[lang]/membres/index.astro');
 const base=read('src/layouts/Base.astro');
 const css=read('src/styles/global.css');
-const rules=read('firestore.rules.PROPOSED_ONLY');
+const rules=read('firestore.rules');
 const activity=read('src/scripts/members/activity.ts');
 const deploy=read('.github/workflows/deploy.yml');
 

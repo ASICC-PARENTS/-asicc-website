@@ -1,88 +1,1056 @@
+// ASICC Firestore unified draft — 2026-11-17
+// IMPORTANT: Deploy manually to Firebase Console after GitHub CI tests pass.
+// Roles: general / member / special / admin
+// Do not upload private child/student files until Storage rules are verified.
+// ASICC member-space V2 — current staging rules; changes require review of the
+// existing website's rules. Before deployment merge and test existing public
+// contact, event, newsletter and legacy collections. Default is deny.
 rules_version = '2';
-// ASICC 접근 규칙. 실제 보안은 이 파일이 서버에서 강제합니다.
-// 권한: 방문자(공개 양식 제출만) / 승인된 학부모 회원 / 학교급 대표(rep) / 임원(admin)
 service cloud.firestore {
-  match /databases/{db}/documents {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function verified() { return signedIn() && request.auth.token.email_verified == true; }
+    function myProfileExists() {
+      return signedIn() && exists(/databases/$(database)/documents/members/$(request.auth.uid));
+    }
+    function me() {
+      return get(/databases/$(database)/documents/members/$(request.auth.uid)).data;
+    }
+    function isActive() { return verified() && myProfileExists() && me().status == 'approved'; }
+    function isAdmin() { return isActive() && me().role == 'admin'; }
+    function galleryOpen() {
+      return exists(/databases/$(database)/documents/siteSettings/gallery)
+        && get(/databases/$(database)/documents/siteSettings/gallery).data.isOpen == true;
+    }
+    function galleryReady() { return galleryOpen() || isAdmin(); }
+    function galleryAlbum(id) {
+      return /databases/$(database)/documents/galleryAlbums/$(id);
+    }
+    function hasGalleryAccess() {
+      return isActive() && me().role in ['member','special','admin'];
+    }
+    function validRole(role) { return role in ['general','member','special','admin']; }
 
-    function signedIn()  { return request.auth != null; }
-    function myDoc()     { return /databases/$(db)/documents/members/$(request.auth.uid); }
-    function me()        { return get(myDoc()).data; }
-    function hasProfile(){ return signedIn() && exists(myDoc()); }
-    function verified()  { return request.auth.token.email_verified == true; }
-    function approved()  { return hasProfile() && verified() && me().status == 'approved'; }
-    function isAdmin()   { return approved() && me().role == 'admin'; }
-    function isRep()     { return approved() && me().role == 'rep'; }
-    function isStaff()   { return isAdmin() || isRep(); }
-    function changed()   { return request.resource.data.diff(resource.data).affectedKeys(); }
-    function isEmail(v)  { return v is string && v.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$') && v.size() < 200; }
-    function str(v, max) { return v is string && v.size() <= max; }
 
-    // ---------- 회원 ----------
+function nicknamePath(key) {
+  return /databases/$(database)/documents/nicknames/$(key);
+}
+
+function memberDoc(uid) {
+  return /databases/$(database)/documents/members/$(uid);
+}
+function publicNameDoc(uid) {
+  return /databases/$(database)/documents/publicNames/$(uid);
+}
+function nicknameValid(n, key) {
+  return n is string && key is string
+    && n.size() >= 2 && n.size() <= 24
+    && key == n.lower() && key.size() <= 48
+    && n.matches('^[\\p{Latin}\\p{Hangul}0-9]+$')
+    && !key.matches('.*(asicc|admin|administrator|administrateur|administratrice|moderateur|moderatrice|official|officiel|staff|관리자|운영진|협회|공식).*');
+}
+function validRegistration(uid) {
+  return signedIn() && request.auth.uid == uid
+    && request.resource.data.keys().hasOnly([
+      'name','nickname','nicknameKey','email','role','status','consent',
+      'termsVersion','termsAcceptedAt','createdAt','accountType','birthDate'
+    ])
+    && request.resource.data.keys().hasAll([
+      'name','nickname','nicknameKey','email','role','status','consent',
+      'termsVersion','termsAcceptedAt','createdAt','accountType'
+    ])
+    && request.resource.data.name is string
+    && request.resource.data.name.size() > 0
+    && request.resource.data.name.size() <= 80
+    && nicknameValid(request.resource.data.nickname,request.resource.data.nicknameKey)
+    && request.resource.data.email == request.auth.token.email
+    && request.resource.data.accountType in ['adult','student']
+    && ((request.resource.data.accountType == 'adult' && request.resource.data.get('birthDate','') == '')
+      || (request.resource.data.accountType == 'student' && validBirthDate(request.resource.data.get('birthDate',''))))
+    && request.resource.data.role == 'general'
+    && request.resource.data.status == 'approved'
+    && request.resource.data.consent == true
+    && request.resource.data.termsVersion == '2026-11'
+    && request.resource.data.termsAcceptedAt == request.time
+    && request.resource.data.createdAt == request.time
+    && getAfter(nicknamePath(request.resource.data.nicknameKey)).data.uid == uid
+    && getAfter(nicknamePath(request.resource.data.nicknameKey)).data.nickname == request.resource.data.nickname
+    && getAfter(publicNameDoc(uid)).data.nickname == request.resource.data.nickname;
+}
+function validSelfNicknameUpdate(uid) {
+  return isActive() && request.auth.uid == uid
+    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nickname','nicknameKey'])
+    && nicknameValid(request.resource.data.nickname,request.resource.data.nicknameKey)
+    && request.resource.data.nicknameKey != resource.data.get('nicknameKey','')
+    && getAfter(nicknamePath(request.resource.data.nicknameKey)).data.uid == uid
+    && getAfter(nicknamePath(request.resource.data.nicknameKey)).data.nickname == request.resource.data.nickname
+    && getAfter(publicNameDoc(uid)).data.nickname == request.resource.data.nickname
+    && (resource.data.get('nicknameKey','') == ''
+        || !existsAfter(nicknamePath(resource.data.nicknameKey)));
+}
+
+
+    // Admin editing: limit fields and preserve the immutable identity/auth fields.
+    function validAdminMemberUpdate(uid) {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return isAdmin() && uid != request.auth.uid
+        && changed.hasOnly([
+          'role','status','name','nickname','nicknameKey','phone',
+          'levels','children','memberKind','memberRelation','accountType','birthDate','adultAt','dmMode','dmUpdatedBy','dmUpdatedAt'
+        ])
+        && validRole(request.resource.data.role)
+        && request.resource.data.get('accountType','') in ['','adult','student']
+        && request.resource.data.get('dmMode','auto') in ['auto','on','off']
+        && (!changed.hasAny(['dmUpdatedBy','dmUpdatedAt']) || (request.resource.data.dmUpdatedBy == request.auth.uid && request.resource.data.dmUpdatedAt == request.time))
+        && (!changed.hasAny(['dmMode']) || (request.resource.data.dmUpdatedBy == request.auth.uid && request.resource.data.dmUpdatedAt == request.time))
+        && (request.resource.data.get('birthDate','') == '' || validBirthDate(request.resource.data.birthDate))
+        && (resource.data.get('birthDate','') == '' || request.resource.data.get('birthDate','') != '')
+        && (request.resource.data.get('adultAt',null) == null || (request.resource.data.adultAt is timestamp && validBirthDate(request.resource.data.get('birthDate',''))))
+        && (!changed.hasAny(['birthDate']) || changed.hasAny(['adultAt']) || request.resource.data.get('adultAt',null) == null)
+        && request.resource.data.status in ['approved','suspended']
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 80
+        && request.resource.data.get('phone','') is string
+        && request.resource.data.get('phone','').size() <= 40
+        && request.resource.data.get('levels',[]) is list
+        && request.resource.data.get('levels',[]).size() <= 3
+        && request.resource.data.get('levels',[]).hasOnly(['mat','elem','col'])
+        && validChildren(request.resource.data.get('children',[]))
+        && request.resource.data.get('memberKind','') in [
+          '','parent','alumnus','alumni-parent','teacher','contributor'
+        ]
+        && request.resource.data.get('memberRelation','') is string
+        && request.resource.data.get('memberRelation','').size() <= 60
+        // A nickname change must atomically update the reservation and public alias.
+        && (!changed.hasAny(['nickname','nicknameKey']) || (
+          changed.hasAll(['nickname','nicknameKey'])
+          && nicknameValid(request.resource.data.nickname,request.resource.data.nicknameKey)
+          && request.resource.data.nicknameKey != resource.data.get('nicknameKey','')
+          && getAfter(nicknamePath(request.resource.data.nicknameKey)).data.uid == uid
+          && getAfter(nicknamePath(request.resource.data.nicknameKey)).data.nickname == request.resource.data.nickname
+          && getAfter(publicNameDoc(uid)).data.nickname == request.resource.data.nickname
+          && (resource.data.get('nicknameKey','') == ''
+              || !existsAfter(nicknamePath(resource.data.nicknameKey)))
+        ));
+    }
+
+    // Direct list-row changes are independent of unrelated profile data.
+    function validAdminMessagingUpdate(uid) {
+      let next = request.resource.data;
+      let changed = next.diff(resource.data).affectedKeys();
+      return isAdmin() && resource.data.status == 'approved'
+        && resource.data.role in ['member','special','admin']
+        && changed.hasOnly(['dmMode','dmUpdatedBy','dmUpdatedAt'])
+        && next.get('dmMode','auto') in ['auto','on','off']
+        && next.dmUpdatedBy == request.auth.uid && next.dmUpdatedAt == request.time;
+    }
+    // A nickname-only admin update is checked independently. It cannot alter
+    // roles, status, e-mail or any other profile fields and must be coordinated
+    // with the nickname reservation and the public alias in the same commit.
+    // This avoids evaluating the unrelated full profile editor rules for a
+    // nickname-only transaction (Firestore limits rule expression evaluations).
+    function validAdminNicknameOnlyUpdate(uid) {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return isAdmin() && uid != request.auth.uid
+        && changed.hasOnly(['nickname','nicknameKey'])
+        && changed.hasAll(['nickname','nicknameKey'])
+        && nicknameValid(request.resource.data.nickname,request.resource.data.nicknameKey)
+        && request.resource.data.nicknameKey != resource.data.get('nicknameKey','')
+        && getAfter(nicknamePath(request.resource.data.nicknameKey)).data.uid == uid
+        && getAfter(nicknamePath(request.resource.data.nicknameKey)).data.nickname == request.resource.data.nickname
+        && getAfter(publicNameDoc(uid)).data.nickname == request.resource.data.nickname
+        && (resource.data.get('nicknameKey','') == ''
+            || !existsAfter(nicknamePath(resource.data.nicknameKey)));
+    }
+
     match /members/{uid} {
-      // 본인 가입: 항상 '대기 + 일반 회원'으로만 생성 가능
-      allow create: if signedIn() && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['uid','name','email','levels','phone','imageConsent','privacyConsent','lang','status','role','repLevel','createdAt'])
+      // Member profiles remain private; only admins can list members.
+      allow get: if signedIn() && request.auth.uid == uid || isAdmin();
+      allow list: if isAdmin();
+      allow create: if validRegistration(uid);
+      allow update: if validAdminMessagingUpdate(uid) || validSelfNicknameUpdate(uid) || validAdminNicknameOnlyUpdate(uid) || validAdminMemberUpdate(uid);
+      allow delete: if false;
+    }
+
+match /nicknames/{key} {
+  allow get: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+  allow list: if isAdmin();
+  allow create: if signedIn()
+    && request.resource.data.keys().hasOnly(['uid','nickname','createdAt'])
+    && request.resource.data.keys().hasAll(['uid','nickname','createdAt'])
+    && (request.resource.data.uid == request.auth.uid || isAdmin())
+    && nicknameValid(request.resource.data.nickname,key)
+    && request.resource.data.createdAt == request.time
+    && getAfter(memberDoc(request.resource.data.uid)).data.nicknameKey == key
+    && getAfter(memberDoc(request.resource.data.uid)).data.nickname == request.resource.data.nickname
+    && getAfter(publicNameDoc(request.resource.data.uid)).data.nickname == request.resource.data.nickname
+    && (!exists(memberDoc(request.resource.data.uid))
+        || get(memberDoc(request.resource.data.uid)).data.get('nicknameKey','') != key);
+  allow update: if false;
+  // An old reservation can be released only when the member changes their key.
+  allow delete: if verified() && (resource.data.uid == request.auth.uid || isAdmin())
+    && existsAfter(memberDoc(resource.data.uid))
+    && getAfter(memberDoc(resource.data.uid)).data.get('nicknameKey','') != key;
+}
+// Public alias only, never exposes a real name, e-mail or student information.
+match /publicNames/{uid} {
+  allow get: if isActive();
+  allow list: if isAdmin();
+  allow create, update: if signedIn() && (request.auth.uid == uid || isAdmin())
+    && request.resource.data.keys().hasOnly(['nickname','updatedAt','role','canReceiveDM'])
+    && request.resource.data.keys().hasAll(['nickname','updatedAt','canReceiveDM'])
+    && request.resource.data.updatedAt == request.time
+    && request.resource.data.canReceiveDM is bool
+    && request.resource.data.canReceiveDM == dmAllowedFor(getAfter(memberDoc(uid)).data)
+    && request.resource.data.get('role','') == getAfter(memberDoc(uid)).data.role
+    && getAfter(memberDoc(uid)).data.nickname == request.resource.data.nickname
+    && getAfter(memberDoc(uid)).data.nicknameKey == request.resource.data.nickname.lower();
+  allow delete: if false;
+}
+// Real-name correction is requested privately and confirmed by an administrator.
+match /nameChangeRequests/{uid} {
+  allow get: if isAdmin() || (isActive() && request.auth.uid == uid);
+  allow list: if isAdmin();
+  allow create: if isActive() && request.auth.uid == uid
+    && !exists(/databases/$(database)/documents/nameChangeRequests/$(uid))
+    && request.resource.data.keys().hasOnly(['uid','currentName','requestedName','status','createdAt'])
+    && request.resource.data.keys().hasAll(['uid','currentName','requestedName','status','createdAt'])
+    && request.resource.data.uid == uid
+    && request.resource.data.currentName == me().name
+    && request.resource.data.requestedName is string
+    && request.resource.data.requestedName.size() > 0
+    && request.resource.data.requestedName.size() <= 80
+    && request.resource.data.status == 'pending'
+    && request.resource.data.createdAt == request.time;
+  allow update: if (isAdmin()
+      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','reviewedAt','reviewedBy'])
+      && request.resource.data.status in ['approved','rejected']
+      && request.resource.data.reviewedBy == request.auth.uid
+      && request.resource.data.reviewedAt == request.time)
+    || (isActive() && request.auth.uid == uid && resource.data.status == 'rejected'
+      && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'currentName','requestedName','status','createdAt','reviewedAt','reviewedBy'])
+      && request.resource.data.currentName == me().name
+      && request.resource.data.requestedName is string
+      && request.resource.data.requestedName.size() > 0
+      && request.resource.data.requestedName.size() <= 80
+      && request.resource.data.status == 'pending'
+      && request.resource.data.createdAt == request.time);
+  allow delete: if false;
+}
+
+
+function validChild(c) {
+  return c is map
+    && c.keys().hasOnly(['studentName','school','grade'])
+    && c.keys().hasAll(['studentName','school','grade'])
+    && c.studentName is string && c.studentName.size() > 0 && c.studentName.size() <= 100
+    && c.school is string && c.school.size() > 0 && c.school.size() <= 100
+    && c.grade is string && c.grade.size() > 0 && c.grade.size() <= 100;
+}
+function validChildren(a) {
+  return a is list && a.size() <= 5
+    && (a.size() < 1 || validChild(a[0]))
+    && (a.size() < 2 || validChild(a[1]))
+    && (a.size() < 3 || validChild(a[2]))
+    && (a.size() < 4 || validChild(a[3]))
+    && (a.size() < 5 || validChild(a[4]));
+}
+function validUpgrade(uid) {
+      return isActive() && request.auth.uid == uid && me().role == 'general'
         && request.resource.data.uid == uid
-        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.applicantName == me().name
+        && request.resource.data.applicantEmail == request.auth.token.email
+        && request.resource.data.requestedRole in ['member','special']
+        && request.resource.data.kind in ['parent','alumnus','alumni-parent','teacher','contributor']
+        && (request.resource.data.requestedRole == 'member' && request.resource.data.kind == 'parent'
+           || request.resource.data.requestedRole == 'special' && request.resource.data.kind in ['alumnus','alumni-parent','teacher','contributor'])
+        && (request.resource.data.get('startYear',null) == null || request.resource.data.startYear is int && request.resource.data.startYear >= 2000 && request.resource.data.startYear <= 2100)
+        && (!(request.resource.data.kind in ['alumnus','alumni-parent']) || (request.resource.data.startYear is int && request.resource.data.schoolYear is int && request.resource.data.startYear <= request.resource.data.schoolYear))
+        && (request.resource.data.get('schoolYear',null) == null || request.resource.data.schoolYear is int
+            && request.resource.data.schoolYear >= 2000 && request.resource.data.schoolYear <= 2100)
+        && request.resource.data.note is string && request.resource.data.note.size() <= 500
+        && validChildren(request.resource.data.get('children',[]))
+        // Parent and alumni applications require at least one verifiable student record.
+        && (!(request.resource.data.kind in ['parent','alumnus','alumni-parent'])
+            || request.resource.data.get('children',[]).size() >= 1)
+        && request.resource.data.get('relation','') is string
+        && request.resource.data.get('relation','').size() <= 40
         && request.resource.data.status == 'pending'
-        && request.resource.data.role == 'member'
-        && request.resource.data.repLevel == null
-        && request.resource.data.privacyConsent == true
-        && str(request.resource.data.name, 100)
-        && request.resource.data.levels is list && request.resource.data.levels.size() > 0
-        && request.resource.data.levels.hasOnly(['mat','elem','col']);
-
-      allow get: if signedIn() && (request.auth.uid == uid || isStaff());
-      allow list: if isStaff();
-
-      // 본인 수정: 이름, 연락처, 학교급, 언어, 이미지 동의만
-      allow update: if
-        (signedIn() && request.auth.uid == uid
-          && changed().hasOnly(['name','phone','levels','lang','imageConsent'])
-          && request.resource.data.levels.hasOnly(['mat','elem','col']))
-        // 학교급 대표: 자기 학교급 신청자의 승인 상태만
-        || (isRep() && resource.data.levels.hasAny([me().repLevel])
-          && changed().hasOnly(['status','approvedBy','approvedAt'])
-          && request.resource.data.status in ['approved','rejected','pending'])
-        // 임원: 상태와 권한
-        || (isAdmin() && changed().hasOnly(['status','approvedBy','approvedAt','role','repLevel'])
-          && request.resource.data.role in ['member','rep','admin']);
-
-      allow delete: if (signedIn() && request.auth.uid == uid) || isAdmin();
+        && request.resource.data.createdAt == request.time;
+    }
+    match /upgradeRequests/{uid} {
+      allow get: if isAdmin() || verified() && request.auth.uid == uid;
+      allow list: if isAdmin();
+      allow create: if request.resource.data.keys().hasOnly([
+          'uid','applicantName','applicantEmail','requestedRole','kind','schoolYear','startYear','note','children','relation','status','createdAt'
+        ]) && validUpgrade(uid);
+      // A rejected applicant can submit a new request; the previous review is retained.
+      allow update: if (isAdmin()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','reviewedBy','reviewedAt'])
+          && request.resource.data.status in ['approved','rejected']
+          && request.resource.data.reviewedBy == request.auth.uid
+          && request.resource.data.reviewedAt == request.time)
+        || (verified() && request.auth.uid == uid && resource.data.status == 'rejected'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+             'requestedRole','kind','schoolYear','startYear','note','children','relation','status','createdAt'
+          ]) && validUpgrade(uid));
+      allow delete: if isAdmin();
+    }
+    // Confidential suggestions: author sees own, administrators see all.
+    match /suggestions/{id} {
+      allow get, list: if isAdmin() || (isActive() && resource.data.uid == request.auth.uid);
+      allow create: if isActive()
+        && request.resource.data.keys().hasOnly(['uid','category','subject','body','status','createdAt'])
+        && request.resource.data.keys().hasAll(['uid','category','subject','body','status','createdAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.category in ['operations','school','events','question','confidential']
+        && request.resource.data.subject is string && request.resource.data.subject.size() > 0 && request.resource.data.subject.size() <= 120
+        && request.resource.data.body is string && request.resource.data.body.size() > 0 && request.resource.data.body.size() <= 3000
+        && request.resource.data.status == 'received' && request.resource.data.createdAt == request.time;
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','response','respondedBy','respondedAt'])
+        && request.resource.data.status in ['received','reviewing','answered','closed']
+        && request.resource.data.get('response','') is string
+        && request.resource.data.get('response','').size() <= 3000
+        && request.resource.data.respondedBy == request.auth.uid
+        && request.resource.data.respondedAt == request.time;
+      allow delete: if false;
+    }
+    function allowedMime(m) {
+      return m in [
+        'application/pdf', 'image/jpeg', 'image/png', 'image/webp',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+      ];
+    }
+    function validFileRecord(prefix,id) {
+      return request.resource.data.keys().hasOnly([
+          'title','filename','mime','storagePath','createdBy','createdAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'title','filename','mime','storagePath','createdBy','createdAt'
+        ])
+        && request.resource.data.title is string && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 150
+        && request.resource.data.filename is string && request.resource.data.filename.size() > 0
+        && request.resource.data.filename.size() <= 255
+        && allowedMime(request.resource.data.mime)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.storagePath.matches('^' + prefix + '/' + id + '/[^/]+$');
+    }
+    function validAttachment(f) {
+      return f is map
+        && f.keys().hasOnly(['id','name','mime','size'])
+        && f.keys().hasAll(['id','name','mime','size'])
+        && f.id is string && f.id.matches('^[A-Za-z0-9_-]{12,128}$')
+        && f.name is string && f.name.size() > 0 && f.name.size() <= 255
+        && f.mime in [
+          'application/pdf','image/jpeg','image/png','image/webp','text/plain',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+        ]
+        && f.size is int && f.size > 0 && f.size <= 20000000;
+    }
+    // Keep validation below Firestore's 1,000-expression limit per request.
+    // A post may contain up to 8 individually validated attachments, 20MB total.
+    // The private media Worker independently verifies all filenames, MIME types,
+    // declared lengths and actual bytes before accepting a B2 upload.
+    function validAttachments(a) {
+      return a is list && a.size() <= 8
+        && (a.size() == 0 || validAttachment(a[0]))
+        && (a.size() <= 1 || validAttachment(a[1]))
+        && (a.size() <= 2 || validAttachment(a[2]))
+        && (a.size() <= 3 || validAttachment(a[3]))
+        && (a.size() <= 4 || validAttachment(a[4]))
+        && (a.size() <= 5 || validAttachment(a[5]))
+        && (a.size() <= 6 || validAttachment(a[6]))
+        && (a.size() <= 7 || validAttachment(a[7]))
+        ;
+    }
+    function resourceCategoryAllowed(category) {
+      return category is string && category.size() <= 24 && !(category in ['common','general'])
+        && (category in ['kindergarten','elementary','middle','other']
+          || (exists(/databases/$(database)/documents/siteSettings/resourceCategories)
+            && category in get(/databases/$(database)/documents/siteSettings/resourceCategories).data.get('keys',[])));
+    }
+    function validLearningCreate(id) {
+      return hasGalleryAccess()
+        && request.resource.data.keys().hasOnly([
+          'title','body','category','authorUid','status','files','bytesTotal','createdAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'title','body','category','authorUid','status','files','bytesTotal','createdAt'
+        ])
+        && request.resource.data.title is string && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 150
+        && request.resource.data.body is string && request.resource.data.body.size() <= 10000
+        && resourceCategoryAllowed(request.resource.data.category)
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.status == 'draft'
+        && validAttachments(request.resource.data.files)
+        && request.resource.data.bytesTotal is int
+        && request.resource.data.bytesTotal >= 0
+        && request.resource.data.bytesTotal <= 20000000
+        && request.resource.data.createdAt == request.time;
+    }
+    function validGalleryImage(f) {
+      return f is map && f.keys().hasOnly(['id','mime','size'])
+        && f.keys().hasAll(['id','mime','size'])
+        && f.id is string && f.id.matches('^[A-Za-z0-9_-]{12,128}$')
+        && f.mime in ['image/webp','image/jpeg','video/mp4','video/webm']
+        && f.size is int && f.size > 0 && f.size <= 20000000
+        && ((f.mime in ['image/webp','image/jpeg'] && f.size <= 1500000)
+          || (f.mime in ['video/mp4','video/webm']));
+    }
+    function validGalleryCreate(id) {
+      let a = galleryAlbum(request.resource.data.get('albumId',''));
+      return hasGalleryAccess() && galleryReady()
+        && request.resource.data.keys().hasOnly([
+          'albumId','title','description','authorUid','status','image','createdAt',
+          'mediaType','originalName','reviewReason','sortOrder'
+        ])
+        && request.resource.data.keys().hasAll([
+          'albumId','title','description','authorUid','status','image','createdAt',
+          'mediaType','originalName','reviewReason','sortOrder'
+        ])
+        && request.resource.data.albumId is string
+        && exists(a)
+        && (get(a).data.ownerUid == request.auth.uid || get(a).data.isShared == true)
+        && request.resource.data.title is string && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 150
+        && request.resource.data.description is string && request.resource.data.description.size() <= 3000
+        && request.resource.data.originalName is string && request.resource.data.originalName.size() <= 255
+        && request.resource.data.reviewReason in ['','consent_uncertain']
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.status == 'draft'
+        && request.resource.data.mediaType in ['photo','video']
+        && ((request.resource.data.mediaType == 'photo' && request.resource.data.image.mime in ['image/webp','image/jpeg'])
+          || (request.resource.data.mediaType == 'video' && request.resource.data.image.mime in ['video/mp4','video/webm']))
+        && request.resource.data.sortOrder is number
+        && validGalleryImage(request.resource.data.image)
+        && request.resource.data.createdAt == request.time;
+    }
+    function onlyPublishOwnDraft() {
+      return isActive() && resource.data.get('authorUid','') == request.auth.uid
+        && resource.data.get('status','') == 'draft'
+        && request.resource.data.status == 'published'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt'])
+        && request.resource.data.updatedAt == request.time;
+    }
+    function validLearningEdit() {
+      return hasGalleryAccess()
+        && resource.data.get('authorUid','') == request.auth.uid
+        && resource.data.get('status','') == 'published'
+        && request.resource.data.status == 'published'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','body','category','files','bytesTotal','updatedAt'])
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 150
+        && request.resource.data.body is string
+        && request.resource.data.body.size() <= 10000
+        && resourceCategoryAllowed(request.resource.data.category)
+        && validAttachments(request.resource.data.files)
+        && request.resource.data.bytesTotal is int && request.resource.data.bytesTotal >= 0 && request.resource.data.bytesTotal <= 20000000
+        && request.resource.data.updatedAt == request.time;
+    }
+    match /learningResources/{id} {
+      allow get, list: if isActive();
+      allow create: if (isAdmin() && validFileRecord('learning',id)) || validLearningCreate(id);
+      allow update: if (hasGalleryAccess() && onlyPublishOwnDraft()) || validLearningEdit();
+      allow delete: if isAdmin() || (hasGalleryAccess() && resource.data.get('authorUid','') == request.auth.uid);
+      match /comments/{commentId} {
+        allow get, list: if isActive() && exists(/databases/$(database)/documents/learningResources/$(id))
+          && get(/databases/$(database)/documents/learningResources/$(id)).data.get('status','') == 'published';
+        allow create: if hasGalleryAccess()
+          && exists(/databases/$(database)/documents/learningResources/$(id))
+          && get(/databases/$(database)/documents/learningResources/$(id)).data.get('status','') == 'published'
+          && validCommentCreate();
+        allow update: if hasGalleryAccess()
+          && exists(/databases/$(database)/documents/learningResources/$(id))
+          && get(/databases/$(database)/documents/learningResources/$(id)).data.get('status','') == 'published'
+          && resource.data.authorUid == request.auth.uid
+          && validCommentEdit();
+        allow delete: if hasGalleryAccess()
+          && exists(/databases/$(database)/documents/learningResources/$(id))
+          && (resource.data.authorUid == request.auth.uid || isAdmin()
+            || get(/databases/$(database)/documents/learningResources/$(id)).data.authorUid == request.auth.uid);
+      }
+    }
+    // A closed gallery denies all member access, including direct Firestore URLs.
+    // An admin can review test media before public launch.
+    match /siteSettings/dmRound9 {
+      allow get: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasOnly(['updatedBy','updatedAt'])
+        && request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.updatedAt == request.time;
+      allow update, delete, list: if false;
+    }
+    match /siteSettings/{key} {
+      allow get: if isActive() && key in ['gallery','boardCategories','resourceCategories','messaging'];
+      allow list: if false;
+      allow create, update: if isAdmin()
+        && key in ['gallery','boardCategories','resourceCategories','messaging']
+        && request.resource.data.keys().hasOnly(['isOpen','items','keys','enabled','updatedBy','updatedAt'])
+        && request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.updatedAt == request.time
+        && ((key == 'gallery' && request.resource.data.isOpen is bool)
+          || (key == 'messaging' && request.resource.data.enabled is bool)
+          || (key in ['boardCategories','resourceCategories']
+             && request.resource.data.items is list && request.resource.data.items.size() <= 20
+             && request.resource.data.get('keys',[]) is list && request.resource.data.get('keys',[]).size() <= 20));
+      allow delete: if false;
+    }
+    function validAlbumCover(id) {
+      let cover = request.resource.data.get('coverItemId','');
+      return cover == '' || (cover is string
+        && cover.matches('^[A-Za-z0-9_-]{12,128}$')
+        && exists(/databases/$(database)/documents/galleryItems/$(cover))
+        && get(/databases/$(database)/documents/galleryItems/$(cover)).data.albumId == id
+        && get(/databases/$(database)/documents/galleryItems/$(cover)).data.mediaType == 'photo'
+        && get(/databases/$(database)/documents/galleryItems/$(cover)).data.status == 'published');
+    }
+    function validAlbumData() {
+      return request.resource.data.keys().hasOnly([
+          'title','school','year','ownerUid','isShared','coverItemId','createdAt','updatedAt'])
+        && request.resource.data.keys().hasAll([
+          'title','school','year','ownerUid','isShared','coverItemId','createdAt','updatedAt'])
+        && request.resource.data.title is string
+        && request.resource.data.title.size() >= 2 && request.resource.data.title.size() <= 120
+        && request.resource.data.school in ['kindergarten','elementary','middle','common']
+        && request.resource.data.year is int
+        && request.resource.data.year >= 2018 && request.resource.data.year <= 2100
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.isShared == false
+        && request.resource.data.coverItemId == ''
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+    }
+    match /galleryAlbums/{id} {
+      allow get, list: if hasGalleryAccess() && galleryReady();
+      allow create: if hasGalleryAccess() && galleryReady() && validAlbumData();
+      allow update: if hasGalleryAccess() && galleryReady() && (
+        isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'title','school','year','updatedAt','isShared','coverItemId'])
+        || (resource.data.ownerUid == request.auth.uid && resource.data.isShared == false
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','updatedAt']))
+        || (resource.data.ownerUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coverItemId','updatedAt']))
+        || (resource.data.isShared == false && request.resource.data.isShared == true
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isShared','updatedAt']))
+        // A contributor can remove their own photo as album cover before deleting/moving it.
+        || (resource.data.get('coverItemId','') != ''
+          && request.resource.data.coverItemId == ''
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coverItemId','updatedAt'])
+          && exists(/databases/$(database)/documents/galleryItems/$(resource.data.coverItemId))
+          && get(/databases/$(database)/documents/galleryItems/$(resource.data.coverItemId)).data.authorUid == request.auth.uid)
+      ) && request.resource.data.updatedAt == request.time
+      && validAlbumCover(id);
+      // A collaborator must mark a folder shared before posting. Only an admin can
+      // rename or delete a shared folder, even after its last foreign upload was removed.
+      allow delete: if isAdmin() || (hasGalleryAccess() && galleryReady()
+        && resource.data.ownerUid == request.auth.uid && resource.data.isShared == false);
+    }
+    match /galleryItems/{id} {
+      allow get, list: if isAdmin() || (hasGalleryAccess() && galleryOpen()
+        && (resource.data.status == 'published' || resource.data.authorUid == request.auth.uid));
+      allow create: if validGalleryCreate(id);
+      allow update: if hasGalleryAccess() && galleryReady()
+        && request.resource.data.updatedAt == request.time && (
+          (resource.data.authorUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'title','description','updatedAt'])
+            && request.resource.data.title is string && request.resource.data.title.size() <= 150
+            && request.resource.data.description is string && request.resource.data.description.size() <= 3000)
+          || (resource.data.authorUid == request.auth.uid && resource.data.status == 'draft'
+            && ((resource.data.reviewReason == 'consent_uncertain' && request.resource.data.status == 'pending')
+              || (resource.data.reviewReason == '' && request.resource.data.status == 'published'))
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt']))
+          || (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'title','description','albumId','sortOrder','status','updatedAt'])
+             && request.resource.data.status in ['draft','pending','published','hidden','rejected']
+             && (resource.data.status != 'draft' || request.resource.data.status != 'published' || (resource.data.authorUid == request.auth.uid && resource.data.reviewReason == ''))
+             && request.resource.data.albumId is string
+             && exists(galleryAlbum(request.resource.data.albumId)))
+        );
+      allow delete: if isAdmin() || (hasGalleryAccess() && galleryReady()
+        && resource.data.authorUid == request.auth.uid);
+    }
+    match /officeDocs/{id} {
+      allow get, list: if isAdmin();
+      allow create: if isAdmin() && validFileRecord('office',id);
+      allow delete: if isAdmin();
+    }
+    // Private member bulletin board: read for all verified active members,
+    // writing for association members, alumni/special members, and admins only.
+    function canWriteBoard() { return hasGalleryAccess(); }
+    function postDoc(postId) {
+      return /databases/$(database)/documents/boardPosts/$(postId);
+    }
+    function commentDoc(postId,commentId) {
+      return /databases/$(database)/documents/boardPosts/$(postId)/comments/$(commentId);
+    }
+    function hiddenPostDoc(postId) {
+      return /databases/$(database)/documents/hiddenPosts/$(postId);
+    }
+    function hiddenCommentDoc(postId,commentId) {
+      return /databases/$(database)/documents/hiddenComments/$(postId + '_' + commentId);
+    }
+    function postDeletionLog(postId) {
+      let logId = 'post_' + postId;
+      return /databases/$(database)/documents/boardDeletionLogs/$(logId);
+    }
+    function commentDeletionLog(postId,commentId) {
+      let logId = 'comment_' + postId + '_' + commentId;
+      return /databases/$(database)/documents/boardDeletionLogs/$(logId);
+    }
+    function validPostCreate() {
+      return request.resource.data.keys().hasOnly([
+          'title','body','authorUid','authorName','createdAt','updatedAt','deleted'
+        ]) && request.resource.data.keys().hasAll([
+          'title','body','authorUid','authorName','createdAt','updatedAt','deleted'
+        ])
+        && request.resource.data.title is string && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 120
+        && request.resource.data.body is string && request.resource.data.body.size() > 0
+        && request.resource.data.body.size() <= 5000
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.authorName == me().get('nickname', '기존회원')
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.deleted == false;
+    }
+    // Only the actual author may change content; admin status is not enough.
+    function validPostEdit() {
+      return resource.data.deleted == false
+        && request.resource.data.deleted == false
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'title','body','updatedAt'
+        ])
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.title is string && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 120
+        && request.resource.data.body is string && request.resource.data.body.size() > 0
+        && request.resource.data.body.size() <= 5000;
+    }
+    // Hiding redacts the public copy while preserving the original in a private archive.
+    // Permanent deletion uses a separate batched audit record below.
+    function validPostHide(postId) {
+      return resource.data.deleted == false
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'title','body','deleted','updatedAt'
+        ])
+        && request.resource.data.deleted == true
+        && request.resource.data.title == '[숨김 처리된 게시글]'
+        && request.resource.data.body == '[숨김 처리된 게시글]'
+        && request.resource.data.updatedAt == request.time
+        && getAfter(hiddenPostDoc(postId)).data.title == resource.data.title
+        && getAfter(hiddenPostDoc(postId)).data.body == resource.data.body;
+    }
+    function validPostRestore(postId) {
+      return resource.data.deleted == true
+        && request.resource.data.deleted == false
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','body','deleted','updatedAt'])
+        && exists(hiddenPostDoc(postId))
+        && request.resource.data.title == get(hiddenPostDoc(postId)).data.title
+        && request.resource.data.body == get(hiddenPostDoc(postId)).data.body
+        && request.resource.data.updatedAt == request.time
+        && !existsAfter(hiddenPostDoc(postId));
+    }
+    function validCommentCreate() {
+      return request.resource.data.keys().hasOnly([
+          'body','authorUid','authorName','createdAt','updatedAt','deleted'
+        ]) && request.resource.data.keys().hasAll([
+          'body','authorUid','authorName','createdAt','updatedAt','deleted'
+        ])
+        && request.resource.data.body is string && request.resource.data.body.size() > 0
+        && request.resource.data.body.size() <= 2000
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.authorName == me().get('nickname', '기존회원')
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.deleted == false;
+    }
+    function validCommentEdit() {
+      return resource.data.deleted == false
+        && request.resource.data.deleted == false
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'body','updatedAt'
+        ])
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.body is string && request.resource.data.body.size() > 0
+        && request.resource.data.body.size() <= 2000;
+    }
+    function validCommentHide(postId,commentId) {
+      return resource.data.deleted == false
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'body','deleted','updatedAt'
+        ])
+        && request.resource.data.deleted == true
+        && request.resource.data.body == '[숨김 처리된 댓글]'
+        && request.resource.data.updatedAt == request.time
+        && getAfter(hiddenCommentDoc(postId,commentId)).data.body == resource.data.body;
+    }
+    function validCommentRestore(postId,commentId) {
+      return resource.data.deleted == true
+        && request.resource.data.deleted == false
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['body','deleted','updatedAt'])
+        && exists(hiddenCommentDoc(postId,commentId))
+        && request.resource.data.body == get(hiddenCommentDoc(postId,commentId)).data.body
+        && request.resource.data.updatedAt == request.time
+        && !existsAfter(hiddenCommentDoc(postId,commentId));
+    }
+    // Moderation archives are private; no original content can be fetched by members.
+    match /hiddenPosts/{postId} {
+      allow get, list: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasOnly(['title','body','authorUid','hiddenBy','hiddenAt'])
+        && request.resource.data.keys().hasAll(['title','body','authorUid','hiddenBy','hiddenAt'])
+        && exists(postDoc(postId))
+        && get(postDoc(postId)).data.deleted == false
+        && request.resource.data.title == get(postDoc(postId)).data.title
+        && request.resource.data.body == get(postDoc(postId)).data.body
+        && request.resource.data.authorUid == get(postDoc(postId)).data.authorUid
+        && request.resource.data.hiddenBy == request.auth.uid
+        && request.resource.data.hiddenAt == request.time
+        && getAfter(postDoc(postId)).data.deleted == true;
+      allow delete: if isAdmin() && existsAfter(postDoc(postId))
+        && getAfter(postDoc(postId)).data.deleted == false;
+      allow update: if false;
+    }
+    match /hiddenComments/{archiveId} {
+      allow get, list: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasOnly(['postId','commentId','body','authorUid','hiddenBy','hiddenAt'])
+        && request.resource.data.keys().hasAll(['postId','commentId','body','authorUid','hiddenBy','hiddenAt'])
+        && archiveId == request.resource.data.postId + '_' + request.resource.data.commentId
+        && exists(commentDoc(request.resource.data.postId,request.resource.data.commentId))
+        && get(commentDoc(request.resource.data.postId,request.resource.data.commentId)).data.deleted == false
+        && request.resource.data.body == get(commentDoc(request.resource.data.postId,request.resource.data.commentId)).data.body
+        && request.resource.data.authorUid == get(commentDoc(request.resource.data.postId,request.resource.data.commentId)).data.authorUid
+        && request.resource.data.hiddenBy == request.auth.uid
+        && request.resource.data.hiddenAt == request.time
+        && getAfter(commentDoc(request.resource.data.postId,request.resource.data.commentId)).data.deleted == true;
+      allow delete: if isAdmin()
+        && existsAfter(commentDoc(resource.data.postId,resource.data.commentId))
+        && getAfter(commentDoc(resource.data.postId,resource.data.commentId)).data.deleted == false;
+      allow update: if false;
+    }
+    match /boardPosts/{postId} {
+      allow get, list: if isActive();
+      allow create: if canWriteBoard() && validPostCreate();
+      allow update: if canWriteBoard() && (
+          (resource.data.authorUid == request.auth.uid && validPostEdit())
+          || (isAdmin() && validPostHide(postId))
+          || (isAdmin() && validPostRestore(postId))
+          || (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['authorName','updatedAt'])
+              && request.resource.data.authorName == '기존회원'
+              && request.resource.data.updatedAt == request.time)
+        );
+      // Hard delete requires a same-batch moderation log; the client also deletes comments.
+      allow delete: if canWriteBoard()
+        && (resource.data.authorUid == request.auth.uid || isAdmin())
+        && existsAfter(postDeletionLog(postId))
+        && getAfter(postDeletionLog(postId)).data.actorUid == request.auth.uid;
+      match /comments/{commentId} {
+        // Comments under hidden posts are not readable even through direct SDK queries.
+        allow get, list: if isAdmin() || (isActive() && exists(postDoc(postId))
+          && get(postDoc(postId)).data.deleted == false);
+        allow create: if canWriteBoard() && exists(postDoc(postId))
+          && get(postDoc(postId)).data.deleted == false && validCommentCreate();
+        allow update: if canWriteBoard()
+          && exists(postDoc(postId)) && get(postDoc(postId)).data.deleted == false
+          && (
+            (resource.data.authorUid == request.auth.uid && validCommentEdit())
+            || (isAdmin() && validCommentHide(postId,commentId))
+             || (isAdmin() && validCommentRestore(postId,commentId))
+             || (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['authorName','updatedAt'])
+                 && request.resource.data.authorName == '기존회원'
+                 && request.resource.data.updatedAt == request.time)
+          );
+        // A member can delete their own comment. Admins can delete inappropriate comments.
+        // The post author may delete comments as part of deleting the entire post.
+        allow delete: if canWriteBoard() && exists(postDoc(postId))
+          && (resource.data.authorUid == request.auth.uid
+              || get(postDoc(postId)).data.authorUid == request.auth.uid
+              || isAdmin())
+          && (
+             (existsAfter(commentDeletionLog(postId, commentId))
+               && getAfter(commentDeletionLog(postId, commentId)).data.actorUid == request.auth.uid)
+             || (!existsAfter(postDoc(postId))
+               && existsAfter(postDeletionLog(postId))
+               && getAfter(postDeletionLog(postId)).data.actorUid == request.auth.uid)
+          );
+      }
+    }
+    // Minimal admin-only deletion audit. Never stores post or comment text.
+    match /boardDeletionLogs/{logId} {
+      allow get, list: if isAdmin();
+      allow create: if canWriteBoard()
+        && request.resource.data.keys().hasOnly([
+          'targetType','postId','commentId','authorUid','actorUid','reason','deletedAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'targetType','postId','commentId','authorUid','actorUid','reason','deletedAt'
+        ])
+        && request.resource.data.postId is string
+        && request.resource.data.commentId is string
+        && request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.deletedAt == request.time
+        && ((request.resource.data.reason == 'author_request'
+             && request.resource.data.authorUid == request.auth.uid)
+            || (isAdmin() && request.resource.data.reason in ['spam','rules_violation']))
+        && ((request.resource.data.targetType == 'post'
+              && logId == 'post_' + request.resource.data.postId
+              && request.resource.data.commentId == ''
+              && exists(postDoc(request.resource.data.postId))
+              && !existsAfter(postDoc(request.resource.data.postId))
+              && request.resource.data.authorUid == get(postDoc(request.resource.data.postId)).data.authorUid
+              && (request.resource.data.authorUid == request.auth.uid || isAdmin()))
+          || (request.resource.data.targetType == 'comment'
+              && logId == 'comment_' + request.resource.data.postId + '_' + request.resource.data.commentId
+              && exists(postDoc(request.resource.data.postId))
+              && existsAfter(postDoc(request.resource.data.postId))
+              && exists(commentDoc(request.resource.data.postId,request.resource.data.commentId))
+              && !existsAfter(commentDoc(request.resource.data.postId,request.resource.data.commentId))
+              && request.resource.data.authorUid == get(commentDoc(request.resource.data.postId,request.resource.data.commentId)).data.authorUid
+              && (request.resource.data.authorUid == request.auth.uid || isAdmin())));
+      allow update, delete: if false;
+    }
+    // Legacy Astro collections retained to avoid losing the original forms.
+    // Notice reading is for all active members; administrators publish.
+    match /notices/{id} {
+      allow read: if isActive();
+      allow create, update, delete: if isAdmin();
     }
 
-    // ---------- 회원 전용 콘텐츠 (임원이 등록) ----------
-    match /notices/{id}   { allow read: if approved(); allow write: if isAdmin(); }
-    match /minutes/{id}   { allow read: if approved(); allow write: if isAdmin(); }
-    match /relations/{id} { allow read: if approved(); allow write: if isAdmin(); }
-    match /gallery/{id}   { allow read: if approved(); allow write: if isAdmin(); }
-    match /expenses/{id}  { allow read: if approved(); allow write: if isAdmin(); }
+    // Sensitive association-office records: administrators ONLY.
+    match /minutes/{id} {
+      allow read, write: if isAdmin();
+    }
+    match /relations/{id} {
+      allow read, write: if isAdmin();
+    }
+    match /expenses/{id} {
+      allow read, write: if isAdmin();
+    }
+    match /handover/{id} {
+      allow read, write: if isAdmin();
+    }
 
-    // ---------- 나눔 게시판 (회원 누구나 작성, 본인 글만 삭제) ----------
+    // Legacy gallery; new member space uses galleryItems.
+    match /gallery/{id} {
+      allow read: if hasGalleryAccess();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Legacy sharing board; new member space uses boardPosts and comments.
     match /sharing/{id} {
-      allow read: if approved();
-      allow create: if approved() && request.resource.data.uid == request.auth.uid
-        && str(request.resource.data.title, 120) && str(request.resource.data.get('body', ''), 2000);
-      allow delete: if approved() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow read: if isActive();
+      allow create: if canWriteBoard()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 120
+        && request.resource.data.get('body', '') is string
+        && request.resource.data.get('body', '').size() <= 2000;
+      allow delete: if canWriteBoard()
+        && (resource.data.uid == request.auth.uid || isAdmin());
     }
 
-    // ---------- 공개 양식: 누구나 제출, 임원만 열람 ----------
+    // Public contact, event registration and newsletter signup forms.
+    // These preserve existing field contracts, but are vulnerable to automated spam;
+    // add rate limiting / server-side abuse controls before public launch.
+    function isEmail(v) {
+      return v is string
+        && v.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$')
+        && v.size() < 200;
+    }
+    function str(v, max) { return v is string && v.size() <= max; }
     match /messages/{id} {
-      allow create: if isEmail(request.resource.data.email) && str(request.resource.data.name, 100)
-        && str(request.resource.data.message, 5000) && request.resource.data.consent == true;
-      allow read, delete: if isAdmin();
+      allow create: if false; // Staging: public submissions remain disabled
+      allow get, list, delete: if isAdmin();
     }
     match /registrations/{id} {
-      allow create: if isEmail(request.resource.data.email) && str(request.resource.data.name, 100)
-        && str(request.resource.data.get('message', ''), 3000) && request.resource.data.consent == true;
-      allow read, delete: if isAdmin();
+      allow create: if false; // Staging: public submissions remain disabled
+      allow get, list, delete: if isAdmin();
     }
     match /subscribers/{id} {
-      allow create: if isEmail(request.resource.data.email) && request.resource.data.consent == true
-        && request.resource.data.keys().hasOnly(['email','lang','consent','pageLang','date','createdAt']);
-      allow read, delete: if isAdmin();
+      allow create: if false; // Staging: public submissions remain disabled
+      allow get, list, delete: if isAdmin();
     }
 
+    // Acknowledgement is per-admin-account (not per-browser).
+    match /adminNotificationAcks/{uid} {
+      allow get: if isAdmin() && request.auth.uid == uid;
+      allow list: if false;
+      allow create, update: if isAdmin() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['acknowledgedAt'])
+        && request.resource.data.keys().hasAll(['acknowledgedAt'])
+        && request.resource.data.acknowledgedAt == request.time;
+      allow delete: if false;
+    }
+
+    // Withdrawal requests are not actual account deletion.
+    match /memberWithdrawalRequests/{uid} {
+      allow get: if isAdmin() || (verified() && request.auth.uid == uid);
+      allow list: if isAdmin();
+      allow create: if isActive() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['uid','name','email','status','requestedAt'])
+        && request.resource.data.keys().hasAll(['uid','name','email','status','requestedAt'])
+        && request.resource.data.uid == uid
+        && request.resource.data.name == me().name
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.status == 'pending'
+        && request.resource.data.requestedAt == request.time;
+      allow update, delete: if false;
+    }
+
+    function validBirthDate(value) {
+      return value is string && value.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$')
+        && int(value[0:4]) >= 1900
+        && timestamp.date(int(value[0:4]),int(value[5:7]),int(value[8:10])) <= request.time;
+    }
+    function birthDateAdult(p) {
+      let parts = p.get('birthDate','').split('-');
+      return validBirthDate(p.get('birthDate',''))
+        && (request.time.year() - int(parts[0]) > 18
+          || (request.time.year() - int(parts[0]) == 18
+            && (request.time.month() > int(parts[1])
+              || (request.time.month() == int(parts[1]) && request.time.day() >= int(parts[2])))));
+    }
+    function dmAllowedFor(p) {
+      return p.status == 'approved' && p.role in ['member','special','admin']
+        && p.get('dmMode','auto') != 'off'
+        && (p.get('dmMode','auto') == 'on' || p.role == 'admin'
+          || ((p.get('accountType','') == 'student' || p.get('memberKind','') == 'alumnus'
+              || p.get('memberRelation','') == 'student' || p.get('birthDate','') != '')
+            ? birthDateAdult(p)
+            : (p.get('accountType','') == 'adult' || p.get('memberKind','') in ['parent','alumni-parent','teacher','contributor'])));
+    }
+    function isDmAccount(uid) {
+      return exists(memberDoc(uid)) && dmAllowedFor(get(memberDoc(uid)).data);
+    }
+    function allowedMessagePair(sender, recipient) {
+      return sender.role in ['member','special','admin'] && recipient.role in ['member','special','admin'];
+    }
+    function canSendTo(uid) {
+      return isActive() && messagingEnabled() && uid != request.auth.uid
+        && dmAllowedFor(me()) && isDmAccount(uid)
+        && allowedMessagePair(me(),get(memberDoc(uid)).data);
+    }
+    function messagingEnabled() {
+      return exists(/databases/$(database)/documents/siteSettings/messaging)
+        && get(/databases/$(database)/documents/siteSettings/messaging).data.enabled == true;
+    }
+    // Read-only permission check used by the compose UI. No records are stored here.
+    match /messageAccess/{uid} {
+      allow get: if canSendTo(uid);
+      allow list, create, update, delete: if false;
+    }
+    // A new message must reference an actual visible post/comment or an existing received message.
+    function dmSourceId(v) { return v is string && v.size() > 0 && v.size() <= 1500 && !v.matches('.*[/].*'); }
+    function dmPostSource(s, target, col) {
+      let post = /databases/$(database)/documents/$(col)/$(s.post);
+      return exists(post)
+        && (col == 'boardPosts' ? get(post).data.get('deleted',false) == false : get(post).data.get('status','') == 'published')
+        && (s.comment == '' ? get(post).data.get('authorUid','') == target : dmCommentSource(s,target,col));
+    }
+    function dmCommentSource(s,target,col) {
+      let comment = /databases/$(database)/documents/$(col)/$(s.post)/comments/$(s.comment);
+      return exists(comment) && get(comment).data.get('deleted',false) == false && get(comment).data.authorUid == target;
+    }
+    function dmReplySource(s,target) {
+      let original = /databases/$(database)/documents/privateMessages/$(s.post);
+      return s.comment == '' && exists(original) && get(original).data.senderUid == target
+        && get(original).data.recipientUid == request.auth.uid && get(original).data.get('recipientDeletedAt',null) == null;
+    }
+    function validDmSource(s,target) {
+      return s is map && s.keys().hasOnly(['kind','post','comment']) && s.keys().hasAll(['kind','post','comment'])
+        && dmSourceId(s.post) && (s.comment == '' || dmSourceId(s.comment))
+        && ((s.kind == 'board' && dmPostSource(s,target,'boardPosts'))
+          || (s.kind == 'learning' && dmPostSource(s,target,'learningResources'))
+          || (s.kind == 'reply' && dmReplySource(s,target)));
+    }
+    // Private messages: approved non-general accounts only; server enforces explicit admin override and automatic age policy.
+    match /privateMessages/{messageId} {
+      allow get, list: if isActive() && messagingEnabled() && isDmAccount(request.auth.uid)
+        && (resource.data.senderUid == request.auth.uid
+          || resource.data.recipientUid == request.auth.uid);
+      allow create: if request.resource.data.get('recipientUid','') is string && canSendTo(request.resource.data.recipientUid)
+        && request.resource.data.keys().hasOnly([
+          'senderUid','recipientUid','body','createdAt','readAt','source'])
+        && request.resource.data.keys().hasAll([
+          'senderUid','recipientUid','body','createdAt','readAt','source'])
+        && request.resource.data.senderUid == request.auth.uid
+        && request.resource.data.recipientUid is string
+        && request.resource.data.recipientUid != request.auth.uid
+        && request.resource.data.body is string && request.resource.data.body.size() >= 1
+        && request.resource.data.body.size() <= 2000
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.readAt == null
+        && validDmSource(request.resource.data.source,request.resource.data.recipientUid);
+      allow update: if isActive() && messagingEnabled() && isDmAccount(request.auth.uid)
+        && resource.data.recipientUid == request.auth.uid
+        && ((request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt'])
+          && resource.data.readAt == null && request.resource.data.readAt == request.time)
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['recipientDeletedAt'])
+          && resource.data.get('recipientDeletedAt',null) == null && request.resource.data.recipientDeletedAt == request.time));
+      allow delete: if false;
+    }
+    // Public homepage editorial banners. Only the two fixed documents are readable
+    // without login. No private member data or arbitrary content collections exposed.
+    function validBannerText(field, limit) {
+      return field is string && field.size() <= limit;
+    }
+    function validEditorialBanner() {
+      let v = request.resource.data;
+      return v.keys().hasOnly([
+        'enabled','link','eyebrow_ko','eyebrow_fr','title_ko','title_fr',
+        'body_ko','body_fr','status_ko','status_fr','button_ko','button_fr',
+        'updatedAt','updatedBy'
+      ]) && v.keys().hasAll([
+        'enabled','link','eyebrow_ko','eyebrow_fr','title_ko','title_fr',
+        'body_ko','body_fr','status_ko','status_fr','button_ko','button_fr',
+        'updatedAt','updatedBy'
+      ])
+        && v.enabled is bool
+        && validBannerText(v.link, 500)
+        && (v.link.matches('^news/[a-z0-9/_-]+/$')
+          || v.link.matches('^(https://(www[.])?asicc-parents[.]fr/(ko|fr)/)?bazaar/[?]event=[a-z0-9-]{12,60}$')
+          || (v.link.matches('^https://[^\\s]+$')
+            && !v.link.matches('(?i)^https://(www[.])?asicc-parents[.]fr/(ko|fr)/bazaar([/?#].*)?$')))
+        && validBannerText(v.eyebrow_ko,100) && validBannerText(v.eyebrow_fr,100)
+        && validBannerText(v.title_ko,120) && v.title_ko.size()>0
+        && validBannerText(v.title_fr,120) && v.title_fr.size()>0
+        && validBannerText(v.body_ko,600) && validBannerText(v.body_fr,600)
+        && validBannerText(v.status_ko,100) && validBannerText(v.status_fr,100)
+        && validBannerText(v.button_ko,60) && v.button_ko.size()>0
+        && validBannerText(v.button_fr,60) && v.button_fr.size()>0
+        && v.updatedAt == request.time
+        && v.updatedBy == request.auth.uid;
+    }
+    match /publicHomeBanners/{bannerId} {
+      allow get: if bannerId in ['bazaar','admissions'];
+      allow list: if false;
+      allow create, update: if bannerId in ['bazaar','admissions'] && isAdmin() && validEditorialBanner();
+      allow delete: if bannerId in ['bazaar','admissions'] && isAdmin();
+    }
+
+    // Staging homepage banner overrides stay separate from the production domain.
+    match /publicHomeBannersTest/{bannerId} {
+      allow get: if bannerId in ['bazaar','admissions'];
+      allow list: if false;
+      allow create, update: if bannerId in ['bazaar','admissions'] && isAdmin() && validEditorialBanner();
+      allow delete: if bannerId in ['bazaar','admissions'] && isAdmin();
+    }
+
+    // Anything not explicitly approved above is denied.
 
     // 바자회 데이터는 인증·권한을 확인하는 Cloud Functions를 통해서만 접근합니다.
     match /bazaarProducts/{id} { allow read, write: if false; }
@@ -93,7 +1061,6 @@ service cloud.firestore {
     match /bazaarEvents/{id} { allow read, write: if false; }
     match /bazaarDrafts/{id} { allow read, write: if false; }
 
-    // ---------- 임원 인수인계 자료 ----------
-    match /handover/{id} { allow read, write: if isAdmin(); }
+    match /{document=**} { allow read, write: if false; }
   }
 }
