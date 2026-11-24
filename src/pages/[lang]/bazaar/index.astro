@@ -60,7 +60,7 @@ const lang = Astro.params.lang as Lang;
 @media(max-width:780px){.bz-row{grid-template-columns:115px 1fr;gap:14px;padding:13px}.bz-photo{width:115px;height:125px}.bz-actions{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap}.bz-actions .bz-btn{min-width:140px}.bz-info{grid-template-columns:1fr}.bz-basket{padding:15px}.bz-cart-row{align-items:flex-start}.bz-hero{padding:24px}}
 </style>
 <script>
-import {getShop,createOrder,eFormat,h} from '../../../lib/bazaar/api';
+import {getShop,createOrder,eFormat,h,orderRequestId,parisDeadline} from '../../../lib/bazaar/api';
 const root=document.querySelector<HTMLElement>('#bz')!;
 const lang=root.dataset.lang==='fr'?'fr':'ko';
 const t=(ko:string,fr:string)=>lang==='fr'?fr:ko;
@@ -144,14 +144,14 @@ $('#bz-form').addEventListener('submit',async ev=>{
       name:fd.get('name'),phone:fd.get('phone'),email:fd.get('email'),pickupNote:fd.get('pickupNote'),items};
     const signature=JSON.stringify(request);
     if(signature!==previousRequest){
-      requestId=crypto.randomUUID().replaceAll('-','');
+      requestId=await orderRequestId(event.eventId,request);
       previousRequest=signature;
     }
     const result=await createOrder({...request,requestId});
     submitted=true;$('#bz-checkout').hidden=true;$('#bz-toggle').hidden=true;
-    const link=`${root.dataset.orderUrl}?id=${encodeURIComponent(result.id)}&token=${encodeURIComponent(result.token)}`;
+    const link=`${root.dataset.orderUrl}?id=${encodeURIComponent(result.id)}#token=${encodeURIComponent(result.token)}`;
     $('#bz-receipt').hidden=false;
-    $('#bz-receipt').innerHTML=`<div class="bz-receipt"><h3>${t('주문이 접수되었습니다','Votre commande a été enregistrée')}</h3><p>${t('주문번호','Référence')}: <strong>${h(result.orderRef)}</strong></p><p>${t('총 금액','Montant')}: <strong>${eFormat(result.totalCents)}</strong></p><p>${t('수취인','Bénéficiaire')}: ${h(result.beneficiary)}</p><p>IBAN: <strong>${h(result.iban)}</strong> <button class="bz-copy" data-copy="${h(result.iban)}">${t('복사','Copier')}</button></p><p>${t('송금 시 메모','Référence du virement')}: <strong>${h(result.orderRef)}</strong> <button class="bz-copy" data-copy="${h(result.orderRef)}">${t('복사','Copier')}</button></p><p>${t('주문 접수 메일을 발송합니다. 이메일이 도착하지 않으면 아래 주문 확인 링크를 꼭 저장해 주세요.','Un e-mail récapitulatif sera envoyé. Conservez le lien de suivi ci-dessous.')}</p><a href="${h(link)}" rel="noreferrer">${t('송금 완료 신고 / 주문 확인','Signaler le virement / Voir la commande')}</a></div>`;
+    $('#bz-receipt').innerHTML=`<div class="bz-receipt"><h3>${t('주문이 접수되었습니다','Votre commande a été enregistrée')}</h3><p>${t('주문번호','Référence')}: <strong>${h(result.orderRef)}</strong></p><p>${t('총 금액','Montant')}: <strong>${eFormat(result.totalCents)}</strong></p><p>${t('수취인','Bénéficiaire')}: ${h(result.beneficiary)}</p><p>IBAN: <strong>${h(result.iban)}</strong> <button class="bz-copy" data-copy="${h(result.iban)}">${t('복사','Copier')}</button></p><p>${t('송금 시 메모','Référence du virement')}: <strong>${h(result.orderRef)}</strong> <button class="bz-copy" data-copy="${h(result.orderRef)}">${t('복사','Copier')}</button></p><p>${t('송금 기한','Date limite du virement')}: <strong>${h(parisDeadline(result.transferCutoff,lang))}</strong></p><p>${t('주문 접수 메일을 발송합니다. 이메일이 도착하지 않으면 아래 주문 확인 링크를 꼭 저장해 주세요.','Un e-mail récapitulatif sera envoyé. Conservez le lien de suivi ci-dessous.')}</p><a href="${h(link)}" rel="noreferrer">${t('송금 완료 신고 / 주문 확인','Signaler le virement / Voir la commande')}</a></div>`;
     $('#bz-receipt').scrollIntoView({behavior:'smooth'});
   }catch(err:any){alert(err?.message||t('주문 처리 오류가 발생했습니다.','Une erreur est survenue.'));submit.disabled=false;submit.textContent=t('주문 확정 및 송금 안내 받기','Valider ma commande');
     if(err?.code==='functions/failed-precondition')await refresh();
@@ -182,5 +182,7 @@ setInterval(()=>{
  const phase=isClosed();
  if(event.status&&phase!==lastPhase){lastPhase=phase;render();}
 },1000);
-setInterval(()=>{if(event.status!=='closed')void refresh();},30000);
+const refreshVisible=()=>{if(!document.hidden&&event.status!=='closed')void refresh();};
+setInterval(refreshVisible,60000);
+document.addEventListener('visibilitychange',refreshVisible);
 </script>

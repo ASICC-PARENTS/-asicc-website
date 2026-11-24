@@ -6,6 +6,7 @@ export const getStaticPaths = langPaths;
 const lang = Astro.params.lang as Lang;
 ---
 <Base lang={lang} rest="bazaar/commande/" title={L(lang,{ko:'바자회 주문 확인',fr:'Suivi de commande'})} noindex>
+<meta slot="head" name="referrer" content="no-referrer" />
 <div class="bo-wrap" id="bo" data-lang={lang}>
  <h1>{L(lang,{ko:'ASICC 바자회 · 주문 관리',fr:'ASICC · Suivi de votre commande'})}</h1>
  <div id="bo-result" aria-live="polite">{L(lang,{ko:'주문 정보를 확인하고 있습니다…',fr:'Chargement de la commande…'})}</div>
@@ -16,15 +17,22 @@ const lang = Astro.params.lang as Lang;
 .bo-wrap{max-width:750px;margin:40px auto 80px;padding:16px}.bo-panel{background:#fffbf8;border:1px solid #e8dad4;border-radius:14px;padding:24px}.bo-panel h2{margin-top:0}.bo-line{display:flex;justify-content:space-between;border-bottom:1px solid #eee;padding:9px 0;gap:10px}.bo-note{background:#fff4e4;padding:14px;border-radius:8px;margin:15px 0}.bo-btn{border:0;border-radius:8px;background:#812e43;color:white;padding:11px 16px;cursor:pointer;margin-right:12px}.bo-cancel{background:white;color:#812e43;border:1px solid #812e43}.bo-btn:disabled{opacity:.55}.bo-wrap a{color:#812e43}.bo-check{display:flex;align-items:center;gap:7px;margin:12px 0}
 </style>
 <script>
-import {buyerAction,eFormat,h} from '../../../lib/bazaar/api';
+import {buyerAction,eFormat,h,parisDeadline} from '../../../lib/bazaar/api';
 const root=document.querySelector<HTMLElement>('#bo')!,lang=root.dataset.lang==='fr'?'fr':'ko';
 const t=(ko:string,fr:string)=>lang==='fr'?fr:ko;
-const params=new URLSearchParams(location.search),id=params.get('id'),token=params.get('token');
+const params=new URLSearchParams(location.search),id=params.get('id');
+const fragment=new URLSearchParams(location.hash.slice(1));
+const token=fragment.get('token')??params.get('token');
+if(params.has('token')){
+ params.delete('token');
+ if(token)fragment.set('token',token);
+ history.replaceState(null,'',location.pathname+(params.size?'?'+params:'')+(fragment.size?'#'+fragment:''));
+}
 const panel=document.querySelector<HTMLElement>('#bo-result')!;
 let order:any=null;
 function draw(){
  const canceled=!!order.canceledAt,paid=!!order.bankConfirmedAt,reported=!!order.transferReportedAt;
- panel.innerHTML=`<section class="bo-panel"><h2>${t('주문번호','Référence')} ${h(order.orderRef)}</h2><div class="bo-note">${canceled?t('취소된 주문입니다.','Commande annulée.'):paid?t('협회에서 입금을 확인했습니다. 주문 확정 상태입니다.','Virement reçu : commande confirmée.'):reported?t('송금 완료 알림 접수됨 · 은행 입금 확인 전입니다.','Virement signalé, vérification bancaire en attente.'):t('접수 완료 · 아직 입금 확인 전입니다.','Commande reçue, virement en attente.')}</div>${order.items.map((i:any)=>`<div class="bo-line"><span>${h(lang==='fr'?i.titleFr:i.titleKo)} × ${i.qty}</span><b>${eFormat(i.qty*i.priceCents)}</b></div>`).join('')}<p><b>${t('주문 합계','Total')}: ${eFormat(order.totalCents)}</b></p>${order.pickupNote?`<p><strong>${t('판매자에게 전달할 사항','Informations complémentaires pour le retrait')}</strong><br><span style="white-space:pre-wrap;overflow-wrap:anywhere">${h(order.pickupNote)}</span></p>`:''}${!canceled&&!paid&&!reported?`<button id="bo-report" class="bo-btn">${t('송금 완료했습니다','J’ai effectué le virement')}</button><div class="bo-check"><input type="checkbox" id="bo-ack"/><label for="bo-ack">${t('송금하지 않았음을 확인합니다.','Je confirme ne pas avoir effectué de virement.')}</label></div><button id="bo-cancel" class="bo-btn bo-cancel">${t('주문 취소하기','Annuler ma commande')}</button>`:''}<p style="font-size:13px">${t('이미 송금한 주문은 온라인으로 취소하지 마시고 협회에 연락해 주세요.','Si vous avez déjà effectué un virement, veuillez contacter l’association pour toute annulation.')}</p></section>`;
+ panel.innerHTML=`<section class="bo-panel"><h2>${t('주문번호','Référence')} ${h(order.orderRef)}</h2><div class="bo-note">${canceled?t('취소된 주문입니다.','Commande annulée.'):paid?t('협회에서 입금을 확인했습니다. 주문 확정 상태입니다.','Virement reçu : commande confirmée.'):reported?t('송금 완료 알림 접수됨 · 은행 입금 확인 전입니다.','Virement signalé, vérification bancaire en attente.'):t('접수 완료 · 아직 입금 확인 전입니다.','Commande reçue, virement en attente.')}</div>${order.items.map((i:any)=>`<div class="bo-line"><span>${h(lang==='fr'?i.titleFr:i.titleKo)} × ${i.qty}</span><b>${eFormat(i.qty*i.priceCents)}</b></div>`).join('')}<p><b>${t('주문 합계','Total')}: ${eFormat(order.totalCents)}</b></p>${order.iban?`<div class="bo-note"><p>${t('수취인','Bénéficiaire')}: ${h(order.beneficiary)}</p><p>IBAN: <b>${h(order.iban)}</b></p><p>${t('송금 메모','Référence du virement')}: <b>${h(order.orderRef)}</b></p><p>${t('송금 기한','Date limite du virement')}: <b>${h(parisDeadline(order.transferCutoff,lang))}</b></p></div>`:''}${order.pickupNote?`<p><strong>${t('판매자에게 전달할 사항','Informations complémentaires pour le retrait')}</strong><br><span style="white-space:pre-wrap;overflow-wrap:anywhere">${h(order.pickupNote)}</span></p>`:''}${!canceled&&!paid&&!reported&&order.canChange?`<button id="bo-report" class="bo-btn">${t('송금 완료했습니다','J’ai effectué le virement')}</button><div class="bo-check"><input type="checkbox" id="bo-ack"/><label for="bo-ack">${t('송금하지 않았음을 확인합니다.','Je confirme ne pas avoir effectué de virement.')}</label></div><button id="bo-cancel" class="bo-btn bo-cancel">${t('주문 취소하기','Annuler ma commande')}</button>`:''}<p style="font-size:13px">${t('이미 송금한 주문은 온라인으로 취소하지 마시고 협회에 연락해 주세요.','Si vous avez déjà effectué un virement, veuillez contacter l’association pour toute annulation.')}</p></section>`;
  const report=document.querySelector<HTMLButtonElement>('#bo-report');
  report?.addEventListener('click',async()=>{if(!confirm(t('송금을 완료하셨나요?','Avez-vous effectué le virement ?')))return;await change('report');});
  const cancel=document.querySelector<HTMLButtonElement>('#bo-cancel');

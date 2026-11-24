@@ -24,6 +24,7 @@ const base=import.meta.env.BASE_URL.replace(/\/$/,'')+'/bazaar-export/';
 <div class="modal-h"><div><h3 id="modal-title"></h3><p id="modal-caption" class="muted small"></p></div><button class="btn neutral" id="modal-close">닫기 ×</button></div>
 <div class="modal-b" id="modal-body"></div><div class="modal-f" id="modal-foot"></div></div></div>
 </div>
-{screen==='settlement'&&<><script is:inline src={base+'xlsx.js'}></script><script is:inline src={base+'pdf.js'}></script></>}
+{['settlement','orders'].includes(screen)&&<script is:inline src={base+'xlsx.js'}></script>}
+{screen==='settlement'&&<script is:inline src={base+'pdf.js'}></script>}
 <script>import './app.js';</script>
 </body></html>

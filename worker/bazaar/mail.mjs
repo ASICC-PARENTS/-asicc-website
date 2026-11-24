@@ -1,12 +1,20 @@
 import { randomUUID } from 'node:crypto';
 
 const minute = 60_000;
-const reminderTypes = new Set(['reminder3', 'reminderFinal']);
-const paris = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Paris', weekday: 'short', hour: '2-digit', hourCycle: 'h23' });
+export const mailboxWindow = 25 * 60 * minute;
+const urgentTypes = new Set(['receipt', 'cancel']);
+const retiredTypes = new Set(['reminder3', 'reported']);
 const quotaDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' });
 const iso = time => new Date(time).toISOString();
 const isTestAddress = address => typeof address === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address);
-export const mailFields = () => ({ dueAt: iso(Date.now()), status: 'queued', providerKey: randomUUID() });
+export const mailFields = (type, dueAt = iso(Date.now())) => ({
+  dueAt, urgentDueAt: urgentTypes.has(type) ? dueAt : null, status: 'queued', providerKey: randomUUID()
+});
+const reschedule = (type, dueAt) => ({ dueAt, urgentDueAt: urgentTypes.has(type) ? dueAt : null });
+export const eligibleReminder = (order, event, policy, time) => order?.email && order.eventId === event?.eventId
+  && policy?.reminderMode === 'auto' && !event.finalizedAt && !event.reconciliationStartedAt
+  && !order.transferReportedAt && !order.bankConfirmedAt && !order.canceledAt
+  && time < Date.parse(event.transferCutoff);
 
 export function createMail(env, db, send = fetch) {
   const outbox = db.collection('bazaarOutbox');
@@ -18,38 +26,10 @@ export function createMail(env, db, send = fetch) {
   const canSend = () => isCapture || (env.MAIL_MODE === 'api' && ['resend', 'brevo'].includes(provider) && !!key && isTestAddress(from)
     && (env.BAZAAR_MODE === 'production' || isTestAddress(testRecipient)));
 
-  function scheduleReminders(tx, order) {
-    const created = Date.parse(order.createdAt);
-    const cutoff = Date.parse(order.eventSnapshot?.orderCutoff);
-    tx.create(outbox.doc(`${order.id}_reminder3`), {
-      ...mailFields(), createdAt: order.createdAt, orderId: order.id, type: 'reminder3', dueAt: iso(created + 180 * minute)
-    });
-    tx.create(outbox.doc(`${order.id}_reminderFinal`), {
-      ...mailFields(), createdAt: order.createdAt, orderId: order.id, type: 'reminderFinal',
-      dueAt: iso(Math.max(created + 180 * minute, Number.isFinite(cutoff) ? cutoff : created))
-    });
-  }
-
-  function nextReminder(job, order, event, time) {
-    const cutoff = Date.parse(event?.transferCutoff);
-    if (!event || event.eventId !== order.eventId || order.transferReportedAt || order.bankConfirmedAt
-      || order.canceledAt || !Number.isFinite(cutoff) || time >= cutoff) return null;
-    const earliest = job.type === 'reminderFinal'
-      ? Math.max(Date.parse(event.orderCutoff), (Date.parse(order.reminder3At) || 0) + 180 * minute)
-      : Date.parse(order.createdAt) + 180 * minute;
-    if (!Number.isFinite(earliest)) return null;
-    const eligible = at => {
-      const parts = Object.fromEntries(paris.formatToParts(at).map(part => [part.type, part.value]));
-      const hour = Number(parts.hour);
-      return hour < 20 && (job.type === 'reminder3' ? hour >= 9 : parts.weekday === 'Fri' && hour >= 15);
-    };
-    if (time >= earliest && eligible(time)) return time;
-    let next = Math.max(time + 15 * minute, earliest);
-    for (let step = 0; step < 24 * 8 && next < cutoff; step++, next += 60 * minute) {
-      if (eligible(next)) return next;
-    }
-    return null;
-  }
+  const usage = db.collection('bazaarMailUsage');
+  const budgetRef = usage.doc(`${provider || 'brevo'}-rolling`);
+  const todayRef = time => usage.doc(`${isCapture ? 'capture' : provider}-accepted-${quotaDate.format(time)}`);
+  const freshSlots = (budget, time) => (budget?.slots ?? []).filter(slot => time - slot.at < mailboxWindow);
 
   async function providerSend(job, payload) {
     if (isCapture) return { ok: true, id: 'captured' };
@@ -76,6 +56,7 @@ export function createMail(env, db, send = fetch) {
       return { retry: Math.max(15 * minute, Math.min(24 * 60 * minute, wait)), code: 'provider-limit' };
     }
     if (response.status >= 500 || response.status === 408 || response.status === 409) return { uncertain: true };
+    if (response.status === 401 || response.status === 403) return { code: 'provider-access-denied' };
     return { code: 'provider-rejected' };
   }
 
@@ -87,97 +68,130 @@ export function createMail(env, db, send = fetch) {
     const job = await db.runTransaction(async tx => {
       const snapshot = await tx.get(ref);
       const job = snapshot.data();
-      if (!job || job.sentAt || job.status === 'failed' || job.status === 'skipped'
+      if (!job || job.sentAt || !['queued', 'delayed', 'sending'].includes(job.status ?? 'queued')
         || job.sendingUntil > iso(time) || job.dueAt > iso(time)) return null;
+      if (job.status === 'sending') {
+        tx.update(ref, { status: 'failed', lastError: 'verify-provider-before-resending', deliveryUncertain: true,
+          payload: null, ...reschedule(job.type,null) });
+        return null;
+      }
       const [orderSnap, active] = await Promise.all([tx.get(db.doc(`bazaarOrders/${job.orderId}`)),
-        reminderTypes.has(job.type) ? tx.get(db.doc('bazaarMeta/event')) : null]);
+        job.type==='reminderFinal' ? tx.get(db.doc('bazaarMeta/event')) : null]);
       const order = orderSnap.data();
-      if (!order?.email) {
-        tx.update(ref, { status: 'skipped', dueAt: null });
+      const policy = order && (active || job.type==='bulkCancel')
+        ? (await tx.get(db.doc(`bazaarMailPolicies/${order.eventId}`))).data() : undefined;
+      if (!order?.email || retiredTypes.has(job.type) || (job.type==='bulkCancel'&&policy?.bulkCancel!=='auto')
+        || (active && (!eligibleReminder(order,active.data(),policy,time) || order.reminderFinalAt))) {
+        tx.update(ref, { status: 'skipped', payload:null, ...reschedule(job.type,null) });
         return null;
       }
-      if (active && !job.payload) {
-        const next = nextReminder(job, order, active.data(), time);
-        if (next === null || (job.type === 'reminder3' ? order.reminder3At : order.reminderFinalAt)) {
-          tx.update(ref, { status: 'skipped', dueAt: null });
-          return null;
-        }
-        if (next > time) {
-          tx.update(ref, { dueAt: iso(next) });
-          return null;
-        }
-      }
-      const dedupWindow = provider === 'brevo' ? 29 * minute : 23 * 60 * minute;
-      const started = Date.parse(job.firstAttemptAt) || time;
-      if (time - started >= dedupWindow) {
-        tx.update(ref, { status: 'failed', lastError: 'verify-provider-before-resending', dueAt: null, sendingUntil: null });
+      if (active && Date.parse(policy.reminderAt)>time) {
+        tx.update(ref,reschedule(job.type,policy.reminderAt));
         return null;
       }
-      const payload = job.payload ?? { ...message(order, job.type, order.eventSnapshot), to: order.email };
+      if (job.deliveryUncertain) {
+        tx.update(ref, { status: 'failed', lastError: 'verify-provider-before-resending', payload:null,
+          ...reschedule(job.type,null) });
+        return null;
+      }
+      const payload = { ...message(order, job.type, order.eventSnapshot), to: order.email };
       const providerKey = job.providerKey ?? randomUUID();
-      const quotaDay = quotaDate.format(time);
-      if (!isCapture && job.quotaDay !== quotaDay) {
-        const quota = db.collection('bazaarMailUsage');
-        const daily = quota.doc(`${provider}-day-${quotaDay}`);
-        const monthly = provider === 'resend' ? quota.doc(`resend-month-${quotaDay.slice(0, 7)}`) : null;
-        const [dayCount, monthCount] = await Promise.all([tx.get(daily), monthly && tx.get(monthly)]);
-        const dailyTotal = dayCount.data()?.count ?? 0;
-        const monthlyTotal = monthCount?.data()?.count ?? 0;
-        if (dailyTotal >= (provider === 'resend' ? 100 : 300) || monthlyTotal >= 3000) {
-          tx.update(ref, { status: 'delayed', dueAt: iso(time + 60 * minute), lastError: 'free-plan-limit' });
+      if (!isCapture) {
+        const monthly = provider==='resend' ? usage.doc(`resend-month-${quotaDate.format(time).slice(0,7)}`) : null;
+        const [budgetSnap,monthSnap] = await Promise.all([tx.get(budgetRef),monthly&&tx.get(monthly)]);
+        const budget = budgetSnap.data();
+        const slots = freshSlots(budget,time);
+        const urgent = urgentTypes.has(job.type);
+        const maximum = provider==='resend' ? 100 : urgent ? 300 : 250;
+        const count = monthSnap?.data()?.count ?? 0;
+        const pause = Number(budget?.pauseUntil) || 0;
+        const observation=budget?.accountObservation;
+        const observedEmpty=observation && time-observation.at<mailboxWindow
+          && slots.filter(slot=>slot.at>=observation.at).length>=observation.remaining;
+        if (pause>time || slots.length>=maximum || count>=3000 || observedEmpty) {
+          const dueAt=iso(Math.max(time+60*minute,pause));
+          tx.update(ref,{status:'delayed',lastError:'free-plan-limit',...reschedule(job.type,dueAt)});
           return null;
         }
-        tx.set(daily, { count: dailyTotal + 1 });
-        if (monthly) tx.set(monthly, { count: monthlyTotal + 1 });
+        tx.set(budgetRef,{slots:[...slots,{at:time}]},{merge:true});
+        if(monthly)tx.set(monthly,{count:count+1});
       }
       const until = iso(time + 2 * minute);
-      const earlierUncertainty = job.deliveryUncertain === true || job.status === 'sending';
-      tx.update(ref, { lease, sendingUntil: until, status: 'sending', dueAt: until,
-        firstAttemptAt: iso(started), attempts: (job.attempts ?? 0) + 1, payload, providerKey, quotaDay,
-        deliveryUncertain: earlierUncertainty });
-      return { ...job, providerKey, payload, earlierUncertainty };
+      tx.update(ref, { lease, sendingUntil: until, status: 'sending', ...reschedule(job.type,until),
+        firstAttemptAt: job.firstAttemptAt ?? iso(time), attempts: (job.attempts ?? 0) + 1, payload:null, providerKey });
+      return { ...job, providerKey, payload, eventId:order.eventId };
     });
     if (!job) return false;
     let result;
-    try { result = await providerSend(job, job.payload); }
+    try {
+      if(job.type==='reminderFinal'||job.type==='bulkCancel'){
+        const [current,active,policy]=await db.getAll(db.doc(`bazaarOrders/${job.orderId}`),db.doc('bazaarMeta/event'),
+          db.doc(`bazaarMailPolicies/${job.eventId}`));
+        const obsolete=job.type==='reminderFinal'
+          ? !eligibleReminder(current.data(),active.data(),policy.data(),Date.now())
+          : policy.data()?.bulkCancel!=='auto'||!current.data()?.canceledAt;
+        if(obsolete) result={skip:true};
+      }
+      result ??= await providerSend(job, job.payload);
+    }
     catch { result = { uncertain: true }; }
     return db.runTransaction(async tx => {
       const current = (await tx.get(ref)).data();
       if (current?.lease !== lease) return false;
       if (result.ok) {
         const sentAt = iso(Date.now());
-        const order = reminderTypes.has(job.type) ? await tx.get(db.doc(`bazaarOrders/${job.orderId}`)) : null;
+        const [order,accepted]=await Promise.all([job.type==='reminderFinal'?tx.get(db.doc(`bazaarOrders/${job.orderId}`)):null,
+          tx.get(todayRef(Date.now()))]);
         if (order?.exists) {
-          tx.update(order.ref, { [job.type === 'reminder3' ? 'reminder3At' : 'reminderFinalAt']: sentAt });
+          tx.update(order.ref, { reminderFinalAt: sentAt });
         }
-        tx.update(ref, { sentAt, providerId: result.id, status: 'sent', dueAt: null,
+        tx.set(accepted.ref,{count:(accepted.data()?.count??0)+1});
+        tx.update(ref, { sentAt, providerId: result.id, status: 'sent', ...reschedule(job.type,null),
           sendingUntil: null, lastError: null, payload: null });
         return true;
       }
-      const retry = result.retry ?? (result.uncertain ? 5 * minute : null);
-      tx.update(ref, { status: retry ? 'delayed' : 'failed', dueAt: retry ? iso(Date.now() + retry) : null,
-        sendingUntil: null, lastError: result.code ?? 'provider-result-uncertain',
-        deliveryUncertain: job.earlierUncertainty || result.uncertain === true,
-        ...(result.retry && !job.earlierUncertainty ? { firstAttemptAt: null } : {}) });
+      if(result.retry&&!isCapture){
+        const budget=await tx.get(budgetRef);
+        tx.set(budgetRef,{pauseUntil:Math.max(budget.data()?.pauseUntil??0,Date.now()+result.retry)},{merge:true});
+      }
+      tx.update(ref, { status: result.skip ? 'skipped' : result.retry ? 'delayed' : 'failed',
+        ...reschedule(job.type,result.retry ? iso(Date.now()+result.retry) : null),
+        sendingUntil: null, lastError: result.skip ? null : result.code ?? 'provider-result-uncertain',
+        deliveryUncertain: result.uncertain === true });
       return false;
     });
   }
 
   return {
     canSend,
-    scheduleReminders,
     deliver,
+    async budget() {
+      const time=Date.now();
+      const [reserved,today]=await db.getAll(budgetRef,todayRef(time));
+      const count=freshSlots(reserved.data(),time).length;
+      const observed=reserved.data()?.accountObservation;
+      return { acceptedToday:isCapture?0:today.data()?.count??0,capturedToday:isCapture?today.data()?.count??0:0,
+        reserved:count, normalRemaining:Math.max(0,250-count), totalRemaining:Math.max(0,300-count),
+        providerAccountRemaining:observed?.remaining??null, providerObservationAt:observed?.at??null };
+    },
+    recordAccountUsage(remaining) {
+      return budgetRef.set({accountObservation:{remaining,at:Date.now()}},{merge:true});
+    },
     async run(message) {
       if (!canSend()) return;
       // One indexed field excludes terminal jobs. Small batches bound CPU and subrequests.
-      const due = await outbox.where('dueAt', '>=', '0').where('dueAt', '<=', iso(Date.now())).orderBy('dueAt').limit(4).get();
-      for (const job of due.docs) await deliver(job.id, message).catch(() => {});
+      const time=iso(Date.now());
+      const query=field=>outbox.where(field,'>=','0').where(field,'<=',time).orderBy(field).limit(3).get();
+      const [urgent,regular]=await Promise.all([query('urgentDueAt'),query('dueAt')]);
+      const ids=[...new Set([...urgent.docs,...regular.docs].map(job=>job.id))].slice(0,3);
+      for (const id of ids) await deliver(id,message).catch(() => {});
     },
     async status(orderId) {
       const result = await outbox.where('orderId', '==', orderId).limit(25).get();
       return result.docs.map(doc => {
-        const { type, status, sentAt, lastError, dueAt } = doc.data();
-        return { type, status: status ?? (sentAt ? 'sent' : 'queued'), sentAt, lastError, dueAt };
+        const { type, status, sentAt, lastError, dueAt, deliveryUncertain, manualSentAt } = doc.data();
+        return { id:doc.id, type, status: status ?? (sentAt ? 'sent' : 'queued'), sentAt,lastError,dueAt,
+          deliveryUncertain,manualSentAt };
       });
     }
   };

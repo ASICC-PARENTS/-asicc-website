@@ -29,7 +29,7 @@ test('closure button and backend operation exist',()=>{
  assert.match(backend,/status:'closed',endedAt/);
 });
 test('manual closed status also stops server order creation',()=>{
- assert.match(backend,/e\.status!=='published'\|\|e\.finalizedAt/);
+ assert.match(backend,/e\.status!=='published'\|\|locked\(e\)/);
  assert.match(backend,/closed\(current\).*status:'closed'/);
 });
 test('draft intro and final financial reconciliation remain',()=>{

@@ -9,8 +9,7 @@ export class BazaarError extends Error {
 }
 
 export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePhoto, eventPhoto, siteUrl,
-  sendQueuedMail, canSendMail, queueFields = () => ({}), scheduleReminders = () => {},
-  mailStatus = async () => [], batchFinalization = false }) {
+  sendQueuedMail, canSendMail, queueFields = () => ({}), mailAdmin, batchFinalization = false }) {
   const eventRef=db.doc('bazaarMeta/event');
   const products=db.collection('bazaarProducts');
   const orders=db.collection('bazaarOrders');
@@ -90,6 +89,20 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     tx.create(ref,archive);
   }
   const safeOrder=x=>{const {buyerToken,requestFingerprint,createdBy,parentId,...rest}=x;return rest};
+  const locked = event => Boolean(event?.finalizedAt || event?.reconciliationStartedAt || event?.reconciledAt);
+  const paymentDetails = order => {
+    const { iban, beneficiary, transferCutoff } = order.eventSnapshot ?? {};
+    return { orderRef: order.orderRef, totalCents: order.totalCents, iban, beneficiary, transferCutoff };
+  };
+  function buyerOrder(order, event) {
+    return {
+      ...paymentDetails(order),
+      items: order.items.map(({ titleKo, titleFr, qty, priceCents }) => ({ titleKo, titleFr, qty, priceCents })),
+      pickupNote: order.pickupNote,
+      transferReportedAt: order.transferReportedAt, bankConfirmedAt: order.bankConfirmedAt, canceledAt: order.canceledAt,
+      canChange: event?.eventId === order.eventId && !locked(event)
+    };
+  }
   const orderItem=(p,id,qty)=>({id,qty,priceCents:p.retailCents,titleKo:p.titleKo,titleFr:p.titleFr,supplier:p.supplier,
     descriptionKo:p.descriptionKo||'',descriptionFr:p.descriptionFr||'',imageUrl:p.imageUrl||'',photoPath:p.photoPath||'',
     storage:p.storage||'ambient',packQty:p.packQty,boxPriceTtcCents:p.boxPriceTtcCents,
@@ -101,7 +114,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     return total;
   }
   function assertOrderEvent(event,eventId){
-    if(event?.eventId!==eventId||!['published','closed'].includes(event.status)||event.finalizedAt)
+    if(event?.eventId!==eventId||!['published','closed'].includes(event.status)||locked(event))
       throw new HttpsError('failed-precondition','현재 관리 중인 행사를 다시 확인해 주세요. 최종 입금 대조가 시작된 행사에는 주문을 변경할 수 없습니다.');
   }
   function assertAvailable(product,delta,id){
@@ -139,13 +152,13 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
   }
   async function queue(tx,orderId,type,extra={}){
     const id=`${orderId}_${type}`;
-    tx.set(outbox.doc(id),{orderId,type,createdAt:now(),sentAt:null,attempts:0,...queueFields(type),...extra},{merge:true});
+    tx.create(outbox.doc(id),{orderId,type,createdAt:now(),sentAt:null,attempts:0,...queueFields(type),...extra});
     return id;
   }
   function links(order){
     const origin=siteUrl();
     const base=`${origin}/${order.lang==='fr'?'fr':'ko'}/bazaar/commande/`;
-    return `${base}?id=${encodeURIComponent(order.id)}&token=${encodeURIComponent(order.buyerToken)}`;
+    return `${base}?id=${encodeURIComponent(order.id)}#token=${encodeURIComponent(order.buyerToken)}`;
   }
   function message(order,type,event){
     const items=order.items.map(i=>`• ${i.titleKo} × ${i.qty} = ${euro(i.qty*i.priceCents)}`).join('\n');
@@ -181,7 +194,9 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     if(!validEventId(requested)||req.data?.consent!==true)bad('행사 주소와 개인정보 동의를 확인해 주세요.');
     const requestId=s(req.data?.requestId);
     if(!/^[a-f0-9]{32}$/.test(requestId))bad('주문 요청 번호를 확인해 주세요.');
-    const ref=orders.doc(requestId),token=randomBytes(32).toString('hex');
+    // The public order ID must not double as evidence that a caller submitted the order.
+    const resultId=createHash('sha256').update(`bazaar-order:${requestId}`).digest('hex').slice(0,32);
+    const ref=orders.doc(resultId),token=randomBytes(32).toString('hex');
     const fingerprint=createHash('sha256').update(JSON.stringify({requested,buyer})).digest('hex');
     const ip=s(req.rawRequest?.ip||req.rawRequest?.socket?.remoteAddress||'unknown');
     const ipHash=createHash('sha256').update(ip).digest('hex');
@@ -191,15 +206,14 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       if(existing.exists){
         const o=existing.data();
         if(o.requestFingerprint!==fingerprint)throw new HttpsError('already-exists','같은 요청 번호에 다른 주문이 있습니다.');
-        return{id:o.id,orderRef:o.orderRef,totalCents:o.totalCents,token:o.buyerToken,
-          iban:o.eventSnapshot.iban,beneficiary:o.eventSnapshot.beneficiary,pickupKo:o.eventSnapshot.pickupKo};
+        return { id:o.id, token:o.buyerToken, ...paymentDetails(o), pickupKo:o.eventSnapshot.pickupKo };
       }
       const e=eventSnap.data();
       const rate=rateSnap.data()||{};
       const windowStart=Date.now()-10*60*1000;
       if((rate.startedMs||0)>windowStart&&(rate.count||0)>=8)throw new HttpsError('resource-exhausted','짧은 시간에 주문 요청이 많습니다. 협회에 문의해 주세요.');
       if(!e)throw new HttpsError('failed-precondition','바자회 준비 중입니다.');
-      if(e.status!=='published'||e.finalizedAt||e.eventId!==requested||!(Date.now()<Date.parse(e.orderCutoff)))throw new HttpsError('failed-precondition','주문 접수가 마감되었습니다.');
+      if(e.status!=='published'||locked(e)||e.eventId!==requested||!(Date.now()<Date.parse(e.orderCutoff)))throw new HttpsError('failed-precondition','주문 접수가 마감되었습니다.');
       if(!/^FR\d{2}[A-Z0-9 ]{20,}$/.test(s(e.iban).replaceAll(' ','')))throw new HttpsError('failed-precondition','송금계좌 등록 후 주문할 수 있습니다.');
       const refs=buyer.items.map(i=>products.doc(i.id));
       const snapshots=await Promise.all(refs.map(r=>tx.get(r)));
@@ -219,9 +233,8 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       snapshots.forEach((snapshot,i)=>tx.update(snapshot.ref,{soldQty:FieldValue.increment(buyer.items[i].qty)}));
       tx.create(ref,data);
       tx.set(throttleRef,{startedMs:(rate.startedMs||0)>windowStart?rate.startedMs:Date.now(),count:(rate.startedMs||0)>windowStart?(rate.count||0)+1:1,expiresAt:new Date(Date.now()+24*3600000).toISOString()});
-      await queue(tx,ref.id,'receipt');
-      scheduleReminders(tx, data);
-      return{id:ref.id,orderRef,totalCents:total,token,iban:e.iban,beneficiary:e.beneficiary,pickupKo:e.pickupKo};
+      await queue(tx,ref.id,'receipt',{eventId:requested});
+      return { id:ref.id, token, ...paymentDetails(data), pickupKo:e.pickupKo };
     });
     await deliver(`${order.id}_receipt`).catch(error=>console.error('Bazaar receipt delivery failed',error));
     return order;
@@ -233,21 +246,21 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     let mailId=null;
     const result=await db.runTransaction(async tx=>{
       const ref=orders.doc(id), snap=await tx.get(ref);
-      if(!snap.exists)throw new HttpsError('not-found','주문을 찾을 수 없습니다.');
+      if(!snap.exists)throw new HttpsError('permission-denied','주문 확인 권한이 없습니다.');
       const o=snap.data();
       const a=Buffer.from(token,'hex'),b=Buffer.from(o.buyerToken||'','hex');
       if(a.length!==b.length||!timingSafeEqual(a,b))throw new HttpsError('permission-denied','주문 확인 권한이 없습니다.');
-      if(action==='view')return{order:safeOrder(o),changed:false};
       const currentEvent=(await tx.get(eventRef)).data();
-      if(o.eventId!==(currentEvent?.eventId||initialEvent.eventId))throw new HttpsError('failed-precondition','이전 바자회 주문은 온라인으로 변경할 수 없습니다. 협회에 문의해 주세요.');
+      if(action==='view')return{order:buyerOrder(o,currentEvent),changed:false};
+      assertOrderEvent(currentEvent,o.eventId);
       if(o.canceledAt)throw new HttpsError('failed-precondition','이미 취소된 주문입니다.');
       if(action==='report'){
+        if(o.bankConfirmedAt)throw new HttpsError('failed-precondition','이미 입금이 확인된 주문입니다.');
         const reportedAt=o.transferReportedAt||now();
         if(!o.transferReportedAt){
           tx.update(ref,{transferReportedAt:reportedAt});
-          if(o.email)mailId=await queue(tx,id,'reported');
         }
-        return{order:safeOrder({...o,transferReportedAt:reportedAt}),changed:!o.transferReportedAt};
+        return{order:buyerOrder({...o,transferReportedAt:reportedAt},currentEvent),changed:!o.transferReportedAt};
       }
       if(!ackNoTransfer)bad('송금하지 않았음을 확인해야 합니다.');
       if(o.transferReportedAt||o.bankConfirmedAt)throw new HttpsError('failed-precondition','송금 신고 또는 입금 확인된 주문은 온라인으로 취소할 수 없습니다. 협회에 문의해 주세요.');
@@ -255,10 +268,10 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       const snaps=await Promise.all(refs.map(r=>tx.get(r)));
       snaps.forEach((snap,i)=>{if(snap.exists)tx.update(snap.ref,{soldQty:FieldValue.increment(-o.items[i].qty)});});
       tx.update(ref,{canceledAt:now(),cancelReason:'buyer'});
-      if(o.email)mailId=await queue(tx,id,'cancel');
-      return{order:safeOrder({...o,canceledAt:now()}),changed:true};
+      if(o.email)mailId=await queue(tx,id,'cancel',{eventId:o.eventId});
+      return{order:buyerOrder({...o,canceledAt:now()},currentEvent),changed:true};
     });
-    if(mailId)await deliver(mailId);
+    if(mailId)await deliver(mailId).catch(error=>console.error('Bazaar cancellation delivery failed',error));
     return result;
   }
   function validateProduct(p,existing){
@@ -282,10 +295,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
   async function bazaarAdmin(req){
     await requireAdmin(req);
     const {op,...data}=req.data||{};
-    if (op === 'mailStatus') {
-      if (!/^[a-zA-Z0-9]{15,40}$/.test(s(data.id))) bad('주문 번호를 확인해 주세요.');
-      return { messages: await mailStatus(data.id) };
-    }
+    if (typeof op==='string' && op.startsWith('mail') && mailAdmin) return mailAdmin(op,data,req.auth.uid);
     const requireCurrentEvent=active=>{
       if(!validEventId(s(data.eventId))||active?.eventId!==data.eventId||closed(active)){
         throw new HttpsError('failed-precondition','현재 행사가 변경되어 저장하지 못했습니다. 행사 목록에서 다시 확인해 주세요.');
@@ -412,10 +422,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
           transferReportedAt:null,bankConfirmedAt:null,canceledAt:null,reminder3At:null,reminderFinalAt:null};
         tx.create(ref,order);
         snapshots.forEach((snapshot,i)=>tx.update(snapshot.ref,{soldQty:FieldValue.increment(items[i].qty)}));
-        if(buyer.email){
-          await queue(tx,ref.id,'receipt');
-          scheduleReminders(tx,order);
-        }
+        if(buyer.email)await queue(tx,ref.id,'receipt',{eventId});
         return {id:ref.id,orderRef,totalCents};
       });
       if(buyer.email)await deliver(`${result.id}_receipt`).catch(error=>console.error('Bazaar receipt delivery failed',error));
@@ -479,13 +486,14 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         const ref=orders.doc(id);
         const [active,snapshot]=await Promise.all([tx.get(eventRef),tx.get(ref)]);
         const order=snapshot.data();
-        if(!order||active.data()?.eventId!==data.eventId||order.eventId!==data.eventId||order.bankConfirmedAt)
+        if(!order||order.eventId!==data.eventId||order.bankConfirmedAt)
           throw new HttpsError('failed-precondition','현재 행사의 미입금 주문만 취소할 수 있습니다.');
+        assertOrderEvent(active.data(),order.eventId);
         if(order.canceledAt)return null;
         const stock=await Promise.all(order.items.map(item=>tx.get(products.doc(item.id))));
         stock.forEach((doc,i)=>{if(doc.exists)tx.update(doc.ref,{soldQty:FieldValue.increment(-order.items[i].qty)});});
         tx.update(ref,{canceledAt:now(),cancelReason:'admin'});
-        return order.email?queue(tx,id,'cancel'):null;
+        return order.email?queue(tx,id,'cancel',{eventId:order.eventId}):null;
       });
       if(mailId)await deliver(mailId).catch(error=>console.error('Bazaar cancellation delivery failed',error));
       return {ok:true};
@@ -741,17 +749,27 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     if(op==='bankConfirm'){
       const orderId=s(data.id);
       if(!/^[A-Za-z0-9]{15,40}$/.test(orderId))bad('주문 번호를 확인해 주세요.');
-      const ref=orders.doc(orderId);let mailId=null;
-      const changed=await db.runTransaction(async tx=>{
-        const [snap,active]=await Promise.all([tx.get(ref),data.eventId?tx.get(eventRef):null]);
-        if(data.eventId&&(active?.data()?.eventId!==data.eventId||snap.data()?.eventId!==data.eventId))
+      const ref=orders.doc(orderId);
+      const result=await db.runTransaction(async tx=>{
+        const [snap,active]=await Promise.all([tx.get(ref),tx.get(eventRef)]);
+        if(data.eventId&&snap.data()?.eventId!==data.eventId)
           throw new HttpsError('failed-precondition','선택한 행사와 주문을 다시 확인해 주세요.');
         if(!snap.exists)throw new HttpsError('not-found','주문을 찾을 수 없습니다.');
-        const o=snap.data();if(o.canceledAt)throw new HttpsError('failed-precondition','취소된 주문은 확인할 수 없습니다.');
-        if(!o.bankConfirmedAt){tx.update(ref,{bankConfirmedAt:now()});if(o.email)mailId=await queue(tx,o.id,'confirmed');return true;}
-        return false;
+        const o=snap.data();
+        if(o.bankConfirmedAt)return { changed:false };
+        if(active.data()?.eventId!==o.eventId||locked(active.data())){
+          const review=db.doc(`bazaarLatePayments/${orderId}`);
+          if(!(await tx.get(review)).exists)tx.create(review,{orderId,eventId:o.eventId,status:'pending',reportedAt:now(),reportedBy:req.auth.uid});
+          return { changed:false, needsReview:true };
+        }
+        assertOrderEvent(active.data(),o.eventId);
+        if(o.canceledAt)throw new HttpsError('failed-precondition','취소된 주문은 확인할 수 없습니다.');
+        tx.update(ref,{bankConfirmedAt:now()});
+        const mailId=o.email?await queue(tx,o.id,'confirmed',{eventId:o.eventId}):null;
+        return { changed:true, mailId };
       });
-      if(changed&&mailId)await deliver(mailId);return{ok:true,changed};
+      if(result.mailId)await deliver(result.mailId).catch(error=>console.error('Bazaar payment mail delivery failed',error));
+      return {ok:true,changed:result.changed,needsReview:result.needsReview===true};
     }
     if(op==='finalizeUnpaid'){
       if(data.confirm!==true)bad('최종 계좌 대조 후 확인해야 합니다.');
@@ -782,13 +800,14 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
             for (const item of row.data().items) restore.set(item.id, (restore.get(item.id) ?? 0) + item.qty);
           }
           const stock = await Promise.all([...restore.keys()].map(id => tx.get(products.doc(id))));
+          const policy=(await tx.get(db.doc(`bazaarMailPolicies/${e.eventId}`))).data();
           for (const item of stock) {
             if (item.exists) tx.update(item.ref, { soldQty: FieldValue.increment(-restore.get(item.id)) });
           }
           const at = now();
           for (const row of unpaid) {
             tx.update(row.ref, { canceledAt: at, cancelReason: 'unpaidFinalization' });
-            if (row.data().email) await queue(tx, row.id, 'bulkCancel');
+            if (row.data().email && policy?.bulkCancel==='auto') await queue(tx, row.id, 'bulkCancel',{eventId:e.eventId});
           }
           const pending = rows.length > 5;
           tx.update(eventRef, pending ? { reconciliationCursor: rows[4].id }
@@ -799,17 +818,15 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       const oldOrders=await orders.where('eventId','==',e.eventId).get();
       const pending=oldOrders.docs.filter(d=>!d.data().bankConfirmedAt);let canceled=0;
       for(const snap of pending){
-        let mailId=null;
         await db.runTransaction(async tx=>{
           const ref=orders.doc(snap.id),current=await tx.get(ref),o=current.data();
           if(!o||o.canceledAt||o.bankConfirmedAt)return;
           const refs=o.items.map(i=>products.doc(i.id));const stock=await Promise.all(refs.map(r=>tx.get(r)));
           stock.forEach((p,i)=>{if(p.exists)tx.update(p.ref,{soldQty:FieldValue.increment(-o.items[i].qty)});});
           tx.update(ref,{canceledAt:now(),cancelReason:'unpaidFinalization'});
-          if(o.email)mailId=await queue(tx,o.id,'bulkCancel');
+          // The legacy adapter leaves bulk cancellation announcements for manual delivery.
           canceled++;
         });
-        if(mailId)await deliver(mailId);
       }
       await db.runTransaction(async tx=>{
         const current=(await tx.get(eventRef)).data();

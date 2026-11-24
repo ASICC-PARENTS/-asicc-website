@@ -13,4 +13,4 @@ BAZAAR_SITE_URL = "http://127.0.0.1:4321"
 MAIL_MODE = "capture"
 
 [triggers]
-crons = ["*/15 * * * *"]
+crons = ["*/5 * * * *"]

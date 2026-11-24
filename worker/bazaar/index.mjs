@@ -2,6 +2,7 @@ import { createBazaar, BazaarError } from '../../firebase-functions-bazaar/bazaa
 import { authenticate, serverToken } from './auth.mjs';
 import { createFirestore, FieldValue } from './firestore.mjs';
 import { createMail, mailFields } from './mail.mjs';
+import { createMailAdmin } from './mail-admin.mjs';
 import { createPhotos } from './photos.mjs';
 
 const codes = {
@@ -36,6 +37,7 @@ function dependencies(env, origin, ctx) {
     emulator: env.FIRESTORE_EMULATOR_URL });
   const photos = createPhotos(env, db, origin, ctx);
   const mail = createMail(env, db);
+  const mailManagement = createMailAdmin(db,mail);
   const service = createBazaar({
     db, FieldValue, eventPhoto: photos.eventPhoto, storePhoto: photos.storePhoto,
     siteUrl: () => site.href.replace(/\/$/, ''), canSendMail: mail.canSend,
@@ -43,11 +45,14 @@ function dependencies(env, origin, ctx) {
       ctx.waitUntil(mail.deliver(id, message).catch(() => {}));
       return Promise.resolve(false);
     },
-    queueFields: mailFields, scheduleReminders: mail.scheduleReminders, mailStatus: mail.status,
+    queueFields: mailFields, mailAdmin:mailManagement.admin,
     batchFinalization: true
   });
-  return { photos, mail, service, site };
+  return { photos, mail, mailManagement, service, site };
 }
+
+const shopKey=(origin,id)=>new Request(`${origin}/cached-bazaar-catalog/${id||'current'}`);
+const shopMutations=new Set(['endEvent','publishDraft','saveEvent','saveEventProducts','archiveProduct','saveProduct','addProduct','reorder','finalizeUnpaid']);
 
 function json(data, status, headers) {
   return Response.json(data, { status, headers: { ...headers, 'Cache-Control': 'no-store',
@@ -113,7 +118,18 @@ export default {
       if (request.method !== 'POST') return json({}, 405, cors);
       const auth = name === 'bazaarAdmin' ? await authenticate(request, env) : undefined;
       const data = await readData(request, name, url);
+      const edge=env.BAZAAR_MODE==='local'?undefined:globalThis.caches?.default;
+      const shopId=typeof data.eventId==='string'?data.eventId.trim():'';
+      const key=edge&&name==='bazaarPublic'&&(!shopId||/^[a-z0-9-]{12,60}$/.test(shopId))?shopKey(url.origin,shopId):null;
+      const cached=key?await edge.match(key).catch(()=>null):null;
+      if(cached)return json({data:await cached.json()},200,cors);
       const result = await service[name]({ auth, data, rawRequest: { ip: request.headers.get('CF-Connecting-IP') } });
+      if(key)ctx.waitUntil(edge.put(key,Response.json(result,{headers:{'Cache-Control':'public, max-age=10'}})).catch(()=>{}));
+      if(edge&&name==='bazaarAdmin'&&shopMutations.has(data.op)){
+        const affected=data.eventId??result?.eventId??data.id;
+        ctx.waitUntil(Promise.allSettled(['',affected].filter(id=>typeof id==='string'&&(!id||/^[a-z0-9-]{12,60}$/.test(id)))
+          .map(id=>edge.delete(shopKey(url.origin,id)))));
+      }
       return json({ data: name === 'bazaarAdmin' ? photos.preview(result) : result }, 200, cors);
     } catch (error) {
       const code = error instanceof BazaarError ? error.code : 'unavailable';
@@ -123,7 +139,8 @@ export default {
     }
   },
   async scheduled(_event, env, ctx) {
-    const { mail, service } = dependencies(env, '', ctx);
+    const { mail, mailManagement, service } = dependencies(env, '', ctx);
+    if(mail.canSend())await mailManagement.nextReminderBatch();
     await mail.run(service.message);
   }
 };

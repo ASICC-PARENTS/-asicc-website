@@ -92,4 +92,26 @@ export async function adminAction(p:any) {
   return { ok: true, canceled };
 }
 export const eFormat=(c:number)=>new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'}).format(c/100);
+export function parisDeadline(value: string | undefined, lang: string) {
+  const date = Date.parse(value ?? '');
+  if (!Number.isFinite(date)) return '—';
+  return new Intl.DateTimeFormat(lang === 'fr' ? 'fr-FR' : 'ko-KR', {
+    dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Paris',
+  }).format(date) + (lang === 'fr' ? ' (heure de Paris)' : ' (파리 시간)');
+}
+
+export async function orderRequestId(eventId: string, payload: unknown) {
+  const key = `asicc-bazaar-checkout:${eventId}`;
+  const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(payload)));
+  const fingerprint = Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, '0')).join('');
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(key) ?? 'null');
+    if (saved?.fingerprint === fingerprint && saved.until > Date.now() && /^[a-f0-9]{32}$/.test(saved.id)) return saved.id;
+    const id = crypto.randomUUID().replaceAll('-', '');
+    sessionStorage.setItem(key, JSON.stringify({ id, fingerprint, until: Date.now() + 86400000 }));
+    return id;
+  } catch {
+    return crypto.randomUUID().replaceAll('-', '');
+  }
+}
 export const h=(v:any)=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');

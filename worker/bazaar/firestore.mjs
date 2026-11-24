@@ -158,12 +158,11 @@ export function createFirestore({ projectId, token, fetcher = fetch, emulator })
   return {
     doc: document, collection: query, batch, getAll: (...refs) => getMany(refs),
     async runTransaction(action, { readOnly = false } = {}) {
-      let retryTransaction;
       for (let attempt = 0; attempt < 4; attempt++) {
         let transaction;
         try {
           ({ transaction } = await request(`${documents}:beginTransaction`, {
-            options: readOnly ? { readOnly: {} } : { readWrite: { retryTransaction } }
+            options: readOnly ? { readOnly: {} } : { readWrite: {} }
           }));
           const writer = batch();
           let pending = [];
@@ -191,8 +190,8 @@ export function createFirestore({ projectId, token, fetcher = fetch, emulator })
           return result;
         } catch (error) {
           if (error.status === 'ABORTED' && !readOnly && attempt < 3) {
-            retryTransaction = transaction;
-            await new Promise(resolve => setTimeout(resolve, 10 * 2 ** attempt + Math.random() * 10));
+            if (transaction) await request(`${documents}:rollback`, { transaction }).catch(() => {});
+            await new Promise(resolve => setTimeout(resolve, 25 * 2 ** attempt + Math.random() * 75));
             continue;
           }
           if (transaction) await request(`${documents}:rollback`, { transaction }).catch(() => {});

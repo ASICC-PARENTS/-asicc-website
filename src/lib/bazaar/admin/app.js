@@ -1,6 +1,7 @@
 import {onAuthStateChanged} from 'firebase/auth';
 import {adminAction,bazaarAuth,showBazaarTestLogin} from '../api';
 import {eventViewModel,parisToIso,productPayload,productViewModel} from './data';
+import {mountMailManager,showOrderMail} from './mail';
 
 (function(){'use strict';
 const root=document.querySelector('#approved-admin');
@@ -15,19 +16,6 @@ const selectedEvent=()=>model.view==='past'?model.past[model.history]:model.view
 const current=()=>selectedEvent()?.status==='past';
 const request=(op,fields={})=>adminAction({op,...fields});
 const newId=()=> 'custom-'+crypto.randomUUID().replaceAll('-','');
-async function showMailStatus(orderId, target) {
- const labels={receipt:'주문 접수',reported:'송금 신고',confirmed:'입금 확인',cancel:'취소',
-  bulkCancel:'미입금 취소',reminder3:'입금 안내',reminderFinal:'마감 안내'};
- const states={queued:'대기',sending:'발송 중',sent:'발송 처리됨',delayed:'지연 · 재시도 예정',
-  failed:'실패 · 확인 필요',skipped:'발송 대상 아님'};
- try {
-  const {messages}=await request('mailStatus',{id:orderId});
-  target.textContent=messages.length ? messages.map(mail=>`${labels[mail.type]||'안내'} ${states[mail.status]||'상태 확인 필요'}`).join(' · ')
-   : '발송 내역 없음';
- } catch {
-  target.textContent='발송 상태를 조회하지 못했습니다.';
- }
-}
 function url(screen='',eventId=selectedEvent()?.id) {
  const path=root.dataset.base+(screen?screen+'/':'');
  return path+(eventId?'?event='+encodeURIComponent(eventId):'');
@@ -307,7 +295,10 @@ function addPOModal(){modal('발주 품목 추가',store.vendor+' · 수동 추�
 function rerender(){
  if(page==='main'||(selectedEvent()?.status==='draft'&&page!=='products')||(!selectedEvent()&&!(page==='products'&&productView==='catalog'))){renderMain();return;}
  if(page==='products')renderProducts();
- if(page==='orders')renderOrders();
+ if(page==='orders'){
+  renderOrders();
+  mountMailManager(app.querySelector('.tabbody'),selectedEvent(),store.orders,request,canManageOrder());
+ }
  if(page==='settlement')renderSettlement();
  if(page==='products'&&productView==='catalog')app.querySelectorAll('[data-key=boxes],[data-key=manualLimit],[data-key=limitMode]').forEach(el=>el.disabled=true);
  if(page==='products'&&current()&&productView!=='catalog'||page==='settlement'&&!canEditPurchase()){
@@ -328,12 +319,27 @@ if(a==='save-product')run(b,saveProducts);
 if(a==='manual-order'&&canManageOrder())manualOrderModal();
 if(a==='order-filter'){store.orderFilter=b.dataset.value;rerender();}if(a==='order-detail'){
  orderModal(b.dataset.id);
- const mail=document.createElement('p');
+ const mail=document.createElement('div');
  mail.className='muted small';
  mail.setAttribute('role','status');
  mail.textContent='이메일 발송 상태 확인 중…';
  $('#modal-body').append(mail);
- void showMailStatus(b.dataset.id,mail);
+ const order=store.orders.find(order=>order.id===b.dataset.id);
+ if(order&&order.status!=='confirmed'&&!canManageOrder()){
+  const review=document.createElement('button');
+  review.type='button';review.className='btn neutral';review.textContent='늦은 입금 검토 등록';
+  review.addEventListener('click',async()=>{
+   if(!confirm('은행에서 늦은 입금을 확인했나요? 주문 변경 없이 검토 대상으로 기록합니다.'))return;
+   review.disabled=true;
+   try{
+    const result=await request('bankConfirm',{id:order.id,eventId:selectedEvent().id});
+    if(result.needsReview)await showOrderMail(order.id,mail,selectedEvent().id,request);
+   }catch(error){alert(error.message);}
+   finally{review.disabled=false;}
+  });
+  $('#modal-body').append(review);
+ }
+ void showOrderMail(b.dataset.id,mail,selectedEvent().id,request);
 }
 if(a==='confirm')void confirmOrder(b.dataset.id,b);
 if(a==='scope'){store.settleScope=b.dataset.value;rerender();}if(a==='vendor'){store.vendor=b.dataset.value;rerender();}if(a==='po-add')addPOModal();if(a==='po-del'){const ar=editablePO(store.vendor);if(confirm('발주서에서 해당 품목을 삭제할까요? 고객 주문 원본은 유지됩니다.')){const x=ar.findIndex(p=>p.id===b.dataset.id);if(x>=0)ar.splice(x,1);rerender();}}
@@ -541,7 +547,9 @@ async function confirmOrder(id,button){
  if(!canReconcile()||!order||!['reported','unpaid'].includes(order.status))return;
  if(confirm(order.ref+' · '+order.name+'님의 실제 은행 입금 '+money(total(order))+'을 확인하셨습니까?'))
   await run(button,async()=>{
-   await request('bankConfirm',{id,eventId:selectedEvent().id});closeModal();await load();
+   const result=await request('bankConfirm',{id,eventId:selectedEvent().id});
+   if(result.needsReview)alert('최종 대조 후 입금 검토 대상으로 기록했습니다.');
+   closeModal();await load();
   });
 }
 function handleModalAction(action,button){
