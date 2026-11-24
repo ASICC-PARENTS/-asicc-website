@@ -23,9 +23,12 @@ Object.assign(copy,{
  '미리보기 전용':'Aperçu uniquement',
  '주문 접수 (미리보기에서는 비활성화)':'Commande (désactivée dans l’aperçu)',
 });
-const pairs=Object.entries(copy).sort((a,b)=>b[0].length-a[0].length);
-function translate(value){let output=value.replace(/(\d+)건/g,'$1 commande(s)').replace(/(\d+)개/g,'$1 article(s)');for(const [ko,fr] of pairs)output=output.replaceAll(ko,fr);return output;}
+function translate(value){
+ const key=value.trim();
+ return Object.hasOwn(copy,key)?value.replace(key,copy[key]):value;
+}
 export function observeAdminLocale(root,isFrench){
+ if(!isFrench)return;
  const apply=node=>{
   if(!isFrench)return;
   const walker=document.createTreeWalker(node,NodeFilter.SHOW_TEXT);let text;

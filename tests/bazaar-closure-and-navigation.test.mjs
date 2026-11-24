@@ -23,7 +23,7 @@ test('manager gets persistent dashboard link but public nav is not changed',()=>
  assert.doesNotMatch(base, /href\(lang,\s*'bazaar\/'\)/);
 });
 test('closure button and backend operation exist',()=>{
- assert.match(adminPage,/data-action="end-event"/);
+ assert.match(adminPage,/control\('end-event','행사 종료'/);
  assert.match(adminPage,/request\('endEvent',\{eventId:e.id,confirm:true\}/);
  assert.match(backend,/if\(op==='endEvent'\)/);
  assert.match(backend,/status:'closed',endedAt/);

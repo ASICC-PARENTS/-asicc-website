@@ -28,7 +28,8 @@ test('customer mail templates use the order language and preserve the private fo
       const rendered=message({...order,lang},type,event);
       assert.ok(rendered.subject.includes(labels[index]));
       assert.ok(rendered.text.includes(fr?'Article français':'한국어 상품'));
-      assert.ok(rendered.text.includes(fr?'Instructions de retrait':'한국어 수령 안내'));
+      const pickup=fr?'Instructions de retrait':'한국어 수령 안내';
+      assert.equal(rendered.text.includes(pickup),!['cancel','bulkCancel'].includes(type));
       assert.ok(rendered.text.includes(url));
       assert.ok(rendered.html.includes(`href="${url}"`));
       assert.ok(rendered.html.includes('Test &amp; &lt;buyer&gt;'));

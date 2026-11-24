@@ -1,5 +1,5 @@
 import { parisDeadline } from '../api';
-import { parisToIso } from './data';
+import {mailKinds,policyMode} from '../../../../worker/bazaar/mail-policy.mjs';
 
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const types={receipt:'주문 접수',confirmed:'입금 확인',cancel:'주문 취소',bulkCancel:'미입금 취소',
@@ -9,7 +9,6 @@ const states={queued:'대기',delayed:'지연',sending:'발송 중',sent:'발송
 const errors={'free-plan-limit':'무료 발송 한도', 'provider-limit':'Brevo 발송 제한',
   'provider-access-denied':'발송 권한 또는 IP 차단 확인','provider-result-uncertain':'Brevo 접수 여부 확인',
   'verify-provider-before-resending':'Brevo 발송 이력 확인','provider-rejected':'Brevo 요청 거절'};
-const local=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris',dateStyle:'short',timeStyle:'short',hourCycle:'h23'});
 const jobLabels={retry:'재발송',cancel:'대기 취소',completeManual:'OVH 완료 기록',releaseManual:'OVH 준비 해제'};
 
 function mailRows(messages) {
@@ -18,6 +17,7 @@ function mailRows(messages) {
     const actions={failed:['retry'],queued:['cancel'],delayed:['cancel'],manualReserved:['completeManual','releaseManual']}[m.status]||[];
     return `<div class="modal-row"><span>${esc(types[m.type]||m.type)} · ${esc(states[m.status]||m.status)}
       ${timestamp?` · ${esc(parisDeadline(timestamp,'ko'))}`:''}${m.lastError?` · ${esc(errors[m.lastError]||m.lastError)}`:''}</span>
+      ${m.sentSnapshot?'<details><summary>Message</summary><p>'+esc(m.sentSnapshot.to)+'</p><strong>'+esc(m.sentSnapshot.subject)+'</strong><pre>'+esc(m.sentSnapshot.text)+'</pre></details>':''}
       ${actions.map(action=>`<button type="button" class="linkbtn" data-mail-job="${action}" data-id="${esc(m.id)}" data-uncertain="${m.deliveryUncertain===true}">${jobLabels[action]}</button>`).join('')}</div>`;
   }).join('');
 }
@@ -47,15 +47,28 @@ export async function showOrderMail(id,target,eventId,request) {
   }catch{target.textContent='발송 상태를 조회하지 못했습니다.';}
 }
 
-export function mountMailManager(parent,event,orders,request,editable) {
+export function mountMailManager(parent,event,orders,request,editable,expanded=false) {
   if(!event?.id)return;
   const panel=document.createElement('details');
   panel.className='panel pad';
   panel.innerHTML='<summary>이메일 발송 관리</summary><div data-mail-panel></div><p data-mail-notice role="status"></p>';
   parent.append(panel);
+  if(expanded)panel.open=true;
   const body=panel.querySelector('[data-mail-panel]');
   const feedback=panel.querySelector('[data-mail-notice]');
   const eventId=event.id;
+  const fr=parent.closest('[data-lang]')?.dataset.lang==='fr';
+  const t=(ko,french)=>fr?french:ko;
+  const kinds={
+    receipt:t('주문 접수 및 송금 안내','Commande reçue et virement'),
+    confirmed:t('입금 확인 및 주문 확정','Paiement reçu et commande confirmée'),
+    buyerCancel:t('고객 주문 취소 안내','Annulation par le client'),
+    adminCancel:t('운영진 주문 취소 안내','Annulation par l’association'),
+    reminderFinal:t('송금 독촉 안내','Rappel de virement'),
+    bulkCancel:t('최종 미입금 주문 취소 안내','Annulation pour non-paiement'),
+    pickup:t('상품 수령 안내','Retrait des produits'),
+    other:t('기타 공지','Autre annonce'),
+  };
   let ready=false, pending=false, cursor=null, messages=[], prepared=[], preparedOptions;
   const recipients=()=>[...new Set(prepared.map(row=>row.email.trim().toLowerCase()))].sort();
   const form=()=>body.querySelector('[data-mail-form]');
@@ -69,11 +82,44 @@ export function mountMailManager(parent,event,orders,request,editable) {
     }
   };
 
+  let templates={};
+  function policyEditor(policy){
+    const rows=Object.entries(kinds).map(([kind,label])=>{
+      const mode=policy.modes?policyMode(policy,kind):kind==='bulkCancel'?policy.bulkCancel:mailKinds[kind];
+      const automatic=mailKinds[kind]==='auto'||kind==='bulkCancel';
+      return '<tr><th scope="row">'+esc(label)+'</th><td><input type="checkbox" name="on-'+kind+'" '+(mode!=='off'?'checked':'')+'></td>'+
+        '<td><select name="mode-'+kind+'">'+(automatic?'<option value="auto" '+(mode==='auto'?'selected':'')+'>'+t('자동','Automatique')+'</option>':'')+
+        '<option value="manual" '+(mode==='manual'?'selected':'')+'>'+t('수동','Manuel')+'</option></select></td>'+
+        '<td><button type="button" data-mail-template="'+kind+'">'+t('내용 수정','Modifier le contenu')+'</button></td></tr>';
+    }).join('');
+    return '<form data-mail-form><div class="actions">'+button('enable-all',t('전체 켜기','Tout activer'))+
+      button('disable-all',t('전체 끄기','Tout désactiver'))+'</div><div class="sheet"><table><thead><tr>'+
+      [t('이메일 종류','Type de message'),'ON/OFF',t('발송 방식','Mode'),t('양식','Modèle')].map(label=>'<th scope="col">'+label+'</th>').join('')+
+      '</tr></thead><tbody>'+rows+'</tbody></table></div><div data-template-editor hidden></div>'+
+      button('policy',t('행사 발송 설정 저장','Enregistrer les paramètres'))+'</form>';
+  }
+  function editTemplate(kind){
+    const editor=body.querySelector('[data-template-editor]');
+    if(!editor)return;
+    editor.hidden=false;editor.dataset.kind=kind;
+    const fields={subjectKo:t('한국어 제목','Objet en coréen'),introKo:t('한국어 안내 문구','Texte en coréen'),
+      subjectFr:t('프랑스어 제목','Objet en français'),introFr:t('프랑스어 안내 문구','Texte en français')};
+    editor.innerHTML='<h4>'+esc(kinds[kind])+'</h4>'+Object.entries(fields).map(([key,label])=>'<label class="field">'+esc(label)+
+      '<textarea name="'+key+'" maxlength="'+(key.startsWith('subject')?150:2500)+'">'+esc(templates[kind]?.[key]||'')+'</textarea></label>').join('')+
+      '<p>'+t('주문과 행사 정보는 이메일 종류에 맞게 자동 삽입됩니다.','Les informations de commande et du bazar sont ajoutées selon le type de message.')+'</p>'+
+      button('template-reset',t('기본 양식 복원','Rétablir le modèle par défaut'))+button('template-preview',t('미리보기','Aperçu'))+'<pre data-template-preview hidden></pre>';
+  }
+  function collectTemplate(){
+    const editor=body.querySelector('[data-template-editor]');
+    if(!editor?.dataset.kind)return;
+    templates[editor.dataset.kind]=Object.fromEntries([...editor.querySelectorAll('textarea')].map(el=>[el.name,el.value]));
+  }
   async function load(append=false) {
     const data=await action('mailOverview',append?{cursor}:{});
     cursor=data.cursor;
     messages=append?[...messages,...data.messages]:data.messages;
     const b=data.budget;
+    templates=data.policy.templates||{};
     const previous=body.querySelector('[data-mail-manual]');
     const upcoming=[data.nextReminderAt,...messages.map(m=>m.dueAt)].filter(Boolean).sort()[0];
     const due=messages.filter(m=>['queued','delayed','sending'].includes(m.status)).length;
@@ -82,20 +128,10 @@ export function mountMailManager(parent,event,orders,request,editable) {
       <p>일반 잔여 ${b.normalRemaining}통 · 예비 포함 잔여 ${b.totalRemaining}통 · Brevo 계정 확인값
         ${b.providerAccountRemaining==null?'미확인':`${b.providerAccountRemaining}통 (${esc(parisDeadline(new Date(b.providerObservationAt).toISOString(),'ko'))})`}</p>
       <div class="actions"><label>Brevo에서 확인한 잔여 통수 <input name="remaining" type="number" min="0" max="300"></label>${button('account','확인값 기록')}</div>
-      ${editable?`<form data-mail-form class="form-grid">
-        <label class="field">마감 전 알림 ${select('reminderMode',[['manual','OVH 수동'],['auto','자동']])}</label>
-        <label class="field">알림 시각 (파리) <input type="datetime-local" name="reminderAt"></label>
-        <label class="field">미입금 일괄 취소 ${select('bulkCancel',[['manual','OVH 수동'],['auto','자동']])}</label>
-        <div class="actions">${button('policy','행사 발송 설정 저장')}</div></form>`:''}
+      ${editable?policyEditor(data.policy):''}
       <p>불러온 이력의 대기 ${due}건 · 실패 ${failed}건 · 다음 예정 ${upcoming?esc(parisDeadline(upcoming,'ko')):'—'}</p>
       <div>${mailRows(messages)||'발송 이력 없음'}</div>
       <div class="actions">${cursor?button('more','이력 더 보기'):''}${button('refresh','새로고침')}</div><div data-mail-manual></div>`;
-    if(editable){
-      const policy=form().elements;
-      policy.reminderMode.value=data.policy.reminderMode;
-      policy.bulkCancel.value=data.policy.bulkCancel;
-      policy.reminderAt.value=data.policy.reminderAt?local.format(new Date(data.policy.reminderAt)).replace(' ','T'):'';
-    }
     if(previous)body.querySelector('[data-mail-manual]').replaceWith(previous);
     else initManual();
     renderPrepared();
@@ -135,8 +171,9 @@ export function mountMailManager(parent,event,orders,request,editable) {
   panel.addEventListener('submit',e=>e.preventDefault());
   panel.addEventListener('change',e=>{if(e.target.matches('[data-order-select-all]'))panel.querySelectorAll('[data-manual-order]').forEach(box=>box.checked=e.target.checked);});
   panel.addEventListener('click',async e=>{
-    const control=e.target.closest('[data-mail],[data-mail-job]');
+    const control=e.target.closest('[data-mail],[data-mail-job],[data-mail-template]');
     if(!control||pending)return;
+    if(control.dataset.mailTemplate){collectTemplate();editTemplate(control.dataset.mailTemplate);return;}
     const click=control.dataset.mail;
     pending=true;control.disabled=true;feedback.textContent='';
     try{
@@ -147,10 +184,22 @@ export function mountMailManager(parent,event,orders,request,editable) {
         if(value==='')throw new Error('Brevo 대시보드의 잔여량을 입력해 주세요.');
         await action('mailAccountUsage',{remaining:Number(value)});await load();
       }
+      if(click==='enable-all'||click==='disable-all')form().querySelectorAll('input[type=checkbox]').forEach(input=>{input.checked=click==='enable-all';});
+      if(click==='template-reset'){
+        const editor=body.querySelector('[data-template-editor]');
+        templates[editor.dataset.kind]={};editTemplate(editor.dataset.kind);
+      }
+      if(click==='template-preview'){
+        collectTemplate();
+        const editor=body.querySelector('[data-template-editor]'),preview=editor.querySelector('[data-template-preview]');
+        preview.textContent=Object.values(templates[editor.dataset.kind]).filter(Boolean).join('\n\n');
+        preview.hidden=false;
+      }
       if(click==='policy'){
+        collectTemplate();
         const f=form().elements;
-        await action('mailPolicy',{reminderMode:f.reminderMode.value,bulkCancel:f.bulkCancel.value,
-          reminderAt:f.reminderMode.value==='auto'?parisToIso(f.reminderAt.value):null});await load();
+        const modes=Object.fromEntries(Object.keys(kinds).map(kind=>[kind,f['on-'+kind].checked?f['mode-'+kind].value:'off']));
+        await action('mailPolicy',{modes,templates});await load();
       }
       if(click==='prepare-selected'||click==='prepare-all'){
         if(prepared.length)throw new Error('기존 준비 건을 먼저 완료하거나 해제해 주세요.');

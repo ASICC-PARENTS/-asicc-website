@@ -1,4 +1,5 @@
 ---
+import {orderTerms} from '../../../../firebase-functions-bazaar/bazaar/order-terms.mjs';
 import Base from '../../../layouts/Base.astro';
 import { langPaths, L, href, type Lang } from '../../../i18n/ui';
 
@@ -7,11 +8,7 @@ const lang = Astro.params.lang as Lang;
 ---
 <Base lang={lang} rest="bazaar/" title={L(lang,{ko:'ASICC 온라인 바자회',fr:'Boutique solidaire ASICC'})} noindex>
 <div id="bz" class="bz-wrap" data-lang={lang} data-order-url={href(lang,'bazaar/commande/')}>
-  <header class="bz-hero">
-    <span>ASICC · {L(lang,{ko:'학부모협회 기금 마련 바자회',fr:'Vente solidaire de l’association'})}</span>
-    <h1 id="bz-title">{L(lang,{ko:'ASICC 온라인 바자회',fr:'Boutique solidaire ASICC'})}</h1>
-    <p id="bz-intro">{L(lang,{ko:'한국어 국제섹션 학생들을 위한 바자회입니다.',fr:'Soutenez les activités éducatives et culturelles des élèves.'})}</p>
-  </header>
+  <header id="bz-hero" hidden></header>
   <p id="bz-load-status" class="bz-note" role="status">{L(lang,{ko:'행사 상태를 확인하고 있습니다…',fr:'Vérification de l’état de la vente…'})}</p>
   <div id="bz-end-notice" class="bz-end-notice" hidden role="status" aria-live="polite">
     <h2 id="bz-end-title">{L(lang,{ko:'종료된 행사입니다.',fr:'Cette vente est terminée.'})}</h2>
@@ -21,12 +18,8 @@ const lang = Astro.params.lang as Lang;
     <h2>{L(lang,{ko:'바자회를 준비하고 있습니다.',fr:'La vente est en préparation.'})}</h2>
   </div>
   <div id="bz-shop" hidden>
-  <div class="bz-info">
-    <div><strong>{L(lang,{ko:'주문 마감',fr:'Clôture des commandes'})}</strong><p id="bz-order-time">—</p></div>
-    <div><strong>{L(lang,{ko:'송금 마감',fr:'Date limite de virement'})}</strong><p id="bz-pay-time">—</p></div>
-    <div><strong>{L(lang,{ko:'상품 수령',fr:'Retrait des produits'})}</strong><p id="bz-pickup">—</p></div>
-  </div>
   <div id="bz-status" role="status" class="bz-note">{L(lang,{ko:'상품 목록을 불러오는 중입니다…',fr:'Chargement des produits…'})}</div>
+  <p>{orderTerms[lang].lines[0]}</p>
   <section aria-labelledby="bz-products-h"><h2 id="bz-products-h">{L(lang,{ko:'상품 목록',fr:'Nos produits'})}</h2><div id="bz-products"></div></section>
   <section class="bz-basket" aria-labelledby="bz-cart-title"><h2 id="bz-cart-title">{L(lang,{ko:'장바구니',fr:'Votre panier'})}</h2><div id="bz-cart"></div>
     <div class="bz-total"><span>{L(lang,{ko:'합계',fr:'Total'})}</span><strong id="bz-total">0,00 €</strong></div>
@@ -37,7 +30,8 @@ const lang = Astro.params.lang as Lang;
         <label>{L(lang,{ko:'휴대전화',fr:'Téléphone'})}<input name="phone" autocomplete="tel" maxlength="40" required/></label>
         <label>{L(lang,{ko:'이메일',fr:'Adresse e-mail'})}<input name="email" type="email" autocomplete="email" maxlength="200" required/></label>
         <label>{L(lang,{ko:'판매자에게 전달할 사항 (선택)',fr:'Informations complémentaires pour le retrait (facultatif)'})}<textarea name="pickupNote" maxlength="500" rows="4"></textarea></label>
-        <label class="bz-consent"><input type="checkbox" name="consent" required/> {L(lang,{ko:'주문 처리, 연락 및 물품 전달을 위한 개인정보 이용에 동의합니다.',fr:'J’accepte l’utilisation de mes données pour traiter cette commande et organiser le retrait.'})}</label>
+        <section id="bz-terms"><h4>{orderTerms[lang].title}</h4>{orderTerms[lang].lines.map(line=><p>{line}</p>)}</section>
+        <label class="bz-consent"><input type="checkbox" name="consent" required/> {L(lang,{ko:'주문 변경·취소·환불 안내를 확인했으며, 주문 처리와 연락을 위한 개인정보 이용에 동의합니다.',fr:'J’ai lu les conditions de modification, d’annulation et de remboursement et j’accepte l’utilisation de mes données pour le traitement de la commande.'})}</label>
         <button id="bz-send" class="bz-btn" type="submit">{L(lang,{ko:'주문 확정 및 송금 안내 받기',fr:'Valider ma commande et recevoir les coordonnées bancaires'})}</button>
         <small>{L(lang,{ko:'계좌이체는 주문 접수 후 별도로 진행하며, 입금 확인 후 주문이 확정됩니다.',fr:'Le paiement se fait par virement après validation. La commande est confirmée après réception du paiement.'})}</small>
       </form>
@@ -66,10 +60,13 @@ const lang = Astro.params.lang as Lang;
 .bz-product-sheet{overflow-x:auto;border:1px solid #e8e1de;border-radius:12px;background:#fff}.bz-product-table{width:100%;min-width:610px;border-collapse:collapse;text-align:left;table-layout:fixed}.bz-product-table th{background:#faf1ee;color:#6d2437;font-size:13px;padding:10px 12px;border-bottom:1px solid #e8d7d2;white-space:nowrap}.bz-product-table th:nth-child(1){width:86px}.bz-product-table th:nth-child(3){width:100px}.bz-product-table th:nth-child(4){width:118px}.bz-product-table th:nth-child(5){width:112px}.bz-product-table td{padding:10px 12px;vertical-align:middle;border-bottom:1px solid #eee5e1}.bz-product-table tr:last-child td{border-bottom:0}.bz-product-table .bz-photo{display:block;width:62px;height:62px;object-fit:contain;border-radius:7px}.bz-product-table .bz-placeholder{display:grid;place-items:center;font-size:25px}.bz-product-table .bz-desc h3{font-size:16px;margin:0 0 3px;overflow-wrap:anywhere}.bz-product-table .bz-desc p{font-size:13px;line-height:1.4;margin:4px 0;overflow-wrap:anywhere}.bz-product-table .bz-price{font-size:17px;white-space:nowrap}.bz-product-table .bz-qty{gap:5px;margin:0}.bz-product-table .bz-qty button{width:27px;height:30px;min-width:27px}.bz-product-table .bz-btn{padding:9px 10px;font-size:13px;white-space:nowrap}.bz-product-table .bz-sold{background:#f5f5f5}.bz-sold-label{display:inline-block;color:#9d2424;margin-left:8px;font-size:12px}.bz-product-table .bz-stock{display:inline-block;margin-right:4px}@media(max-width:780px){.bz-product-table{min-width:560px}.bz-product-table td,.bz-product-table th{padding:8px}.bz-product-table th:nth-child(1){width:73px}.bz-product-table th:nth-child(3){width:84px}.bz-product-table th:nth-child(4){width:108px}.bz-product-table th:nth-child(5){width:90px}.bz-product-table .bz-photo{width:55px;height:55px}}
 </style>
 <script>
+import "../../../lib/bazaar/shop-view.css";
+import {bindStorageLabels,renderShopEvent,renderShopProducts} from "../../../lib/bazaar/shop-view";
 import {getShop,createOrder,eFormat,h,orderRequestId,parisDeadline} from '../../../lib/bazaar/api';
 const root=document.querySelector<HTMLElement>('#bz')!;
 const lang=root.dataset.lang==='fr'?'fr':'ko';
 const t=(ko:string,fr:string)=>lang==='fr'?fr:ko;
+bindStorageLabels(root);
 const requestedEvent=new URLSearchParams(location.search).get('event')||'';
 if(requestedEvent)document.querySelectorAll<HTMLAnchorElement>('[data-lang-switch]').forEach(link=>{
  const url=new URL(link.href);
@@ -86,7 +83,6 @@ const $=(s:string)=>root.querySelector<HTMLElement>(s)!;
 const button=(action:string,id:string,label:string,disabled=false)=>`<button data-action="${action}" data-id="${h(id)}" ${disabled?'disabled':''}>${h(label)}</button>`;
 function isReady(){return /^FR[0-9A-Z]{25}$/.test(String(event.iban||'').replaceAll(' ',''));}
 function isClosed(){return event.status!=='published'||!isReady()||!!event.finalizedAt||(Date.now()+serverOffset)>=Date.parse(event.orderCutoff||'1970-01-01');}
-function formatDate(d:string){if(!d||!Number.isFinite(Date.parse(d)))return '—';return new Intl.DateTimeFormat(lang==='fr'?'fr-FR':'ko-KR',{timeZone:'Europe/Paris',dateStyle:'full',timeStyle:'short'}).format(new Date(d));}
 function render(){
   // Manual event closure changes the public page to a simple notice.
   // These checks only control the visitor UI; no URL or server is blocked.
@@ -95,15 +91,13 @@ function render(){
   $('#bz-end-notice').hidden=!ended;
   $('#bz-prep-notice').hidden=ended||event.status==='published';
   $('#bz-shop').hidden=event.status!=='published';
-  $('#bz-intro').hidden=ended;
-  $('#bz-intro').textContent=lang==='fr'?(event.introFr||''):(event.introKo||'');
+  $('#bz-hero').hidden=event.status!=='published';
   if(event.status!=='published'){
     $('#bz-products').replaceChildren();
     $('#bz-cart').replaceChildren();
     $('#bz-checkout').hidden=true;
     return;
   }
-  $('#bz-title').textContent=(lang==='fr'?event.nameFr:event.nameKo)||$('#bz-title').textContent;
   const closed=isClosed();
   const transferDeadline=parisDeadline(event.transferCutoff,lang);
   $('#bz-status').textContent=!isReady()?t('계좌 등록 및 상품 확인 후 주문을 시작합니다.','La boutique sera ouverte après validation des produits et du compte bancaire.')
@@ -111,17 +105,14 @@ function render(){
       ?t(`주문 접수가 마감되었습니다. 기존 주문은 ${transferDeadline}까지 송금해 주세요.`,`Les commandes sont closes. Pour une commande déjà passée, effectuez le virement au plus tard le ${transferDeadline}.`)
       :t('주문 및 송금 기간이 종료되었습니다. 입금 확인 후 확정 메일을 보내드립니다.','Les commandes et les virements sont clos. Un e-mail de confirmation suivra la vérification.'))
     :t('주문 접수 중 · 회원가입 없이 주문 가능','Commandes ouvertes · Sans inscription');
-  $('#bz-intro').textContent=lang==='fr'?event.introFr:event.introKo;
-  $('#bz-order-time').textContent=formatDate(event.orderCutoff);
-  $('#bz-pay-time').textContent=formatDate(event.transferCutoff);
-  $('#bz-pickup').textContent=lang==='fr'?event.pickupFr:event.pickupKo;
-  $('#bz-products').innerHTML='<div class="bz-product-sheet" tabindex="0" aria-label="'+t('상품 목록','Liste des produits')+'"><table class="bz-product-table"><thead><tr>'+[t('사진','Photo'),t('상품명 및 설명','Produit et description'),t('판매가','Prix'),t('수량','Quantité'),t('장바구니','Panier')].map(label=>'<th scope="col">'+label+'</th>').join('')+'</tr></thead><tbody>'+products.map(p=>{
-    const sold=p.stockRemaining===0,qty=selected[p.id]||1;
-    const name=lang==='fr'?p.titleFr:p.titleKo,desc=lang==='fr'?p.descriptionFr:p.descriptionKo;
-    const storage={frozen:t('냉동','Surgelé'),chilled:t('냉장','Réfrigéré'),ambient:t('상온','Ambiant')}[p.storage as 'frozen'|'chilled'|'ambient']||'';
-    const icon=p.storage==='frozen'?'🧊':p.storage==='chilled'?'🥬':'🛍️';
-    return `<tr class="bz-product-row ${sold?'bz-sold':''}" data-product="${h(p.id)}"><td>${p.imageUrl?`<img class="bz-photo" src="${h(p.imageUrl)}" alt="${h(name)}" loading="lazy"/>`:`<div class="bz-photo bz-placeholder" aria-label="${h(name)}">${icon}</div>`}</td><td class="bz-desc"><h3>${h(name)}</h3><span class="bz-storage">${storage}</span><p>${h(desc)}</p>${p.stockCap!=null?`<span class="bz-stock">${t('한정 판매','Quantité limitée')} ${p.stockCap}${t('개 · ',' · ')}${p.stockRemaining}${t('개 남음',' restantes')}</span>`:''}${sold?`<strong class="bz-sold-label">${t('품절','Épuisé')}</strong>`:''}</td><td class="bz-price">${eFormat(p.priceCents)}</td><td><div class="bz-qty">${button('dec',p.id,'−',closed||sold)}<span>${qty}</span>${button('inc',p.id,'+',closed||sold)}</div></td><td><button class="bz-btn" data-action="add" data-id="${h(p.id)}" ${closed||sold?'disabled':''}>${t('담기','Ajouter')}</button></td></tr>`;
-  }).join('')+'</tbody></table></div>';
+  $('#bz-hero').innerHTML=renderShopEvent(event,lang);
+  $('#bz-products').innerHTML=renderShopProducts(products,lang,{
+    quantity:p=>p.stockRemaining===0?0:Math.min(p.stockRemaining??100,selected[p.id]||1),
+    price:eFormat,
+    controls:(p,qty,sold)=>'<div class="bz-qty">'+button('dec',p.id,'−',closed||sold||qty<=1)+'<span>'+qty+'</span>'+
+      button('inc',p.id,'+',closed||sold||qty>=(p.stockRemaining??100))+'</div>'+
+      '<button type="button" class="bz-btn" data-action="add" data-id="'+h(p.id)+'" '+(closed||sold?'disabled':'')+'>'+t('담기','Ajouter')+'</button>'
+  });
   renderCart();
 }
 function renderCart(){
@@ -137,7 +128,7 @@ root.addEventListener('click',async ev=>{
   const target=(ev.target as HTMLElement).closest<HTMLButtonElement>('button[data-action]');if(!target||submitted||submitting||pendingOrder||isClosed())return;
   const id=target.dataset.id!,p=products.find(x=>x.id===id);if(!p)return;
   const a=target.dataset.action!;
-  if(a==='inc')selected[id]=Math.min(100,(selected[id]||1)+1);
+  if(a==='inc')selected[id]=Math.min(100,p.stockRemaining??100,(selected[id]||1)+1);
   if(a==='dec')selected[id]=Math.max(1,(selected[id]||1)-1);
   if(a==='add')cart[id]=Math.min(100,(cart[id]||0)+(selected[id]||1));
   if(a==='cartinc')cart[id]=Math.min(100,(cart[id]||0)+1);

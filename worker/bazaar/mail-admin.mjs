@@ -1,3 +1,4 @@
+import {mailKinds,policyMode} from './mail-policy.mjs';
 import { createHash } from 'node:crypto';
 import { BazaarError } from '../../firebase-functions-bazaar/bazaar/service.mjs';
 import { eligibleReminder, mailFields } from './mail.mjs';
@@ -14,9 +15,9 @@ const bad = message => new BazaarError('invalid-argument',message);
 const conflict = message => new BazaarError('failed-precondition',message);
 
 function formatJob(doc) {
-  const { orderId,type,status,sentAt,dueAt,lastError,deliveryUncertain,manualSentAt,notice }=doc.data();
+  const { orderId,type,status,sentAt,dueAt,lastError,deliveryUncertain,manualSentAt,notice,sentSnapshot }=doc.data();
   return {id:doc.id,orderId,type,status:status??(sentAt?'sent':'queued'),sentAt,dueAt,lastError,
-    deliveryUncertain,manualSentAt,notice};
+    deliveryUncertain,manualSentAt,notice,sentSnapshot};
 }
 
 function matchesManual(order,eventId,type,audience,excludeReported) {
@@ -104,7 +105,15 @@ export function createMailAdmin(db,mail) {
       return {ok:true};
     }
     if(op==='mailPolicy'){
-      const {reminderMode,bulkCancel}=data;
+      const {modes,templates}=data;
+      const reminderMode=modes?'manual':data.reminderMode;
+      const bulkCancel=modes?(modes.bulkCancel==='auto'?'auto':'manual'):data.bulkCancel;
+      if(modes&&Object.entries(mailKinds).some(([kind,defaultMode])=>!['off','manual',...(defaultMode==='auto'||kind==='bulkCancel'?['auto']:[])].includes(modes[kind])))throw bad('이메일 종류별 발송 방식을 확인해 주세요.');
+      const safeTemplates={};
+      if(templates&&typeof templates==='object')for(const kind of Object.keys(mailKinds)){
+        const template=templates[kind];if(!template)continue;
+        safeTemplates[kind]=Object.fromEntries(['subjectKo','subjectFr','introKo','introFr'].map(key=>[key,String(template[key]??'').trim().slice(0,key.startsWith('subject')?150:2500)]));
+      }
       if(!choices.includes(reminderMode)||!choices.includes(bulkCancel))throw bad('발송 방식을 확인해 주세요.');
       const at=Date.parse(data.reminderAt);
       return db.runTransaction(async tx=>{
@@ -116,7 +125,13 @@ export function createMailAdmin(db,mail) {
           throw bad('알림 시각은 주문 마감 이후, 송금 마감 이전이어야 합니다.');
         }
         const policy={reminderMode,bulkCancel,reminderAt:reminderMode==='auto'?new Date(at).toISOString():null};
-        tx.set(policyRef,{...policy,updatedAt:now(),updatedBy:uid});
+        if(modes){
+          policy.modes=modes;
+          policy.templates=templates?safeTemplates:(previous.data()?.templates||{});
+          policy.autoSince={...(previous.data()?.autoSince||{})};
+          for(const kind of Object.keys(mailKinds))if(modes[kind]==='auto'&&policyMode(previous.data(),kind)!=='auto')policy.autoSince[kind]=now();
+        }
+        tx.set(policyRef,{...policy,updatedAt:now(),updatedBy:uid},{merge:true});
         if(previous.data()?.reminderMode!==reminderMode||previous.data()?.reminderAt!==policy.reminderAt){
           tx.set(schedules.doc(eventId),{runAt:policy.reminderAt,cursor:null});
         }
@@ -159,6 +174,7 @@ export function createMailAdmin(db,mail) {
       const ids=[...new Set(data.ids)];
       const targets=ids.map(id=>({order:orders.doc(id),job:outbox.doc(`${id}_${key}`)}));
       return db.runTransaction(async tx=>{
+        if(op==='mailManualPrepare'&&policyMode((await tx.get(policyRef)).data(),type)==='off')throw conflict('이 이메일은 발송이 꺼져 있습니다.');
         const active=type==='reminderFinal'&&op==='mailManualPrepare'?(await tx.get(activeRef)).data():null;
         if(type==='reminderFinal'&&op==='mailManualPrepare'&&(active?.eventId!==eventId||active.finalizedAt
           ||active.reconciliationStartedAt||!(Date.now()<Date.parse(active.transferCutoff))))throw conflict('송금 마감 이전의 현재 행사만 알림을 준비할 수 있습니다.');

@@ -1,3 +1,4 @@
+import {orderTerms,orderTermsVersion} from './order-terms.mjs';
 import {randomBytes, timingSafeEqual, createHash} from 'node:crypto';
 import {catalogue, initialEvent} from './products.mjs';
 
@@ -97,13 +98,15 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     const { iban, beneficiary, transferCutoff } = order.eventSnapshot ?? {};
     return { orderRef: order.orderRef, totalCents: order.totalCents, iban, beneficiary, transferCutoff };
   };
+  const buyerCanCancel=event=>event?.status==='published'&&Date.now()<Date.parse(event.orderCutoff);
   function buyerOrder(order, event) {
     return {
       ...paymentDetails(order),
       items: order.items.map(({ titleKo, titleFr, qty, priceCents }) => ({ titleKo, titleFr, qty, priceCents })),
       pickupNote: order.pickupNote,
       transferReportedAt: order.transferReportedAt, bankConfirmedAt: order.bankConfirmedAt, canceledAt: order.canceledAt,
-      canChange: event?.eventId === order.eventId && !locked(event)
+      canChange: event?.eventId === order.eventId && !locked(event),
+      canCancel: event?.eventId === order.eventId && !locked(event) && buyerCanCancel(event)
     };
   }
   const orderItem=(p,id,qty)=>({id,qty,priceCents:p.retailCents,titleKo:p.titleKo,titleFr:p.titleFr,supplier:p.supplier,
@@ -164,11 +167,11 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     const base=`${origin}/${order.lang==='fr'?'fr':'ko'}/bazaar/commande/`;
     return `${base}?id=${encodeURIComponent(order.id)}#token=${encodeURIComponent(order.buyerToken)}`;
   }
-  function message(order,type,event={}){
+  function message(order,type,event={},template={}){
     const fr=order.lang==='fr';
     const t=(ko,french)=>fr?french:ko;
-    const contact=event.contactEmail||initialEvent.contactEmail;
-    const [title,intro]=({
+    const contact='contact@asicc-parents.fr';
+    let [title,intro]=({
       receipt:[t('바자회 주문 접수','Commande reçue'),t('주문이 접수되었습니다. 아직 입금 확인 또는 주문 확정 상태는 아닙니다.',
         'Nous avons reçu votre commande. Elle sera confirmée après réception du virement.')],
       reported:[t('송금 완료 알림 접수','Signalement de virement reçu'),t('송금 완료 알림이 접수되었습니다. 실제 입금 확인 및 주문 확정은 별도로 진행됩니다.',
@@ -184,20 +187,27 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       reminderFinal:[t('바자회 송금 마감 안내','Rappel avant la date limite de virement'),t('송금 마감 안내입니다. 아직 송금 완료 표시가 접수되지 않았습니다.',
         'La date limite de virement approche. Nous n’avons pas encore reçu votre signalement de virement.')]
     })[type]||[t('바자회 안내','Informations sur la vente solidaire'),t('주문 안내','Informations sur votre commande')];
+    title=t(template.subjectKo,template.subjectFr)||title;
+    intro=t(template.introKo,template.introFr)||intro;
     const subject=`[ASICC] ${title}`;
     const items=order.items.map(i=>`• ${t(i.titleKo||i.titleFr,i.titleFr||i.titleKo)} × ${i.qty} = ${euro(i.qty*i.priceCents)}`).join('\n');
     const note=type==='receipt'&&order.pickupNote
       ?`\n\n${t('판매자에게 전달할 사항','Informations complémentaires pour le retrait')}\n${order.pickupNote}`:'';
     const url=links(order);
     const action=t('주문 관리 페이지','Consulter la commande');
-    const details=[`${t('주문번호','Référence de commande')}: ${order.orderRef}\n${t('주문자','Nom')}: ${order.name}${note}`,
+    const eventName=t(event.nameKo,event.nameFr);
+    const details=[...(eventName?[eventName]:[]),`${t('주문번호','Référence de commande')}: ${order.orderRef}\n${t('주문자','Nom')}: ${order.name}${note}`,
       items,`${t('주문 총액','Total')}: ${euro(order.totalCents)}`];
     if(['receipt','reported','reminder3','reminderFinal'].includes(type)){
       details.push(`${t('수취인','Bénéficiaire')}: ${event.beneficiary}\nIBAN: ${event.iban}\n${t('송금 금액','Montant du virement')}: ${euro(order.totalCents)}\n${t('송금 메모','Référence du virement')}: ${order.orderRef}\n${t('송금 마감 (파리 시간)','Date limite du virement (heure de Paris)')}: ${localDate(event.transferCutoff,t('ko-KR','fr-FR'))}`);
     }
     const pickup=t(event.pickupKo||event.pickupFr,event.pickupFr||event.pickupKo);
-    if(pickup)details.push(`${t('수령','Retrait')}: ${pickup}`);
+    if(pickup&&['receipt','confirmed','reminderFinal','pickup'].includes(type))details.push(`${t('수령','Retrait')}: ${pickup}`);
     details.push(`${t('문의','Contact')}: ${contact}`);
+    if(['receipt','confirmed','reminderFinal','pickup'].includes(type)){
+      const terms=orderTerms[fr?'fr':'ko'];
+      details.push([terms.title,...terms.lines].join('\n'));
+    }
     const body=details.join('\n\n');
     return{subject,text:`${intro}\n\n${body}\n\n${action}: ${url}`,
       html:`<div style="font:15px/1.7 Arial,sans-serif;max-width:650px"><h2>${esc(subject)}</h2><p>${esc(intro)}</p><pre style="white-space:pre-wrap;font:inherit">${esc(body)}</pre><p><a href="${esc(url)}" style="color:#932b35">${esc(action)}</a></p></div>`};
@@ -261,7 +271,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       if(!cents(total)||total===0)bad('금액을 확인해 주세요.');
       const orderRef=`ASICC-${new Date().getUTCFullYear().toString().slice(-2)}-${ref.id.slice(0,10).toUpperCase()}`;
       const createdAt=now();
-      const data={id:ref.id,eventId:e.eventId||initialEvent.eventId,eventSnapshot:{...e},orderRef,...buyer,consent:true,requestFingerprint:fingerprint,items:itemDetails,totalCents:total,createdAt,buyerToken:token,transferReportedAt:null,bankConfirmedAt:null,canceledAt:null,reminder3At:null,reminderFinalAt:null};
+      const data={id:ref.id,eventId:e.eventId||initialEvent.eventId,eventSnapshot:{...e},orderRef,...buyer,consent:true,orderTermsVersion,orderTermsAcceptedAt:createdAt,requestFingerprint:fingerprint,items:itemDetails,totalCents:total,createdAt,buyerToken:token,transferReportedAt:null,bankConfirmedAt:null,canceledAt:null,reminder3At:null,reminderFinalAt:null};
       snapshots.forEach((snapshot,i)=>tx.update(snapshot.ref,{soldQty:FieldValue.increment(buyer.items[i].qty)}));
       tx.create(ref,data);
       tx.set(throttleRef,{startedMs:(rate.startedMs||0)>windowStart?rate.startedMs:Date.now(),count:(rate.startedMs||0)>windowStart?(rate.count||0)+1:1,expiresAt:new Date(Date.now()+24*3600000).toISOString()});
@@ -297,6 +307,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         }
         return{order:buyerOrder({...o,transferReportedAt:reportedAt},currentEvent),changed:!o.transferReportedAt};
       }
+      if(!buyerCanCancel(currentEvent))throw new HttpsError('failed-precondition','주문 접수 마감 후 온라인으로 취소할 수 없습니다.');
       if(!ackNoTransfer)bad('송금하지 않았음을 확인해야 합니다.');
       if(o.transferReportedAt||o.bankConfirmedAt)throw new HttpsError('failed-precondition','송금 신고 또는 입금 확인된 주문은 온라인으로 취소할 수 없습니다. 협회에 문의해 주세요.');
       const refs=o.items.map(i=>products.doc(i.id));
@@ -634,9 +645,9 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     if(op==='listEvents'){
       const [cur,old,drafts]=await Promise.all([eventRef.get(),eventArchives.get(),eventDrafts.get()]);
       const active=cur.exists?cur.data():null;
-      const events=old.docs.map(d=>({id:d.id,nameKo:d.data().event?.nameKo||d.id,serial:d.data().event?.serial||0,status:'closed',createdAt:d.data().event?.createdAt||''}));
-      if(active&&!events.some(e=>e.id===active.eventId))events.push({id:active.eventId,nameKo:active.nameKo||'진행 중 바자회',serial:active.serial||1,status:active.finalizedAt?'closed':(active.status||'draft'),createdAt:active.createdAt||''});
-      return{events:events.sort((a,b)=>b.serial-a.serial||b.createdAt.localeCompare(a.createdAt)),drafts:drafts.docs.map(d=>({id:d.id,nameKo:d.data().event?.nameKo||'임시저장',serial:d.data().serial||0,updatedAt:d.data().updatedAt||''}))};
+      const events=old.docs.map(d=>({id:d.id,nameKo:d.data().event?.nameKo||d.id,nameFr:d.data().event?.nameFr||'',orderCutoff:d.data().event?.orderCutoff||'',serial:d.data().event?.serial||0,status:'closed',createdAt:d.data().event?.createdAt||''}));
+      if(active&&!events.some(e=>e.id===active.eventId))events.push({id:active.eventId,nameKo:active.nameKo||'진행 중 바자회',nameFr:active.nameFr||'',orderCutoff:active.orderCutoff||'',serial:active.serial||1,status:active.status||'draft',createdAt:active.createdAt||''});
+      return{events:events.sort((a,b)=>b.serial-a.serial||b.createdAt.localeCompare(a.createdAt)),drafts:drafts.docs.map(d=>({id:d.id,nameKo:d.data().event?.nameKo||'임시저장',nameFr:d.data().event?.nameFr||'',orderCutoff:d.data().event?.orderCutoff||'',serial:d.data().serial||0,updatedAt:d.data().updatedAt||''}))};
     }
     if(op==='createDraft'){
       const [cur,ps,archives,existingDrafts]=await Promise.all([eventRef.get(),products.get(),eventArchives.get(),eventDrafts.get()]);

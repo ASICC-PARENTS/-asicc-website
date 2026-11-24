@@ -9,8 +9,10 @@ const mail=read('src/lib/bazaar/admin/mail.js');
 
 test('bazaar dashboard returns to the homepage operations center and lists event states',()=>{
   assert.match(screen,/운영센터로 돌아가기/);
-  assert.match(app,/작성 중인 바자회 '\+model\.drafts\.length/);
-  for(const status of ["['draft','임시저장']","['published','발행']","['completed','완료']"])
+  assert.match(app,/현재 진행 중인 바자회가 없습니다\./);
+  assert.match(app,/발행|진행 중/);
+  assert.match(app,/all\.filter\(e=>matches\(e,key\)\)\.length/);
+  for(const status of ["['draft','임시저장',","['published','진행 중',","['completed','종료',"])
     assert.ok(app.includes(status));
   assert.match(app,/data-action="new-event"/);
   assert.match(app,/data-action="event-filter"/);
@@ -55,8 +57,9 @@ test('buyer preview supports unsaved content, language and viewport controls wit
   assert.match(app,/preview-draft-form/);
   assert.match(app,/data-action="preview-lang"/);
   assert.match(app,/data-action="preview-device"/);
-  assert.match(app,/data-action="preview-publish"/);
-  assert.match(app,/실제 주문은 비활성화되어 있습니다/);
+  assert.doesNotMatch(app,/data-action="preview-(publish|save)"/);
+  assert.match(app,/data-action="preview-edit"/);
+  assert.match(app,/실제 주문·재고 차감·이메일 발송은 실행되지 않습니다/);
 });
 
 test('OVH recipient preparation retains deduplication, Bcc output and send history controls',()=>{

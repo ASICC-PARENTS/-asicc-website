@@ -37,12 +37,14 @@ test('French bazaar administrator route has translated shell and dynamic adminis
   assert.match(locale,/Résultat global du bazar/);
 });
 
-test('product editor uses TTC-only costs, calculated selling prices and checks every row before saving',async()=>{
+test('product editor uses TTC-only costs, bidirectional selling prices and checks every row before saving',async()=>{
   const app=await read('../src/lib/bazaar/admin/app.js');
   const service=await read('../firebase-functions-bazaar/bazaar/service.mjs');
   assert.match(app,/모든 가격은 TTC 기준입니다/);
   assert.match(app,/매입가\/박스 TTC/);
-  assert.match(app,/data-derived="sale"[^>]+readonly/);
+  assert.match(app,/data-key="sale"/);
+  assert.match(app,/if\(k!==\x27roi\x27\)margin\.value/);
+  assert.match(app,/updateCalculatedPrice\(p,val\)/);
   assert.match(app,/필수입력 항목이 누락되었거나 유효하지 않은 상품/);
   assert.match(app,/현재 숨겨진 열입니다/);
   assert.match(app,/data-action="product-validation-focus"/);
@@ -57,7 +59,8 @@ test('product table exposes direct column gestures and buyer-row preview without
   assert.match(app,/fitColumn\(table,names\[i\]\)/);
   assert.match(app,/data-col-menu="hide"/);
   assert.match(app,/data-col-menu="pin"/);
-  assert.match(app,/class="bz-product-table"/);
+  assert.match(app,/renderShopProducts\(products\.map/);
+  assert.match(await read('../src/pages/[lang]/bazaar/index.astro'),/renderShopProducts\(products,lang/);
   assert.match(app,/data-action="preview-add"/);
   assert.match(app,/class="bz-btn" disabled/);
 });
