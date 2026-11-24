@@ -366,7 +366,7 @@ test('concurrent checkouts preserve stock, receipts and administrator changes', 
   });
   const preset = {
     titleKo: '테스트 품목', titleFr: 'Produit test', supplier: 'K커머셜', imageUrl: '', storage: 'ambient',
-    visible: true, retailCents: 450, packQty: 12, boxPriceTtcCents: 700, limitMode: 'manual',
+    visible: true, retailCents: 450, packQty: 12, boxPriceTtcCents: 700, limitMode: 'manual', plannedBoxes: 0,
     soldQty: 0, displayOrder: 1, bazaarEventId: fixtureEvent
   };
   const createProduct = async limit => {
@@ -447,6 +447,15 @@ test('concurrent checkouts preserve stock, receipts and administrator changes', 
   assert.equal((await repeated.get()).data().soldQty, 0);
 
   const edited = await createProduct(2);
+  const invalidEdit = await callTimed('bazaarAdmin', {
+    op: 'saveProduct', eventId: fixtureEvent, id: edited.id,
+    product: { ...preset, plannedBoxes: undefined, manualLimit: 1 }
+  }, staff.idToken);
+  assert.equal(invalidEdit.status, 400);
+  assert.deepEqual(invalidEdit.result.error, {
+    code: 'invalid-argument',
+    message: '수동 판매한도 방식은 발주 예정 박스 수와 판매한도를 모두 입력해 주세요.'
+  });
   const [saved, bought] = await Promise.all([
     callTimed('bazaarAdmin', { op: 'saveProduct', eventId: fixtureEvent, id: edited.id, product: { ...preset, manualLimit: 1 } }, staff.idToken),
     submit(buyer(edited))
