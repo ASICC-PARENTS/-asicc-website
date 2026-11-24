@@ -34,7 +34,8 @@ export function createMail(env, db, send = fetch) {
   async function providerSend(job, payload) {
     if (isCapture) return { ok: true, id: 'captured' };
     const to = env.BAZAAR_MODE === 'production' ? payload.to : testRecipient;
-    const common = { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(8000) };
+    // Workers supports manual redirects. Keep the credentials on the configured provider host.
+    const common = { method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(8000) };
     const response = provider === 'resend'
       ? await send('https://api.resend.com/emails', {
         ...common, headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json',
@@ -47,6 +48,7 @@ export function createMail(env, db, send = fetch) {
           headers: { idempotencyKey: job.providerKey }, subject: payload.subject,
           htmlContent: payload.html, textContent: payload.text, messageVersions: [{ to: [{ email: to }] }] })
       });
+    if (response.status >= 300 && response.status < 400) return { code: 'provider-rejected' };
     const result = await response.json().catch(() => ({}));
     if (response.ok) return { ok: true, id: result.id ?? result.messageId ?? result.messageIds?.[0] ?? 'accepted' };
     if (provider === 'brevo' && result.code === 'duplicate_parameter') return { ok: true, id: 'deduplicated' };
@@ -55,7 +57,10 @@ export function createMail(env, db, send = fetch) {
       const wait = Number(hint) * 1000 || Date.parse(hint) - Date.now() || 0;
       return { retry: Math.max(15 * minute, Math.min(24 * 60 * minute, wait)), code: 'provider-limit' };
     }
-    if (response.status >= 500 || response.status === 408 || response.status === 409) return { uncertain: true };
+    if (response.status >= 500 || response.status === 408 || response.status === 409) {
+      console.error('Bazaar mail provider uncertain HTTP status', response.status);
+      return { uncertain: true };
+    }
     if (response.status === 401 || response.status === 403) return { code: 'provider-access-denied' };
     return { code: 'provider-rejected' };
   }
@@ -134,7 +139,11 @@ export function createMail(env, db, send = fetch) {
       }
       result ??= await providerSend(job, job.payload);
     }
-    catch { result = { uncertain: true }; }
+    catch (error) {
+      const name = /^[A-Za-z]{1,24}$/.test(error?.name) ? error.name : 'Error';
+      console.error('Bazaar mail transport uncertain', name);
+      result = { uncertain: true };
+    }
     return db.runTransaction(async tx => {
       const current = (await tx.get(ref)).data();
       if (current?.lease !== lease) return false;

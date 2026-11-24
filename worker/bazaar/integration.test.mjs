@@ -208,6 +208,8 @@ test('B2 transport mock isolates object keys and exposes posted photos only', as
     const path = new URL(url).pathname;
     assert.match(path, /^\/test-bucket\/bazaar\/test\/photos\/[a-f0-9]{64}$/);
     assert.match(init.headers.Authorization, /^AWS4-HMAC-SHA256 /);
+    assert.equal(init.redirect, 'manual');
+    if (init.method !== 'PUT') assert.equal(Object.hasOwn(init, 'body'), false);
     if (init.method === 'PUT') objects.set(path, { bytes: init.body, type: init.headers['content-type'] });
     const entry = objects.get(path);
     return new Response(init.method === 'GET' ? entry?.bytes : null, {
@@ -239,6 +241,7 @@ test('Brevo retries quota-limited delivery with one idempotency key and a test-o
     BAZAAR_MODE: 'test', MAIL_MODE: 'api', MAIL_PROVIDER: 'brevo', BAZAAR_MAIL_FROM: 'sender@example.test',
     BAZAAR_MAIL_API_KEY: 'test-api-key', TEST_MAIL_TO: 'sink@example.test'
   }, db, async (_url, init) => {
+    assert.equal(init.redirect, 'manual');
     const { headers, messageVersions } = JSON.parse(init.body);
     observed.push(headers.idempotencyKey);
     assert.deepEqual(messageVersions[0].to, [{ email: 'sink@example.test' }]);

@@ -7,6 +7,14 @@ const types = ['image/jpeg', 'image/png', 'image/webp'];
 const hash = data => createHash('sha256').update(data).digest('hex');
 const hmac = (key, data) => createHmac('sha256', key).update(data);
 
+async function storageError(method, response) {
+  const body = method === 'HEAD' ? '' : await response.text().catch(() => '');
+  const providerCode = body.match(/<Code>([A-Za-z0-9_-]{1,64})<\/Code>/)?.[1];
+  const error = new Error('B2 photo upload failed');
+  error.code = ['B2', method, response.status, providerCode].filter(Boolean).join(':');
+  return error;
+}
+
 function typeOf(bytes) {
   if (bytes.subarray(0, 3).equals(Buffer.from('ffd8ff', 'hex'))) return types[0];
   if (bytes.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))) return types[1];
@@ -24,7 +32,9 @@ export function createPhotos(env, db, origin, ctx, fetcher = fetch) {
     if (endpoint.protocol !== 'https:' || !/^s3\.[a-z0-9-]+\.backblazeb2\.com$/.test(endpoint.host)
       || endpoint.pathname !== '/' || endpoint.username || endpoint.password || endpoint.search
       || !/^[A-Za-z0-9-]{6,63}$/.test(env.B2_BUCKET) || !env.B2_KEY_ID || !env.B2_APPLICATION_KEY) {
-      throw new Error('Invalid B2 settings');
+      const error = new Error('Invalid B2 settings');
+      error.code = 'B2:invalid-settings';
+      throw error;
     }
     const path = `/${env.B2_BUCKET}/${storagePrefix}/${digest}`;
     const region = endpoint.host.split('.')[1];
@@ -41,7 +51,7 @@ export function createPhotos(env, db, origin, ctx, fetcher = fetch) {
     const signature = hmac(signingKey, ['AWS4-HMAC-SHA256', date, scope, hash(signed)].join('\n')).digest('hex');
     delete headers.host;
     headers.Authorization = `AWS4-HMAC-SHA256 Credential=${env.B2_KEY_ID}/${scope}, SignedHeaders=${names.join(';')}, Signature=${signature}`;
-    return fetcher(endpoint.origin + path, { method, headers, body: bytes, redirect: 'error' });
+    return fetcher(endpoint.origin + path, { method, headers, ...(bytes ? { body: bytes } : {}), redirect: 'manual' });
   }
 
   function preview(value) {
@@ -76,8 +86,10 @@ export function createPhotos(env, db, origin, ctx, fetcher = fetch) {
         const contentType = typeOf(bytes);
         digest = hash(bytes);
         const existing = await storage('HEAD', digest);
-        if (!existing.ok && (existing.status !== 404 || !(await storage('PUT', digest, bytes, contentType)).ok)) {
-          throw new Error('B2 photo upload failed');
+        if (!existing.ok && existing.status !== 404) throw await storageError('HEAD', existing);
+        if (existing.status === 404) {
+          const upload = await storage('PUT', digest, bytes, contentType);
+          if (!upload.ok) throw await storageError('PUT', upload);
         }
       }
       const photoPath = `bazaar-photos/${eventId}/${productId}/${digest}`;

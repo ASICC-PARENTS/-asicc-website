@@ -512,7 +512,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       try{return await storePhoto(eventId,id,data);}
       catch(error){
         if(error instanceof HttpsError)throw error;
-        console.error('Bazaar photo storage failed',error.code);
+        console.error('Bazaar photo storage failed',error.code??error.name);
         throw new HttpsError('failed-precondition','사진을 저장하지 못했습니다. 기존 사진과 행사 자료는 유지됩니다.');
       }
     }
