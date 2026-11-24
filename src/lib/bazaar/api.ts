@@ -16,7 +16,14 @@ if(emulator&&!existing){
 }
 
 export function showBazaarTestLogin(container: HTMLElement) {
-  if (!bazaarTestMode) return false;
+  if (!bazaarTestMode) {
+    if (!local) return false;
+    const warning=document.createElement('p');
+    warning.setAttribute('role','alert');
+    warning.textContent='바자회 테스트 설정이 활성화되지 않았습니다. 일반 회원 계정을 사용하지 마세요. 명령창에서 npm run dev:bazaar로 실행해 주세요.';
+    container.replaceChildren(warning);
+    return true;
+  }
   const form = document.createElement('form');
   form.innerHTML = '<label>테스트 관리자 이메일 <input name="email" type="email" autocomplete="username" required></label> '
     + '<label>비밀번호 <input name="password" type="password" autocomplete="current-password" required></label> '
