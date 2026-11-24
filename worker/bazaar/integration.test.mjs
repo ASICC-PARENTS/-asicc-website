@@ -83,6 +83,8 @@ test('Worker API with Firebase emulators preserves checkout, admin, inventory, e
     beneficiary: 'ASICC', contactEmail: 'contact@example.test', iban: 'FR7612345678901234567890123'
   };
   await eventRef.set(event);
+  const emptyFinancials=await admin('eventFinancials',{eventId});
+  assert.deepEqual(emptyFinancials.expenses,[]);
   const directPhoto = await fetch(`${origin}/api/bazaarAdmin?eventId=${eventId}&id=${productId}`, {
     method: 'POST', headers: { 'Content-Type': 'application/octet-stream', Authorization: `Bearer ${staff.idToken}` },
     body: new Uint8Array([1, 2, 3])
@@ -174,6 +176,17 @@ test('Worker API with Firebase emulators preserves checkout, admin, inventory, e
   await admin('savePurchaseOrder', purchase);
   await admin('endEvent', { eventId, confirm: true });
   assert.equal((await call('bazaarPublic', { eventId })).event.status, 'closed');
+  const savedExpenses=await admin('saveEventExpenses',{eventId,revision:0,expenses:[{id:'expense-test-0001',name:'테스트 지출',amountCents:1234}]});
+  assert.equal(savedExpenses.revision,1);
+  const closedFinancials=await admin('eventFinancials',{eventId});
+  assert.equal(closedFinancials.expenses[0].amountCents,1234);
+  assert.equal(closedFinancials.finalizedAt,null);
+  await admin('finalizeEventFinancials',{eventId,action:'finalize',confirm:true});
+  const finalFinancials=await admin('eventFinancials',{eventId});
+  assert.ok(finalFinancials.finalizedAt);
+  await admin('saveEventExpenses',{eventId,revision:1,expenses:[]},412);
+  await admin('finalizeEventFinancials',{eventId,action:'reopen',confirm:true});
+  assert.equal((await admin('eventFinancials',{eventId})).finalizedAt,null);
   await call('bazaarCreateOrder',{...buyer,requestId:id()},undefined,412);
   assert.equal((await admin('savePurchaseOrder', { ...purchase, revision: 1, confirmClosedEdit: true })).revision, 2);
   await admin('finalizeUnpaid', { eventId, confirm: true },400);

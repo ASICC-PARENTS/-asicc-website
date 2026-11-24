@@ -4,6 +4,7 @@ compatibility_date = "2026-11-20"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 preview_urls = false
+keep_vars = true
 
 [vars]
 BAZAAR_MODE = "test"

@@ -53,3 +53,23 @@ export function eventViewModel(event, items=[], orders=[]) {
     poDrafts:Object.create(null), poMeta:Object.create(null),
   };
 }
+
+export function productOrderSummary(products=[], orders=[]) {
+  const rows=new Map();
+  for(const product of products){
+    const key=product.id||`legacy:${product.ko||product.fr||''}`;
+    rows.set(key,{id:key,ko:product.ko||'',fr:product.fr||'',photo:product.photo||'',price:product.sale===''?null:Number(product.sale)||0,qty:0,amountCents:0,orders:[]});
+  }
+  for(const order of orders){
+    if(order.status==='canceled')continue;
+    for(const item of order.items||[]){
+      const key=item[3]||`legacy:${item[0]||''}`;
+      const row=rows.get(key)||{id:key,ko:item[0]||'',fr:item[4]?.titleFr||'',photo:item[4]?.imageUrl||'',price:null,qty:0,amountCents:0,orders:[]};
+      const qty=Math.max(0,Number(item[1])||0),priceCents=Math.max(0,Math.round((Number(item[2])||0)*100));
+      row.qty+=qty;row.amountCents+=qty*priceCents;
+      row.orders.push({id:order.id,ref:order.ref,name:order.name,email:order.email,qty,amountCents:qty*priceCents});
+      rows.set(key,row);
+    }
+  }
+  return [...rows.values()];
+}

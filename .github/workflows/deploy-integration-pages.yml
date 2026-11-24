@@ -45,6 +45,11 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: b941b206ccc2aad94ae9b83ada2bc889
+      - name: Deploy isolated test Bazaar Worker
+        run: npx wrangler@4 deploy --config worker/bazaar/wrangler.test.toml
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_WORKERS_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: b941b206ccc2aad94ae9b83ada2bc889
       - name: Deploy to Cloudflare Pages
         run: npx wrangler@4 pages deploy dist --project-name=asicc-integration-test
         env:
