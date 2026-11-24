@@ -99,24 +99,28 @@ function pastModal(){
 }
 $('#global-past').onclick=pastModal;
 function draftModal(resume=false){
- const existing=resume?model.draft:null;
- modal(existing?'새 바자회 · 임시저장':'새 바자회 만들기','기본 상품 목록에서 독립된 행사 상품을 복사합니다.',
- '<div class="form-grid"><label class="field wide">행사명<input id="event-name" data-edit="'+Boolean(existing)+'" value="'+esc(existing?.name||'')+'"></label><label class="field">주문 마감 (프랑스 현지시간)<input type="datetime-local" id="event-order" value="'+esc(existing?.orderDeadline||'')+'"></label><label class="field">송금 마감 (프랑스 현지시간)<input type="datetime-local" id="event-transfer" value="'+esc(existing?.transferDeadline||'')+'"></label><label class="field wide">픽업 안내 · 한국어<textarea id="event-pickup-ko">'+esc(existing?.pickupKo||'')+'</textarea></label><label class="field wide">Retrait · français<textarea id="event-pickup-fr">'+esc(existing?.pickupFr||'')+'</textarea></label><label class="field wide">행사명 · français<input id="event-name-fr" value="'+esc(existing?.raw.nameFr||'')+'"></label><label class="field">수취인<input id="event-beneficiary" value="'+esc(existing?.raw.beneficiary||'')+'"></label><label class="field">IBAN<input id="event-iban" value="'+esc(existing?.raw.iban||'')+'"></label></div>',
- '<button class="btn neutral" data-action="close">취소</button><button class="btn primary" data-action="create-draft">임시저장</button>');
+ const existing=resume?selectedEvent():null, active=existing?.status==='active';
+ const field=(id,label,value,type='text')=>'<label class="field">'+label+'<input type="'+type+'" id="'+id+'" value="'+esc(value||'')+'"></label>';
+ const area=(id,label,value,max)=>'<label class="field wide">'+label+'<textarea id="'+id+'" maxlength="'+max+'">'+esc(value||'')+'</textarea></label>';
+ const date=(id,label,value)=>'<div><b>'+label+' (파리)</b><div class="actions">'+field(id+'-date','날짜',value?.slice(0,10),'date')+field(id+'-time','시간',value?.slice(11,16),'time')+'</div></div>';
+ modal(existing?'행사 설정':'새 바자회 만들기','행사 기본 정보 및 구매자 안내',
+ '<div class="form-grid">'+field('event-name','행사명 · 한국어',existing?.name)+field('event-name-fr','행사명 · 프랑스어',existing?.raw.nameFr)+area('event-intro-ko','행사 소개 · 한국어',existing?.raw.introKo,1000)+area('event-intro-fr','행사 소개 · 프랑스어',existing?.raw.introFr,1000)+date('event-order','주문 마감',existing?.orderDeadline)+date('event-transfer','송금 마감',existing?.transferDeadline)+area('event-pickup-ko','픽업 안내 · 한국어',existing?.pickupKo,500)+area('event-pickup-fr','픽업 안내 · 프랑스어',existing?.pickupFr,500)+field('event-beneficiary','수취인',existing?.raw.beneficiary)+field('event-iban','IBAN (FR · 27자리)',existing?.raw.iban)+'</div>',
+ '<button class="btn neutral" data-action="close">취소</button><button class="btn primary" data-action="create-draft">'+(active?'설정 저장':'임시저장')+'</button>');
+ $('#event-name').dataset.edit=String(!!existing);
+ $('#event-iban').addEventListener('input',ev=>{ev.target.value=ev.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,27).match(/.{1,4}/g)?.join(' ')||'';});
 }
 $('#global-new').onclick=()=>draftModal();
 function renderMain(){
- let e=selectedEvent(),body='';
- if(!e)body='<section class="panel empty"><i>▦</i><h2>진행 중인 바자회가 없습니다.</h2><p class="muted">새 바자회를 만들거나 지난 행사를 확인할 수 있습니다.</p><a class="btn neutral" href="'+esc(url('products', '')+'?catalog=1')+'">기본 상품 목록 관리</a></section>';
- else{
-  body=eventHead();
-  if(e.status==='draft')body+='<section class="panel pad">'+banner('기본 상품 목록을 복사했습니다. 발행 전에는 방문객에게 공개되지 않습니다.')+'<div class="actions"><a class="btn primary" href="'+link('products')+'">상품 편집하기</a><button class="btn neutral" data-action="edit-draft">행사 설정</button><button class="btn neutral" data-action="mode-active">현재 행사 보기</button><button class="btn neutral" data-action="delete-draft">임시저장 삭제</button><button class="btn primary" data-action="publish-draft">발행</button></div></section>';
-  else body+='<section class="panel pad"><h3>'+(current()?'지난 바자회 기록':'현재 바자회 관리')+'</h3><p class="muted small">필요한 업무 탭을 선택하세요.</p>'+tabs()+'<div class="tabbody actions"><a class="btn neutral" href="'+link('products')+'">상품 관리</a><a class="btn neutral" href="'+link('orders')+'">주문 확인</a><a class="btn neutral" href="'+link('settlement')+'">정산·발주</a>'+(current()?'<button class="btn neutral" data-action="mode-active">현재 바자회로 돌아가기</button>':'<button class="btn neutral" data-action="end-event">행사 종료</button>')+'</div></section>';
- }
- const resume=model.drafts.filter(d=>d.id!==e?.id).map(d=>'<a class="btn neutral" href="'+esc(url('',d.id))+'">'+esc(d.nameKo)+' · 임시저장 재개</a>').join('');
- const settings='<a class="btn neutral" href="'+esc(root.dataset.base+'legacy/')+'">행사 안내·계좌 설정 및 최종 입금 대조</a>';
- const publicUrl=e&&e.status!=='draft'?root.dataset.base.replace(/admin\/$/,'')+'?event='+encodeURIComponent(e.id):'';
- app.innerHTML=body+'<div class="actions">'+resume+settings+(publicUrl?'<a class="btn neutral" href="'+esc(publicUrl)+'">공개 행사 주소 열기</a><button class="btn neutral" data-action="copy-event" data-url="'+esc(publicUrl)+'">행사 주소 복사</button>':'')+'</div>';
+ let e=selectedEvent(),body=e?eventHead():'<section class="panel empty"><h2>진행 중인 바자회가 없습니다.</h2><p>새 바자회를 만들거나 임시저장 행사를 선택하세요.</p></section>';
+ body+='<section class="panel pad"><div class="actions"><button class="btn neutral" data-action="draft-list">임시저장 행사 보기 ('+model.drafts.length+')</button><a class="btn neutral" href="'+esc(url('products','')+'?catalog=1')+'">기본 상품 목록 관리</a>'+(e&&e!==model.active?'<button class="btn neutral" data-action="mode-active">현재 행사로 돌아가기</button>':'')+'</div></section>';
+ if(e){
+ const draft=e.status==='draft',past=e.status==='past';
+ body+='<section class="panel pad"><div class="toolbar"><h3>행사 관리</h3><div class="actions">'+(!past?'<button class="btn neutral" data-action="edit-draft">행사 설정</button><button class="btn neutral" data-action="preview-shop">구매자 화면 미리보기</button>':'')+(draft?'<button class="btn danger" data-action="delete-draft">임시저장 삭제</button><button class="btn primary" data-action="publish-draft">발행</button>':past?'':'<button class="btn danger" data-action="end-event">행사 종료</button>')+'</div></div>'+tabs()+'</section>';
+ if(!draft){
+ const relative='bazaar/?event='+encodeURIComponent(e.id),publicUrl=root.dataset.base.replace(/admin\/$/,'')+'?event='+encodeURIComponent(e.id);
+ body+='<section class="panel pad"><h3>홈페이지 배너 연결용 주소</h3><p class="muted small">배너 링크 칸에 입력하면 홈페이지 언어에 맞게 열립니다.</p><div class="actions"><code>'+esc(relative)+'</code><button class="btn neutral" data-action="copy-banner" data-url="'+esc(relative)+'">배너 링크 복사</button><a class="btn neutral" href="'+esc(publicUrl)+'" target="_blank" rel="noopener">공개 행사 열기</a><button class="btn neutral" data-action="copy-event" data-url="'+esc(publicUrl)+'">공개 주소 복사</button></div></section>';
+ }}
+ app.innerHTML=body;
 }
 let productView=new URLSearchParams(location.search).has('catalog')?'catalog':'event',productFilter='';
 function unit(p){return Number(p.pack)>0?Number(p.buy)/Number(p.pack):0}
@@ -155,7 +159,7 @@ function productChange(el){const arr=productView==='catalog'?store.catalog:store
  }
  $('#product-status').textContent='● 저장하지 않은 변경사항이 있습니다.';}
 const orderSources={web:'웹 주문',phone:'전화 주문',additional:'추가 구매'};
-const canManageOrder=()=>canReconcile()&&!selectedEvent().raw.finalizedAt;
+const canManageOrder=()=>selectedEvent()?.status!=='draft'&&canReconcile()&&!selectedEvent().raw.finalizedAt;
 function orderSource(order){return orderSources[order.source]||orderSources.web;}
 const orderFields=['주문번호','주문자','주문일시','연락처','이메일','상품 주문내역','총 주문액','송금 신고','은행 입금 확인','비고','주문 상태','관리'];
 function filteredOrders(){return store.orders.filter(o=>(store.orderFilter==='all'||(store.orderFilter==='pending'?o.status==='reported':o.status===store.orderFilter))&&[o.ref,o.name,o.phone,o.email,o.memo,orderSource(o),o.parentOrderRef,...o.items.map(i=>i[0])].join(' ').toLowerCase().includes(store.search.toLowerCase())).sort((a,b)=>store.orderSort==='amount'?total(b)-total(a):store.orderSort==='name'?a.name.localeCompare(b.name,'ko'):store.orderSort==='old'?store.orders.indexOf(b)-store.orders.indexOf(a):store.orders.indexOf(a)-store.orders.indexOf(b))}
@@ -293,13 +297,15 @@ function poChange(el){
 function previewPO(v){let ps=makePO(v),meta=poMeta(v);modal('구매발주서 / Bon de commande',v,'<div class="po-preview"><div class="toolbar"><div><div class="brand" style="font-size:17px;color:var(--wine)">ASICC</div><p class="tiny muted">Association de la Section Internationale Coréenne à Courbevoie</p><p class="tiny">contact@asicc-parents.fr</p></div><div class="small" style="text-align:right">발주처: ASICC<br>공급업체: <b>'+esc(v)+'</b><br>발주번호: '+esc(meta.number)+'<br>발주일: '+esc(meta.date||'')+'</div></div><h2 style="margin-top:26px">BON DE COMMANDE<br><small style="font-size:12px;letter-spacing:0;font-weight:500">구매발주서</small></h2><p>'+metadata.slice(2).filter(([key])=>meta[key]).map(([key,label])=>esc(label)+': '+esc(meta[key])).join('<br>')+'</p><table><thead><tr><th>품목</th><th>수량</th><th>단위</th><th>매입 단가 TTC</th><th>합계 TTC</th></tr></thead><tbody>'+ps.map(p=>'<tr><td>'+esc(p.name)+'</td><td>'+p.qty+'</td><td>'+esc(p.unit)+'</td><td>'+money(p.price)+'</td><td><b>'+money(p.amount)+'</b></td></tr>').join('')+'</tbody></table><div class="summary-bar"><b>총 매입액 TTC</b><strong>'+money(poTotal(v))+'</strong></div><div class="notice">납품 주소·예정일·담당자·SIRET는 확인된 공식 정보로 실제 생성할 때 입력합니다.<br>공급업체용 문서에 고객 판매가격·협회 수익률·고객 개인정보를 포함하지 않습니다.</div></div>','<button class="btn neutral" data-action="close">수정 화면으로</button><button class="btn neutral" data-action="one-pdf">PDF 다운로드</button><button class="btn neutral" data-action="one-excel">Excel 다운로드</button>')}
 function addPOModal(){modal('발주 품목 추가',store.vendor+' · 수동 추가','<div class="form-grid"><label class="field wide">품목명<input id="po-new-name" placeholder="예: 추가 구매 김치"></label><label class="field">발주수량<input id="po-new-qty" type="number" min="1" value="1"></label><label class="field">단위<select id="po-new-unit"><option>박스</option><option>개</option><option>봉</option><option>세트</option></select></label><label class="field">매입 단가 TTC (€)<input id="po-new-price" type="number" min="0" step="0.01" value="0"></label></div>','<button class="btn neutral" data-action="close">취소</button><button class="btn primary" data-action="po-add-save">발주서에 추가</button>')}
 function rerender(){
- if(page==='main'||(selectedEvent()?.status==='draft'&&page!=='products')||(!selectedEvent()&&!(page==='products'&&productView==='catalog'))){renderMain();return;}
+ if(page==='main'||(!selectedEvent()&&!(page==='products'&&productView==='catalog'))){renderMain();return;}
  if(page==='products')renderProducts();
  if(page==='orders'){
   renderOrders();
+  const ev=selectedEvent();const bar=document.createElement('div');bar.className='footbar';bar.innerHTML='<div class="actions"><button class="btn neutral" data-action="refresh-orders">새로고침</button><button class="btn neutral" data-action="csv-orders">주문 CSV 다운로드</button></div>'+(canReconcile()&&ev.status!=='draft'&&!ev.raw.reconciledAt?'<button class="btn danger" data-action="finalize-unpaid">최종 입금 대조 · 미입금 일괄 취소</button>':'');app.querySelector('.tabbody').append(bar);
   mountMailManager(app.querySelector('.tabbody'),selectedEvent(),store.orders,request,canManageOrder());
  }
  if(page==='settlement')renderSettlement();
+ if(page==='orders'&&selectedEvent()?.status==='draft'){app.querySelectorAll('[data-action=manual-order]').forEach(b=>b.disabled=true);}
  if(page==='products'&&productView==='catalog')app.querySelectorAll('[data-key=boxes],[data-key=manualLimit],[data-key=limitMode]').forEach(el=>el.disabled=true);
  if(page==='products'&&current()&&productView!=='catalog'||page==='settlement'&&!canEditPurchase()){
   app.querySelectorAll(page==='products'?'[data-prod],[data-toggle]':
@@ -503,7 +509,13 @@ async function savePurchase(confirmOrder){
 function handleScreenAction(action,button){
  if(['all-pdf','all-excel','one-pdf','one-excel'].includes(action)){run(button,async()=>{assertConfirmedScope();exportAction(action);});return true;}
  const e=selectedEvent();
+ if(action==='copy-banner'){run(button,()=>navigator.clipboard.writeText(button.dataset.url));return true;}
+ if(action==='draft-list'){modal('임시저장 행사 선택','',model.drafts.map(d=>'<p><a class="btn neutral" href="'+esc(url('',d.id))+'">'+esc(d.nameKo)+'</a></p>').join('')||'임시저장 행사가 없습니다.');return true;}
+ if(action==='preview-shop'){const e=selectedEvent();modal('구매자 화면 미리보기','관리자 전용 · 실제 주문 불가','<h2>'+esc(e.name)+'</h2><p style="white-space:pre-line">'+esc(e.raw.introKo)+'</p><p>주문 마감 '+esc(e.orderDeadline)+' · 송금 마감 '+esc(e.transferDeadline)+'</p><p>'+esc(e.pickupKo)+'</p><div class="sheet"><table style="min-width:600px"><thead><tr><th>사진</th><th>상품</th><th>가격</th><th>수량</th><th>장바구니</th></tr></thead><tbody>'+e.products.filter(p=>p.active).map(p=>'<tr><td>'+(p.photo?'<img width="48" src="'+esc(p.photo)+'" alt="">':'📦')+'</td><td>'+esc(p.ko)+'<p>'+esc(p.koDesc)+'</p></td><td>'+money(p.sale)+'</td><td>1</td><td><button disabled>담기</button></td></tr>').join('')+'</tbody></table></div>','<button class="btn neutral" data-action="close">닫기</button>');return true;}
  if(action==='copy-event'){run(button,()=>navigator.clipboard.writeText(new URL(button.dataset.url,location.origin).href));return true;}
+ if(action==='refresh-orders'){run(button,load);return true;}
+ if(action==='csv-orders'){const rows=[['주문번호','성함','전화','이메일','품목','금액','상태'],...store.orders.map(o=>[o.ref,o.name,o.phone,o.email,o.items.map(i=>i[0]+' ×'+i[1]).join(' / '),total(o).toFixed(2),statuses[o.status][0]])];const csv='\uFEFF'+rows.map(row=>row.map(v=>'"'+String(v??'').replace(/^[=+@-]/,"'if(action==='edit-draft'){").replaceAll('"','""')+'"').join(';')).join('\r\n');const uri=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=uri;a.download='ASICC_orders.csv';a.click();URL.revokeObjectURL(uri);return true;}
+ if(action==='finalize-unpaid'){if(prompt('은행 최종 대조 완료 후 미입금 주문을 취소합니다. 계속하려면 최종 확인을 입력하세요.')==='최종 확인')run(button,async()=>{let count=0,result;do{result=await request('finalizeUnpaid',{eventId:e.id,confirm:true});count+=result.canceled||0;}while(result.pending);alert(count+'건 취소 완료');location.href=url('',e.id);});return true;}
  if(action==='edit-draft'){draftModal(true);return true;}
  if(action==='delete-draft'){
   if(e?.status==='draft'&&confirm('임시저장을 삭제할까요?'))run(button,async()=>{
@@ -573,13 +585,14 @@ function handleModalAction(action,button){
   run(button,async()=>{
    const nameKo=$('#event-name').value.trim(),nameFr=$('#event-name-fr').value.trim();
    if(!nameKo||!nameFr)throw new Error('한국어와 프랑스어 행사명을 입력해 주세요.');
-   const fields={nameKo,nameFr,orderCutoff:parisToIso($('#event-order').value),transferCutoff:parisToIso($('#event-transfer').value),
+   const fields={nameKo,nameFr,orderCutoff:parisToIso($('#event-order-date').value&&$('#event-order-time').value?$('#event-order-date').value+'T'+$('#event-order-time').value:''),transferCutoff:parisToIso($('#event-transfer-date').value&&$('#event-transfer-time').value?$('#event-transfer-date').value+'T'+$('#event-transfer-time').value:''),introKo:$('#event-intro-ko').value,introFr:$('#event-intro-fr').value,
     pickupKo:$('#event-pickup-ko').value,pickupFr:$('#event-pickup-fr').value,
     beneficiary:$('#event-beneficiary').value,iban:$('#event-iban').value};
    if(fields.iban&&!/^FR\d{2}[A-Z0-9]{23}$/.test(fields.iban.replaceAll(' ','').toUpperCase()))throw new Error('IBAN을 확인해 주세요.');
    if(fields.orderCutoff&&fields.transferCutoff&&fields.orderCutoff>=fields.transferCutoff)
     throw new Error('송금 마감은 주문 마감 이후로 설정해 주세요.');
-   const existing=$('#event-name').dataset.edit==='true'?model.draft:null;
+   const existing=$('#event-name').dataset.edit==='true'?selectedEvent():null;
+   if(existing?.status==='active'){await request('saveEvent',{eventId:existing.id,...fields});closeModal();await load();return;}
    const draft=existing?{id:existing.id,updatedAt:existing.updatedAt,event:existing.raw,items:existing.products.map(productPayload)}:(await request('createDraft')).draft;
    await request('saveDraft',{id:draft.id,updatedAt:draft.updatedAt,event:{...draft.event,...fields},items:draft.items});
    location.href=url('',draft.id);
