@@ -40,8 +40,21 @@ function draw(){
 }
 async function change(action:string,ackNoTransfer=false){
  try{panel.textContent=t('처리 중…','Traitement…');const r=await buyerAction({id,token,action,ackNoTransfer});order=r.order;draw();}
- catch(err:any){alert(err?.message||'Error');await load();}
+ catch(err:any){
+  alert(err?.code==='functions/failed-precondition'
+   ?t(err.message,'Cette commande ne peut plus être modifiée en ligne. Vérifiez son état ou contactez l’association.')
+   :t('잠시 후 주문 상태를 다시 확인해 주세요.','Veuillez vérifier l’état de la commande dans un instant.'));
+  await load();
+ }
 }
-async function load(){if(!id||!token){panel.textContent=t('이메일의 주문 확인 링크를 이용해 주세요.','Utilisez le lien de suivi figurant dans votre e-mail.');return;}try{const r=await buyerAction({id,token,action:'view'});order=r.order;draw();}catch(err:any){panel.textContent=err?.message||'Error';}}
+async function load(){
+ if(!id||!token){panel.textContent=t('이메일의 주문 확인 링크를 이용해 주세요.','Utilisez le lien de suivi figurant dans votre e-mail.');return;}
+ try{const r=await buyerAction({id,token,action:'view'});order=r.order;draw();}
+ catch(err:any){
+  panel.textContent=['functions/invalid-argument','functions/permission-denied'].includes(err?.code)
+   ?t('주문 확인 링크를 다시 확인해 주세요.','Veuillez vérifier votre lien de suivi.')
+   :t('주문을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.','Impossible de charger la commande. Veuillez réessayer dans un instant.');
+ }
+}
 load();
 </script>
