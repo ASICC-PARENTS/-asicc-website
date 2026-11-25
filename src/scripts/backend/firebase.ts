@@ -36,7 +36,6 @@ export function createFirebaseBackend(config: FirebaseOptions): Backend {
     mode: 'firebase',
     onAuth(cb) { onAuthStateChanged(auth, (u) => cb(toUser(u))); },
     async signUp(email, password, lang) {
-      if(import.meta.env.PUBLIC_ASICC_INTEGRATION_TEST==='true')throw new AppError('test-email-disabled');
       auth.languageCode = lang;
       const cred = await wrap(createUserWithEmailAndPassword(auth, email.trim(), password));
       await wrap(sendEmailVerification(cred.user, { url: back(lang, 'membres/') }));
@@ -48,12 +47,10 @@ export function createFirebaseBackend(config: FirebaseOptions): Backend {
     },
     async signOut() { await signOut(auth); },
     async resetPassword(email, lang) {
-      if(import.meta.env.PUBLIC_ASICC_INTEGRATION_TEST==='true')throw new AppError('test-email-disabled');
       auth.languageCode = lang;
       await wrap(sendPasswordResetEmail(auth, email.trim(), { url: back(lang, 'membres/login/') }));
     },
     async resendVerification(lang) {
-      if(import.meta.env.PUBLIC_ASICC_INTEGRATION_TEST==='true')throw new AppError('test-email-disabled');
       if (!auth.currentUser) return;
       auth.languageCode = lang;
       await wrap(sendEmailVerification(auth.currentUser, { url: back(lang, 'membres/') }));

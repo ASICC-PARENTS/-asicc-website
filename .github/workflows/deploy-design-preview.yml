@@ -1,0 +1,37 @@
+name: Deploy ASICC design preview
+
+on:
+  push:
+    branches: [design/asicc-ui]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: asicc-design-preview
+  cancel-in-progress: true
+
+jobs:
+  design-preview:
+    if: github.ref == 'refs/heads/design/asicc-ui'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build the design site against test services
+        run: npm run build:integration
+        env:
+          ASICC_DESIGN_PREVIEW: 'true'
+          CF_PAGES_BRANCH: design/asicc-ui
+          PUBLIC_ASICC_BAZAAR_TEST_API_KEY: AIzaSyBKYgkMrEVeGwmFtgxgiQMzQCG8UWV5Ego
+          PUBLIC_ASICC_BAZAAR_TEST_APP_ID: 1:678821978206:web:a5d3bc7303fafe253dd4cf
+      - name: Upload the design branch only
+        run: npx wrangler@4 pages deploy dist --project-name=asicc-integration-test --branch=design/asicc-ui
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: b941b206ccc2aad94ae9b83ada2bc889

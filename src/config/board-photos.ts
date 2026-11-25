@@ -3,4 +3,7 @@
  * Never put Backblaze credentials in this file.
  */
 export const BOARD_PHOTO_API = import.meta.env.PUBLIC_ASICC_INTEGRATION_TEST === 'true'
-  ? '' : 'https://asicc-media-api.laniya82.workers.dev';
+  ? (import.meta.env.PUBLIC_ASICC_BAZAAR_WORKER_URL || '') : 'https://asicc-media-api.laniya82.workers.dev';
+
+export const MEMBER_NOTIFICATION_API = import.meta.env.PUBLIC_ASICC_INTEGRATION_TEST === 'true'
+  ? '' : BOARD_PHOTO_API;

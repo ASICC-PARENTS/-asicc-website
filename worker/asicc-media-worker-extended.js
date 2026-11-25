@@ -221,6 +221,9 @@ async function signingKey(secret,date,region){
   k=await hmac(k,region);k=await hmac(k,'s3');k=await hmac(k,'aws4_request');return k;
 }
 async function b2Request(env,method,key,bytes=null,mime=null){
+  if(env.BAZAAR_MODE==='test'&&env.FIREBASE_PROJECT_ID==='asicc-bazaar-test'){
+    key='bazaar/test/photos/member-media/'+key;
+  }
   const endpoint=String(env.B2_S3_ENDPOINT||'').replace(/\/$/,'');
   const parsed=new URL(endpoint);
   if(parsed.protocol!=='https:'||!/^s3\.[a-z0-9-]+\.backblazeb2\.com$/.test(parsed.hostname)||parsed.pathname!=='/')throw Error('Invalid B2 endpoint');

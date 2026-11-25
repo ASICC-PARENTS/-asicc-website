@@ -103,7 +103,7 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
   import { getFirestore,doc,getDoc,getDocs,collection,query,where,setDoc,updateDoc,writeBatch,serverTimestamp } from 'firebase/firestore';
   import {dmAllowed,ageOn,type AccountAccess} from '../../../scripts/members/member-access';
   import { firebaseConfig } from '../../../firebase-config';
-  import { BOARD_PHOTO_API } from '../../../config/board-photos';
+  import { MEMBER_NOTIFICATION_API } from '../../../config/board-photos';
   const root=document.querySelector<HTMLElement>('#profile-root');
   const fr=root?.dataset.lang==='fr';
   const tr=(ko:string,french:string)=>fr?french:ko;
@@ -248,7 +248,7 @@ const say=(txt:string,bad=false)=>{if(status){status.textContent=txt;status.styl
       await setDoc(doc(db,'memberWithdrawalRequests',uid),{
         uid,name:profile.name,email:profile.email,status:'pending',requestedAt:serverTimestamp()
       });
-      try{const endpoint=BOARD_PHOTO_API.trim().replace(/\/$/,'');if(endpoint)await fetch(endpoint+'/api/notify',{method:'POST',headers:{Authorization:'Bearer '+await getIdToken(auth.currentUser!), 'Content-Type':'application/json'},body:JSON.stringify({kind:'withdrawal',id:uid})});}catch(error){console.warn('Email not configured',error);}
+      try{const endpoint=MEMBER_NOTIFICATION_API.trim().replace(/\/$/,'');if(endpoint)await fetch(endpoint+'/api/notify',{method:'POST',headers:{Authorization:'Bearer '+await getIdToken(auth.currentUser!), 'Content-Type':'application/json'},body:JSON.stringify({kind:'withdrawal',id:uid})});}catch(error){console.warn('Email not configured',error);}
       say(tr('탈퇴 요청이 운영진에게 전달됐습니다.','Votre demande a été envoyée aux administrateurs.'));
       await loadWithdrawalState();
     }catch(e){
@@ -268,7 +268,7 @@ const say=(txt:string,bad=false)=>{if(status){status.textContent=txt;status.styl
       if(!old.exists())await setDoc(ref,{uid,...request});
       else if(old.data().status==='rejected')await updateDoc(ref,request);
       else{say(tr('이미 심사 중이거나 승인된 신청이 있습니다.','Une demande est déjà en cours ou traitée.'),true);return;}
-      try{const endpoint=BOARD_PHOTO_API.trim().replace(/\/$/,'');if(endpoint)await fetch(endpoint+'/api/notify',{method:'POST',headers:{Authorization:'Bearer '+await getIdToken(auth.currentUser!), 'Content-Type':'application/json'},body:JSON.stringify({kind:'name',id:uid})});}catch(error){console.warn('Email not configured',error);}
+      try{const endpoint=MEMBER_NOTIFICATION_API.trim().replace(/\/$/,'');if(endpoint)await fetch(endpoint+'/api/notify',{method:'POST',headers:{Authorization:'Bearer '+await getIdToken(auth.currentUser!), 'Content-Type':'application/json'},body:JSON.stringify({kind:'name',id:uid})});}catch(error){console.warn('Email not configured',error);}
       say(tr('운영진에게 실명 변경을 신청했습니다.','Demande transmise à l’administration.'));await loadNameRequest();
     }catch(err){console.error(err);say(tr('신청을 저장하지 못했습니다.','Impossible d’enregistrer la demande.'),true);}
   });

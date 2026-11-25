@@ -371,6 +371,41 @@ test('Brevo retries quota-limited delivery with one idempotency key and a test-o
   assert.equal((await uncertain.get()).data().deliveryUncertain,true);
 });
 
+test('direct Brevo rehearsal delivers only new test orders to their entered address', async () => {
+  const eventId='test-mail-scope-'+id();
+  const since=when(-60000);
+  const sent=[];
+  const mail=createMail({
+    BAZAAR_MODE:'test',FIREBASE_PROJECT_ID:'asicc-bazaar-test',MAIL_MODE:'api',MAIL_PROVIDER:'brevo',
+    BAZAAR_MAIL_FROM:'sender@example.test',BAZAAR_MAIL_API_KEY:'mock',TEST_MAIL_TO:'override@example.test',
+    BAZAAR_TEST_MAIL_SINCE:since
+  },db,async (url,options)=>{
+    assert.equal(url,'https://api.brevo.com/v3/smtp/email');
+    sent.push(JSON.parse(options.body));
+    return Response.json({messageId:'mock-test-delivery'},{status:201});
+  });
+  const orderId=id();
+  const order=db.doc('bazaarOrders/'+orderId);
+  const previous=db.doc('bazaarOutbox/'+orderId+'_old');
+  const fresh=db.doc('bazaarOutbox/'+orderId+'_new');
+  const job={...mailFields('receipt',when(-1000)),orderId,eventId,type:'receipt',createdAt:when(-120000)};
+  const template=()=>({subject:'Order received',text:'Body',html:'<p>Body</p>'});
+  await order.set({id:orderId,eventId,lang:'fr',email:'new-buyer@example.test',createdAt:when(-120000)});
+  await previous.set(job);
+  await fresh.set({...job,createdAt:when(-1000)});
+  assert.equal(await mail.deliver(previous.id,template),false);
+  assert.equal(await mail.deliver(fresh.id,template),false);
+  assert.equal(sent.length,0);
+  await order.update({createdAt:when(-1000)});
+  await fresh.set({...job,createdAt:when(-1000)});
+  assert.equal(await mail.deliver(fresh.id,template),true);
+  assert.equal(await mail.deliver(fresh.id,template),false);
+  assert.equal(sent.length,1);
+  assert.equal(sent[0].subject,'[TEST] Order received');
+  assert.equal(sent[0].messageVersions[0].to[0].email,'new-buyer@example.test');
+  assert.match(sent[0].text,/Aucun virement/);
+});
+
 test('concurrent checkouts preserve stock, receipts and administrator changes', { timeout: 150000 }, async t => {
   const fixtureEvent = 'bazaar-stock-' + id();
   const staff = await identity('admin', true);

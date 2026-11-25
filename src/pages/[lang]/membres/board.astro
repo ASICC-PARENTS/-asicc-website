@@ -139,7 +139,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === 'true';
   import {displayAuthor,dmAllowed,syncOwnAlias,type PublicAuthor} from '../../../scripts/members/member-access';
   import { getFirestore, doc, collection, getDoc, getDocs, query, orderBy, limit, setDoc, updateDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
   import { firebaseConfig } from '../../../firebase-config';
-  import { BOARD_PHOTO_API } from '../../../config/board-photos';
+  import { BOARD_PHOTO_API, MEMBER_NOTIFICATION_API } from '../../../config/board-photos';
   import { renderBoardBody, setEditorBody, serializeEditor, boardText, photoKeys, insertPhoto } from '../../../scripts/board-rich';
   type TimestampLike = { toDate?:()=>Date };
   type BoardData = { id:string;title:string;body:string;authorUid:string;authorName:string;deleted:boolean;createdAt?:TimestampLike;updatedAt?:TimestampLike };
@@ -422,9 +422,9 @@ const canDelete=(owner:string)=>canWrite()&&(owner===uid||role==='admin');
         body:`${kind==='post'?'게시글':'댓글'} ID: ${postId}${commentId?' / '+commentId:''}\n신고 내용: ${text}`,
         status:'received',createdAt:serverTimestamp()
       });
-      if(photoApi)try{
+      if(MEMBER_NOTIFICATION_API)try{
         const token=await getIdToken(auth.currentUser!);
-        const response=await fetch(photoApi+'/api/notify',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({kind:'suggestion',id:request.id})});
+        const response=await fetch(MEMBER_NOTIFICATION_API+'/api/notify',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({kind:'suggestion',id:request.id})});
         if(!response.ok)console.warn('Report email notification pending:',response.status);
       }catch(error){console.warn('Report email not connected',error);}
       notify(tr('운영진에게 신고가 접수되었습니다.','Signalement transmis aux administrateurs.'));

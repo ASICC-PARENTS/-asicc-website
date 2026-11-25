@@ -10,7 +10,9 @@ keep_vars = true
 BAZAAR_MODE = "test"
 FIREBASE_PROJECT_ID = "asicc-bazaar-test"
 BAZAAR_SITE_URL = "https://asicc-integration-test.pages.dev"
-MAIL_MODE = "capture"
+MAIL_MODE = "api"
+MAIL_PROVIDER = "brevo"
+BAZAAR_TEST_MAIL_SINCE = "2026-11-25T15:00:00Z"
 
 [triggers]
 crons = ["*/5 * * * *"]

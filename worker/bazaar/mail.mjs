@@ -38,10 +38,13 @@ export function createMail(env, db, send = fetch) {
   const provider = env.MAIL_PROVIDER;
   const isCapture = env.MAIL_MODE === 'capture' && env.BAZAAR_MODE !== 'production';
   const testRecipient = env.TEST_MAIL_TO;
+  const testMailSince = Date.parse(env.BAZAAR_TEST_MAIL_SINCE ?? '');
+  const directTestMail = env.BAZAAR_MODE === 'test' && env.FIREBASE_PROJECT_ID === 'asicc-bazaar-test'
+    && provider === 'brevo' && Number.isFinite(testMailSince);
   const key = env.BAZAAR_MAIL_API_KEY;
   const from = env.BAZAAR_MAIL_FROM;
   const canSend = () => isCapture || (env.MAIL_MODE === 'api' && ['resend', 'brevo'].includes(provider) && !!key && isTestAddress(from)
-    && (env.BAZAAR_MODE === 'production' || isTestAddress(testRecipient)));
+    && (env.BAZAAR_MODE === 'production' || directTestMail || isTestAddress(testRecipient)));
 
   const usage = db.collection('bazaarMailUsage');
   const budgetRef = usage.doc(`${provider || 'brevo'}-rolling`);
@@ -50,7 +53,7 @@ export function createMail(env, db, send = fetch) {
 
   async function providerSend(job, payload) {
     if (isCapture) return { ok: true, id: 'captured' };
-    const to = env.BAZAAR_MODE === 'production' ? payload.to : testRecipient;
+    const to = env.BAZAAR_MODE === 'production' || directTestMail ? payload.to : testRecipient;
     // Workers supports manual redirects. Keep the credentials on the configured provider host.
     const common = { method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(8000) };
     const response = provider === 'resend'
@@ -61,7 +64,7 @@ export function createMail(env, db, send = fetch) {
       })
       : await send('https://api.brevo.com/v3/smtp/email', {
         ...common, headers: { 'api-key': key, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sender: { name: 'ASICC', email: from },
+        body: JSON.stringify({ sender: { name: directTestMail ? 'ASICC · TEST' : 'ASICC', email: from },
           headers: { idempotencyKey: job.providerKey }, subject: payload.subject,
           htmlContent: payload.html, textContent: payload.text, messageVersions: [{ to: [{ email: to }] }] })
       });
@@ -102,6 +105,11 @@ export function createMail(env, db, send = fetch) {
       const order = orderSnap.data();
       const policy = order?.eventId
         ? (await tx.get(db.doc(`bazaarMailPolicies/${order.eventId}`))).data() : undefined;
+      if (directTestMail && (!Number.isFinite(Date.parse(order?.createdAt)) || Date.parse(order.createdAt) < testMailSince
+        || !Number.isFinite(Date.parse(job.createdAt)) || Date.parse(job.createdAt) < testMailSince)) {
+        tx.update(ref, {status:'skipped',lastError:'before-test-mail-activation',payload:null,...reschedule(job.type,null)});
+        return null;
+      }
       if (!order?.email || !autoMailAllowed(policy,job,order) || !mailMatchesOrder(job,order) || retiredTypes.has(job.type) || (job.mode==='manual'?!manualStillEligible(job,order,active?.data(),time):job.type==='bulkCancel'&&policy?.bulkCancel!=='auto')
         || (active && job.mode!=='manual' && (!eligibleReminder(order,active.data(),policy,time) || order.reminderFinalAt))) {
         tx.update(ref, { status: 'skipped', payload:null, ...reschedule(job.type,null) });
@@ -118,6 +126,14 @@ export function createMail(env, db, send = fetch) {
       }
       const kind=mailKind(job.type,order);
       const payload = { ...message({...order,...job.change}, job.type, order.eventSnapshot,{...policy?.templates?.[kind],...job.template},job.change), to: order.email };
+      if (directTestMail) {
+        const notice=order.lang==='fr'
+          ? 'TEST ASICC — Commande de test. Aucun virement n’est attendu.'
+          : 'ASICC 테스트 — 검수 주문이며 송금할 필요가 없습니다.';
+        payload.subject='[TEST] '+payload.subject;
+        payload.text=notice+'\n\n'+payload.text;
+        payload.html='<p><strong>'+notice+'</strong></p>'+payload.html;
+      }
       const providerKey = job.providerKey ?? randomUUID();
       if (!isCapture) {
         const monthly = provider==='resend' ? usage.doc(`resend-month-${quotaDate.format(time).slice(0,7)}`) : null;
@@ -125,7 +141,7 @@ export function createMail(env, db, send = fetch) {
         const budget = budgetSnap.data();
         const slots = freshSlots(budget,time);
         const urgent = urgentTypes.has(job.type);
-        const maximum = provider==='resend' ? 100 : urgent ? 300 : 250;
+        const maximum = directTestMail ? (urgent ? 30 : 25) : provider==='resend' ? 100 : urgent ? 300 : 250;
         const count = monthSnap?.data()?.count ?? 0;
         const pause = Number(budget?.pauseUntil) || 0;
         const observation=budget?.accountObservation;
@@ -200,7 +216,7 @@ export function createMail(env, db, send = fetch) {
       const count=freshSlots(reserved.data(),time).length;
       const observed=reserved.data()?.accountObservation;
       return { acceptedToday:isCapture?0:today.data()?.count??0,capturedToday:isCapture?today.data()?.count??0:0,
-        reserved:count, normalRemaining:Math.max(0,250-count), totalRemaining:Math.max(0,300-count),
+        reserved:count, normalRemaining:Math.max(0,(directTestMail?25:250)-count), totalRemaining:Math.max(0,(directTestMail?30:300)-count),
         providerAccountRemaining:observed?.remaining??null, providerObservationAt:observed?.at??null };
     },
     recordAccountUsage(remaining) {

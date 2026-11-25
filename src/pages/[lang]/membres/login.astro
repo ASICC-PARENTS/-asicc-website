@@ -228,7 +228,6 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   });
 
   if (live) resend?.addEventListener('click', async () => {
-    if(import.meta.env.PUBLIC_ASICC_INTEGRATION_TEST==='true')return show(label('통합 테스트에서는 메일을 발송하지 않습니다.','L’envoi de courriels est désactivé sur ce site de test.'),true);
     busy(true);
     try {
       const user = auth.currentUser;
@@ -244,7 +243,6 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   });
 
   if (live) reset?.addEventListener('click', async () => {
-    if(import.meta.env.PUBLIC_ASICC_INTEGRATION_TEST==='true')return show(label('기존 테스트 계정을 사용해 주세요.','Utilisez un compte de test existant.'),true);
     const emailInput = form?.querySelector<HTMLInputElement>('#login-email');
     const email = emailInput?.value.trim() || '';
     if (!email || !emailInput?.checkValidity()) {

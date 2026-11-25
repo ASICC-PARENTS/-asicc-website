@@ -4,6 +4,7 @@ import { createFirestore, FieldValue } from './firestore.mjs';
 import { createMail, mailFields } from './mail.mjs';
 import { createMailAdmin } from './mail-admin.mjs';
 import { createPhotos } from './photos.mjs';
+import privateMedia from '../asicc-media-worker-extended.js';
 
 const codes = {
   'invalid-argument': 400, unauthenticated: 401, 'permission-denied': 403,
@@ -15,6 +16,8 @@ const maxPublicJson = 24_000;
 const maxPhoto = 4 * 1024 * 1024;
 const localUrl = /^http:\/\/(?:127\.0\.0\.1|localhost):\d+$/;
 const routeNames = new Set(['bazaarPublic', 'bazaarCreateOrder', 'bazaarBuyerAction', 'bazaarAdmin']);
+const designOrigin = 'https://design-asicc-ui.asicc-integration-test.pages.dev';
+const memberMediaRoutes = new Set(['/api/upload','/api/photo','/api/resource-upload','/api/resource','/api/gallery-upload','/api/gallery']);
 
 function settings(env) {
   if (env.BAZAAR_MODE === 'local') {
@@ -36,7 +39,7 @@ function dependencies(env, origin, ctx) {
   const db = createFirestore({ projectId: env.FIREBASE_PROJECT_ID, token: () => serverToken(env),
     emulator: env.FIRESTORE_EMULATOR_URL });
   const photos = createPhotos(env, db, origin, ctx);
-  const mail = createMail({...env, MAIL_MODE: 'capture'}, db);
+  const mail = createMail(env, db);
   const mailManagement = createMailAdmin(db,mail);
   const service = createBazaar({
     db, FieldValue, eventPhoto: photos.eventPhoto, storePhoto: photos.storePhoto, evidence:photos.evidence,
@@ -46,7 +49,7 @@ function dependencies(env, origin, ctx) {
       return Promise.resolve(false);
     },
     queueFields: mailFields, mailAdmin:mailManagement.admin,
-    batchFinalization: true, receiptCapture: true
+    batchFinalization: true, receiptCapture: env.MAIL_MODE === 'capture'
   });
   return { photos, mail, mailManagement, service, site };
 }
@@ -109,11 +112,14 @@ export default {
     let cors = {};
     try {
       const { site, service, photos } = dependencies(env, url.origin, ctx);
+      if (env.BAZAAR_MODE === 'test' && memberMediaRoutes.has(url.pathname)) {
+        return await privateMedia.fetch(request, {...env, ALLOWED_ORIGINS: [site.origin,designOrigin].join(',')});
+      }
       if (request.method === 'GET' && url.pathname.startsWith('/photo/')) return await photos.serve(url);
       const name = url.pathname.slice('/api/'.length);
       if (!url.pathname.startsWith('/api/') || !routeNames.has(name)) return json({}, 404, cors);
       const origin = request.headers.get('Origin');
-      if (origin && origin !== site.origin && !(env.BAZAAR_MODE === 'test' && origin === 'http://127.0.0.1:4321')) return json({}, 403, cors);
+      if (origin && origin !== site.origin && !(env.BAZAAR_MODE === 'test' && [designOrigin,'http://127.0.0.1:4321'].includes(origin))) return json({}, 403, cors);
       if (origin) cors = { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Methods': 'POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Max-Age': '600', Vary: 'Origin' };
       if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });

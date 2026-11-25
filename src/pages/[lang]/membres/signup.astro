@@ -254,7 +254,6 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!pending?.hidden)void checkVerification();});
     checkButton?.addEventListener('click',()=>void checkVerification(true));
     resendButton?.addEventListener('click',async()=>{
-      if(import.meta.env.PUBLIC_ASICC_INTEGRATION_TEST==='true')return pendingMessage(label('통합 테스트에서는 메일을 발송하지 않습니다.','L’envoi de courriels est désactivé sur ce site de test.'),true);
       const user=auth.currentUser;
       if(!user)return pendingMessage(label('다시 로그인해 주세요.','Reconnectez-vous.'),true);
       resendButton.disabled=true;
@@ -275,7 +274,6 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   if(import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true' && form && submit){
     form.addEventListener('submit',async event=>{
       event.preventDefault();
-      if(import.meta.env.PUBLIC_ASICC_INTEGRATION_TEST==='true')return show(label('통합 테스트에서는 기존 테스트 계정으로 로그인해 주세요.','Connectez-vous avec un compte de test existant.'),true);
       const data=new FormData(form);
       const name=String(data.get('name')??'').trim();
       const nickname=String(data.get('nickname')??'').trim().normalize('NFKC');
