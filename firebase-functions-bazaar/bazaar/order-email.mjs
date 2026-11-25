@@ -11,13 +11,13 @@ const eur=cents=>new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'}
 const table=(content,style='',attributes='')=>`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;mso-table-lspace:0pt;mso-table-rspace:0pt;${style}" ${attributes}>${content}</table>`;
 const row=content=>'<tr>'+content+'</tr>';
 const td=(content,style='',attributes='')=>`<td style="${style}" ${attributes}>${content}</td>`;
-const paragraph=(text,style='')=>`<p class="${style.includes('font-size:')?'mail-small':'mail-copy'}" style="margin:0 0 12px;font-size:14px;line-height:1.6;${style}">${multiline(text)}</p>`;
-const heading=(text,style='')=>`<h2 class="mail-heading" style="margin:0 0 12px;color:${palette.navy};font-size:18px;line-height:1.3;${style}">${html(text)}</h2>`;
-const section=(title,content)=>table(row(td((title?heading(title):'')+content,'padding:24px 0 0;','class="mail-section"')));
-const panel=(content,background=palette.soft)=>table(row(td(content,'padding:16px;background:'+background+';','class="mail-panel"')));
+const paragraph=(text,style='')=>`<p class="${style.includes('font-size:')?'mail-small':'mail-copy'}" style="margin:0 0 9px;font-size:12px;line-height:1.45;${style}">${multiline(text)}</p>`;
+const heading=(text,style='')=>`<h2 class="mail-heading" style="margin:0 0 9px;color:${palette.navy};font-size:15px;line-height:1.3;word-break:keep-all;${style}">${html(text)}</h2>`;
+const section=(title,content)=>table(row(td((title?heading(title):'')+content,'padding:18px 0 0;','class="mail-section"')));
+const panel=(content,background=palette.soft)=>table(row(td(content,'padding:10px;background:'+background+';','class="mail-panel"')));
 const muted='color:'+palette.muted+';font-size:12px;';
-const emphasis='font-size:22px;line-height:1.2;font-weight:700;color:'+palette.navy+';';
-const referenceStyle=emphasis+'white-space:nowrap;word-break:normal;overflow-wrap:normal;';
+const emphasis='font-size:18px;line-height:1.2;font-weight:700;color:'+palette.navy+';';
+const referenceStyle='font-size:16px;line-height:1.2;font-weight:700;color:'+palette.navy+';white-space:nowrap;word-break:normal;overflow-wrap:normal;';
 
 function parisPickup(value,lang){
   const time=Date.parse(value??'');
@@ -30,18 +30,18 @@ function parisPickup(value,lang){
 
 function facts(rows){
   return table(rows.map(([label,value,style=''])=>row(
-    td(html(label),'padding:8px 8px 8px 0;vertical-align:top;'+muted,'class="mail-fact-label" width="36%"')+
-    td(multiline(value),'padding:8px 0;vertical-align:top;font-size:14px;line-height:1.6;overflow-wrap:anywhere;word-break:break-word;'+style,'class="'+(style.includes('white-space:nowrap')?'mail-reference':style.includes(emphasis)?'mail-amount':'mail-copy')+'"')
+    td(html(label),'padding:6px 6px 6px 0;vertical-align:top;word-break:keep-all;'+muted,'class="mail-fact-label" width="32%"')+
+    td(multiline(value),'padding:6px 0;vertical-align:top;font-size:12px;line-height:1.45;overflow-wrap:break-word;word-break:normal;'+style,'class="'+(style.includes('white-space:nowrap')?'mail-reference':style.includes(emphasis)?'mail-amount':'mail-copy')+'"')
   )).join(''));
 }
 
 function productTable(items,labels,title){
-  const style='padding:10px 4px;border-bottom:1px solid '+palette.line+';font-size:14px;line-height:1.5;';
-  const th=(label,align,width='')=>`<th scope="col" class="mail-product-label" ${width} align="${align}" style="${style}${muted}text-align:${align};">${html(label)}</th>`;
+  const style='padding:8px 3px;border-bottom:1px solid '+palette.line+';font-size:12px;line-height:1.45;';
+  const th=(label,align,width='',quantity=false)=>`<th scope="col" class="mail-product-label${quantity?' mail-qty-label':''}" ${width} align="${align}" nowrap="nowrap" style="${style}${muted}text-align:${align};white-space:nowrap;word-break:keep-all;overflow-wrap:normal;${quantity?'min-width:36px;':''}">${html(label)}</th>`;
   return '<table class="mail-products" width="100%" cellpadding="0" cellspacing="0" border="0" style="table-layout:fixed;border-collapse:collapse;">'+
-    '<thead>'+row(th(labels.name,'left','width="57%"')+th(labels.qty,'center','width="13%"')+th(labels.amount,'right','width="30%"'))+'</thead><tbody>'+
-    items.map(item=>row(td(multiline(title(item)),style+'overflow-wrap:break-word;word-break:normal;','class="mail-product-name"')+
-      td(html(item.qty),style+'text-align:center;white-space:nowrap;','class="mail-product-qty"')+td(html(eur(item.priceCents*item.qty)),style+'text-align:right;white-space:nowrap;','class="mail-product-price"'))).join('')+
+    '<thead>'+row(th(labels.name,'left','width="54%"')+th(labels.qty,'center','width="16%"',true)+th(labels.amount,'right','width="30%"'))+'</thead><tbody>'+
+    items.map(item=>row(td(multiline(title(item)),style+'overflow-wrap:break-word;word-break:keep-all;','class="mail-product-name"')+
+      td(html(item.qty),style+'text-align:center;white-space:nowrap;word-break:normal;overflow-wrap:normal;min-width:36px;','class="mail-product-qty" nowrap="nowrap"')+td(html(eur(item.priceCents*item.qty)),style+'text-align:right;white-space:nowrap;','class="mail-product-price"'))).join('')+
     '</tbody></table>';
 }
 
@@ -61,29 +61,38 @@ function actionTable({view,report,cancel}){
 }
 
 function mailLayout({lang,logoUrl,title,brand,body,footer,testNotice}){
-  const header=td(`<img src="${html(logoUrl)}" width="280" height="104" alt="ASICC · 꾸르브부아 한국어 국제섹션 학부모협회" style="display:block;width:280px;max-width:100%;height:auto;margin:0 auto;border:0;color:#08254D;">
-    <p style="margin:8px 0 0;color:#08254D;font-size:12px;line-height:1.45;">${brand.map(html).join('<br>')}</p>`,
-    'padding:20px 16px;text-align:center;background:#FFFFFF;','align="center" bgcolor="#FFFFFF"');
-  const ribbon=testNotice?row(td(paragraph(testNotice,'color:'+palette.pending+';font-size:12px;margin:0;'),
-    'padding:12px 16px;background:#F9F2EA;text-align:center;')):'';
-  const contents=table(row(header)+ribbon+row(td(body,'padding:26px;font-size:14px;line-height:1.6;','class="mail-content"'))+
-    row(td(footer,'padding:21px 16px;background:'+palette.navy+';color:#FFFFFF;text-align:center;font-size:12px;line-height:1.6;')),
-    'max-width:600px;background:#FFFFFF;color:'+palette.text+';font:14px/1.6 '+font+';width:100%;');
+  const header=td(`<img src="${html(logoUrl)}" width="160" height="59" alt="ASICC · 꾸르브부아 한국어 국제섹션 학부모협회" style="display:block;width:160px;max-width:100%;height:auto;margin:0 auto;border:0;color:#08254D;">
+    <p class="mail-brand" style="margin:6px 0 0;color:#08254D;font-size:10px;line-height:1.4;word-break:keep-all;">${brand.map(html).join('<br>')}</p>`,
+    'padding:12px 12px;text-align:center;background:#FFFFFF;','class="mail-header" align="center" bgcolor="#FFFFFF"');
+  const ribbon=testNotice?row(td(paragraph(testNotice,'color:'+palette.pending+';font-size:11px;margin:0;'),
+    'padding:8px 12px;background:#F9F2EA;text-align:center;')):'';
+  const contents=table(row(header)+ribbon+row(td(body,'padding:12px;font-size:12px;line-height:1.45;','class="mail-content"'))+
+    row(td(footer,'padding:14px 12px;background:'+palette.navy+';color:#FFFFFF;text-align:center;font-size:11px;line-height:1.45;')),
+    'max-width:600px;background:#FFFFFF;color:'+palette.text+';font:12px/1.45 '+font+';width:100%;');
   return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
     <title>${html(title)}</title><style>
     html,body,table,td,p,a{-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;text-size-adjust:100%}
+    .mail-qty-label,.mail-product-qty{white-space:nowrap!important;word-break:keep-all!important;overflow-wrap:normal!important}
+    @media only screen and (min-width:481px){
+    .mail-content{padding:24px!important;font-size:14px!important;line-height:1.6!important}
+    .mail-copy{font-size:14px!important}.mail-heading{font-size:18px!important}.mail-title{font-size:24px!important}
+    .mail-reference{font-size:22px!important}.mail-amount{font-size:22px!important}
+    .mail-panel{padding:16px!important}.mail-section{padding-top:24px!important}
+    .mail-products td{font-size:14px!important;padding:10px 4px!important}}
     @media only screen and (max-width:480px){
-    .mail-content{padding:12px!important;font-size:13px!important;line-height:1.6!important}
-    .mail-copy{font-size:13px!important}.mail-small,.mail-product-label,.mail-fact-label{font-size:12px!important}
-    .mail-title{font-size:20px!important}.mail-heading{font-size:16px!important}
-    .mail-reference{font-size:18px!important;white-space:nowrap!important;word-break:normal!important;overflow-wrap:normal!important}
-    .mail-amount{font-size:20px!important}
-    .mail-panel{padding:10px!important}.mail-section{padding-top:18px!important}
-    .mail-products td{font-size:13px!important;padding:8px 2px!important}
-    .mail-products th{padding:8px 2px!important}
+    .mail-content{padding:10px!important;font-size:12px!important;line-height:1.45!important}
+    .mail-copy{font-size:12px!important}.mail-small,.mail-product-label,.mail-fact-label{font-size:12px!important}
+    .mail-brand{font-size:10px!important}
+    .mail-title{font-size:17px!important}.mail-heading{font-size:15px!important}
+    .mail-reference{font-size:16px!important;white-space:nowrap!important;word-break:normal!important;overflow-wrap:normal!important}
+    .mail-amount{font-size:18px!important}
+    .mail-panel{padding:10px!important}.mail-section{padding-top:16px!important}
+    .mail-products td{font-size:12px!important;padding:7px 2px!important}
+    .mail-products th{padding:7px 2px!important}
+    .mail-qty-label,.mail-product-qty{min-width:36px!important;white-space:nowrap!important}
     .mail-button-col{display:block!important;width:auto!important;padding-left:0!important;padding-right:0!important}}
     </style></head>
-    <body style="padding:0;margin:0;background:${palette.background};font-size:14px;line-height:1.6;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;text-size-adjust:100%;">
+    <body style="padding:0;margin:0;background:${palette.background};font-size:12px;line-height:1.45;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;text-size-adjust:100%;">
     ${table(row(td('<!--[if mso]><table role="presentation" align="center" width="600"><tr><td><![endif]-->'+
       contents+'<!--[if mso]></td></tr></table><![endif]-->','padding:10px 4px;','align="center" valign="top"')))}
     </body></html>`;
@@ -163,8 +172,8 @@ export function renderOrderEmail({order,type,event={},template={},change={},site
   };
 
   body.push(`<div style="text-align:center;">
-    <p style="margin:0 0 6px;color:${palette[tone]};font-size:20px;line-height:1;">${tone==='success'||receipt?'✓':tone==='canceled'?'×':'•'}</p>
-    <h1 class="mail-title" style="margin:0 0 10px;color:${palette.navy};font-size:24px;line-height:1.2;">${html(receipt&&!t(template.subjectKo,template.subjectFr)?t('주문이 접수되었습니다','Votre commande a été reçue'):title)}</h1>
+    <p style="margin:0 0 6px;color:${palette[tone]};font-size:17px;line-height:1;">${tone==='success'||receipt?'✓':tone==='canceled'?'×':'•'}</p>
+    <h1 class="mail-title" style="margin:0 0 8px;color:${palette.navy};font-size:17px;line-height:1.25;word-break:keep-all;">${html(receipt&&!t(template.subjectKo,template.subjectFr)?t('주문이 접수되었습니다','Votre commande a été reçue'):title)}</h1>
     ${choice('event')&&eventName?paragraph(eventName,muted):''}${paragraph(intro)}</div>`);
   const state=type==='reported'?t('입금 확인 대기','Vérification du virement en attente')
     :type==='confirmed'?t('입금 확인 완료','Paiement confirmé')
@@ -176,14 +185,14 @@ export function renderOrderEmail({order,type,event={},template={},change={},site
   if(choice('order')){
     const labels=[t('주문번호','Référence de commande'),t('주문자','Nom')];
     body.push(section('',panel(table(row(td(paragraph(labels[0],muted)+`<strong class="mail-reference" style="${referenceStyle}">${html(order.orderRef)}</strong>`,'vertical-align:top;padding-right:8px;','width="60%"')+
-      td(paragraph(labels[1],muted)+`<strong class="mail-copy" style="font-size:14px;line-height:1.5;">${html(order.name)}</strong>`,'vertical-align:top;word-break:break-word;')))+
-      (state?`<p class="mail-copy" style="margin:10px 0 0;color:${palette[tone]};font-size:14px;font-weight:700;">${html(state)}</p>`:''))));
+      td(paragraph(labels[1],muted)+`<strong class="mail-copy" style="font-size:12px;line-height:1.45;">${html(order.name)}</strong>`,'vertical-align:top;word-break:break-word;')))+
+      (state?`<p class="mail-copy" style="margin:8px 0 0;color:${palette[tone]};font-size:12px;font-weight:700;">${html(state)}</p>`:''))));
     plain.push('',labels[0]+': '+order.orderRef,labels[1]+': '+order.name,...(state?[state]:[]));
   }
   if(choice('items')||choice('total')){
     const label=type==='cancel'||type==='bulkCancel'?t('취소된 주문 내역','Articles annulés'):t('주문 내역','Votre commande');
     const list=choice('items')&&items.length?productTable(items,{name:t('상품명','Article'),qty:t('수량','Qté'),amount:t('금액','Montant')},productName):'';
-    const total=choice('total')?panel(`<p style="margin:0;text-align:right;">${html(amountTitle)}<br><strong class="mail-amount" style="${emphasis}">${html(eur(order.totalCents))}</strong></p>`):'';
+    const total=choice('total')?panel(`<p class="mail-copy" style="margin:0;text-align:right;font-size:12px;line-height:1.45;">${html(amountTitle)}<br><strong class="mail-amount" style="${emphasis}">${html(eur(order.totalCents))}</strong></p>`):'';
     body.push(section(label,list+total));
     plain.push('',label,...(choice('items')?items.map(i=>'• '+productName(i)+' × '+i.qty+' = '+eur(i.priceCents*i.qty)):[]),
       ...(choice('total')?[amountTitle+': '+eur(order.totalCents)]:[]));

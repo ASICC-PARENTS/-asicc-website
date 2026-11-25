@@ -417,13 +417,13 @@ test('direct Brevo rehearsal delivers only new test orders to an approved entere
   assert.match(sent[0].htmlContent,/^<!doctype html>[\s\S]*<table/);
   assert.doesNotMatch(sent[0].htmlContent,/<pre\b/i);
   assert.match(sent[0].htmlContent,/https:\/\/example\.test\/bazaar-email-wordmark\.png/);
-  assert.match(sent[0].htmlContent,/width="280" height="104"/);
+  assert.match(sent[0].htmlContent,/width="160" height="59"/);
   assert.match(sent[0].htmlContent,/-webkit-text-size-adjust:100%/);
-  assert.match(sent[0].htmlContent,/\.mail-copy\{font-size:13px!important\}/);
-  assert.match(sent[0].htmlContent,/\.mail-reference\{font-size:18px!important;white-space:nowrap!important/);
+  assert.match(sent[0].htmlContent,/\.mail-copy\{font-size:12px!important\}/);
+  assert.match(sent[0].htmlContent,/\.mail-reference\{font-size:16px!important;white-space:nowrap!important/);
   assert.match(sent[0].htmlContent,/<strong class="mail-reference" style="[^"]*white-space:nowrap;[^"]*">BZ010001<\/strong>/);
   assert.match(sent[0].htmlContent,/class="mail-reference"[^>]*>BZ010001<\/td>/);
-  assert.match(sent[0].htmlContent,/class="mail-title" style="[^"]*font-size:24px/);
+  assert.match(sent[0].htmlContent,/class="mail-title" style="[^"]*font-size:17px/);
 
   assert.doesNotMatch(sent[0].htmlContent,/bazaar-email-logo\.png|>ASICC<\/div>/);
   assert.match(sent[0].htmlContent,/Association de la Section Internationale Coréenne à Courbevoie/);
@@ -600,4 +600,24 @@ test('concurrent checkouts preserve stock, receipts and administrator changes', 
   assert.equal(queue.docs.filter(job => job.data().type === 'receipt').length, orders.size);
   assert.equal(queue.docs.filter(job => job.data().type === 'cancel').length, 1);
   assert.deepEqual(failures, []);
+});
+
+test('compact email keeps Korean and French quantity headers and values on one line',()=>{
+  for(const lang of ['ko','fr']){
+    const order={id:'fixture-order',lang,orderRef:'BZ010007',buyerToken:'fixture-token',name:'Test',
+      totalCents:6500,items:[{titleKo:'부뚜막 포기김치 8kg (4kg×2)',titleFr:'Kimchi de chou Bbutumak 8 kg',qty:1,priceCents:6500}]};
+    const rendered=renderOrderEmail({order,type:'receipt',event:{},site:'https://example.test',testMode:true,canCancel:true});
+    const header=rendered.html.match(/<th[^>]*class="mail-product-label mail-qty-label"[^>]*>[^<]*<\/th>/)?.[0];
+    assert.ok(header);
+    assert.match(header,/width="16%"/);
+    assert.match(header,/nowrap="nowrap"/);
+    assert.match(header,/white-space:nowrap/);
+    assert.ok(header.endsWith((lang==='ko'?'수량':'Qté')+'</th>'));
+    assert.match(rendered.html,/<td style="[^"]*white-space:nowrap;[^"]*" class="mail-product-qty" nowrap="nowrap">1<\/td>/);
+    assert.match(rendered.html,/<td style="[^"]*word-break:keep-all;[^"]*" class="mail-product-name">/);
+    assert.match(rendered.html,/width="160" height="59"/);
+    assert.match(rendered.html,/class="mail-reference"[^>]*>BZ010007<\/strong>/);
+    assert.match(rendered.html,/focus=report/);
+    assert.match(rendered.html,/focus=cancel/);
+  }
 });
