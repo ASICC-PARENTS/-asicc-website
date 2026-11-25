@@ -111,6 +111,25 @@ export function createMailAdmin(db,mail) {
         messages:documents.map(doc=>formatJob(doc,byId.get(doc.data().orderId))),cursor:page.docs.length>50?documents.at(-1).id:null,
         nextReminderAt:schedule.data()?.runAt??null };
     }
+    if(op==='mailTransactionQueue'){
+      const id=data.jobId;
+      if(!mailPattern.test(id)||data.confirm!==true)throw bad('발송할 거래의 이메일을 확인해 주세요.');
+      const ref=outbox.doc(id);
+      return db.runTransaction(async tx=>{
+        const [snapshot,policy]=await Promise.all([tx.get(ref),tx.get(policyRef)]);
+        const job=snapshot.data();
+        if(!job||job.eventId!==eventId||!['orderChanged','additionalPayment','refundCompleted'].includes(job.type)||
+          !job.change||!orderPattern.test(job.orderId)||!['queued','skipped'].includes(job.status)||job.sentAt||job.deliveryUncertain)
+          throw conflict('아직 발송하지 않은 거래 이메일만 선택할 수 있습니다.');
+        const order=(await tx.get(orders.doc(job.orderId))).data();
+        if(!order?.email||order.eventId!==eventId||policyMode(policy.data(),job.type)!=='manual')
+          throw conflict('해당 종류의 수동 발송 설정 및 수신 이메일을 확인해 주세요.');
+        if(job.mode==='manual'&&job.status==='queued')return {queued:true};
+        const requestedAt=now();
+        tx.update(ref,{...mailFields(job.type,requestedAt),status:'queued',mode:'manual',requestedAt,manualBy:uid});
+        return {queued:true};
+      });
+    }
     if(op==='mailAccountUsage'){
       if(!Number.isInteger(data.remaining)||data.remaining<0||data.remaining>300)throw bad('Brevo 잔여량은 0~300통입니다.');
       await mail.recordAccountUsage(data.remaining);

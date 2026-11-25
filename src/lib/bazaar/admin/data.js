@@ -43,7 +43,7 @@ export function eventViewModel(event, items=[], orders=[]) {
     pickupKo:event.pickupKo, pickupFr:event.pickupFr,
     orders:orders.map(order=>({
       id:order.id, ref:order.orderRef, name:order.name, email:order.email, phone:order.phone,
-      payment:order.payment,transferReportSource:order.transferReportSource,originalItems:order.originalItems||order.items,canceledItems:order.canceledAt?order.items:(order.canceledItems||[]),priceAdjustmentCents:order.priceAdjustmentCents||0, bankConfirmedAt:order.bankConfirmedAt, source:order.source||'web', parentOrderRef:order.parentOrderRef||'', revision:order.revision??0,
+      lang:order.lang,payment:order.payment,transferReportSource:order.transferReportSource,originalItems:order.originalItems||order.items,canceledItems:order.canceledAt?order.items:(order.canceledItems||[]),priceAdjustmentCents:order.priceAdjustmentCents||0, bankConfirmedAt:order.bankConfirmedAt, source:order.source||'web', parentOrderRef:order.parentOrderRef||'', revision:order.revision??0,
       paymentDeadline:order.paymentDeadline||order.eventSnapshot?.transferCutoff||'',memo:order.pickupNote||'', date:local(order.createdAt).replace('T',' '),
       reportedAt:local(order.transferReportedAt).replace('T',' '),
       verifiedAt:local(order.bankConfirmedAt).replace('T',' '),
@@ -91,4 +91,9 @@ export function estimateEvent(products,expenses=[]){
  const buy=sum('buy'),sales=sum('sales'),gross=sum('gross');
  const net=buy==null||sales==null?null:sales-buy-other;
  return {rows,buy,sales,gross,other,net,margin:net!=null&&sales>0?net/sales:null};
+}
+
+export function validManualPhone(value){
+ const phone=value.trim();
+ return phone.length<=40&&/^[+0-9().\s-]+$/.test(phone)&&phone.replace(/[^0-9]/g,'').length>=8;
 }

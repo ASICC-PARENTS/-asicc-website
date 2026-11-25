@@ -114,7 +114,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     return {
       ...paymentDetails(order),
       items: order.canceledAt?[]:order.items.map(publicItem),
-      canceledItems:(order.canceledAt?order.items:(order.canceledItems||[])).map(publicItem),
+      canceledItems:[...(order.canceledItems||[]),...(order.canceledAt?order.items:[])].map(publicItem),
       payment:orderPaymentSummary(order), name:order.name,createdAt:order.createdAt,
       modifiedAt:order.modifiedAt||null,eventNameKo:order.eventSnapshot?.nameKo||'',eventNameFr:order.eventSnapshot?.nameFr||'',
       refundReason:order.publicRefundReason||'',lastRefundAt:order.lastRefundAt||null,
@@ -405,6 +405,15 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         id:'preview',buyerToken:'preview-only',lang,paymentHours:selected?.paymentHours??event.paymentHours??defaultPaymentHours};
       const tpl=Object.fromEntries(['subjectKo','subjectFr','introKo','introFr'].map(key=>[key,s(data.template?.[key]).slice(0,key.startsWith('subject')?150:2500)]));
       if(type==='other'&&Array.isArray(data.template?.fields))tpl.fields=data.template.fields.filter(field=>['event','order','items','total','pickup','deadline'].includes(field));
+      const jobId=s(data.jobId);
+      if(jobId){
+        if(!/^[a-zA-Z0-9_-]{16,110}$/.test(jobId))bad('이메일 이력을 확인해 주세요.');
+        const job=(await outbox.doc(jobId).get()).data();
+        if(!selected||job?.eventId!==eventId||job.orderId!==id||job.type!==type||!job.change)bad('선택한 주문의 거래 이메일이 아닙니다.');
+        const policy=(await db.doc('bazaarMailPolicies/'+eventId).get()).data();
+        const {subject,text}=message({...order,...job.change},type,selected.eventSnapshot||event,{...policy?.templates?.[type],...job.template},job.change);
+        return {subject,text};
+      }
       const template=message(order,['buyerCancel','adminCancel'].includes(type)?'cancel':type,selected?.eventSnapshot||event,tpl,
         type==='refundCompleted'?{amountCents:100,at:now()}:type==='additionalPayment'?{amountCents:100}:{});
       return {subject:template.subject,text:template.text};
@@ -752,11 +761,11 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
           return {refund:{...record,...change},payment:orderPaymentSummary({...order,...patch})};
         }
         const kind=data.kind,amount=data.amountCents,restore=data.restoreStock===true,method=s(data.method),operator=s(data.operator).trim();
-        const publicReason=s(data.publicReason).trim(),note=s(data.note).trim(),iban=s(data.iban).replace(/s/g,'').toUpperCase(),beneficiary=s(data.beneficiary).trim();
+        const publicReason=s(data.publicReason).trim(),note=s(data.note).trim(),iban=s(data.iban).replace(/\s/g,'').toUpperCase(),beneficiary=s(data.beneficiary).trim();
         const quantities=data.items??[];
         if(!['items','price','overpayment','balance'].includes(kind)||!cents(amount)||amount<=0||!reason||!operator||operator.length>120||
           !['bank','cash','other'].includes(method)||publicReason.length>400||note.length>500||beneficiary.length>120||
-          (iban&&(method!=='bank'||!/^[A-Z]{2}d{2}[A-Z0-9]{11,30}$/.test(iban)))||!Array.isArray(quantities)||quantities.length>30||
+          (iban&&(method!=='bank'||!/^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$/.test(iban)))||!Array.isArray(quantities)||quantities.length>30||
           (kind!=='items'&&(quantities.length||restore)))bad('환불 종류, 금액, 담당자 또는 취소 수량을 확인해 주세요.');
         const fingerprint=createHash('sha256').update(JSON.stringify({kind,amount,reason,restore,method,operator,publicReason,note,iban,beneficiary,quantities})).digest('hex');
         if(record){

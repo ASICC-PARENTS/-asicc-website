@@ -155,10 +155,10 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
       <section data-mail-section="history">
       <p>불러온 이력의 대기 ${due}건 · 실패 ${failed}건 · 다음 예정 ${upcoming?esc(parisDeadline(upcoming,'ko')):'—'}</p>
       <div class="actions"><input data-history-search placeholder="${t('주문번호, 이름, 이메일','Référence, nom ou e-mail')}"><input data-history-from type="date"><input data-history-to type="date"><select data-history-type><option value="">${t('모든 종류','Tous les types')}</option>${Object.entries(kinds).map(([id,label])=>'<option value="'+id+'">'+esc(label)+'</option>').join('')}</select><select data-history-state><option value="">${t('모든 상태','Tous les états')}</option>${Object.entries(states).map(([id,label])=>'<option value="'+id+'">'+esc(label)+'</option>').join('')}</select>${button('history-excel','Excel')}</div><div data-history-list></div>
-      <div class="actions">${cursor?button('more','이력 더 보기'):''}${button('refresh','새로고침')}</div></section><section data-mail-section="manual"><div data-mail-manual></div></section>`;
+      <div class="actions">${cursor?button('more','이력 더 보기'):''}${button('refresh','새로고침')}</div></section><section data-mail-section="manual"><div data-transaction-manual></div><div data-mail-manual></div></section>`;
     if(previous)body.querySelector('[data-mail-manual]').replaceWith(previous);
     else initManual();
-    renderPrepared();chooseTab(tab);drawHistory();syncMailSwitches();
+    renderPrepared();chooseTab(tab);drawHistory();syncMailSwitches();renderTransactionManual(data.policy);
   }
 
   const parisDate=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris',dateStyle:'short'});
@@ -187,6 +187,17 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
     '</section>').join('')||t('발송 이력이 없습니다.','Aucun envoi.');
   }
   panel.addEventListener('input',event=>{if(event.target.matches('[data-history-search],[data-history-from],[data-history-to],[data-history-type],[data-history-state]'))drawHistory();});
+  function renderTransactionManual(policy){
+    const options=messages.filter(row=>['orderChanged','additionalPayment','refundCompleted'].includes(row.type)&&
+     ['queued','skipped'].includes(row.status)&&row.email&&policyMode(policy,row.type)==='manual'&&!(row.mode==='manual'&&row.status==='queued'));
+    const target=body.querySelector('[data-transaction-manual]');
+    if(!options.length){target.replaceChildren();return;}
+    target.innerHTML='<h3>'+t('주문 변경·추가 송금·환불 메일','Messages de modification, complément et remboursement')+'</h3>'+
+     '<label class="field">'+t('거래별 이메일','Message par opération')+'<select data-transaction-job>'+options.map(row=>
+     '<option value="'+esc(row.id)+'">'+esc((row.orderRef||'—')+' · '+kinds[row.type]+' · '+(row.createdAt?timestamp.format(new Date(row.createdAt)):''))+'</option>').join('')+
+     '</select></label><div class="actions">'+button('transaction-send',t('이메일 보내기 (1통)','Envoyer un e-mail (1)'))+
+     button('transaction-preview',t('미리보기','Aperçu'))+'</div><pre data-transaction-preview hidden></pre>';
+  }
   function initManual() {
     body.querySelector('[data-mail-manual]').innerHTML=`<h3>${t('수동 발송 · Brevo 또는 OVH','Envoi manuel · Brevo ou OVH')}</h3><form data-manual-form class="form-grid">
       <label class="field">안내 종류 ${select('type',['reminderFinal','bulkCancel','pickup','other','receipt','confirmed','buyerCancel','adminCancel'].map(kind=>[kind,kinds[kind]]))}</label>
@@ -237,6 +248,16 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
     pending=true;control.disabled=true;feedback.textContent='';
     try{
       if(control.dataset.mailJob){await jobAction(control,request,eventId);await load();}
+      if(click==='transaction-send'||click==='transaction-preview'){
+        const row=messages.find(item=>item.id===body.querySelector('[data-transaction-job]').value);
+        if(!row)return;
+        if(click==='transaction-preview'){
+          const preview=await action('mailPreview',{type:row.type,id:row.orderId,jobId:row.id,lang:orders.find(order=>order.id===row.orderId)?.lang||'ko'});
+          const target=body.querySelector('[data-transaction-preview]');target.textContent=preview.subject+'\n\n'+preview.text;target.hidden=false;
+        }else if(confirm((row.orderRef||'—')+' · '+kinds[row.type]+' · '+row.email+' · '+t('1통을 대기열에 추가할까요?','Ajouter 1 message à la file ?'))){
+          await action('mailTransactionQueue',{jobId:row.id,confirm:true});await load();feedback.textContent=t('발송 대기열에 등록했습니다.','Ajouté à la file d’envoi.');
+        }
+      }
       if(click==='history-excel'){
         const workbook=XLSX.utils.book_new(),rows=historyResults().map(historyValues);
         XLSX.utils.book_append_sheet(workbook,XLSX.utils.aoa_to_sheet([[t('발송 일시','Date'),t('수신자','Destinataire'),'E-mail',t('주문번호','Référence'),t('종류','Type'),'Mode',t('담당자','Agent'),t('방식','Canal'),t('결과','Résultat')],...rows]),'Historique');

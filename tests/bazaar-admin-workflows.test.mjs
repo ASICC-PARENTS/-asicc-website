@@ -1,3 +1,4 @@
+import {validManualPhone} from '../src/lib/bazaar/admin/data.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -69,4 +70,9 @@ test('OVH recipient preparation retains deduplication, Bcc output and send histo
   assert.match(mail,/숨은참조\(Bcc\)/);
   assert.match(mail,/new Set\(prepared\.map/);
   assert.match(mail,/completeManual/);
+});
+
+test('telephone review accepts French domestic and international input',()=>{
+ for(const number of ['06 12 34 56 78','+33 6 12 34 56 78','06-12-34-56-78'])assert.equal(validManualPhone(number),true);
+ for(const number of ['', 'abcdef', '06abc12345678', '1234'])assert.equal(validManualPhone(number),false);
 });

@@ -2,7 +2,7 @@ import '../shop-view.css';
 import {bindStorageLabels,changeCartQuantity,quantityCap,renderShopEvent,renderShopProducts} from '../shop-view';
 import {onAuthStateChanged} from 'firebase/auth';
 import {adminAction,bazaarAuth,showBazaarTestLogin} from '../api';
-import {estimateEvent,eventViewModel,parisToIso,productOrderSummary,productPayload,productViewModel} from './data';
+import {estimateEvent,eventViewModel,parisToIso,productOrderSummary,productPayload,productViewModel,validManualPhone} from './data';
 import {mountMailManager,showOrderMail} from './mail';
 import {observeAdminLocale} from './i18n';
 
@@ -30,7 +30,14 @@ async function run(button, work){
  if(busy)return;
  busy=true;
  if(button)button.disabled=true;
- try{await work();}catch(error){alert(error.message||'처리하지 못했습니다. 다시 시도해 주세요.');}
+ try{await work();}catch(error){
+  const message=error.message||'처리하지 못했습니다. 다시 시도해 주세요.';
+  if(!$('#modal').hidden){
+   const body=$('#modal-body');let issue=body.querySelector('[data-operation-error]');
+   if(!issue){issue=document.createElement('p');issue.className='notice warning';issue.dataset.operationError='';issue.setAttribute('role','alert');body.prepend(issue);}
+   issue.textContent=message;
+  }else alert(message);
+ }
  finally{busy=false;if(button)button.disabled=false;}
 }
 async function load(){
@@ -381,7 +388,7 @@ function orderAmounts(order){
  const payment=order.payment;
  return payment&&payment.original!==payment.due?'<small class="muted"><del>'+money(payment.original/100)+'</del></small><br><b>'+money(payment.due/100)+'</b>':'<b>'+money(total(order))+'</b>';
 }
-function orderModal(id){let o=store.orders.find(o=>o.id===id);if(!o)return;modal(o.ref+' · '+o.name,orderSource(o)+(o.parentOrderRef?' · 원주문 '+o.parentOrderRef:''),'<div class="modal-row"><span>연락처</span><b>'+esc(o.phone)+'</b></div><div class="modal-row"><span>이메일</span>'+esc(o.email)+'</div><h3 style="margin:17px 0 6px">상품 내역</h3>'+o.items.map(i=>'<div class="modal-row"><span>'+esc(i[0])+' ×'+i[1]+'</span><b>'+money(i[1]*i[2])+'</b></div>').join('')+'<div class="summary-bar"><b>총 주문액</b><strong>'+money(total(o))+'</strong></div>'+(o.memo?'<h3>판매자에게 전달할 사항</h3>'+banner(esc(o.memo),'warning'):'')+'<h3>입금 처리</h3><p class="muted small" style="margin:8px 0">'+statuses[o.status][0]+(o.verifiedAt?' · '+esc(o.verifiedAt):'')+'</p>'+banner('송금 신고와 은행의 실제 입금 확인은 서로 다른 단계입니다.'),'<button class="btn neutral" data-action="close">닫기</button>'+(canReconcile()&&(o.status==='unpaid'||o.status==='reported')?'<button class="btn neutral" data-action="cancel-order" data-id="'+o.id+'">주문 취소</button>':'')+orderTools(o));}
+function orderModal(id){let o=store.orders.find(o=>o.id===id);if(!o)return;modal(o.ref+' · '+o.name,orderSource(o)+(o.parentOrderRef?' · 원주문 '+o.parentOrderRef:''),'<div class="modal-row"><span>연락처</span><b>'+esc(o.phone)+'</b></div><div class="modal-row"><span>이메일</span>'+esc(o.email)+'</div><h3 style="margin:17px 0 6px">상품 내역</h3>'+orderLines(o)+'<div class="summary-bar"><b>총 주문액</b><strong>'+money(total(o))+'</strong></div>'+(o.memo?'<h3>판매자에게 전달할 사항</h3>'+banner(esc(o.memo),'warning'):'')+'<h3>입금 처리</h3><p class="muted small" style="margin:8px 0">'+statuses[o.status][0]+(o.verifiedAt?' · '+esc(o.verifiedAt):'')+'</p>'+banner('송금 신고와 은행의 실제 입금 확인은 서로 다른 단계입니다.'),orderTools(o)+(canReconcile()&&(o.status==='unpaid'||o.status==='reported')?'<button class="btn neutral" data-action="cancel-order" data-id="'+o.id+'">주문 취소</button>':'')+orderTools(o));}
 function orderTools(order){
  let buttons=order.revision?'<button class="btn neutral" data-action="order-history" data-id="'+esc(order.id)+'">정정 이력</button>':'';
  if(canManageOrder()&&order.status!=='canceled'){
@@ -437,7 +444,7 @@ function reviewManualOrder(parentId){
  root.querySelectorAll('#modal .invalid').forEach(node=>node.classList.remove('invalid'));
  const name=$('#manual-name'),phone=$('#manual-phone'),email=$('#manual-email');
  if(name.value.trim().length<2)flag(name,t('주문자 이름을 확인해 주세요.','Vérifiez le nom.'));
- if(!/^[+d().s-]+$/.test(phone.value)||phone.value.replace(/D/g,'').length<8)flag(phone,t('전화번호를 확인해 주세요.','Vérifiez le téléphone.'));
+ if(!validManualPhone(phone.value))flag(phone,t('전화번호를 확인해 주세요.','Vérifiez le téléphone.'));
  if(!email.validity.valid)flag(email,t('이메일 형식을 확인해 주세요.','Vérifiez le format de l’e-mail.'));
  const nodes=[...root.querySelectorAll('[data-manual-item]')];
  const items=[];

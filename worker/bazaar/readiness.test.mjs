@@ -4,6 +4,8 @@ import { test } from 'node:test';
 import { createBazaar } from '../../firebase-functions-bazaar/bazaar/service.mjs';
 import { createFirestore, FieldValue } from './firestore.mjs';
 import { createMail, mailFields } from './mail.mjs';
+import { createMailAdmin } from './mail-admin.mjs';
+import { mailKinds } from './mail-policy.mjs';
 import { createPhotos } from './photos.mjs';
 
 const loopback = 'http://127.0.0.1:8080';
@@ -61,7 +63,7 @@ test('publishing, closing and changing the next event preserve historical produc
   });
   const mail=createMail(env,db,()=>assert.fail('capture must not contact an email provider'));
   const service=createBazaar({ db, FieldValue, storePhoto:photos.storePhoto, eventPhoto:photos.eventPhoto, siteUrl:()=>site,
-    canSendMail:mail.canSend, sendQueuedMail:mail.deliver, queueFields:mailFields });
+    canSendMail:mail.canSend, sendQueuedMail:mail.deliver, queueFields:mailFields,mailAdmin:createMailAdmin(db,mail).admin });
   const uid='readiness-admin';
   await db.doc('members/'+uid).set({ role:'admin',status:'approved' });
   const admin=(op,data={})=>service.bazaarAdmin({auth:{uid,token:{email_verified:true}},data:{op,...data}});
@@ -164,9 +166,12 @@ test('publishing, closing and changing the next event preserve historical produc
   assert.ok((await admin('listEvents')).events.find(event=>event.id===first.id).hiddenAt);
   await admin('archiveClosedEvent',{eventId:first.id,archive:false});
   await assert.rejects(admin('deleteClosedEvent',{eventId:first.id,name:first.event.nameKo,confirm:true}),{code:'failed-precondition'});
+  const modes=Object.fromEntries(Object.keys(mailKinds).map(kind=>[kind,'off']));
+  await admin('mailPolicy',{eventId:second.id,modes,preferredModes:mailKinds});
   const synthetic=await service.bazaarCreateOrder({data:{eventId:second.id,requestId:id(),name:'Synthetic R9',
     email:'r9@example.test',phone:'06 00 00 00 00',consent:true,items:[{id:original.id,qty:2,priceCents:700}]}});
   const scope={id:synthetic.id,eventId:second.id,confirm:true};
+  assert.equal((await db.doc('bazaarOutbox/'+synthetic.id+'_receipt').get()).data().status,'skipped');
   assert.equal((await admin('adminTransferReport',{...scope,reason:'Synthetic call'})).changed,true);
   assert.equal((await admin('adminTransferReport',scope)).changed,false);
   assert.equal((await service.bazaarBuyerAction({data:{id:synthetic.id,token:synthetic.token,action:'report'}})).changed,false);
@@ -185,6 +190,13 @@ test('publishing, closing and changing the next event preserve historical produc
   assert.doesNotMatch(JSON.stringify(awaiting),/synthetic internal note|Fixture operator|boxPrice/);
   const retryFinish={...scope,requestId:pending.requestId,completedAt:future(-2000),operator:'Fixture operator',reference:'mock-reference'};
   await Promise.all([admin('finishRefund',retryFinish),admin('finishRefund',retryFinish)]);
+  await admin('mailPolicy',{eventId:second.id,modes:{...modes,refundCompleted:'manual'},preferredModes:mailKinds});
+  const jobId=synthetic.id+'_refundCompleted-'+pending.requestId;
+  assert.equal((await admin('mailTransactionQueue',{eventId:second.id,jobId,confirm:true})).queued,true);
+  assert.equal((await admin('mailTransactionQueue',{eventId:second.id,jobId,confirm:true})).queued,true);
+  assert.equal(await mail.deliver(jobId,service.message),true);
+  assert.equal(await mail.deliver(jobId,service.message),false);
+  assert.equal((await db.doc('bazaarOutbox/'+jobId).get()).data().providerId,'captured');
   const complete=await view();
   assert.deepEqual([complete.payment.net,complete.payment.refunded,complete.payment.refundDue],[700,700,0]);
   assert.equal((await db.doc('bazaarProducts/'+original.id).get()).data().soldQty,1);

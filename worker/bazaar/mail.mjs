@@ -25,6 +25,7 @@ function mailMatchesOrder(job,order){
 }
 function manualStillEligible(job,order,event,time){
   if(job.type==='cancel')return !!order.canceledAt&&['buyer','admin'].includes(order.cancelReason);
+  if(job.type==='refundCompleted')return job.change?.amountCents>0&&!!job.change.at;
   if(job.type==='confirmed')return !!order.bankConfirmedAt&&!order.canceledAt;
   if(job.type==='bulkCancel')return order.cancelReason==='unpaidFinalization';
   if(job.type==='reminderFinal')return order.eventId===event?.eventId&&!event.finalizedAt&&!event.reconciliationStartedAt&&time<Date.parse(event.transferCutoff)&&!order.canceledAt&&!order.bankConfirmedAt&&!order.transferReportedAt&&!order.reminderFinalAt;
