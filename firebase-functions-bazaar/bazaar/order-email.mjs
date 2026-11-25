@@ -60,10 +60,9 @@ function actionTable({view,report,cancel}){
 }
 
 function mailLayout({lang,logoUrl,title,brand,body,footer,testNotice}){
-  const header=td(`<img src="${html(logoUrl)}" width="44" height="44" alt="ASICC" style="display:block;margin:0 auto 10px;border:0;">
-    <div style="font-size:23px;line-height:1.25;font-weight:700;color:#FFFFFF;">ASICC</div>
-    <p style="margin:6px 0 0;color:#FFFFFF;font-size:13px;line-height:1.45;">${brand.map(html).join('<br>')}</p>`,
-    'padding:20px 16px;text-align:center;background:'+palette.navy+';','align="center"');
+  const header=td(`<img src="${html(logoUrl)}" width="280" height="104" alt="ASICC · 꾸르브부아 한국어 국제섹션 학부모협회" style="display:block;width:280px;max-width:100%;height:auto;margin:0 auto;border:0;color:#08254D;">
+    <p style="margin:8px 0 0;color:#08254D;font-size:13px;line-height:1.45;">${brand.map(html).join('<br>')}</p>`,
+    'padding:20px 16px;text-align:center;background:#FFFFFF;','align="center" bgcolor="#FFFFFF"');
   const ribbon=testNotice?row(td(paragraph(testNotice,'color:'+palette.pending+';font-size:13px;margin:0;'),
     'padding:12px 16px;background:#F9F2EA;text-align:center;')):'';
   const contents=table(row(header)+ribbon+row(td(body,'padding:30px;','class="mail-content"'))+
@@ -220,7 +219,7 @@ export function renderOrderEmail({order,type,event={},template={},change={},site
   plain.push('',together,purpose,t('문의','Contact')+': '+pickupContact,'www.asicc-parents.fr');
   const footer=`ASICC · Association loi 1901<br><a style="color:#FFFFFF;" href="mailto:${pickupContact}">${pickupContact}</a><br>
     <a style="color:#FFFFFF;" href="https://www.asicc-parents.fr">www.asicc-parents.fr</a>`;
-  const logoUrl=new URL('/bazaar-email-logo.png',site).href;
+  const logoUrl=new URL('/bazaar-email-wordmark.png',site).href;
   return {subject,text:plain.join('\n'),html:mailLayout({lang,logoUrl,title,body:body.join(''),footer,testNotice,
-    brand:['쿠르브부아 한국어 국제섹션 학부모협회','Association de la Section Internationale Coréenne à Courbevoie']})};
+    brand:['Association de la Section Internationale Coréenne à Courbevoie']})};
 }

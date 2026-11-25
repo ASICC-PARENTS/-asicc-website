@@ -407,6 +407,10 @@ test('direct Brevo rehearsal delivers only new test orders to their entered addr
   assert.match(sent[0].textContent,/Aucun virement/);
   assert.match(sent[0].htmlContent,/^<!doctype html>[\s\S]*<table/);
   assert.doesNotMatch(sent[0].htmlContent,/<pre\b/i);
+  assert.match(sent[0].htmlContent,/https:\/\/example\.test\/bazaar-email-wordmark\.png/);
+  assert.match(sent[0].htmlContent,/width="280" height="104"/);
+  assert.doesNotMatch(sent[0].htmlContent,/bazaar-email-logo\.png|>ASICC<\/div>/);
+  assert.match(sent[0].htmlContent,/Association de la Section Internationale Coréenne à Courbevoie/);
 });
 
 test('concurrent checkouts preserve stock, receipts and administrator changes', { timeout: 150000 }, async t => {
