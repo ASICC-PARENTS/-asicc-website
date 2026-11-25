@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
-const msg=read('src/scripts/members/messages.ts'),page=read('src/pages/[lang]/membres/messages.astro'),rules=read('firestore.rules.PROPOSED_ONLY'),base=read('src/layouts/Base.astro'),admin=read('src/pages/[lang]/membres/admin.astro'),css=read('src/styles/global.css'),gallery=read('src/scripts/members/gallery.ts'),gp=read('src/pages/[lang]/membres/gallery.astro'),author=read('src/scripts/members/member-access.ts');
+const msg=read('src/scripts/members/messages.ts'),page=read('src/pages/[lang]/membres/messages.astro'),rules=read('firestore.rules'),base=read('src/layouts/Base.astro'),admin=read('src/pages/[lang]/membres/admin.astro'),css=read('src/styles/global.css'),gallery=read('src/scripts/members/gallery.ts'),gp=read('src/pages/[lang]/membres/gallery.astro'),author=read('src/scripts/members/member-access.ts');
 test('no directory or recipient dropdown; clicked source is fixed and checked',()=>{
  assert.doesNotMatch(page,/message-search|<select/);assert.doesNotMatch(msg,/getDocs|message-search|HTMLSelectElement/);
  assert.match(author,/new URLSearchParams\(\{to:authorUid,kind:source.kind,post:source.post,comment:source.comment\}\)/);

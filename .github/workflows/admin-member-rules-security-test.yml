@@ -1,9 +1,9 @@
 name: ASICC Member Admin Rules Security Test
 on:
   push:
-    branches: [test-cms-fr]
+    branches: [test-cms-fr, feat/online-bazaar]
     paths:
-      - 'firestore.rules.PROPOSED_ONLY'
+      - 'firestore.rules'
       - 'tests/admin-member-rules.test.mjs'
       - '.github/workflows/admin-member-rules-security-test.yml'
   workflow_dispatch:

@@ -12,7 +12,7 @@ const profile=(uid,role='general')=>({name:uid,nickname:uid,nicknameKey:uid,
 
 before(async()=>{
   env=await initializeTestEnvironment({projectId:'demo-asicc-admin-rules',firestore:{
-    rules:fs.readFileSync(new URL('../firestore.rules.PROPOSED_ONLY',import.meta.url),'utf8')
+    rules:fs.readFileSync(new URL('../firestore.rules',import.meta.url),'utf8')
   }});
   await env.withSecurityRulesDisabled(async ctx=>{
     for(const [uid,role] of [['admin','admin'],['general','general'],['member','member'],
@@ -81,6 +81,46 @@ test('members can request their own withdrawal; admin can review but others cann
     uid:'special',name:'special',email:email('special'),status:'pending',
     requestedAt:serverTimestamp()
   }));
+  await assertSucceeds(updateDoc(doc(context('admin'),'memberWithdrawalRequests','general'),{
+    status:'approved',reviewedBy:'admin',reviewedAt:serverTimestamp()
+  }));
+  await assertFails(updateDoc(doc(context('member'),'memberWithdrawalRequests','general'),{
+    status:'rejected',reviewedBy:'member',reviewedAt:serverTimestamp()
+  }));
+});
+
+test('members can update only their own profile fields and child records',async()=>{
+  const ref=doc(context('member'),'members','member');
+  await assertSucceeds(updateDoc(ref,{
+    city:'Courbevoie',associationInterest:true,memberGalleryConsent:false,memberPublicityConsent:true,
+    children:[{id:'child-1',studentName:'Child',school:'School',grade:'CM1',schoolStatus:'enrolled',galleryConsent:false,publicityConsent:true}]
+  }));
+  await assertFails(updateDoc(ref,{role:'admin'}));
+  await assertFails(updateDoc(doc(context('general'),'members','member'),{city:'Paris'}));
+  await assertFails(updateDoc(ref,{children:[{id:'child-1',studentName:'Child',school:'School',grade:'CM1',galleryConsent:'yes'}]}));
+});
+
+test('consent history is private and append-only; media requests are admin-reviewed',async()=>{
+  const history=doc(context('member'),'memberConsentHistory','consent-1');
+  await assertSucceeds(setDoc(history,{uid:'member',subjectType:'child',subjectId:'child-1',scope:'gallery',granted:false,createdAt:serverTimestamp()}));
+  await assertSucceeds(getDoc(history));
+  await assertFails(getDoc(doc(context('general'),'memberConsentHistory','consent-1')));
+  await assertFails(updateDoc(history,{granted:true}));
+  const request=doc(context('member'),'memberMediaRequests','blur-1');
+  await assertSucceeds(setDoc(request,{uid:'member',kind:'blur',event:'Event',photoUrl:'',location:'left',status:'pending',createdAt:serverTimestamp()}));
+  await assertFails(getDoc(doc(context('general'),'memberMediaRequests','blur-1')));
+  await assertSucceeds(updateDoc(doc(context('admin'),'memberMediaRequests','blur-1'),{status:'completed',reviewedBy:'admin',reviewedAt:serverTimestamp()}));
+  await assertFails(updateDoc(doc(context('member'),'memberMediaRequests','blur-1'),{status:'completed',reviewedBy:'member',reviewedAt:serverTimestamp()}));
+});
+
+test('association withdrawal is separate from website account and admin-only',async()=>{
+  await assertSucceeds(setDoc(doc(context('member'),'associationWithdrawalRequests','member'),{
+    uid:'member',name:'member',email:email('member'),status:'pending',requestedAt:serverTimestamp()
+  }));
+  await assertSucceeds(updateDoc(doc(context('admin'),'associationWithdrawalRequests','member'),{
+    status:'approved',reviewedBy:'admin',reviewedAt:serverTimestamp()
+  }));
+  await assertFails(updateDoc(doc(context('member'),'members','member'),{associationStatus:'withdrawn',role:'general'}));
 });
 
 test('nickname cannot change without coordinated reservation and public alias updates',async()=>{
@@ -139,6 +179,16 @@ test('homepage banner validation rejects extra fields and unsafe links',async()=
   await assertFails(setDoc(doc(db,'publicHomeBanners','other'),data));
   await assertSucceeds(setDoc(path,data));
   await assertSucceeds(updateDoc(path,{title_ko:'수정됨',updatedAt:serverTimestamp()}));
+  for(const slot of ['bazaar','admissions']){
+    const ref=doc(db,'publicHomeBanners',slot);
+    await assertSucceeds(setDoc(ref,{...data,link:'bazaar/?event=bazaar-test-original'}));
+    await assertFails(setDoc(ref,{...data,link:'bazaar/'}));
+    await assertFails(setDoc(ref,{...data,link:'https://asicc-parents.fr/ko/bazaar/'}));
+    await assertSucceeds(setDoc(ref,{...data,link:'https://asicc-parents.fr/fr/bazaar/?event=bazaar-test-original'}));
+    await assertSucceeds(setDoc(ref,{...data,link:'news/2026-10-08-admissions/'}));
+    await assertSucceeds(setDoc(ref,{...data,link:'https://example.org/other-event/'}));
+    await assertFails(setDoc(ref,{...data,link:'bazaar/?event=bazaar-test-original&other=value'}));
+  }
 });
 
 

@@ -2,6 +2,7 @@
 import Base from '../../../layouts/Base.astro';
 import { langPaths, href, L, type Lang } from '../../../i18n/ui';
 import homeCampaigns from '../../../data/cms/home-campaigns.json';
+import HomePopupAdmin from '../../../components/HomePopupAdmin.astro';
 export const getStaticPaths = langPaths;
 const lang = Astro.params.lang as Lang;
 const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
@@ -69,7 +70,9 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     <h3 class="asicc-admin-hub-category">{L(lang,{ko:'홈페이지 운영',fr:'Administration du site'})}</h3>
     <div class="asicc-admin-hub-grid">
       <a class="asicc-admin-hub-link" href="#admin-board-management-heading"><strong>{L(lang,{ko:'게시판 관리',fr:'Gestion du forum'})}</strong><span>{L(lang,{ko:'게시판 분류 관리',fr:'Catégories du forum'})}</span></a>
+      <a class="asicc-admin-hub-link" href={href(lang,'bazaar/admin/')}><strong>{L(lang,{ko:'온라인 바자회 관리',fr:'Gestion du bazar en ligne'})}</strong><span>{L(lang,{ko:'행사 · 상품 · 주문 · 입금',fr:'Événements · produits · commandes · paiements'})}</span></a>
       <a class="asicc-admin-hub-link" href="#admin-home-banners"><strong>{L(lang,{ko:'메인 배너 관리',fr:'Bannières d’accueil'})}</strong><span>{L(lang,{ko:'배너 1 · 배너 2',fr:'Bannière 1 · Bannière 2'})}</span></a>
+      <a class="asicc-admin-hub-link" href="#admin-home-popup"><strong>{L(lang,{ko:'팝업 관리',fr:'Fenêtre d’accueil'})}</strong><span>{L(lang,{ko:'게시 기간 · 이미지 · 바로가기',fr:'Dates · images · lien'})}</span></a>
       <a class="asicc-admin-hub-link" href="#operations-heading"><strong>{L(lang,{ko:'홈페이지 운영 설정',fr:'Paramètres du site'})}</strong><span>{L(lang,{ko:'갤러리 · 쪽지 · 학습자료',fr:'Galerie · messages · ressources'})}</span></a>
       <a class="asicc-admin-hub-link" href="#visits-heading"><strong>{L(lang,{ko:'방문 통계',fr:'Statistiques de visite'})}</strong><span>{L(lang,{ko:'Cloudflare · Firebase 확인',fr:'Cloudflare · Firebase'})}</span></a>
       <a class="asicc-admin-hub-link" href="#hidden-heading"><strong>{L(lang,{ko:'숨김 글·댓글 관리',fr:'Contenus masqués'})}</strong><span>{L(lang,{ko:'숨김 내용 확인 · 복구',fr:'Examiner · restaurer'})}</span></a>
@@ -134,6 +137,18 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   <summary id="suggestions-heading">{L(lang,{ko:'비공개 건의 확인·처리',fr:'Traiter les suggestions privées'})}</summary>
   <div id="admin-suggestions" class="stack gap-12"></div>
 </details>
+<details id="admin-association-withdrawals-panel" class="asicc-admin-upgrade-detail">
+  <summary>{L(lang,{ko:'협회 회원 탈퇴 신청 확인·처리',fr:'Demandes de retrait de l’association'})}</summary>
+  <div id="admin-association-withdrawals" class="stack gap-12"></div>
+</details>
+<details id="admin-media-requests-panel" class="asicc-admin-upgrade-detail">
+  <summary>{L(lang,{ko:'사진·영상 블러 처리 요청',fr:'Demandes de floutage photo/vidéo'})}</summary>
+  <div id="admin-media-requests" class="stack gap-12"></div>
+</details>
+<details id="admin-account-withdrawals-panel" class="asicc-admin-upgrade-detail">
+  <summary>{L(lang,{ko:'홈페이지 계정 탈퇴 요청',fr:'Demandes de clôture du compte'})}</summary>
+  <div id="admin-account-withdrawals" class="stack gap-12"></div>
+</details>
 
         </section>
         <section class="card auth-card stack gap-16" aria-labelledby="members-heading">
@@ -175,12 +190,14 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
               </select>
             </label>
             <label class="stack gap-8"><span class="small">{L(lang,{ko:'가입 시작일',fr:'Inscrit après'})}</span><input id="admin-filter-from" type="date" /></label>
+            <label class="stack gap-8"><span class="small">{L(lang,{ko:'거주 도시',fr:'Ville'})}</span><input id="admin-filter-city" type="search" placeholder={L(lang,{ko:'도시 검색',fr:'Rechercher une ville'})} /></label>
+            <label class="stack gap-8"><span class="small">{L(lang,{ko:'협회 회원 구분',fr:'Adhésion à l’association'})}</span><select id="admin-filter-association"><option value="all">{L(lang,{ko:'전체',fr:'Tous'})}</option><option value="interest">{L(lang,{ko:'가입 희망',fr:'Intéressé(e)'})}</option><option value="member">{L(lang,{ko:'현재 협회 회원',fr:'Membre actuel'})}</option><option value="withdrawn">{L(lang,{ko:'탈퇴 완료',fr:'Retiré(e)'})}</option></select></label>
           </div>
           <div class="row gap-12" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
             <div id="admin-filter-count" class="small muted" aria-live="polite"></div>
             <div class="row gap-8" style="flex-wrap:wrap">
               <button type="button" class="btn btn-ghost btn-sm" id="admin-filter-reset">{L(lang,{ko:'필터 초기화',fr:'Réinitialiser les filtres'})}</button>
-              <button type="button" class="btn btn-ghost btn-sm" id="admin-member-export">{L(lang,{ko:'현재 목록 CSV 저장',fr:'Exporter la sélection CSV'})}</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="admin-member-export">{L(lang,{ko:'현재 목록 Excel 저장',fr:'Exporter la sélection Excel'})}</button>
             </div>
           </div>
           <div id="admin-members" class="asicc-admin-table-wrap" aria-live="polite"></div>
@@ -198,6 +215,8 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
                 <label class="stack gap-8"><span>{L(lang,{ko:'실명',fr:'Nom réel'})}</span><input id="admin-edit-name" maxlength="80" required /></label>
                 <label class="stack gap-8"><span>{L(lang,{ko:'닉네임',fr:'Pseudo'})}</span><input id="admin-edit-nickname" maxlength="24" minlength="2" required /></label>
                 <label class="stack gap-8"><span>{L(lang,{ko:'연락처',fr:'Téléphone'})}</span><input id="admin-edit-phone" type="tel" maxlength="40" /></label>
+                <label class="stack gap-8"><span>{L(lang,{ko:'거주 도시',fr:'Ville'})}</span><input id="admin-edit-city" maxlength="100" /></label>
+                <label class="stack gap-8"><span>{L(lang,{ko:'협회 가입 희망',fr:'Intérêt pour l’association'})}</span><select id="admin-edit-association-interest"><option value="false">{L(lang,{ko:'아니요',fr:'Non'})}</option><option value="true">{L(lang,{ko:'예',fr:'Oui'})}</option></select></label>
                 <label class="stack gap-8"><span>{L(lang,{ko:'계정 유형',fr:'Type de compte (messagerie)'})}</span>
                   <select id="admin-edit-account-type">
                     <option value="">{L(lang,{ko:'미확인',fr:'Non confirmé'})}</option>
@@ -238,6 +257,9 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
                 <button class="btn btn-dark" type="submit" id="admin-edit-save">{L(lang,{ko:'변경사항 저장',fr:'Enregistrer les modifications'})}</button>
               </div>
             </form>
+          </dialog>
+          <dialog id="admin-consent-dialog" class="asicc-admin-editor" aria-labelledby="admin-consent-heading">
+            <form method="dialog" class="stack gap-12"><h3 id="admin-consent-heading" class="h3">{L(lang,{ko:'사진·영상 동의 변경 이력',fr:'Historique des consentements photo/vidéo'})}</h3><div id="admin-consent-history" class="stack gap-8"></div><button class="btn btn-ghost" type="submit">{L(lang,{ko:'닫기',fr:'Fermer'})}</button></form>
           </dialog>
         </section>
 
@@ -311,7 +333,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
             </div>
             <label class="stack gap-6"><span>{L(lang,{ko:'바로가기 주소',fr:'Lien du bouton'})}</span>
               <input name="link" type="text" value={item.link} maxlength="500" required placeholder="news/2026-10-08-admissions/"/>
-              <span class="small muted">{L(lang,{ko:'내부 공지: news/글주소/ · 외부 링크: https://... (게시 완료된 공지만 연결하세요)',fr:'Article interne : news/identifiant/ · lien externe : https://... (article publié uniquement)'})}</span>
+              <span class="small muted">{L(lang,{ko:'내부 공지: news/글주소/ · 바자회: bazaar/?event=행사ID · 외부 링크: https://...',fr:'Article : news/identifiant/ · bazar : bazaar/?event=identifiant · lien externe : https://...'})}</span>
             </label>
             <div class="row gap-12" style="flex-wrap:wrap;align-items:center">
               <button type="submit" class="btn btn-dark" data-banner-save>{L(lang,{ko:'저장',fr:'Enregistrer'})}</button>
@@ -320,6 +342,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
             </div>
           </form>)}
         </section>
+        <HomePopupAdmin lang={lang} />
       </div>
     </div>
   </section>
@@ -406,6 +429,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   @media(max-width:720px) { .asicc-admin-notification { padding:14px; } .asicc-admin-toolbar { grid-template-columns:repeat(2,minmax(0,1fr)); } .asicc-admin-toolbar label:first-child { grid-column:1/-1; } }
 </style>
 
+<script is:inline src="/bazaar-export/xlsx.js"></script>
 <script>
   import {formatParisDate} from '../../../scripts/members/display-date';
   import { getApps, initializeApp } from 'firebase/app';
@@ -420,11 +444,13 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   import {dmAllowed,validBirthDate,adulthoodDate,ageOn} from '../../../scripts/members/member-access';
 
   type Child = {studentName:string;school:string;grade:string};
-  type Member = { id: string; name: string; nickname?:string; nicknameKey?:string; email: string; phone?: string;
+  type Member = { id: string; name: string; nickname?:string; nicknameKey?:string; email: string; phone?: string;city?:string;associationInterest?:boolean;associationStatus?:string;memberGalleryConsent?:boolean;memberPublicityConsent?:boolean;
     levels?: string[]; children?: Child[]; memberKind?: string; memberRelation?: string; accountType?: string; birthDate?:string; adultAt?:Timestamp|null; dmMode?:string;
     role: string; status: string; createdAt?: Timestamp | number | string | null;
     withdrawnAt?: Timestamp | number | string | null }; 
   type Withdrawal = { uid: string; name: string; email: string; status: string; requestedAt?: Timestamp | number | null };
+  type AssociationWithdrawal = { uid:string;name:string;email:string;status:string;requestedAt?:Timestamp|number|null };
+  type MediaRequest = { uid:string;kind:string;event:string;photoUrl:string;location:string;status:string;createdAt?:Timestamp|number|null };
   type Upgrade = { uid: string; applicantName: string; applicantEmail: string;
     requestedRole: 'member' | 'special'; kind: string; schoolYear?: number | null;
     note?: string; relation?:string; children?:Array<{studentName:string;school:string;grade:string}>; status: string; };
@@ -445,6 +471,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   window.addEventListener('asicc-messaging-setting',event=>{globalDMEnabled=(event as CustomEvent<boolean>).detail===true;renderMembers();});
   const upgradeHistory=new Map<string,Upgrade>();
   const withdrawals = new Map<string,Withdrawal>();
+  const associationWithdrawals = new Map<string,AssociationWithdrawal>();
   let page = 1;
   const pageSize = 25;
   let sortColumn: 'createdAt' | 'name' | 'email' = 'createdAt';
@@ -494,6 +521,8 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     teacher:tr('교사·기여자','Enseignant'),contributor:tr('특별기여자','Contributeur')
   } as Record<string,string>)[kind] || kind;
   const roleOptions = ['general','member','special','admin'];
+  const associationLabel=(m:Member)=>['member','special'].includes(m.role)?roleLabel(m.role):m.associationStatus==='withdrawn'?tr('협회 탈퇴 완료','Retiré(e) de l’association'):m.associationInterest?tr('가입 희망','Souhaite adhérer'):tr('홈페이지 회원','Compte du site');
+  const consentLabel=(m:Member)=>`${tr('본인','Membre')}: ${m.memberGalleryConsent?tr('갤러리 동의','Galerie oui'):tr('갤러리 미동의','Galerie non')} / ${m.memberPublicityConsent?tr('홍보 동의','Publicité oui'):tr('홍보 미동의','Publicité non')} · ${tr('자녀','Enfants')} ${(m.children||[]).length}`;
 
   async function loadRequests() {
     const container = el<HTMLElement>('admin-requests'); if (!container) return;
@@ -603,15 +632,21 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     const status=el<HTMLSelectElement>('admin-filter-status')?.value||'all';
     const school=el<HTMLSelectElement>('admin-filter-school')?.value||'all';
     const from=el<HTMLInputElement>('admin-filter-from')?.value||'';
+    const city=el<HTMLInputElement>('admin-filter-city')?.value.trim().toLocaleLowerCase()||'';
+    const association=el<HTMLSelectElement>('admin-filter-association')?.value||'all';
     const fromMs=from?Date.parse(from+'T00:00:00+01:00'):0;
     const result=members.filter(m=>{
       if(role!=='all'&&m.role!==role)return false;
       if(status==='withdrawal') { if(withdrawals.get(m.id)?.status!=='pending')return false; }
       else if(status!=='all'&&m.status!==status)return false;
       if(!memberSchoolMatches(m,school))return false;
+      if(city&&!(m.city||'').toLocaleLowerCase().includes(city))return false;
+      if(association==='interest'&&!m.associationInterest)return false;
+      if(association==='member'&&!['member','special'].includes(m.role))return false;
+      if(association==='withdrawn'&&m.associationStatus!=='withdrawn')return false;
       const t=timestamp(m.createdAt);if(from&&(!t||t<fromMs))return false;
       const req=upgradeHistory.get(m.id);
-      const hay=[m.name,m.nickname,m.email,m.phone,schoolLabel(m),gradeLabel(m),m.memberKind??req?.kind,m.memberRelation??req?.relation]
+      const hay=[m.name,m.nickname,m.email,m.phone,m.city,associationLabel(m),schoolLabel(m),gradeLabel(m),m.memberKind??req?.kind,m.memberRelation??req?.relation]
         .filter(Boolean).join(' ').toLocaleLowerCase();
       return !term||hay.includes(term);
     });
@@ -642,11 +677,11 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     const thead=document.createElement('thead'),head=document.createElement('tr');
     const headings:[string,string | null][]=[
       ['#',null],[tr('실명','Nom'),'name'],[tr('아이디(이메일)','Identifiant (e-mail)'),'email'],
-      [tr('닉네임','Pseudo'),null],[tr('쪽지 기능','Messagerie'),null],[tr('연락처','Téléphone'),null],
+      [tr('닉네임','Pseudo'),null],[tr('쪽지 기능','Messagerie'),null],[tr('연락처','Téléphone'),null],[tr('거주 도시','Ville'),null],[tr('협회 구분','Association'),null],[tr('동의 상태','Consentements'),null],
       [tr('가입 일시 (파리)','Inscrit le (Paris)'),'createdAt'],
       [tr('학교급 / 학교','Niveau / école'),null],
       [tr('학생 / 학년','Élève / classe'),null],[tr('가입 구분','Catégorie'),null],
-      [tr('회원 등급','Statut'),null],[tr('계정 상태','État'),null],[tr('저장','Enregistrer'),null],[tr('정보 수정','Modifier'),null]
+      [tr('회원 등급','Statut'),null],[tr('계정 상태','État'),null],[tr('동의 이력','Historique'),null],[tr('저장','Enregistrer'),null],[tr('정보 수정','Modifier'),null]
     ];
     headings.forEach(([label,key])=>{
       const th=document.createElement('th');th.scope='col';
@@ -664,7 +699,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     for(let i=0;i<current.length;i++){
       const m=current[i],row=document.createElement('tr');row.dataset.uid=m.id;
       td(row,String((page-1)*pageSize+i+1));
-      td(row,m.name||'—','admin-name');td(row,m.email||'—');td(row,m.nickname||'—');renderMemberMessaging(row,m);td(row,m.phone||'—');
+      td(row,m.name||'—','admin-name');td(row,m.email||'—');td(row,m.nickname||'—');renderMemberMessaging(row,m);td(row,m.phone||'—');td(row,m.city||'—');td(row,associationLabel(m));td(row,consentLabel(m),'admin-small');
       td(row,stamp(m.createdAt),'admin-small');td(row,schoolLabel(m));
       const students=td(row,gradeLabel(m),'admin-students');students.title=gradeLabel(m);
       const enrollment=upgradeHistory.get(m.id);
@@ -688,6 +723,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
         statusCell.append(panel('admin-small',tr(`탈퇴일: ${stamp(m.withdrawnAt)}`,`Compte clôturé le : ${stamp(m.withdrawnAt)}`)));
       }
       row.append(statusCell);
+      const historyCell=document.createElement('td');const historyButton=actionButton(tr('이력','Historique'),()=>void openConsentHistory(m));historyButton.className='btn btn-ghost btn-sm admin-row-action';historyCell.append(historyButton);row.append(historyCell);
       const actionCell=document.createElement('td'),save=actionButton(tr('저장','Enregistrer'),()=>void saveMember(m,roleSelect,statusSelect));
       save.className='btn btn-ghost btn-sm admin-row-action';save.disabled=m.id===meUid;
       actionCell.append(save);row.append(actionCell);
@@ -696,6 +732,17 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       editCell.append(edit);row.append(editCell);tbody.append(row);
     }
     table.append(tbody);container.append(table);
+  }
+
+  async function openConsentHistory(member:Member){
+    const dialog=el<HTMLDialogElement>('admin-consent-dialog'),target=el<HTMLElement>('admin-consent-history');if(!dialog||!target)return;
+    target.replaceChildren(panel('small muted',tr('불러오는 중…','Chargement…')));dialog.showModal();
+    try{
+      const snap=await getDocs(query(collection(db,'memberConsentHistory'),where('uid','==',member.id)));
+      const rows=snap.docs.map(d=>d.data()).sort((a,b)=>timestamp(b.createdAt)-timestamp(a.createdAt));target.replaceChildren();
+      if(!rows.length){target.append(panel('small muted',tr('동의 변경 이력이 없습니다.','Aucun changement enregistré.')));return;}
+      for(const entry of rows){const subject=entry.subjectType==='member'?tr('본인','Membre'):tr('자녀','Enfant');const scope=entry.scope==='gallery'?tr('회원 갤러리','Galerie membres'):tr('대외 홍보','Communication externe');target.append(panel('asicc-admin-record small',`${stamp(entry.createdAt)} · ${subject} · ${scope} · ${entry.granted?tr('동의','Accord'):tr('철회','Retrait')}`));}
+    }catch(error){console.error('member consent history',error);target.replaceChildren(panel('small',tr('동의 이력을 불러오지 못했습니다.','Impossible de charger l’historique.')));}
   }
 
   const dmRowResults=new Map<string,{text:string;error:boolean}>();
@@ -801,7 +848,8 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     text('admin-edit-email',tr(`로그인 아이디: ${member.email}`,`Identifiant : ${member.email}`));
     const input=(id:string,value:string)=>{const e=el<HTMLInputElement>(id);if(e)e.value=value;};
     input('admin-edit-name',member.name||'');input('admin-edit-nickname',member.nickname||'');
-    input('admin-edit-phone',member.phone||'');input('admin-edit-relation',member.memberRelation??upgradeHistory.get(member.id)?.relation??'');
+    input('admin-edit-phone',member.phone||'');input('admin-edit-city',member.city||'');input('admin-edit-relation',member.memberRelation??upgradeHistory.get(member.id)?.relation??'');
+    const associationInterest=el<HTMLSelectElement>('admin-edit-association-interest');if(associationInterest)associationInterest.value=String(member.associationInterest===true);
     const account=el<HTMLSelectElement>('admin-edit-account-type');if(account)account.value=member.accountType||'';
     input('admin-edit-birth',member.birthDate||'');
     const dmControl=el<HTMLSelectElement>('admin-edit-dm-mode')!;dmControl.value=member.dmMode||'auto';dmControl.disabled=member.role==='general';
@@ -826,10 +874,11 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     const accountType=el<HTMLSelectElement>('admin-edit-account-type')?.value||'';
     const levels=[...document.querySelectorAll<HTMLInputElement>('#admin-edit-dialog input[name="admin-level"]')]
       .filter(e=>e.checked).map(e=>e.value);
+    const existingChildren=member.children??upgradeHistory.get(member.id)?.children??[];
     const children:Child[]=[];
-    childBox()?.querySelectorAll<HTMLElement>('.asicc-admin-child-row').forEach(row=>{
+    childBox()?.querySelectorAll<HTMLElement>('.asicc-admin-child-row').forEach((row,index)=>{
       const field=(key:string)=>row.querySelector<HTMLInputElement>(`input[data-field="${key}"]`)?.value.trim()||'';
-      const child={studentName:field('studentName'),school:field('school'),grade:field('grade')};
+      const child={...(existingChildren[index]||{}),studentName:field('studentName'),school:field('school'),grade:field('grade')};
       if(child.studentName||child.school||child.grade)children.push(child);
     });
     if(!name||name.length>80){editorError(tr('실명을 1~80자로 입력해 주세요.','Le nom doit contenir 1 à 80 caractères.'));return;}
@@ -847,10 +896,12 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     if((accountType==='student'||birthDate)&&!validBirthDate(birthDate)){editorError(tr('생년월일을 확인해 주세요.','Vérifiez la date de naissance.'));return;}
     if(member.birthDate&&!birthDate){editorError(tr('기존 생년월일을 임의로 삭제할 수 없습니다.','La date existante ne peut pas être effacée.'));return;}
     const adultAt=validBirthDate(birthDate)?Timestamp.fromDate(adulthoodDate(birthDate)):null;
-    const desired={name,phone,levels,children,memberKind,memberRelation,accountType,birthDate,adultAt,dmMode};
+    const city=val('admin-edit-city');const associationInterest=el<HTMLSelectElement>('admin-edit-association-interest')?.value==='true';
+    if(city.length>100){editorError(tr('도시는 100자 이내로 입력해 주세요.','La ville ne peut dépasser 100 caractères.'));return;}
+    const desired={name,phone,city,associationInterest,levels,children,memberKind,memberRelation,accountType,birthDate,adultAt,dmMode};
     const dmChanged=accountType!==(member.accountType||'')||birthDate!==(member.birthDate||'')||(adultAt?.toMillis()||0)!==(member.adultAt?.toMillis()||0)||dmMode!==(member.dmMode||'auto');
     const accessAudit=dmChanged?{dmUpdatedBy:meUid,dmUpdatedAt:serverTimestamp()}:{};
-    const old={name:member.name||'',phone:member.phone||'',levels:member.levels||[],
+    const old={name:member.name||'',phone:member.phone||'',city:member.city||'',associationInterest:member.associationInterest===true,levels:member.levels||[],
       children:member.children??upgradeHistory.get(member.id)?.children??[],
       memberKind:member.memberKind??upgradeHistory.get(member.id)?.kind??'',
       memberRelation:member.memberRelation??upgradeHistory.get(member.id)?.relation??'',
@@ -970,6 +1021,57 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
         'La liste des départs sera disponible après mise à jour des règles.'),true);
     }
   }
+  async function loadMemberImprovementRequests(){
+    const configs=[
+      {collectionName:'associationWithdrawalRequests',targetId:'admin-association-withdrawals',kind:'association'},
+      {collectionName:'memberMediaRequests',targetId:'admin-media-requests',kind:'media'},
+      {collectionName:'memberWithdrawalRequests',targetId:'admin-account-withdrawals',kind:'account'}
+    ] as const;
+    await Promise.all(configs.map(async config=>{
+      const target=el<HTMLElement>(config.targetId);if(!target)return;
+      try{
+        const snap=await getDocs(query(collection(db,config.collectionName),where('status','==','pending')));
+        target.replaceChildren();
+        if(snap.empty){target.append(panel('small muted',tr('대기 중인 신청이 없습니다.','Aucune demande en attente.')));return;}
+        for(const requestDoc of snap.docs){
+          const request=requestDoc.data(),card=document.createElement('article');card.className='asicc-admin-record stack gap-8';
+          card.append(panel('admin-name',`${request.name||members.find(m=>m.id===request.uid)?.name||'—'} · ${request.email||''}`));
+          if(config.kind==='media'){
+            card.append(panel('small',`${request.event||''} · ${request.location||''} · ${request.photoUrl||''}`));
+            card.append(actionButton(tr('처리 중','En cours'),()=>void reviewMemberRequest(config.kind,requestDoc.id,'inProgress')));
+            card.append(actionButton(tr('완료','Terminé'),()=>void reviewMemberRequest(config.kind,requestDoc.id,'completed')));
+            card.append(actionButton(tr('거절','Refuser'),()=>void reviewMemberRequest(config.kind,requestDoc.id,'rejected')));
+          }else{
+            card.append(panel('small',`${tr('요청일','Demandé le')}: ${stamp(request.requestedAt)}`));
+            card.append(actionButton(tr('승인','Approuver'),()=>void reviewMemberRequest(config.kind,requestDoc.id,'approved')));
+            card.append(actionButton(tr('거절','Refuser'),()=>void reviewMemberRequest(config.kind,requestDoc.id,'rejected')));
+          }
+          target.append(card);
+        }
+      }catch(error){console.error(`${config.kind} requests`,error);target.replaceChildren(panel('small',tr('요청 목록을 불러오지 못했습니다. 규칙을 확인하세요.','Impossible de charger les demandes. Vérifiez les règles.')));}
+    }));
+  }
+  async function reviewMemberRequest(kind:'association'|'media'|'account',id:string,nextStatus:string){
+    if(busy||!meUid)return;busy=true;
+    try{
+      const collectionName=kind==='association'?'associationWithdrawalRequests':kind==='media'?'memberMediaRequests':'memberWithdrawalRequests';
+      const requestRef=doc(db,collectionName,id);
+      if(kind==='association'&&nextStatus==='approved'){
+        await runTransaction(db,async tx=>{
+          const req=await tx.get(requestRef);if(!req.exists()||req.data().status!=='pending')throw Error('request-changed');
+          const memberRef=doc(db,'members',id),member=await tx.get(memberRef);if(!member.exists())throw Error('member-missing');
+          const fresh=member.data();tx.update(memberRef,{role:'general',associationStatus:'withdrawn'});
+          if(fresh.nickname)tx.set(doc(db,'publicNames',id),{nickname:fresh.nickname,role:'general',canReceiveDM:dmAllowed({...fresh,role:'general'}),updatedAt:serverTimestamp()});
+          tx.update(requestRef,{status:nextStatus,reviewedBy:meUid,reviewedAt:serverTimestamp()});
+        });
+      }else{
+        await updateDoc(requestRef,{status:nextStatus,reviewedBy:meUid,reviewedAt:serverTimestamp()});
+      }
+      showMessage(tr('신청을 처리했습니다.','Demande traitée.'));
+      await Promise.all([loadMemberImprovementRequests(),loadMembers(true),loadWithdrawals()]);
+    }catch(error){console.error('member request review',kind,error);showMessage(tr('요청을 처리하지 못했습니다. 상태와 권한을 확인하세요.','Impossible de traiter la demande. Vérifiez son état et vos droits.'),true);}
+    finally{busy=false;}
+  }
   async function loadNotifications(){
     const notice=el<HTMLElement>('admin-notification');if(!notice||!meUid)return;
     const empty=el<HTMLElement>('admin-notification-empty');
@@ -1031,13 +1133,13 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       schoolLabel(m),gradeLabel(m),upgradeHistory.get(m.id)?.kind||'',roleLabel(m.role),
       m.status,withdrawals.get(m.id)?.status==='pending'?'pending':''
     ]);
-    // Escape spreadsheet formulas from user-controlled text.
-    const q=(v:string)=>'"'+String(v||'').replace(/^[\s]*[=+\-@]/,(s)=>"'"+s).replace(/"/g,'""')+'"';
-    const csv='\ufeff'+[headings,...cells].map(row=>row.map(q).join(',')).join('\r\n');
-    const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
-    const link=document.createElement('a');link.href=url;link.download='asicc-members-'+new Date().toISOString().slice(0,10)+'.csv';
-    link.click();URL.revokeObjectURL(url);
-    showMessage(tr('CSV 파일 다운로드를 시작했습니다.','Le téléchargement CSV a été lancé.'));
+    const xlsx=(window as Window&{XLSX?:any}).XLSX;
+    if(!xlsx){showMessage(tr('Excel 내보내기 기능을 불러오지 못했습니다.','Impossible de charger l’export Excel.'),true);return;}
+    const safe=(value:unknown)=>{const text=String(value??'');return /^[\s]*[=+\-@]/.test(text)?`'${text}`:text;};
+    const sheet=xlsx.utils.aoa_to_sheet([headings,...cells].map(row=>row.map(safe)));
+    const book=xlsx.utils.book_new();xlsx.utils.book_append_sheet(book,sheet,'Members');
+    xlsx.writeFile(book,'asicc-members-'+new Date().toISOString().slice(0,10)+'.xlsx');
+    showMessage(tr('Excel 파일 다운로드를 시작했습니다.','Le téléchargement Excel a été lancé.'));
   }
   async function loadNameRequests(){
     const target=el<HTMLElement>('admin-name-requests');if(!target)return;
@@ -1160,7 +1262,9 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   type BannerKey = 'bazaar' | 'admissions';
   const bannerKeys:BannerKey[]=['bazaar','admissions'];
   const bannerFields=['eyebrow','title','body','status','button'] as const;
-  const validBannerLink=(link:string)=> /^news\/[a-z0-9/_-]+\/$/.test(link) || /^https:\/\/[^\s]+$/.test(link);
+  const bazaarLink = /^(?:https:\/\/(?:www\.)?asicc-parents\.fr\/(?:ko|fr)\/)?bazaar\/\?event=[a-z0-9-]{12,60}$/;
+  const ownBazaarLink = /^https:\/\/(?:www\.)?asicc-parents\.fr\/(?:ko|fr)\/bazaar(?:[/?#]|$)/i;
+  const validBannerLink=(link:string)=> /^news\/[a-z0-9/_-]+\/$/.test(link) || bazaarLink.test(link) || (/^https:\/\/[^\s]+$/.test(link) && !ownBazaarLink.test(link));
   const bannerEditor=(key:BannerKey)=>document.querySelector<HTMLFormElement>(`[data-banner-editor="${key}"]`);
   function fillBannerEditor(key:BannerKey,data:Record<string,unknown>|null){
     const form=bannerEditor(key);if(!form)return;
@@ -1213,9 +1317,9 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     const button=form.querySelector<HTMLButtonElement>('[data-banner-save]');
     const fd=new FormData(form);
     const link=String(fd.get('link')??'').trim();
-    const data:Record<string,unknown>={enabled:fd.has('enabled'),link,updatedBy:meUid,updatedAt:serverTimestamp()};
+    const data:Record<string,unknown>={enabled:fd.has('enabled'),link:bazaarLink.test(link)?link.replace(/^https:\/\/[^/]+\/(ko|fr)\//,''):link,updatedBy:meUid,updatedAt:serverTimestamp()};
     if(link.length>500||!validBannerLink(link)){
-      bannerFeedback(key,tr('링크는 news/글주소/ 또는 https:// 로 시작해야 합니다.','Utilisez news/identifiant/ ou une URL https://.'),true);return;
+      bannerFeedback(key,tr('news/글주소/, bazaar/?event=행사ID 또는 https:// 링크를 입력해 주세요.','Utilisez news/identifiant/, bazaar/?event=identifiant ou une URL https://.'),true);return;
     }
     for(const field of bannerFields)for(const loc of ['ko','fr'] as const){
       const value=String(fd.get(`${field}_${loc}`)??'').trim();
@@ -1264,7 +1368,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
       text('admin-who',me.data().name || user.email || 'Admin');
       const loading=el<HTMLElement>('admin-loading');if(loading)loading.hidden=true;
       const content=el<HTMLElement>('admin-content');if(content)content.hidden=false;
-      await Promise.all([loadRequests(),loadMembers(true),loadHistory(),loadWithdrawals(),loadNameRequests(),loadSuggestions(),loadHiddenArchives()]);
+      await Promise.all([loadRequests(),loadMembers(true),loadHistory(),loadWithdrawals(),loadNameRequests(),loadSuggestions(),loadHiddenArchives(),loadMemberImprovementRequests()]);
       await loadNotifications();
       await loadBannerEditors();
     } catch(error) {
@@ -1296,7 +1400,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   });
   el<HTMLButtonElement>('admin-refresh')?.addEventListener('click',()=>{
     if(busy)return;
-    const requests=[loadRequests(),loadMembers(true),loadHistory(),loadWithdrawals(),loadNameRequests(),loadSuggestions(),loadHiddenArchives()];
+    const requests=[loadRequests(),loadMembers(true),loadHistory(),loadWithdrawals(),loadNameRequests(),loadSuggestions(),loadHiddenArchives(),loadMemberImprovementRequests()];
     if(el<HTMLDetailsElement>('admin-deletions-panel')?.open)requests.push(loadDeletionLogs());
     void Promise.all(requests).then(()=>Promise.all([loadNotifications(),loadBannerEditors()])).catch(error=>{
       console.error('ASICC refresh:',error);
@@ -1305,11 +1409,12 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
   });
   const resetPage=()=>{page=1;renderMembers();};
   el<HTMLInputElement>('admin-member-search')?.addEventListener('input',resetPage);
-  ['admin-filter-role','admin-filter-status','admin-filter-school','admin-filter-from']
+  ['admin-filter-role','admin-filter-status','admin-filter-school','admin-filter-from','admin-filter-city','admin-filter-association']
     .forEach(id=>el<HTMLInputElement|HTMLSelectElement>(id)?.addEventListener('change',resetPage));
+  el<HTMLInputElement>('admin-filter-city')?.addEventListener('input',resetPage);
   el<HTMLButtonElement>('admin-filter-reset')?.addEventListener('click',()=>{
-    ['admin-member-search','admin-filter-from'].forEach(id=>{const e=el<HTMLInputElement>(id);if(e)e.value='';});
-    ['admin-filter-role','admin-filter-status','admin-filter-school'].forEach(id=>{const e=el<HTMLSelectElement>(id);if(e)e.value='all';});
+    ['admin-member-search','admin-filter-from','admin-filter-city'].forEach(id=>{const e=el<HTMLInputElement>(id);if(e)e.value='';});
+    ['admin-filter-role','admin-filter-status','admin-filter-school','admin-filter-association'].forEach(id=>{const e=el<HTMLSelectElement>(id);if(e)e.value='all';});
     resetPage();
   });
   el<HTMLButtonElement>('admin-prev')?.addEventListener('click',()=>{if(page>1){page--;renderMembers();}});

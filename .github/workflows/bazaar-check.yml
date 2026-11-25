@@ -1,0 +1,62 @@
+name: Bazaar test branch checks
+on:
+  pull_request:
+    branches: [test-cms-fr]
+  push:
+    branches: [feat/online-bazaar]
+permissions:
+  contents: read
+concurrency:
+  group: bazaar-check-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Check JavaScript syntax
+        run: |
+          node --check src/lib/bazaar/admin/app.js
+          node --check scripts/bazaar-dev.mjs
+          node --check firebase-functions-bazaar/bazaar/service.mjs
+          node --check worker/bazaar/index.mjs
+      - name: Static catalog and navigation tests
+        run: node --test tests/bazaar-catalog.test.mjs tests/bazaar-closure-and-navigation.test.mjs tests/bazaar-admin-workflows.test.mjs tests/bazaar-product-orders.test.mjs tests/bazaar-profit-and-locales.test.mjs tests/bazaar-shared-shop.test.mjs
+      - name: Build without deploying
+        run: npm run build
+        env:
+          SITE_URL: https://example.test
+          BASE_PATH: /
+          PUBLIC_ASICC_BAZAAR_TEST: 'false'
+          PUBLIC_ASICC_MEMBERS_ENABLED: 'false'
+      - name: Build entire integrated test site
+        run: npm run build:integration
+        env:
+          PUBLIC_ASICC_BAZAAR_TEST_API_KEY: ci-build-fixture-not-a-real-key
+          PUBLIC_ASICC_BAZAAR_TEST_APP_ID: 1:123456789:web:0000000000000000000000
+  isolated-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install local emulator and Worker CLI
+        run: npm install --global firebase-tools@14 wrangler@4
+      - name: Run isolated integration tests
+        env:
+          CI: 'true'
+          WRANGLER_SEND_METRICS: 'false'
+          FIREBASE_CLI_DISABLE_USAGE_REPORTING: 'true'
+        run: |
+          firebase emulators:exec --only auth,firestore --project demo-asicc-bazaar --config firebase.bazaar.local.json "bash scripts/bazaar-ci-integration.sh"

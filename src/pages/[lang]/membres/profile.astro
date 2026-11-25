@@ -24,6 +24,20 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
           <h2 class="h3">{L(lang,{ko:'기본 정보',fr:'Informations personnelles'})}</h2>
           <p id="profile-current"></p>
           <p id="profile-email" class="muted small"></p><p id="profile-age" class="muted small" hidden></p>
+          <form id="member-profile-form" class="stack gap-12">
+            <label class="stack gap-8"><span>{L(lang,{ko:'실명',fr:'Nom réel'})}</span><input id="profile-name" maxlength="80" required /></label>
+            <label class="stack gap-8"><span>{L(lang,{ko:'연락처',fr:'Téléphone'})}</span><input id="profile-phone" type="tel" maxlength="40" /></label>
+            <label class="stack gap-8"><span>{L(lang,{ko:'거주 도시',fr:'Ville de résidence'})}</span>
+              <select id="profile-city"><option value="">{L(lang,{ko:'선택하세요',fr:'Choisissez'})}</option><option>Courbevoie</option><option>Asnières-sur-Seine</option><option>Bois-Colombes</option><option>Colombes</option><option>Gennevilliers</option><option>La Garenne-Colombes</option><option>Paris</option><option>Puteaux</option><option value="other">{L(lang,{ko:'기타',fr:'Autre'})}</option></select>
+            </label>
+            <input id="profile-city-other" maxlength="100" placeholder={L(lang,{ko:'도시명을 입력하세요',fr:'Nom de la ville'})} hidden />
+            <fieldset class="stack gap-8" style="border:0;padding:0;margin:0">
+              <legend>{L(lang,{ko:'협회 가입 희망 여부',fr:'Intérêt pour l’association'})}</legend>
+              <label class="row gap-12"><input type="radio" name="profile-association-interest" value="false" /><span>{L(lang,{ko:'홈페이지 회원으로만 이용',fr:'Compte du site uniquement'})}</span></label>
+              <label class="row gap-12"><input type="radio" name="profile-association-interest" value="true" /><span>{L(lang,{ko:'협회 회원 가입에도 관심 있음',fr:'Intéressé(e) par l’adhésion à l’association'})}</span></label>
+            </fieldset>
+            <button class="btn btn-dark" type="submit">{L(lang,{ko:'기본 정보 저장',fr:'Enregistrer mes informations'})}</button>
+          </form>
           <form id="realname-request" class="stack gap-8">
             <label for="requested-name">{L(lang,{ko:'성명 변경 신청 (운영진 승인)',fr:'Demander une correction du nom (approbation requise)'})}</label>
             <input id="requested-name" name="requestedName" maxlength="80" autocomplete="name" required />
@@ -42,7 +56,39 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
           <p class="small muted">{L(lang,{ko:'기존 게시글과 댓글에도 새 닉네임을 표시합니다. 실명은 비공개로 유지합니다.',fr:'Les anciens messages et commentaires afficheront également votre nouveau pseudo. Votre nom réel reste privé.'})}</p>
         </section>
         <section class="card stack gap-12" style="padding:24px">
-          <h2 class="h3">{L(lang,{ko:'회원 탈퇴 요청',fr:'Demander la clôture du compte'})}</h2>
+          <h2 class="h3">{L(lang,{ko:'자녀 및 재학 정보',fr:'Enfants et scolarité'})}</h2>
+          <p class="small muted">{L(lang,{ko:'최대 5명까지 관리할 수 있습니다. 이 정보는 운영진과 본인만 볼 수 있습니다.',fr:'Jusqu’à cinq enfants. Ces informations restent visibles par vous et les administrateurs.'})}</p>
+          <div id="profile-children" class="stack gap-12"></div>
+          <div class="row gap-12" style="flex-wrap:wrap"><button id="profile-add-child" class="btn btn-ghost" type="button">{L(lang,{ko:'+ 자녀 추가',fr:'+ Ajouter un enfant'})}</button><button id="profile-save-children" class="btn btn-dark" type="button">{L(lang,{ko:'자녀 정보와 동의 저장',fr:'Enregistrer les enfants et les consentements'})}</button></div>
+        </section>
+        <section class="card stack gap-12" style="padding:24px">
+          <h2 class="h3">{L(lang,{ko:'사진·영상 사용 동의',fr:'Consentement photo et vidéo'})}</h2>
+          <p class="small muted">{L(lang,{ko:'회원 전용 갤러리 공유와 홈페이지·SNS 등 대외 홍보는 별도 동의입니다. 선택은 회원 자격에 영향을 주지 않습니다.',fr:'Le partage dans la galerie réservée aux membres et la communication externe (site, réseaux sociaux) sont séparés. Votre choix ne modifie pas votre statut.'})}</p>
+          <fieldset class="stack gap-8" style="border:0;padding:0;margin:0">
+            <legend>{L(lang,{ko:'본인',fr:'Vous-même'})}</legend>
+            <label class="row gap-12"><input id="profile-self-gallery" type="checkbox" /><span>{L(lang,{ko:'회원 전용 갤러리 공유에 동의',fr:'Galerie réservée aux membres'})}</span></label>
+            <label class="row gap-12"><input id="profile-self-publicity" type="checkbox" /><span>{L(lang,{ko:'홈페이지·SNS 등 대외 홍보에 동의',fr:'Communication publique (site, réseaux sociaux)'})}</span></label>
+          </fieldset>
+          <div id="profile-child-consents" class="stack gap-12"></div>
+          <p class="small muted">{L(lang,{ko:'동의를 철회하면 이후 게시물에 반영됩니다. 기존 게시물 처리나 블러가 필요하면 아래 요청을 제출할 수 있습니다.',fr:'Le retrait s’applique aux publications futures. Vous pouvez demander le traitement ou le floutage des publications existantes.'})}</p>
+          <h3 class="h4">{L(lang,{ko:'동의 변경 이력',fr:'Historique des consentements'})}</h3><div id="profile-consent-history" class="small muted"></div>
+          <form id="profile-blur-request" class="stack gap-8">
+            <h3 class="h4">{L(lang,{ko:'기존 사진·영상 블러 처리 요청',fr:'Demander le floutage d’une photo ou vidéo'})}</h3>
+            <label class="stack gap-8"><span>{L(lang,{ko:'게시물 링크 (선택)',fr:'Lien vers la publication (facultatif)'})}</span><input name="photoUrl" maxlength="500" /></label>
+            <label class="stack gap-8"><span>{L(lang,{ko:'행사명 또는 날짜',fr:'Événement ou date'})}</span><input name="event" maxlength="120" /></label>
+            <label class="stack gap-8"><span>{L(lang,{ko:'사진 속 위치·대상 설명 (선택)',fr:'Personne ou emplacement à flouter (facultatif)'})</span><input name="location" maxlength="300" /></label>
+            <button class="btn btn-ghost" type="submit">{L(lang,{ko:'블러 처리 요청 제출',fr:'Envoyer la demande de floutage'})}</button>
+            <div id="profile-media-requests" class="small muted"></div>
+          </form>
+        </section>
+        <section id="association-withdrawal-panel" class="card stack gap-12" style="padding:24px" hidden>
+          <h2 class="h3">{L(lang,{ko:'협회 회원 자격 탈퇴',fr:'Quitter l’association'})}</h2>
+          <p class="small muted">{L(lang,{ko:'협회 회원 자격과 홈페이지 계정은 별개입니다. 여기서 신청해도 홈페이지 로그인 계정은 유지됩니다.',fr:'L’adhésion à l’association et le compte du site sont séparés. Cette demande ne supprime pas votre compte du site.'})}</p>
+          <p id="association-withdrawal-state" class="small muted"></p>
+          <button id="association-withdrawal-button" class="btn btn-ghost" type="button">{L(lang,{ko:'협회 회원 탈퇴 신청',fr:'Demander le retrait de l’association'})}</button>
+        </section>
+        <section class="card stack gap-12" style="padding:24px">
+          <h2 class="h3">{L(lang,{ko:'홈페이지 계정 탈퇴 요청',fr:'Demander la clôture du compte du site'})}</h2>
           <p class="small muted">{L(lang,{ko:'탈퇴를 요청하면 운영진에게 비공개로 전달됩니다. 이 버튼을 눌러도 계정이 바로 삭제되지는 않습니다. 운영진이 확인한 뒤 개인정보 삭제 절차를 안내합니다.',fr:'Votre demande sera transmise de façon confidentielle aux administrateurs. Elle ne supprime pas immédiatement le compte. L’administration vous précisera la procédure de suppression des données.'})}</p>
           <p id="withdrawal-request-state" class="small muted"></p>
           <button class="btn btn-ghost" type="button" id="withdrawal-request-button" style="align-self:flex-start">{L(lang,{ko:'탈퇴 요청 보내기',fr:'Demander la clôture'})}</button>
@@ -54,10 +100,10 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
 <script>
   import { getApps,initializeApp } from 'firebase/app';
   import { getAuth,onAuthStateChanged,getIdToken } from 'firebase/auth';
-  import { getFirestore,doc,getDoc,setDoc,updateDoc,writeBatch,serverTimestamp } from 'firebase/firestore';
+  import { getFirestore,doc,getDoc,getDocs,collection,query,where,setDoc,updateDoc,writeBatch,serverTimestamp } from 'firebase/firestore';
   import {dmAllowed,ageOn,type AccountAccess} from '../../../scripts/members/member-access';
   import { firebaseConfig } from '../../../firebase-config';
-  import { BOARD_PHOTO_API } from '../../../config/board-photos';
+  import { MEMBER_NOTIFICATION_API } from '../../../config/board-photos';
   const root=document.querySelector<HTMLElement>('#profile-root');
   const fr=root?.dataset.lang==='fr';
   const tr=(ko:string,french:string)=>fr?french:ko;
@@ -66,7 +112,9 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
 const say=(txt:string,bad=false)=>{if(status){status.textContent=txt;status.style.color=bad?'#b42318':'#067647';}toastResult(txt,bad);};
   const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
   const auth=getAuth(app),db=getFirestore(app);
-  let uid='',profile:(AccountAccess & {name:string;email:string;nicknameKey?:string})|null=null;
+  type ChildProfile={id?:string;studentName:string;school:string;grade:string;schoolStatus?:'enrolled'|'graduated'|'transferred';galleryConsent?:boolean;publicityConsent?:boolean};
+  type MemberProfile=AccountAccess & {name:string;email:string;nicknameKey?:string;phone?:string;city?:string;associationInterest?:boolean;associationStatus?:string;children?:ChildProfile[];memberGalleryConsent?:boolean;memberPublicityConsent?:boolean};
+  let uid='',profile:MemberProfile|null=null;
   const validNick=(n:string)=>{
     const plain=n.normalize('NFD').toLowerCase().replace(/\p{M}/gu,'');
     return Array.from(n).length>=2&&Array.from(n).length<=24
@@ -78,6 +126,50 @@ const say=(txt:string,bad=false)=>{if(status){status.textContent=txt;status.styl
     const snap=await getDoc(doc(db,'nameChangeRequests',uid));
     state.textContent=snap.exists()?tr(`기존 신청: ${snap.data().requestedName} (${snap.data().status})`,`Demande : ${snap.data().requestedName} (${snap.data().status})`):'';
   }
+  const citySelect=document.querySelector<HTMLSelectElement>('#profile-city');
+  const cityOther=document.querySelector<HTMLInputElement>('#profile-city-other');
+  citySelect?.addEventListener('change',()=>{if(cityOther){cityOther.hidden=citySelect.value!=='other';if(citySelect.value!=='other')cityOther.value='';}});
+  const childrenRoot=document.querySelector<HTMLElement>('#profile-children');
+  const childId=()=>globalThis.crypto?.randomUUID?.()||`child-${Date.now()}-${Math.random().toString(36).slice(2,9)}`;
+  function renderChildren(children:ChildProfile[]){
+    if(!childrenRoot)return;
+    childrenRoot.replaceChildren();
+    children.forEach((child,index)=>{
+      const card=document.createElement('div');card.className='card stack gap-8';card.dataset.childId=child.id||childId();
+      const title=document.createElement('strong');title.textContent=tr(`자녀 ${index+1}`,`Enfant ${index+1}`);card.append(title);
+      const field=(label:string,name:string,value:string)=>{const wrap=document.createElement('label');wrap.className='stack gap-8';const caption=document.createElement('span');caption.textContent=label;const input=document.createElement('input');input.dataset.field=name;input.maxLength=100;input.value=value;wrap.append(caption,input);card.append(wrap);};
+      field(tr('학생 이름','Nom de l’élève'),'studentName',child.studentName||'');field(tr('학교명','École'),'school',child.school||'');field(tr('학년','Classe'),'grade',child.grade||'');
+      const statusLabel=document.createElement('label');statusLabel.className='stack gap-8';const statusCaption=document.createElement('span');statusCaption.textContent=tr('재학 상태','Statut scolaire');const status=document.createElement('select');status.dataset.field='schoolStatus';
+      for(const [v,k] of [['enrolled',tr('재학','Scolarisé(e)')],['graduated',tr('졸업','Diplômé(e)')],['transferred',tr('전학','Transféré(e)')]]){const o=document.createElement('option');o.value=v;o.textContent=k;status.append(o);}status.value=child.schoolStatus||'enrolled';statusLabel.append(statusCaption,status);card.append(statusLabel);
+      const consent=document.createElement('fieldset');consent.className='stack gap-8';consent.style.cssText='border:0;padding:0;margin:0';const legend=document.createElement('legend');legend.textContent=child.studentName||tr('자녀 사진·영상 동의','Consentement photo de l’enfant');consent.append(legend);
+      for(const [fieldName,label,checked] of [['galleryConsent',tr('회원 전용 갤러리 공유','Galerie des membres'),child.galleryConsent===true],['publicityConsent',tr('홈페이지·SNS 대외 홍보','Communication publique'),child.publicityConsent===true]] as const){const row=document.createElement('label');row.className='row gap-12';const input=document.createElement('input');input.type='checkbox';input.dataset.field=fieldName;input.checked=checked;row.append(input,document.createTextNode(label));consent.append(row);}card.append(consent);
+      const remove=document.createElement('button');remove.type='button';remove.className='btn btn-ghost';remove.textContent=tr('자녀 정보 삭제','Supprimer cette fiche');remove.addEventListener('click',()=>card.remove());card.append(remove);childrenRoot.append(card);
+    });
+  }
+  function readChildren():ChildProfile[]{return Array.from(childrenRoot?.querySelectorAll<HTMLElement>('[data-child-id]')||[]).map(card=>({
+    id:card.dataset.childId||childId(),studentName:card.querySelector<HTMLInputElement>('[data-field="studentName"]')?.value.trim()||'',school:card.querySelector<HTMLInputElement>('[data-field="school"]')?.value.trim()||'',grade:card.querySelector<HTMLInputElement>('[data-field="grade"]')?.value.trim()||'',
+    schoolStatus:(card.querySelector<HTMLSelectElement>('[data-field="schoolStatus"]')?.value||'enrolled') as ChildProfile['schoolStatus'],galleryConsent:card.querySelector<HTMLInputElement>('[data-field="galleryConsent"]')?.checked===true,publicityConsent:card.querySelector<HTMLInputElement>('[data-field="publicityConsent"]')?.checked===true
+  }));}
+  function confirmConsentRevocation(input:HTMLInputElement,wasGranted:boolean){if(wasGranted&&!input.checked&&!confirm(tr('동의를 철회하시겠습니까? 이후 게시물에 적용됩니다. 기존 게시물의 처리가 필요하면 블러 처리 요청도 제출해 주세요.','Retirer ce consentement ? Le changement s’appliquera aux prochaines publications. Pour les anciennes publications, envoyez également une demande de floutage.'))){input.checked=true;}}
+  function hookConsentConfirm(){
+    const selfGallery=document.querySelector<HTMLInputElement>('#profile-self-gallery')!;const selfPublicity=document.querySelector<HTMLInputElement>('#profile-self-publicity')!;
+    selfGallery.onchange=()=>confirmConsentRevocation(selfGallery,profile?.memberGalleryConsent===true);selfPublicity.onchange=()=>confirmConsentRevocation(selfPublicity,profile?.memberPublicityConsent===true);
+    childrenRoot?.querySelectorAll<HTMLInputElement>('[data-field="galleryConsent"],[data-field="publicityConsent"]').forEach(input=>input.onchange=()=>{const child=profile?.children?.find(x=>x.id===(input.closest<HTMLElement>('[data-child-id]')?.dataset.childId));const fieldName=input.dataset.field as 'galleryConsent'|'publicityConsent';confirmConsentRevocation(input,child?.[fieldName]===true);});
+  }
+  async function saveChildrenAndConsent(){
+    if(!uid||!profile)return;const children=readChildren();if(children.some(c=>!c.studentName||!c.school||!c.grade)){say(tr('자녀의 이름·학교·학년을 모두 입력해 주세요.','Renseignez le nom, l’école et la classe de chaque enfant.'),true);return;}if(children.length>5){say(tr('자녀 정보는 최대 5명까지 등록할 수 있습니다.','Vous pouvez enregistrer cinq enfants au maximum.'),true);return;}
+    const selfGallery=document.querySelector<HTMLInputElement>('#profile-self-gallery')!.checked,selfPublicity=document.querySelector<HTMLInputElement>('#profile-self-publicity')!.checked;const oldChildren=profile.children||[],oldById=new Map(oldChildren.map(c=>[c.id||'',c]));const batch=writeBatch(db);const changes:Array<{subjectType:'member'|'child';subjectId:string;scope:'gallery'|'publicity';granted:boolean}> = [];
+    const addChange=(subjectType:'member'|'child',subjectId:string,scope:'gallery'|'publicity',old:boolean,next:boolean)=>{if(old!==next)changes.push({subjectType,subjectId,scope,granted:next});};
+    addChange('member','self','gallery',profile.memberGalleryConsent===true,selfGallery);addChange('member','self','publicity',profile.memberPublicityConsent===true,selfPublicity);
+    for(const child of children){const old=oldById.get(child.id||'');addChange('child',child.id!,'gallery',old?.galleryConsent===true,child.galleryConsent===true);addChange('child',child.id!,'publicity',old?.publicityConsent===true,child.publicityConsent===true);}
+    const nextIds=new Set(children.map(c=>c.id));for(const old of oldChildren){if(old.id&&!nextIds.has(old.id)){if(old.galleryConsent)addChange('child',old.id,'gallery',true,false);if(old.publicityConsent)addChange('child',old.id,'publicity',true,false);}}
+    batch.update(doc(db,'members',uid),{children,memberGalleryConsent:selfGallery,memberPublicityConsent:selfPublicity});for(const change of changes)batch.set(doc(collection(db,'memberConsentHistory')),{uid,...change,createdAt:serverTimestamp()});
+    const button=document.querySelector<HTMLButtonElement>('#profile-save-children');if(button)button.disabled=true;
+    try{await batch.commit();profile={...profile,children,memberGalleryConsent:selfGallery,memberPublicityConsent:selfPublicity};renderChildren(children);hookConsentConfirm();await loadConsentHistory();say(tr('자녀 정보와 동의 설정을 저장했습니다.','Informations et consentements enregistrés.'));}catch(err){console.error('member child/consent update',err);say(tr('저장하지 못했습니다. 입력값과 Firebase 보안 규칙을 확인해 주세요.','Enregistrement impossible. Vérifiez les informations et les règles Firebase.'),true);}finally{if(button)button.disabled=false;}
+  }
+  async function loadConsentHistory(){const root=document.querySelector<HTMLElement>('#profile-consent-history');if(!root||!uid)return;try{const snap=await getDocs(query(collection(db,'memberConsentHistory'),where('uid','==',uid)));const rows=snap.docs.map(d=>d.data()).sort((a,b)=>(b.createdAt?.toMillis?.()||0)-(a.createdAt?.toMillis?.()||0));root.textContent=rows.length?rows.map(r=>`${new Date(r.createdAt?.toMillis?.()||Date.now()).toLocaleString(fr?'fr-FR':'ko-KR',{timeZone:'Europe/Paris'})} · ${r.subjectType==='member'?tr('본인','Vous'):tr('자녀','Enfant')} · ${r.scope==='gallery'?tr('회원 갤러리','Galerie membres'):tr('대외 홍보','Communication externe')} · ${r.granted?tr('동의','Accord'):tr('철회','Retrait')}`).join(' / '):tr('기록이 없습니다.','Aucun historique.');}catch(e){console.error(e);root.textContent=tr('이력 조회에 실패했습니다.','Impossible de charger l’historique.');}}
+  async function loadMediaRequests(){const root=document.querySelector<HTMLElement>('#profile-media-requests');if(!root||!uid)return;try{const snap=await getDocs(query(collection(db,'memberMediaRequests'),where('uid','==',uid)));const rows=snap.docs.map(d=>d.data());root.textContent=rows.length?rows.map(r=>`${r.event||tr('사진 요청','Demande photo')} · ${r.status}`).join(' / '):tr('접수된 요청이 없습니다.','Aucune demande.');}catch(e){console.error(e);root.textContent=tr('요청 상태를 조회할 수 없습니다.','Impossible de vérifier les demandes.');}}
+  async function loadAssociationWithdrawal(){const box=document.querySelector<HTMLElement>('#association-withdrawal-panel');if(!box||!uid||!profile)return;const eligible=['member','special'].includes(profile.role||'')||profile.associationStatus==='active';box.hidden=!eligible;if(!eligible)return;const state=document.querySelector<HTMLElement>('#association-withdrawal-state'),button=document.querySelector<HTMLButtonElement>('#association-withdrawal-button');try{const snap=await getDoc(doc(db,'associationWithdrawalRequests',uid));if(snap.exists()){state!.textContent=tr(`협회 회원 탈퇴 신청 상태: ${snap.data().status}`,`Demande de retrait : ${snap.data().status}`);button!.disabled=snap.data().status==='pending';}else{state!.textContent='';button!.disabled=false;}}catch(e){console.error(e);state!.textContent=tr('신청 상태를 확인할 수 없습니다.','Impossible de vérifier la demande.');button!.disabled=true;}}
   if(import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true')onAuthStateChanged(auth,async user=>{
     if(!user){location.replace(root?.dataset.loginUrl||'/');return;}
     try{
@@ -88,12 +180,26 @@ const say=(txt:string,bad=false)=>{if(status){status.textContent=txt;status.styl
       uid=user.uid;profile=snap.data() as typeof profile;
       document.querySelector<HTMLElement>('#profile-current')!.textContent=tr(`성명: ${profile!.name} / 닉네임: ${profile!.nickname||'미설정'}`,`Nom : ${profile!.name} / pseudo : ${profile!.nickname||'non défini'}`);
       document.querySelector<HTMLElement>('#profile-email')!.textContent=profile!.email;const ageLabel=document.querySelector<HTMLElement>('#profile-age')!;if(profile!.birthDate){const age=ageOn(profile!.birthDate);ageLabel.hidden=false;ageLabel.textContent=tr(`생년월일: ${profile!.birthDate} · ${age===null?'나이 미확인':`만 ${age}세`} (정정은 운영진에게 요청)`,`Date de naissance : ${profile!.birthDate} · ${age===null?'non confirmé':`${age} ans`} (correction auprès de l’administration)`);}
+      document.querySelector<HTMLInputElement>('#profile-name')!.value=profile!.name||'';document.querySelector<HTMLInputElement>('#profile-phone')!.value=profile!.phone||'';
+      const cities=['Courbevoie','Asnières-sur-Seine','Bois-Colombes','Colombes','Gennevilliers','La Garenne-Colombes','Paris','Puteaux'];const city=profile!.city||'';citySelect!.value=cities.includes(city)?city:(city?'other':'');cityOther!.value=city&&!cities.includes(city)?city:'';cityOther!.hidden=citySelect!.value!=='other';
+      const interest=document.querySelector<HTMLInputElement>(`[name="profile-association-interest"][value="${profile!.associationInterest===true}"]`);if(interest)interest.checked=true;
+      document.querySelector<HTMLInputElement>('#profile-self-gallery')!.checked=profile!.memberGalleryConsent===true;document.querySelector<HTMLInputElement>('#profile-self-publicity')!.checked=profile!.memberPublicityConsent===true;
+      profile!.children=(profile!.children||[]).map(child=>({...child,id:child.id||childId()}));renderChildren(profile!.children);hookConsentConfirm();
       document.querySelector<HTMLInputElement>('#new-nickname')!.value=profile!.nickname||'';
       document.querySelector<HTMLElement>('#profile-fields')!.hidden=false;
       say(tr('내 정보가 표시됐습니다.','Profil chargé.'));
-      await Promise.all([loadNameRequest(),loadWithdrawalState()]);
+       await Promise.all([loadNameRequest(),loadWithdrawalState(),loadConsentHistory(),loadMediaRequests(),loadAssociationWithdrawal()]);
     }catch(e){console.error(e);say(tr('회원정보를 불러올 수 없습니다.','Impossible de charger le profil.'),true);}
   });
+  document.querySelector<HTMLFormElement>('#member-profile-form')?.addEventListener('submit',async e=>{
+    e.preventDefault();if(!uid||!profile)return;const name=document.querySelector<HTMLInputElement>('#profile-name')!.value.trim(),phone=document.querySelector<HTMLInputElement>('#profile-phone')!.value.trim();const city=citySelect!.value==='other'?cityOther!.value.trim():citySelect!.value;const interest=document.querySelector<HTMLInputElement>('[name="profile-association-interest"]:checked')?.value;
+    if(!name||name.length>80||!city||city.length>100||!interest){say(tr('이름, 도시, 협회 가입 희망 여부를 확인해 주세요.','Vérifiez le nom, la ville et votre choix d’adhésion.'),true);return;}
+    const button=document.querySelector<HTMLButtonElement>('#member-profile-form button');if(button)button.disabled=true;try{await updateDoc(doc(db,'members',uid),{name,phone,city,associationInterest:interest==='true'});profile={...profile,name,phone,city,associationInterest:interest==='true'};document.querySelector<HTMLElement>('#profile-current')!.textContent=tr(`성명: ${name} / 닉네임: ${profile.nickname||'미설정'}`,`Nom : ${name} / pseudo : ${profile.nickname||'non défini'}`);say(tr('기본 정보를 저장했습니다.','Informations enregistrées.'));}catch(err){console.error(err);say(tr('정보를 저장하지 못했습니다.','Impossible d’enregistrer les informations.'),true);}finally{if(button)button.disabled=false;}
+  });
+  document.querySelector<HTMLButtonElement>('#profile-add-child')?.addEventListener('click',()=>{const children=readChildren();if(children.length>=5){say(tr('자녀 정보는 최대 5명까지 등록할 수 있습니다.','Vous pouvez enregistrer cinq enfants au maximum.'),true);return;}children.push({id:childId(),studentName:'',school:'',grade:'',schoolStatus:'enrolled',galleryConsent:false,publicityConsent:false});renderChildren(children);hookConsentConfirm();});
+  document.querySelector<HTMLButtonElement>('#profile-save-children')?.addEventListener('click',()=>void saveChildrenAndConsent());
+  document.querySelector<HTMLFormElement>('#profile-blur-request')?.addEventListener('submit',async e=>{e.preventDefault();if(!uid)return;const f=e.currentTarget as HTMLFormElement,data=new FormData(f),photoUrl=String(data.get('photoUrl')||'').trim(),event=String(data.get('event')||'').trim(),location=String(data.get('location')||'').trim();if(!photoUrl&&!event){say(tr('게시물 링크 또는 행사명을 입력해 주세요.','Indiquez un lien ou un événement.'),true);return;}const button=f.querySelector<HTMLButtonElement>('button[type=submit]');if(button)button.disabled=true;try{await setDoc(doc(collection(db,'memberMediaRequests')),{uid,kind:'blur',event,photoUrl,location,status:'pending',createdAt:serverTimestamp()});f.reset();say(tr('블러 처리 요청을 접수했습니다. 진행 상태는 이 화면에서 확인할 수 있습니다.','Demande enregistrée. Vous pouvez suivre son état ici.'));await loadMediaRequests();}catch(err){console.error(err);say(tr('요청을 저장하지 못했습니다.','Impossible d’enregistrer la demande.'),true);}finally{if(button)button.disabled=false;}});
+  document.querySelector<HTMLButtonElement>('#association-withdrawal-button')?.addEventListener('click',async()=>{if(!uid||!profile)return;if(!confirm(tr('협회 회원 자격 탈퇴를 신청할까요? 홈페이지 계정과 로그인은 유지됩니다.','Demander le retrait de l’association ? Votre compte du site restera actif.')))return;const button=document.querySelector<HTMLButtonElement>('#association-withdrawal-button')!;button.disabled=true;try{await setDoc(doc(db,'associationWithdrawalRequests',uid),{uid,name:profile.name,email:profile.email,status:'pending',requestedAt:serverTimestamp()});say(tr('협회 탈퇴 신청을 접수했습니다. 홈페이지 계정은 유지됩니다.','Demande reçue. Votre compte du site reste actif.'));await loadAssociationWithdrawal();}catch(err){console.error(err);say(tr('신청을 저장하지 못했습니다.','Impossible d’enregistrer la demande.'),true);button.disabled=false;}});
   document.querySelector<HTMLFormElement>('#nickname-form')?.addEventListener('submit',async e=>{
     e.preventDefault();if(!uid||!profile)return;
     const input=document.querySelector<HTMLInputElement>('#new-nickname')!;
@@ -142,7 +248,7 @@ const say=(txt:string,bad=false)=>{if(status){status.textContent=txt;status.styl
       await setDoc(doc(db,'memberWithdrawalRequests',uid),{
         uid,name:profile.name,email:profile.email,status:'pending',requestedAt:serverTimestamp()
       });
-      try{const endpoint=BOARD_PHOTO_API.trim().replace(/\/$/,'');if(endpoint)await fetch(endpoint+'/api/notify',{method:'POST',headers:{Authorization:'Bearer '+await getIdToken(auth.currentUser!), 'Content-Type':'application/json'},body:JSON.stringify({kind:'withdrawal',id:uid})});}catch(error){console.warn('Email not configured',error);}
+      try{const endpoint=MEMBER_NOTIFICATION_API.trim().replace(/\/$/,'');if(endpoint)await fetch(endpoint+'/api/notify',{method:'POST',headers:{Authorization:'Bearer '+await getIdToken(auth.currentUser!), 'Content-Type':'application/json'},body:JSON.stringify({kind:'withdrawal',id:uid})});}catch(error){console.warn('Email not configured',error);}
       say(tr('탈퇴 요청이 운영진에게 전달됐습니다.','Votre demande a été envoyée aux administrateurs.'));
       await loadWithdrawalState();
     }catch(e){
@@ -162,7 +268,7 @@ const say=(txt:string,bad=false)=>{if(status){status.textContent=txt;status.styl
       if(!old.exists())await setDoc(ref,{uid,...request});
       else if(old.data().status==='rejected')await updateDoc(ref,request);
       else{say(tr('이미 심사 중이거나 승인된 신청이 있습니다.','Une demande est déjà en cours ou traitée.'),true);return;}
-      try{const endpoint=BOARD_PHOTO_API.trim().replace(/\/$/,'');if(endpoint)await fetch(endpoint+'/api/notify',{method:'POST',headers:{Authorization:'Bearer '+await getIdToken(auth.currentUser!), 'Content-Type':'application/json'},body:JSON.stringify({kind:'name',id:uid})});}catch(error){console.warn('Email not configured',error);}
+      try{const endpoint=MEMBER_NOTIFICATION_API.trim().replace(/\/$/,'');if(endpoint)await fetch(endpoint+'/api/notify',{method:'POST',headers:{Authorization:'Bearer '+await getIdToken(auth.currentUser!), 'Content-Type':'application/json'},body:JSON.stringify({kind:'name',id:uid})});}catch(error){console.warn('Email not configured',error);}
       say(tr('운영진에게 실명 변경을 신청했습니다.','Demande transmise à l’administration.'));await loadNameRequest();
     }catch(err){console.error(err);say(tr('신청을 저장하지 못했습니다.','Impossible d’enregistrer la demande.'),true);}
   });
