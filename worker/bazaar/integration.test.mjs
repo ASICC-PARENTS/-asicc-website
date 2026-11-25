@@ -190,11 +190,7 @@ test('Worker API with Firebase emulators preserves checkout, admin, inventory, e
   const closedFinancials=await admin('eventFinancials',{eventId});
   assert.equal(closedFinancials.expenses[0].amountCents,1234);
   assert.equal(closedFinancials.finalizedAt,null);
-  await admin('finalizeEventFinancials',{eventId,action:'finalize',confirm:true});
-  const finalFinancials=await admin('eventFinancials',{eventId});
-  assert.ok(finalFinancials.finalizedAt);
-  await admin('saveEventExpenses',{eventId,revision:1,expenses:[]},412);
-  await admin('finalizeEventFinancials',{eventId,action:'reopen',confirm:true});
+  await admin('finalizeEventFinancials',{eventId,action:'finalize',confirm:true},412);
   assert.equal((await admin('eventFinancials',{eventId})).finalizedAt,null);
   await call('bazaarCreateOrder',{...buyer,requestId:id()},undefined,412);
   assert.equal((await admin('savePurchaseOrder', { ...purchase, revision: 1, confirmClosedEdit: true })).revision, 2);
@@ -218,6 +214,27 @@ test('Worker API with Firebase emulators preserves checkout, admin, inventory, e
   assert.equal((await db.doc(`bazaarOrders/${addition.id}`).get()).data().bankConfirmedAt,null);
   assert.equal((await admin('mailStatus',{id:addition.id})).latePayment,'pending');
   assert.equal((await db.doc(`bazaarOutbox/${addition.id}_bulkCancel`).get()).exists,false);
+  await admin('savePurchaseOrder',{...purchase,revision:2,confirm:true,confirmClosedEdit:true,info:{number:'PO-TEST',date:'2026-11-25'}});
+  const upload=async name=>{
+    const endpoint=`${origin}/api/bazaarAdmin?`+new URLSearchParams({upload:'evidence',eventId,name});
+    const reply=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/octet-stream',Authorization:'Bearer '+staff.idToken},
+      body:Buffer.from('%PDF-1.4\nSynthetic fixture '+name)});
+    const body=await reply.json();
+    assert.equal(reply.status,200,JSON.stringify(body));
+    return body.data;
+  };
+  const purchaseProof=await admin('saveEvidence',{eventId,id:id(),revision:1,scope:'purchase',kind:'invoice',vendor:purchase.vendor,
+    date:'2026-11-25',paymentStatus:'paid',amountCents:700,paidCents:700,files:[await upload('invoice.pdf')]});
+  const expenseProof=await admin('saveEvidence',{eventId,id:id(),revision:purchaseProof.revision,scope:'expense',kind:'receipt',expenseId:'expense-test-0001',
+    date:'2026-11-25',paymentStatus:'paid',amountCents:1234,paidCents:1234,files:[await upload('expense.pdf')]});
+  const costConfirmation=await admin('confirmPurchaseCosts',{eventId,revision:expenseProof.revision,confirm:true});
+  const finalFinancials=await admin('finalizeEventFinancials',{eventId,action:'finalize',confirm:true});
+  assert.ok(finalFinancials.finalizedAt);
+  assert.deepEqual([finalFinancials.snapshot.salesCents,finalFinancials.snapshot.purchaseCents,finalFinancials.snapshot.expenseCents],[450,700,1234]);
+  assert.equal(finalFinancials.revision,costConfirmation.revision+1);
+  await admin('saveEventExpenses',{eventId,revision:finalFinancials.revision,expenses:[]},412);
+  await admin('finalizeEventFinancials',{eventId,action:'reopen',confirm:true,reason:'Synthetic correction'});
+  assert.equal((await admin('eventFinancials',{eventId})).finalizedAt,null);
   const overview=await admin('mailOverview',{eventId});
   assert.ok(overview.messages.some(row=>row.status==='manualSent'));
   assert.equal(overview.budget.acceptedToday,0);
@@ -291,6 +308,7 @@ test('Brevo retries quota-limited delivery with one idempotency key and a test-o
   assert.equal((await job.get()).data().status, 'sent');
   assert.equal((await counter.get()).data().slots.length,2);
   await counter.set({slots:Array.from({length:250},()=>({at:Date.now()}))});
+  await db.doc(`bazaarOrders/${orderId}`).update({bankConfirmedAt:when(-1000),totalCents:500,depositedCents:500});
   const limited = db.doc(`bazaarOutbox/${orderId}_confirmed`);
   await limited.set({ ...mailFields('confirmed'), orderId, type: 'confirmed' });
   assert.equal(await mail.deliver(limited.id, message), false);

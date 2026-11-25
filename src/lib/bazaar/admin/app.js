@@ -915,6 +915,24 @@ function accountingEvidence(){
  return evidenceControls({event:selectedEvent().id,record:eventFinancialRecord,vendors:names.filter(name=>poMeta(name).revision>0),
   expected:names.reduce((sum,vendor)=>sum+poTotal(vendor),0),request,modal,close:closeModal,run,refresh:load,t:language,esc,money});
 }
+function confirmAccounting(action){
+ const t=language,event=selectedEvent(),reopen=action==='reopen',costs=action==='costs';
+ const title=costs?t('실제 매입비용 확정','Confirmer les achats réels'):reopen?t('결산 정정','Corriger le résultat'):
+  t('수익 결산 확정','Arrêter le résultat');
+ const information=costs?t('공급업체별 증빙을 확인하고 실제 매입비용으로 반영합니다.','Les justificatifs des fournisseurs seront utilisés pour le coût réel.'):
+  t('현재 결산과 증빙 기록을 보존합니다. 행사 상태는 별도로 관리됩니다.','Les écritures et justificatifs sont conservés. L’état du bazar est géré séparément.');
+ modal(title,event.name,'<p>'+information+'</p>'+(reopen?'<label class="field">'+t('정정 사유','Motif de la correction')+
+  '<textarea id="accounting-reason" required maxlength="500"></textarea></label>':''),
+  '<button class="btn primary" id="accounting-confirm">'+title+'</button><button class="btn neutral" data-action="close">'+t('취소','Annuler')+'</button>');
+ $('#accounting-confirm').addEventListener('click',ev=>{
+  if(reopen&&!$('#accounting-reason').reportValidity())return;
+  const reason=reopen?$('#accounting-reason').value:'';
+  void run(ev.currentTarget,async()=>{
+   eventFinancialRecord=await request(costs?'confirmPurchaseCosts':'finalizeEventFinancials',{eventId:event.id,revision:eventFinancialRecord.revision,action,reason,confirm:true});
+   closeModal();rerender();
+  });
+ });
+}
 function financialBoard(estimatedSales,estimatedBuy){
  const t=language,snapshot=eventFinancialRecord.finalizedAt&&eventFinancialRecord.snapshot;
  const expenses=snapshot?.expenses||eventFinancialRecord.expenses||[];
@@ -1090,11 +1108,7 @@ if(a==='refund-table'){void run(b,refundTable);return;}
 if(a==='deposit-add'){depositModal(b.dataset.id);return;}
 if(a==='evidence-list'){accountingEvidence().view(b.dataset.scope);return;}
 if(a==='evidence-zip'){void run(b,()=>accountingEvidence().exportAll());return;}
-if(a==='evidence-confirm'){
- if(confirm(language('등록한 증빙을 기준으로 실제 매입비용을 확정할까요?','Confirmer le coût réel à partir des justificatifs ?')))
-  void run(b,async()=>{await request('confirmPurchaseCosts',{eventId:selectedEvent().id,revision:eventFinancialRecord.revision,confirm:true});await load();});
- return;
-}
+if(a==='evidence-confirm'){confirmAccounting('costs');return;}
 if(a==='product-sales'){
  const event=selectedEvent(),product=store.products.find(row=>row.id===b.dataset.id);
  if(event?.status!=='active'||!product||current())return;
@@ -1110,12 +1124,8 @@ if(a==='expense-add'){expenseModal();return;}
 if(a==='expense-edit'){expenseModal(b.dataset.id);return;}
 if(a==='expense-save')run(b,async()=>{const name=$('#expense-name').value.trim(),amount=Number($('#expense-amount').value);if(!name||name.length>120||!Number.isFinite(amount)||amount<=0||amount>1000000)throw new Error('항목명과 금액을 확인해 주세요.');const id=b.dataset.id||crypto.randomUUID();const expenses=[...(eventFinancialRecord.expenses||[])].filter(x=>x.id!==id);expenses.push({id,name,amountCents:Math.round(amount*100)});await persistExpenses(expenses);});
 if(a==='expense-delete'){const row=(eventFinancialRecord.expenses||[]).find(x=>x.id===b.dataset.id);if(row&&confirm(row.name+' 지출을 삭제할까요?'))run(b,()=>persistExpenses((eventFinancialRecord.expenses||[]).filter(x=>x.id!==row.id)));}
-if(a==='settlement-finalize')run(b,async()=>{if(!confirm('현재 매출·매입·기타 지출 내역으로 수익 결산을 확정할까요? 행사 종료/입금 대조 상태는 변경하지 않습니다.'))return;eventFinancialRecord=await request('finalizeEventFinancials',{eventId:selectedEvent().id,action:'finalize',confirm:true});rerender();});
-if(a==='settlement-reopen')run(b,async()=>{
- const reason=prompt(language('결산 정정 사유를 입력하세요.','Indiquez le motif de la correction du résultat.'))?.trim();
- if(!reason)return;
- eventFinancialRecord=await request('finalizeEventFinancials',{eventId:selectedEvent().id,action:'reopen',confirm:true,reason});rerender();
-});
+if(a==='settlement-finalize'){confirmAccounting('finalize');return;}
+if(a==='settlement-reopen'){confirmAccounting('reopen');return;}
 if(a==='profit-excel'){exportProfitExcel();return;}
 if(a==='profit-pdf'){exportProfitPdf();return;}
 if(a==='mode-active')location.href=url('','');if(a==='show-past')pastModal();if(a==='new-event')draftModal();
