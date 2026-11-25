@@ -31,7 +31,7 @@ export function eventFormFields(value){
 }
 export function productViewModel(p) {
   return {
-    id:p.id, soldQty:Number.isSafeInteger(p.soldQty)?p.soldQty:null, hasOrderHistory:p.hasOrderHistory===true, ko:p.titleKo, fr:p.titleFr, koDesc:p.descriptionKo, frDesc:p.descriptionFr,
+    id:p.id, saved:true, soldQty:Number.isSafeInteger(p.soldQty)?p.soldQty:null, hasOrderHistory:p.hasOrderHistory===true, ko:p.titleKo, fr:p.titleFr, koDesc:p.descriptionKo, frDesc:p.descriptionFr,
     vendor:p.supplier, photo:p.imageUrl||'', photoPath:p.photoPath||'', emoji:'📦',
     buy:p.boxPriceTtcCents==null?'':p.boxPriceTtcCents/100, originalBuy:p.boxPriceTtcCents/100, boxHt:p.boxPriceHtCents??null,
     sale:p.retailCents==null?'':p.retailCents/100, pack:p.packQty??'',

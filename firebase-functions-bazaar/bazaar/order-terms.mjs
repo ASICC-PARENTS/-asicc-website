@@ -1,4 +1,4 @@
-export const orderTermsVersion='2026-11-25-r9.1';
+export const orderTermsVersion='2026-11-25-r9.2-pickup';
 export const pickupContact='contact@asicc-parents.fr';
 export const pickupTerms={
  ko:{title:'상품 수령 시 유의사항',lines:[

@@ -19,7 +19,14 @@ const lang = Astro.params.lang as Lang;
   </div>
   <div id="bz-shop" hidden>
   <div id="bz-status" role="status" class="bz-note">{L(lang,{ko:'상품 목록을 불러오는 중입니다…',fr:'Chargement des produits…'})}</div>
-  <p>{orderTerms[lang].lines[0]}</p>
+  <aside class="bz-note" aria-labelledby="bz-buying-notice">
+    <h2 id="bz-buying-notice">{L(lang,{ko:'구매 전 확인해 주세요',fr:'À vérifier avant de commander'})}</h2>
+    <ul>
+      <li>{L(lang,{ko:'주문 후 안내에 따라 계좌이체해 주세요. 협회가 실제 입금을 확인하면 주문이 확정됩니다.',fr:'Effectuez le virement selon les instructions reçues après la commande. L’association confirme la commande après réception du paiement.'})}</li>
+      <li>{orderTerms[lang].lines[0]}</li>
+      <li>{L(lang,{ko:'수령 일시와 장소를 미리 확인해 주세요. 정해진 시간에 오기 어려우면 사전에 협회에 연락해 주세요.',fr:'Vérifiez la date, les horaires et le lieu du retrait. Si vous ne pouvez pas venir au créneau prévu, contactez l’association à l’avance.'})}</li>
+    </ul>
+  </aside>
   <section aria-labelledby="bz-products-h"><h2 id="bz-products-h">{L(lang,{ko:'상품 목록',fr:'Nos produits'})}</h2><div id="bz-products"></div></section>
   <section class="bz-basket" aria-labelledby="bz-cart-title"><h2 id="bz-cart-title">{L(lang,{ko:'장바구니',fr:'Votre panier'})}</h2><div id="bz-cart"></div>
     <div class="bz-total"><span>{L(lang,{ko:'합계',fr:'Total'})}</span><strong id="bz-total">0,00 €</strong></div>
@@ -34,7 +41,7 @@ const lang = Astro.params.lang as Lang;
           <h4>{pickupTerms[lang].title}</h4>{pickupTerms[lang].lines.map(line=><p>{line}</p>)}
           <p>{pickupTerms[lang].contact} · <a href={`mailto:${pickupContact}`}>{pickupContact}</a></p>
         </section>
-        <label class="bz-consent"><input type="checkbox" name="consent" required/> {L(lang,{ko:'주문 변경·취소·환불 안내를 확인했으며, 주문 처리와 연락을 위한 개인정보 이용에 동의합니다.',fr:'J’ai lu les conditions de modification, d’annulation et de remboursement et j’accepte l’utilisation de mes données pour le traitement de la commande.'})}</label>
+        <label class="bz-consent"><input type="checkbox" name="consent" required/> {L(lang,{ko:'주문 변경·취소·환불 및 상품 수령 안내를 확인했으며, 주문 처리와 연락을 위한 개인정보 이용에 동의합니다.',fr:'J’ai lu les conditions de modification, d’annulation, de remboursement et de retrait. J’accepte l’utilisation de mes données pour traiter ma commande et me contacter.'})}</label>
         <button id="bz-send" class="bz-btn" type="submit">{L(lang,{ko:'주문 확정 및 송금 안내 받기',fr:'Valider ma commande et recevoir les coordonnées bancaires'})}</button>
         <small>{L(lang,{ko:'계좌이체는 주문 접수 후 별도로 진행하며, 입금 확인 후 주문이 확정됩니다.',fr:'Le paiement se fait par virement après validation. La commande est confirmée après réception du paiement.'})}</small>
       </form>

@@ -129,7 +129,7 @@ export default {
       if(name==='bazaarAdmin'&&data.op==='getEvidence'&&result instanceof Response)
         return new Response(result.body,{status:result.status,headers:{...cors,...Object.fromEntries(result.headers)}});
       if(key)ctx.waitUntil(edge.put(key,Response.json(result,{headers:{'Cache-Control':'public, max-age=10'}})).catch(()=>{}));
-      if(edge&&name==='bazaarAdmin'&&shopMutations.has(data.op)){
+      if(edge&&name==='bazaarAdmin'&&(shopMutations.has(data.op)||data.op==='saveProductDetail'&&data.scope==='event')){
         const affected=data.eventId??result?.eventId??data.id;
         ctx.waitUntil(Promise.allSettled(['',affected].filter(id=>typeof id==='string'&&(!id||/^[a-z0-9-]{12,60}$/.test(id)))
           .map(id=>edge.delete(shopKey(url.origin,id)))));

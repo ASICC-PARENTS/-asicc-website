@@ -85,6 +85,17 @@ test('publishing, closing and changing the next event preserve historical produc
   assert.equal(draftProduct.retailCents,null);
   assert.equal(draftProduct.packQty,null);
   assert.equal(draftProduct.boxPriceTtcCents,null);
+  const draftDetail=await admin('saveProductDetail',{scope:'draft',eventId:first.id,id:original.id,
+    updatedAt:draftSave.updatedAt,field:'description',descriptionKo:'초안 설명',descriptionFr:'Brouillon'});
+  const revisedDraft=(await admin('getDraft',{id:first.id})).draft;
+  assert.equal(revisedDraft.items[0].descriptionFr,'Brouillon');
+  assert.equal(revisedDraft.items[0].retailCents,null);
+  assert.equal(revisedDraft.items[0].photoPath,original.photoPath);
+  await assert.rejects(admin('saveProductDetail',{scope:'draft',eventId:first.id,id:original.id,
+    updatedAt:draftSave.updatedAt,field:'photo',photoPath:''}),{code:'failed-precondition'});
+  const draftReset=await admin('saveProductDetail',{scope:'draft',eventId:first.id,id:original.id,
+    updatedAt:draftDetail.updatedAt,field:'description',descriptionKo:original.descriptionKo,descriptionFr:original.descriptionFr});
+  draftSave.updatedAt=draftReset.updatedAt;
   await assert.rejects(admin('publishDraft',{id:first.id,updatedAt:draftSave.updatedAt}),{code:'invalid-argument'});
   const excluded={...incomplete,id:'custom-'+id(),included:false,imageUrl:'',photoPath:''};
   const saved=await admin('saveDraft',{id:first.id,updatedAt:draftSave.updatedAt,event:{...first.event,...schedule},items:[original,excluded]});
@@ -93,6 +104,22 @@ test('publishing, closing and changing the next event preserve historical produc
   const publicProducts=(await service.bazaarPublic({data:{eventId:first.id}})).products;
   assert.equal(publicProducts.length,1);
   assert.equal(publicProducts[0].stockRemaining,4);
+  const ev=await db.doc('bazaarMeta/event').get();
+  const activePhoto={scope:'event',eventId:first.id,id:original.id,field:'photo'};
+  const removed=await admin('saveProductDetail',{...activePhoto,revision:ev.data().productRevision??0,photoPath:''});
+  assert.equal((await service.bazaarPublic({data:{eventId:first.id}})).products[0].imageUrl,'');
+  await assert.rejects(admin('saveProductDetail',{...activePhoto,revision:removed.revision,
+    photoPath:original.photoPath.replace(first.id,'different-event')}),{code:'failed-precondition'});
+  await admin('saveProductDetail',{...activePhoto,revision:removed.revision,photoPath:original.photoPath});
+  const restoredPhoto=(await service.bazaarPublic({data:{eventId:first.id}})).products[0];
+  assert.equal(restoredPhoto.imageUrl,publicProducts[0].imageUrl);
+  assert.equal(restoredPhoto.priceCents,450);
+  assert.equal(restoredPhoto.stockRemaining,4);
+  const catalogSnapshot=await admin('getCatalog');
+  await admin('saveProductDetail',{scope:'catalog',id:original.id,revision:catalogSnapshot.revision,
+    field:'description',descriptionKo:'기본 설명',descriptionFr:'Catalogue uniquement'});
+  assert.equal((await admin('getCatalog')).items.find(item=>item.id===original.id).descriptionFr,'Catalogue uniquement');
+  assert.equal((await service.bazaarPublic({data:{eventId:first.id}})).products[0].descriptionFr,'Ancienne description');
 
   const extraId='custom-'+id();
   await admin('addProduct',{eventId:first.id,id:extraId,product:{...original,imageUrl:'',photoPath:''}});

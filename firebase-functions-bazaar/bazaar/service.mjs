@@ -531,6 +531,51 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       const [saved,legacy]=await Promise.all([catalogRef.get(),products.get()]);
       return saved.exists?saved.data():{revision:0,items:catalogSnapshot(legacy)};
     }
+    if(op==='saveProductDetail'){
+      const id=s(data.id),scope=data.scope;
+      if(!productIdValid(id)||!['catalog','draft','event'].includes(scope)
+        ||scope!=='catalog'&&!validEventId(s(data.eventId)))bad('행사와 상품을 확인해 주세요.');
+      const eventId=scope==='catalog'?catalogPhotoScope:data.eventId;
+      const changes={};
+      if(data.field==='description'){
+        if(typeof data.descriptionKo!=='string'||typeof data.descriptionFr!=='string'
+          ||data.descriptionKo.length>3000||data.descriptionFr.length>3000)bad('상품 설명은 언어별로 3,000자까지 입력할 수 있습니다.');
+        changes.descriptionKo=s(data.descriptionKo);
+        changes.descriptionFr=s(data.descriptionFr);
+      }else if(data.field==='photo'){
+        if(typeof data.photoPath!=='string')bad('상품 사진을 확인해 주세요.');
+        Object.assign(changes,await eventPhoto(eventId,id,{photoPath:data.photoPath}));
+      }else bad('저장할 상품 정보를 확인해 주세요.');
+      const target=scope==='catalog'?catalogRef:scope==='draft'?eventDrafts.doc(eventId):eventRef;
+      return db.runTransaction(async tx=>{
+        const snapshot=await tx.get(target);
+        const saved=snapshot.data();
+        if(scope==='event'){
+          requireCurrentEvent(saved);
+          const ref=products.doc(id),product=(await tx.get(ref)).data();
+          if(!product||product.archivedAt||saved.scopedProducts&&product.bazaarEventId!==eventId)
+            throw new HttpsError('not-found','상품을 찾을 수 없습니다.');
+          const revision=saved.productRevision??0;
+          if(revision!==data.revision)throw new HttpsError('failed-precondition','상품이 변경됐습니다. 다시 불러와 주세요.');
+          tx.update(ref,changes);
+          tx.update(target,{productRevision:revision+1});
+          return {...changes,revision:revision+1};
+        }
+        if(scope==='draft'&&(saved?.status!=='draft'||saved.updatedAt!==data.updatedAt))
+          throw new HttpsError('failed-precondition','초안이 변경되었습니다. 다시 불러와 주세요.');
+        const items=saved?.items??catalogSnapshot(await tx.get(products));
+        if(!items.some(item=>item.id===id))throw new HttpsError('not-found','상품을 찾을 수 없습니다.');
+        const updatedAt=scope==='draft'?new Date(Math.max(Date.now(),Date.parse(saved.updatedAt)+1)).toISOString():now();
+        const revision=(saved?.revision??0)+1;
+        if(scope==='catalog'&&revision-1!==data.revision)
+          throw new HttpsError('failed-precondition','기본 목록이 변경됐습니다. 다시 불러와 주세요.');
+        const document={...saved,items:items.map(item=>item.id===id?{...item,...changes}:item),updatedAt,
+          ...(scope==='catalog'?{revision}:{})};
+        if(Buffer.byteLength(JSON.stringify(document))>800000)bad('상품 정보가 너무 많아 저장할 수 없습니다.');
+        tx.set(target,document);
+        return {...changes,updatedAt,...(scope==='catalog'?{revision}:{})};
+      });
+    }
     if(op==='saveCatalog'){
       const items=await Promise.all(normalizeCatalog(data.items).map(async item=>{
         if(item.photoPath&&!item.photoPath.startsWith(`bazaar-photos/${catalogPhotoScope}/${item.id}/`)){
