@@ -461,7 +461,7 @@ test('November cutoffs apply the earlier Paris deadline to both customer emails'
       }
     }
   }
-  assert.equal(formatParisPaymentDeadline(event.transferCutoff,'fr'),'vendredi 27 novembre 2026 à 22h00 (heure de Paris)');
-  assert.equal(formatParisPaymentDeadline(event.transferCutoff,'ko'),'2026년 11월 27일 22:00 (파리 현지 시간)');
+  assert.equal(formatParisPaymentDeadline(event.transferCutoff,'fr'),'Vendredi 27 novembre 2026 à 22h00 (heure de Paris)');
+  assert.equal(formatParisPaymentDeadline(event.transferCutoff,'ko'),'2026년 11월 27일 (금) 22:00 (파리 현지 시간)');
   assert.match(formatParisPaymentDeadline('2026-07-20T15:45:00Z','fr'),/17h45/);
 });

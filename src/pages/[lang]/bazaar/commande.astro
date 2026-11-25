@@ -43,7 +43,7 @@ const lang = Astro.params.lang as Lang;
   </div>
 </Base>
 <script>
-import {formatParisPaymentDeadline,paymentGuidance,transferIdentification} from '../../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
+import {formatParisDateTime,formatParisPaymentDeadline,paymentGuidance,transferIdentification} from '../../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
 import {compactIban,displayIban} from '../../../../firebase-functions-bazaar/bazaar/iban.mjs';
 import {buyerAction,eFormat,h} from '../../../lib/bazaar/api';
 
@@ -87,9 +87,7 @@ $('#bo-print').addEventListener('click',()=>window.print());
 let order:any=null;
 let stage=params.get('payment')==='1'?'payment':'detail';
 let busy=false;
-const date=(value:string)=>value?new Intl.DateTimeFormat(lang==='fr'?'fr-FR':'ko-KR',{
-  timeZone:'Europe/Paris',dateStyle:'short',timeStyle:'short',hourCycle:'h23'
-}).format(new Date(value)):'—';
+const date=(value:string)=>formatParisDateTime(value,lang);
 
 function fact(label:string,value:string){
   return `<div><dt>${label}</dt><dd>${value}</dd></div>`;

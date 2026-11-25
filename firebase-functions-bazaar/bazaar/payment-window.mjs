@@ -1,16 +1,25 @@
 export const defaultPaymentHours=24;
 export const paymentHoursFor=event=>event?.paymentHours??defaultPaymentHours;
 
-export function formatParisPaymentDeadline(value,lang){
+// Display only: always derive the calendar day and weekday from the same Paris-local instant.
+export function formatParisDateTime(value,lang,{dateOnly=false,showZone=false}={}){
  const at=Date.parse(value??'');
  if(!Number.isFinite(at))return '—';
- const parts=Object.fromEntries(new Intl.DateTimeFormat(lang==='fr'?'fr-FR':'ko-KR',{
-  timeZone:'Europe/Paris',weekday:'long',year:'numeric',month:lang==='fr'?'long':'numeric',day:'numeric',
+ const french=lang==='fr';
+ const parts=Object.fromEntries(new Intl.DateTimeFormat(french?'fr-FR':'ko-KR',{
+  timeZone:'Europe/Paris',weekday:french?'long':'short',year:'numeric',month:french?'long':'numeric',day:'numeric',
   hour:'2-digit',minute:'2-digit',hourCycle:'h23'
  }).formatToParts(at).map(part=>[part.type,part.value]));
- return lang==='fr'
-  ? `${parts.weekday} ${parts.day} ${parts.month} ${parts.year} à ${parts.hour}h${parts.minute} (heure de Paris)`
-  : `${parts.year}년 ${parts.month}월 ${parts.day}일 ${parts.hour}:${parts.minute} (파리 현지 시간)`;
+ const weekday=parts.weekday;
+ const day=french
+  ? `${weekday.charAt(0).toUpperCase()+weekday.slice(1)} ${parts.day} ${parts.month} ${parts.year}`
+  : `${parts.year}년 ${parts.month}월 ${parts.day}일 (${weekday})`;
+ if(dateOnly)return day;
+ return day+(french?` à ${parts.hour}h${parts.minute}`:` ${parts.hour}:${parts.minute}`)
+  +(showZone?(french?' (heure de Paris)':' (파리 현지 시간)'):'');
+}
+export function formatParisPaymentDeadline(value,lang){
+ return formatParisDateTime(value,lang,{showZone:true});
 }
 
 export const transferIdentification=lang=>lang==='fr'

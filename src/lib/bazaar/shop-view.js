@@ -1,3 +1,4 @@
+import {formatParisDateTime} from '../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c =>
   ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
 const icons = {
@@ -15,9 +16,7 @@ export function stockNotice(stock,lang) {
 }
 export function renderShopEvent(event,lang) {
   const t=(ko,fr)=>localize(lang,ko,fr);
-  const date=value=>Number.isFinite(Date.parse(value))?new Intl.DateTimeFormat(lang==='fr'?'fr-FR':'ko-KR',{
-    timeZone:'Europe/Paris',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'
-  }).format(new Date(value)):'—';
+  const date=value=>formatParisDateTime(value,lang);
   const name=t(event.nameKo,event.nameFr)||t('ASICC 온라인 바자회','Bazar en ligne ASICC');
   const info=(label,value)=>'<div><strong>'+label+'</strong><p>'+escape(value||'—')+'</p></div>';
   return '<div class="bz-shared-hero"><span>ASICC ONLINE BAZAAR</span><h1>'+escape(name)+'</h1><p>'+

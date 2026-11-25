@@ -65,7 +65,7 @@ export function eventViewModel(event, items=[], orders=[], financialFinalizedAt=
       canceledItems:[...(order.canceledItems||[]),...(order.canceledAt?order.items:[])],
       priceAdjustmentCents:order.priceAdjustmentCents||0, bankConfirmedAt:order.bankConfirmedAt, hasRefundRecords:order.reservedRefundCents!==undefined,
       source:order.source||'web', parentOrderRef:order.parentOrderRef||'', revision:order.revision??0,
-      paymentDeadline:order.paymentDeadline||order.eventSnapshot?.transferCutoff||'',memo:order.pickupNote||'', date:local(order.createdAt).replace('T',' '),
+      paymentDeadline:order.paymentDeadline||order.eventSnapshot?.transferCutoff||'',memo:order.pickupNote||'', createdAt:order.createdAt,date:local(order.createdAt).replace('T',' '),
       reportedAt:local(order.transferReportedAt).replace('T',' '),
       verifiedAt:local(order.bankConfirmedAt).replace('T',' '),
       status:order.canceledAt?'canceled':order.bankConfirmedAt?(order.payment?.additionalDue>0?'partial':'confirmed'):order.transferReportedAt?'reported':'unpaid',

@@ -1,5 +1,5 @@
 import {displayIban} from './iban.mjs';
-import {defaultPaymentHours,formatParisPaymentDeadline,paymentGuidance,transferIdentification} from './payment-window.mjs';
+import {defaultPaymentHours,formatParisDateTime,formatParisPaymentDeadline,paymentGuidance,transferIdentification} from './payment-window.mjs';
 import {orderTerms,pickupContact,pickupTerms} from './order-terms.mjs';
 
 const palette={background:'#EFF2F5',white:'#FFFFFF',navy:'#233D55',text:'#334155',muted:'#64748B',
@@ -23,7 +23,7 @@ function parisPickup(value,lang){
   const time=Date.parse(value??'');
   if(!Number.isFinite(time))return [];
   const locale=lang==='fr'?'fr-FR':'ko-KR';
-  const date=new Intl.DateTimeFormat(locale,{timeZone:'Europe/Paris',dateStyle:'full'}).format(time);
+  const date=formatParisDateTime(value,lang,{dateOnly:true});
   const clock=new Intl.DateTimeFormat(locale,{timeZone:'Europe/Paris',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(time);
   return lang==='fr'?[['Date',date],['Heure de Paris',clock]]:[['수령 날짜',date],['시간 (파리)',clock]];
 }

@@ -1,3 +1,4 @@
+import {formatParisDateTime} from '../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
 import {getApps,initializeApp} from 'firebase/app';
 import {connectAuthEmulator,getAuth,signInWithEmailAndPassword} from 'firebase/auth';
 import {firebaseConfig} from '../../firebase-config';
@@ -109,11 +110,7 @@ export async function adminAction(p:any) {
 }
 export const eFormat=(c:number)=>new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'}).format(c/100);
 export function parisDeadline(value: string | undefined, lang: string) {
-  const date = Date.parse(value ?? '');
-  if (!Number.isFinite(date)) return '—';
-  return new Intl.DateTimeFormat(lang === 'fr' ? 'fr-FR' : 'ko-KR', {
-    dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Paris',
-  }).format(date) + (lang === 'fr' ? ' (heure de Paris)' : ' (파리 시간)');
+  return formatParisDateTime(value,lang,{showZone:true});
 }
 
 export async function orderRequestId(eventId: string, payload: unknown) {
