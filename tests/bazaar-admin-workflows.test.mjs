@@ -166,7 +166,7 @@ test('homepage popup and campaign copy prefer whole-word wrapping without trunca
   assert.match(campaign,/align-self:center/);
 });
 
-test('bulk removal is allowed in the base catalog and drafts, while published products use sales controls',()=>{
+test('bulk removal is draft-only and published products use sales controls',()=>{
   assert.match(app,/const productSelection=new Set\(\)/);
   assert.match(app,/data-product-select-all/);
   assert.match(app,/data-product-select="/);
@@ -174,9 +174,8 @@ test('bulk removal is allowed in the base catalog and drafts, while published pr
   assert.match(app,/data-action="product-delete-selected"[\s\S]*?data-action="refresh-products"/);
   assert.match(app,/selectedVisibleProducts=\(\)=>shownProducts\(\)\.filter/);
   assert.match(app,/productSelection\.clear\(\);productFilter=el\.value/);
-  assert.match(app,/canSelectProducts=\(\)=>productView==='catalog'\|\|\(productView==='event'&&selectedEvent\(\)\?\.status==='draft'\)/);
-  assert.match(app,/rows=catalog\?store\.catalog:store\.products/);
-  assert.match(app,/기본 상품 목록에서 삭제할까요/);
+  assert.match(app,/canSelectProducts=\(\)=>productView==='event'&&selectedEvent\(\)\?\.status==='draft'/);
+  assert.match(app,/rows=store\.products;/);
   assert.match(app,/querySelectorAll\('\[data-action=product-delete-selected\]'\)\.forEach/);
   assert.match(app,/selectedEvent\(\)\?\.status==='active'\?'product-sales':'delete-product'/);
   assert.match(app,/a==='delete-product'&&\(productView==='catalog'\|\|selectedEvent\(\)\?\.status==='draft'\)/);
@@ -206,4 +205,19 @@ test('first test bazaar uses the supplied one-image poster without changing futu
   const html=read('src/components/HomePopup.astro');
   assert.match(html,/data-layout="poster"/);
   assert.match(html,/object-fit:contain/);
+});
+
+test('catalog opens as an independent dialog and refreshes only reference products',()=>{
+  assert.match(app,/standaloneCatalog=page==='products'&&params\.has\('catalog'\)/);
+  assert.match(app,/if\(standaloneCatalog\)\{\s+const catalog=await request\('getCatalog'\)/);
+  assert.match(app,/app\.innerHTML=\(catalog\?'':eventHead\(\)\+tabs\(\)\)/);
+  assert.match(app,/dialog\.showModal\(\)/);
+  assert.match(app,/frame\.src=url\('products',''\)\+'\?catalog=1&popup=1'/);
+  assert.match(app,/event\.origin!==location\.origin/);
+  assert.match(app,/event\.source!==catalogFrame\?\.contentWindow/);
+  assert.match(app,/if\(productDirty&&!confirm\(fr\?'Fermer sans enregistrer/);
+  const close=app.slice(app.indexOf('async function finishCatalogClose'),app.indexOf('function closeStandaloneCatalog'));
+  assert.match(close,/request\('getCatalog'\)/);
+  assert.doesNotMatch(close,/await load\(|saveCatalog|saveDraft|saveEventProducts/);
+  assert.match(read('src/lib/bazaar/admin/style.css'),/\.standalone-catalog \.site>header,\.standalone-catalog \.topline\{display:none\}/);
 });

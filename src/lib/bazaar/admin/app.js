@@ -21,6 +21,13 @@ const clone=x=>structuredClone(x);
 const model={catalog:[],active:null,draft:null,drafts:[],past:[],events:[],view:'empty',history:0};
 let catalogRevision=0,busy=false,authVersion=0;
 const params=new URLSearchParams(location.search);
+const standaloneCatalog=page==='products'&&params.has('catalog');
+const embeddedCatalog=standaloneCatalog&&params.has('popup')&&window.parent!==window;
+if(standaloneCatalog){
+ document.body.classList.add('standalone-catalog');
+ if(embeddedCatalog)document.body.classList.add('embedded-catalog');
+ document.title=fr?'ASICC · Catalogue principal':'ASICC · 기본 상품 목록 관리';
+}
 const selectedEvent=()=>model.view==='past'?model.past[model.history]:model.view==='draft'?model.draft:model.view==='active'?model.active:null;
 const current=()=>selectedEvent()?.status==='past';
 const request=(op,fields={})=>adminAction({op,...fields});
@@ -46,6 +53,12 @@ async function run(button, work){
 }
 async function load(){
  const version=authVersion;
+ if(standaloneCatalog){
+  const catalog=await request('getCatalog');
+  if(version!==authVersion)return;
+  model.catalog=catalog.items.map(p=>({...productViewModel(p),stopped:false}));catalogRevision=catalog.revision;
+  productSelection.clear();rerender();return;
+ }
  const listing=await request('listEvents');
  const [catalog,latest]=await Promise.all([request('getCatalog'),request('dashboard')]);
  if(version!==authVersion)return;
@@ -219,7 +232,7 @@ function draftModal(resume=false){
  const date=(id,label,value)=>'<div><b>'+label+' (파리)</b><div class="actions">'+field(id+'-date','날짜',value?.slice(0,10),'date')+field(id+'-time','시간',value?.slice(11,16),'time')+'</div></div>';
  modal(existing?'행사 설정':'새 바자회 만들기','행사 기본 정보 및 구매자 안내',
  '<div class="form-grid">'+(!existing?'<label class="field wide">지난 바자회 상품 복사<select class="select" id="copy-products-from"><option value="">복사하지 않음</option>'+model.past.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.round+'회 · '+p.name)+'</option>').join('')+'</select></label>':'')+field('event-name','행사명 · 한국어',existing?.name)+field('event-name-fr','행사명 · 프랑스어',existing?.raw.nameFr)+area('event-intro-ko','행사 소개 · 한국어',existing?.raw.introKo,1000)+area('event-intro-fr','행사 소개 · 프랑스어',existing?.raw.introFr,1000)+date('event-opening',fr?'Ouverture des commandes':'주문 시작',existing?.raw.orderStartsAt?parisInput(existing.raw.orderStartsAt):'')+date('event-order','주문 마감',existing?.orderDeadline)+date('event-transfer','송금 마감',existing?.transferDeadline)+date('event-pickup',fr?'Date et heure du retrait':'픽업 날짜 및 시간',existing?.raw.pickupAt?parisInput(existing.raw.pickupAt):'')+field('event-pickup-place',fr?'Lieu du retrait':'픽업 장소',existing?.raw.pickupPlace)+area('event-pickup-ko','픽업 안내 · 한국어',existing?.pickupKo,500)+area('event-pickup-fr','픽업 안내 · 프랑스어',existing?.pickupFr,500)+field('event-payment-hours',fr?'Délai par commande (heures)':'개인별 송금 기한 (시간)',existing?.raw.paymentHours??24,'number')+field('event-beneficiary','수취인',existing?.raw.beneficiary)+field('event-iban','IBAN (FR · 27자리)',displayIban(existing?.raw.iban))+'</div>',
- '<button class="btn neutral" data-action="close">취소</button>'+(existing?.status==='draft'?'<button class="btn neutral" data-action="preview-draft-form">미리보기</button>':'')+'<button class="btn primary" data-action="create-draft">'+(active?'설정 저장':'임시저장')+'</button>');
+ '<button class="btn neutral" data-action="close">취소</button>'+(!existing||existing.status==='draft'?'<button type="button" class="btn neutral" data-action="switch-catalog">'+(fr?'Catalogue principal':'기본 상품 목록 관리')+'</button>':'')+(existing?.status==='draft'?'<button class="btn neutral" data-action="preview-draft-form">미리보기</button>':'')+'<button class="btn primary" data-action="create-draft">'+(active?'설정 저장':'임시저장')+'</button>');
  $('#event-name').dataset.edit=String(!!existing);
  $('#event-iban').addEventListener('input',ev=>{ev.target.value=ev.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,27).match(/.{1,4}/g)?.join(' ')||'';});
 }
@@ -249,7 +262,7 @@ function eventList(filter='all'){
   return direction*String(first).localeCompare(String(second),fr?'fr':'ko');
  });
  const actions='<button class="btn neutral" data-action="new-event">＋ '+(fr?'Créer un bazar':'새 바자회 만들기')+'</button>'+
-  '<a class="btn neutral" href="'+esc(url('products','')+'?catalog=1')+'">'+(fr?'Catalogue principal':'기본 상품 목록 관리')+'</a>';
+  '<button type="button" class="btn neutral" data-action="switch-catalog">'+(fr?'Catalogue principal':'기본 상품 목록 관리')+'</button>';
  const filters=controls.map(([key,ko,french])=>'<button class="filter '+(filter===key?'active':'')+'" data-action="event-filter" data-value="'+key+'">'+(fr?french:ko)+' ('+all.filter(e=>matches(e,key)).length+')</button>').join('');
  const rows=shown.map(e=>{
   const label=e.status==='draft'?(fr?'Brouillon':'임시저장'):e.status==='closed'?(fr?'Terminé':'종료'):(fr?'En cours':'진행 중');
@@ -276,7 +289,62 @@ function renderMain(){
   (fr?'Aucun bazar n’est en cours.':'현재 진행 중인 바자회가 없습니다.')+'</p></section>';
  app.innerHTML=eventSummary+eventList(params.get('status')||'all');
 }
-let productView=new URLSearchParams(location.search).has('catalog')?'catalog':'event',productFilter='',productDirty=false;
+let productView=standaloneCatalog?'catalog':'event',productFilter='',productDirty=false;
+let catalogDialog=null,catalogFrame=null,catalogFrameReady=false,catalogOpener=null,catalogClosing=false;
+const catalogLabel=fr?'Catalogue principal':'기본 상품 목록 관리';
+function openCatalogPopup(opener){
+ if(standaloneCatalog||busy||catalogDialog?.open)return;
+ catalogOpener=opener;
+ const dialog=document.createElement('dialog');dialog.className='catalog-dialog';dialog.setAttribute('aria-label',catalogLabel);
+ const header=document.createElement('div');header.className='catalog-dialog-header';
+ const title=document.createElement('h2');title.textContent=catalogLabel;
+ const close=document.createElement('button');close.type='button';close.className='btn neutral';close.textContent=fr?'Fermer ×':'닫기 ×';
+ close.addEventListener('click',requestCatalogClose);header.append(title,close);
+ const frame=document.createElement('iframe');frame.title=catalogLabel;frame.className='catalog-frame';
+ catalogDialog=dialog;catalogFrame=frame;catalogFrameReady=false;
+ dialog.append(header,frame);root.append(dialog);
+ dialog.addEventListener('cancel',e=>{e.preventDefault();requestCatalogClose();});
+ dialog.showModal();frame.src=url('products','')+'?catalog=1&popup=1';
+}
+function requestCatalogClose(){
+ if(!catalogDialog?.open||catalogClosing)return;
+ if(catalogFrameReady)catalogFrame.contentWindow.postMessage({type:'asicc-catalog-request-close'},location.origin);
+ else void finishCatalogClose();
+}
+async function finishCatalogClose(refresh=true){
+ if(!catalogDialog||catalogClosing&&refresh)return;
+ const dialog=catalogDialog,opener=catalogOpener,version=authVersion;
+ catalogClosing=true;
+ if(refresh){
+  try{
+   const catalog=await request('getCatalog');
+   if(version===authVersion&&catalogDialog===dialog){
+    // Refresh only the reference catalog, not the event or its draft.
+    model.catalog=catalog.items.map(p=>({...productViewModel(p),stopped:false}));catalogRevision=catalog.revision;
+   }
+  }catch(error){if(version===authVersion)alert(error.message||(fr?'Actualisez le catalogue avant de réimporter.':'기본 목록을 다시 불러온 후 상품을 가져와 주세요.'));}
+ }
+ if(catalogDialog!==dialog)return;
+ catalogDialog=null;catalogFrame=null;catalogFrameReady=false;catalogOpener=null;catalogClosing=false;
+ dialog.close();dialog.remove();opener?.focus();
+}
+function closeStandaloneCatalog(){
+ if(!standaloneCatalog||busy)return;
+ if(!modalWrap.hidden){closeModal();return;}
+ if(productDirty&&!confirm(fr?'Fermer sans enregistrer les modifications du catalogue ?':'기본 상품 목록의 저장하지 않은 변경사항을 버리고 닫을까요?'))return;
+ productDirty=false;
+ if(embeddedCatalog){app.inert=true;window.parent.postMessage({type:'asicc-catalog-closed'},location.origin);}
+ else location.href=params.has('event')?url('products',params.get('event')):url('','');
+}
+window.addEventListener('message',event=>{
+ if(event.origin!==location.origin)return;
+ if(embeddedCatalog&&event.source===window.parent&&event.data?.type==='asicc-catalog-request-close'){closeStandaloneCatalog();return;}
+ if(!catalogDialog?.open||event.source!==catalogFrame?.contentWindow)return;
+ if(event.data?.type==='asicc-catalog-ready')catalogFrameReady=true;
+ if(event.data?.type==='asicc-catalog-closed')void finishCatalogClose();
+});
+if(embeddedCatalog)window.parent.postMessage({type:'asicc-catalog-ready'},location.origin);
+
 const productSelection=new Set();
 const visibleProducts=()=>productView==='catalog'?store.catalog:store.products.filter(p=>p.active||p.stopped);
 function markProductDirty(){productDirty=true;const el=$('#product-status');if(el){el.textContent=fr?'● Modifications non enregistrées':'● 수정 중 · 저장되지 않음';el.style.color='var(--amber)';}}
@@ -308,7 +376,7 @@ function storageOptions(p){
 const productColumnLabels=['순서','사진','상품명 · 한국어','상품명 · 프랑스어','상품 설명','공급업체','매입가/박스 TTC €','박스당 수량','개당 원가','개당 판매가 €','수익률 %','수량 설정 방식','발주 예정 박스','최대 판매수량','보관방법','관리'];
 const productColumns=['sort','photo','title-ko','title-fr','description','supplier','buy-box','box-qty','unit-cost','sell-price','margin','limit-mode','planned-boxes','limit','storage','actions'].map((id,index)=>[id,productColumnLabels[index]]);
 const shownProducts=()=>visibleProducts().filter(x=>(x.ko+' '+x.fr+' '+x.vendor).toLowerCase().includes(productFilter.toLowerCase()));
-const canSelectProducts=()=>productView==='catalog'||(productView==='event'&&selectedEvent()?.status==='draft');
+const canSelectProducts=()=>productView==='event'&&selectedEvent()?.status==='draft';
 const selectedVisibleProducts=()=>shownProducts().filter(p=>productSelection.has(p.id));
 const productSelectionText=()=>fr?selectedVisibleProducts().length+' produit(s) sélectionné(s)':selectedVisibleProducts().length+'종 선택';
 function productSelectionToolbar(){
@@ -328,17 +396,13 @@ function syncProductSelection(){
 function deleteSelectedProducts(){
  if(!canSelectProducts())return;
  const selected=selectedVisibleProducts();if(!selected.length)return;
- const catalog=productView==='catalog';
- const message=catalog
-  ?language(selected.length+'종의 상품을 기본 상품 목록에서 삭제할까요? 저장 후 반영되며 기존 바자회에는 영향을 주지 않습니다.','Retirer '+selected.length+' produit(s) du catalogue principal ? Enregistrez pour appliquer. Les événements existants ne seront pas modifiés.')
-  :language(selected.length+'종의 상품을 초안에서 삭제할까요? 저장 후 반영됩니다.','Retirer '+selected.length+' produit(s) de ce brouillon ? Enregistrez pour appliquer.');
- if(!confirm(message))return;
- const ids=new Set(selected.map(p=>p.id)),rows=catalog?store.catalog:store.products;
+ if(!confirm(language(selected.length+'종의 상품을 초안에서 삭제할까요? 저장 후 반영됩니다.','Retirer '+selected.length+' produit(s) de ce brouillon ? Enregistrez pour appliquer.')))return;
+ const ids=new Set(selected.map(p=>p.id)),rows=store.products;
  for(let i=rows.length-1;i>=0;i--)if(ids.has(rows[i].id))rows.splice(i,1);
  productSelection.clear();markProductDirty();rerender();
 }
 function tableProducts(){const ps=shownProducts();const catalog=productView==='catalog';return '<p class="notice">'+(fr?'Tous les prix sont TTC.':'모든 가격은 TTC 기준입니다.')+'</p><div class="sheet"><table style="min-width:1390px"><colgroup>'+[58,52,160,150,82,120,117,105,117,107,108,110,127,107,85,98].map(x=>'<col style="width:'+x+'px">').join('')+'</colgroup><thead><tr>'+productColumns.map(([id,label])=>'<th data-column-id="'+id+'">'+(fr?({sort:'Ordre',photo:'Photo','title-ko':'Nom · coréen','title-fr':'Nom · français',description:'Description',supplier:'Fournisseur','buy-box':'Coût/boîte TTC €','box-qty':'Unités/boîte','unit-cost':'Coût unitaire','sell-price':'Prix de vente €',margin:'Marge %','planned-boxes':'Boîtes à commander','limit-mode':'Mode de quantité',limit:'Quantité maximale',storage:'Conservation',actions:'Actions'}[id]||label):label)+'</th>').join('')+'</tr></thead><tbody>'+ps.map((p,index)=>'<tr data-row="'+p.id+'" class="'+(!catalog&&p.stopped?'sales-stopped':'')+'" data-sort-row="'+p.id+'"><td>'+(canSelectProducts()?'<label class="product-row-select"><input type="checkbox" data-product-select="'+esc(p.id)+'" aria-label="'+esc((fr?'Sélectionner ':'선택: ')+(fr?p.fr:p.ko))+'" '+(productSelection.has(p.id)?'checked':'')+'></label>':'')+'<div class="sort-controls">'+(catalog?'<span>'+String(index+1)+'</span>':'')+'<button class="linkbtn mobile-sort" data-action="product-up" data-id="'+p.id+'" aria-label="'+(fr?'Monter':'위로')+'" '+(index===0||(!catalog&&current())?'disabled':'')+'>↑</button><button class="linkbtn mobile-sort" data-action="product-down" data-id="'+p.id+'" aria-label="'+(fr?'Descendre':'아래로')+'" '+(index===ps.length-1||(!catalog&&current())?'disabled':'')+'>↓</button><span class="drag-handle desktop-sort" title="'+(fr?'Faire glisser pour réordonner':'드래그하여 순서 변경')+'">⠿</span></div></td><td><button class="thumb" data-action="edit-photo" data-id="'+p.id+'" title="사진 편집">'+(p.photo?'<img src="'+esc(p.photo)+'" alt="" width="32">':'＋')+'</button></td>'+['ko','fr','desc','vendor','buy','pack'].map(f=>f==='desc'?'<td><button class="linkbtn" data-action="edit-product" data-id="'+p.id+'">'+(fr?'Modifier':'설명')+' ✎</button></td>':f==='vendor'?'<td><select class="select" style="width:100%;max-width:120px;padding:7px" data-prod="'+p.id+'" data-key="vendor">'+supplierOptions(p)+'</select></td>':'<td><input class="cell" data-prod="'+p.id+'" data-key="'+f+'" '+(['buy','pack'].includes(f)?'type="number" step="any" min="0"':'type="text"')+' value="'+esc(p[f])+'">'+(!catalog&&p.stopped&&f===(fr?'fr':'ko')?'<small class="sales-state">'+(fr?'Vente suspendue':'판매 중지')+'</small>':'')+'</td>').join('')+'<td data-derived="unit" data-id="'+p.id+'">'+(unit(p)?money(unit(p)):'—')+'</td><td><input class="cell" type="number" step="0.01" min="0.01" data-key="sale" data-prod="'+p.id+'" value="'+esc(p.sale)+'"></td><td><input class="cell '+(Number(roi(p))<0?'negative-margin':'')+'" type="number" step="0.01" data-prod="'+p.id+'" data-key="roi" value="'+roi(p)+'" '+(unit(p)<=0?'disabled placeholder="'+(fr?'Indisponible':'계산 불가')+'"':'')+'></td><td><select class="select" style="padding:7px;max-width:112px" data-prod="'+p.id+'" data-key="limitMode"><option value="auto" '+(p.limitMode==='auto'?'selected':'')+'>'+ (fr?'Calcul automatique':'자동 계산')+'</option><option value="manual" '+(p.limitMode==='manual'?'selected':'')+'>'+(fr?'Saisie manuelle':'수동 입력')+'</option><option value="unlimited" '+(p.limitMode==='unlimited'?'selected':'')+'>'+ (fr?'Sans limite':'제한 없음')+'</option></select></td><td><input class="cell" type="number" step="1" min="0" data-prod="'+p.id+'" data-key="boxes" value="'+(p.boxes??'')+'"></td><td><input class="cell" type="'+(p.limitMode==='unlimited'?'text':'number')+'" step="1" min="0" data-prod="'+p.id+'" data-key="manualLimit" value="'+esc(limitDisplay(p))+'" '+(p.limitMode!=='manual'?'disabled':'')+'></td><td><select class="select" style="width:100%;max-width:125px;padding:7px" data-prod="'+p.id+'" data-key="storage">'+storageOptions(p)+'</select></td><td><button class="linkbtn" data-action="'+(!catalog&&selectedEvent()?.status==='active'?'product-sales':'delete-product')+'" data-id="'+p.id+'" '+(!catalog&&(current()||selectedEvent()?.status==='active'&&!p.saved)?'disabled':'')+'>'+(catalog||selectedEvent()?.status==='draft'?(fr?'Supprimer':'삭제'):current()?'—':p.stopped?(fr?'Reprendre les ventes':'판매 재개'):(fr?'Arrêter les ventes':'판매 중지'))+'</button></td></tr>').join('')+'</tbody></table></div><p class="muted tiny" style="margin-top:8px">'+(fr?'Utilisez la poignée pour réordonner.':'PC에서는 손잡이를 드래그하고, 모바일에서는 화살표로 진열 순서를 변경하세요')+'</p>'}
-function renderProducts(){const catalog=productView==='catalog',draft=!catalog&&selectedEvent()?.status==='draft';app.innerHTML=eventHead()+tabs()+'<section class="tabbody"><div class="toolbar"><div><h2>'+(catalog?(fr?'Catalogue principal':'기본 상품 목록 관리'):(fr?'Gestion des produits':'이번 바자회 상품 관리'))+'</h2><p class="muted small">'+(catalog?(fr?'Modifiez les produits de référence sans affecter les événements créés.':'상시 원본 관리 · 필요한 상품을 행사에서 선택하여 가져오기'):esc(selectedEvent()?.name||'')+(fr?' · copie indépendante pour cet événement':'에만 적용되는 상품 사본'))+'</p></div><div class="actions">'+(catalog?'<button class="btn neutral" data-action="switch-event">← '+(fr?'Événement':'이번 바자회로')+'</button>':'<button class="btn neutral" data-action="switch-catalog">⚙ '+(fr?'Catalogue principal':'기본 상품 목록 관리')+'</button>')+'</div></div>'+banner(catalog?'<b>'+(fr?'Catalogue principal':'원본 상품 관리')+'</b> · '+(fr?'Les modifications ne changent pas les événements existants.':'기본 목록을 수정해도 이미 생성된 바자회의 상품에는 영향을 주지 않습니다.'):'<b>'+(fr?'Copie propre à l’événement':'이번 행사 전용 복사본')+'</b> · '+(fr?'Les modifications restent propres à cet événement.':'여기서 수정하는 모든 상품 정보는 기본 상품 목록에 반영되지 않습니다.'))+'<div class="toolbar"><div class="actions"><input id="product-search" class="search" value="'+esc(productFilter)+'" placeholder="'+(fr?'Rechercher un produit ou fournisseur':'상품 또는 공급업체 검색')+'"><span class="muted small">'+visibleProducts().length+(fr?' produits':'종')+'</span>'+productSelectionToolbar()+(canSelectProducts()?'<button type="button" class="btn danger" data-action="product-delete-selected" '+(!selectedVisibleProducts().length?'disabled':'')+'>'+(fr?'Supprimer les produits sélectionnés':'선택 상품 삭제하기')+'</button>':'')+'</div><div class="actions">'+(catalog?'<button class="btn neutral" data-action="add-product">＋ '+(fr?'Ajouter un produit':'상품 추가')+'</button>':'<button class="btn neutral" data-action="import">＋ '+(fr?'Importer des produits':'상품 가져오기')+'</button>')+'<button class="btn neutral columns-mobile" data-action="column-settings">'+(fr?'Colonnes':'열 설정')+'</button><button class="btn neutral columns-desktop" data-action="column-reset">'+(fr?'Réinitialiser les colonnes':'열 초기화')+'</button></div></div>'+tableProducts()+'<div class="footbar"><div class="actions">'+
+function renderProducts(){const catalog=productView==='catalog',draft=!catalog&&selectedEvent()?.status==='draft';app.innerHTML=(catalog?'':eventHead()+tabs())+'<section class="tabbody'+(catalog?' catalog-only':'')+'"><div class="toolbar catalog-context"><div><h2>'+(catalog?(fr?'Catalogue principal':'기본 상품 목록 관리'):(fr?'Gestion des produits':'이번 바자회 상품 관리'))+'</h2><p class="muted small">'+(catalog?(fr?'Modifiez les produits de référence sans affecter les événements créés.':'상시 원본 관리 · 필요한 상품을 행사에서 선택하여 가져오기'):esc(selectedEvent()?.name||'')+(fr?' · copie indépendante pour cet événement':'에만 적용되는 상품 사본'))+'</p></div><div class="actions">'+(catalog?'<button class="btn neutral" data-action="switch-event">'+(fr?'Fermer':'닫기')+'</button>':'<button class="btn neutral" data-action="switch-catalog">⚙ '+(fr?'Catalogue principal':'기본 상품 목록 관리')+'</button>')+'</div></div>'+banner(catalog?'<b>'+(fr?'Catalogue principal':'원본 상품 관리')+'</b> · '+(fr?'Les modifications ne changent pas les événements existants.':'기본 목록을 수정해도 이미 생성된 바자회의 상품에는 영향을 주지 않습니다.'):'<b>'+(fr?'Copie propre à l’événement':'이번 행사 전용 복사본')+'</b> · '+(fr?'Les modifications restent propres à cet événement.':'여기서 수정하는 모든 상품 정보는 기본 상품 목록에 반영되지 않습니다.'))+'<div class="toolbar"><div class="actions"><input id="product-search" class="search" value="'+esc(productFilter)+'" placeholder="'+(fr?'Rechercher un produit ou fournisseur':'상품 또는 공급업체 검색')+'"><span class="muted small">'+visibleProducts().length+(fr?' produits':'종')+'</span>'+productSelectionToolbar()+(canSelectProducts()?'<button type="button" class="btn danger" data-action="product-delete-selected" '+(!selectedVisibleProducts().length?'disabled':'')+'>'+(fr?'Supprimer les produits sélectionnés':'선택 상품 삭제하기')+'</button>':'')+'</div><div class="actions">'+(catalog?'<button class="btn neutral" data-action="add-product">＋ '+(fr?'Ajouter un produit':'상품 추가')+'</button>':'<button class="btn neutral" data-action="import">＋ '+(fr?'Importer des produits':'상품 가져오기')+'</button>')+'<button class="btn neutral columns-mobile" data-action="column-settings">'+(fr?'Colonnes':'열 설정')+'</button><button class="btn neutral columns-desktop" data-action="column-reset">'+(fr?'Réinitialiser les colonnes':'열 초기화')+'</button></div></div>'+tableProducts()+'<div class="footbar"><div class="actions">'+
  (catalog||draft?'<button class="btn primary" data-action="save-product">'+(fr?'Enregistrer':'저장')+'</button>':'')+
  (canSelectProducts()?'<button type="button" class="btn danger" data-action="product-delete-selected" '+(!selectedVisibleProducts().length?'disabled':'')+'>'+(fr?'Supprimer les produits sélectionnés':'선택 상품 삭제하기')+'</button>':'')+
  '<button class="btn neutral" data-action="refresh-products">'+(fr?'Actualiser':'새로고침')+'</button>'+'<span id="product-status" class="muted small">'+(productDirty?'● '+(fr?'Modifications non enregistrées':'수정 중 · 저장되지 않음'):'✓ '+(fr?'Enregistré':'저장 완료'))+'</span>'+
@@ -1271,7 +1335,7 @@ if(a==='settlement-reopen'){confirmAccounting('reopen');return;}
 if(a==='profit-excel'){exportProfitExcel();return;}
 if(a==='profit-pdf'){exportProfitPdf();return;}
 if(a==='mode-active')location.href=url('','');if(a==='show-past')pastModal();if(a==='new-event')draftModal();
-if(a==='switch-catalog'){if(productDirty){alert('변경사항을 저장하거나 새로고침한 뒤 목록을 변경하세요.');return;}productSelection.clear();productView='catalog';productFilter='';const next=new URL(location.href);next.searchParams.set('catalog','1');history.replaceState(null,'',next);rerender();}if(a==='switch-event'){if(productDirty){alert('변경사항을 저장하거나 새로고침한 뒤 목록을 변경하세요.');return;}if(!selectedEvent()){location.href=url('','');return;}productSelection.clear();productView='event';productFilter='';const next=new URL(location.href);next.searchParams.delete('catalog');history.replaceState(null,'',next);rerender();}if(a==='edit-product'&&(productView==='catalog'||!current()))editProduct(b.dataset.id);if(a==='edit-photo'&&(productView==='catalog'||!current()))editProduct(b.dataset.id,true);if(a==='import'&&!current())importModal();if(a==='delete-product'&&(productView==='catalog'||selectedEvent()?.status==='draft')){const ar=productView==='catalog'?store.catalog:store.products;const p=ar.find(x=>x.id===b.dataset.id);if(p&&confirm(p.ko+' 상품을 '+(productView==='catalog'?'기본 상품 목록':'이번 바자회')+'에서 삭제할까요?')){ar.splice(ar.indexOf(p),1);markProductDirty();rerender();}}
+if(a==='switch-catalog'){openCatalogPopup(b);return;}if(a==='switch-event'){closeStandaloneCatalog();return;}if(a==='edit-product'&&(productView==='catalog'||!current()))editProduct(b.dataset.id);if(a==='edit-photo'&&(productView==='catalog'||!current()))editProduct(b.dataset.id,true);if(a==='import'&&!current())importModal();if(a==='delete-product'&&(productView==='catalog'||selectedEvent()?.status==='draft')){const ar=productView==='catalog'?store.catalog:store.products;const p=ar.find(x=>x.id===b.dataset.id);if(p&&confirm(p.ko+' 상품을 '+(productView==='catalog'?'기본 상품 목록':'이번 바자회')+'에서 삭제할까요?')){ar.splice(ar.indexOf(p),1);markProductDirty();rerender();}}
 if(a==='add-product'){
  const ar=productView==='catalog'?store.catalog:store.products;
  const p={id:newId(),ko:'',fr:'',koDesc:'',frDesc:'',vendor:'',buy:'',sale:'',pack:1,storage:'상온',photo:'',photoPath:'',emoji:'📦',active:false,boxes:'',manualLimit:'',limitMode:'unlimited'};
@@ -1321,6 +1385,7 @@ if(a==='po-reset'){if(confirm('이 업체 발주서의 수동 변경을 초기�
 if(a==='po-preview')previewPO(store.vendor);if(a==='all-po')modal('전체 업체 구매발주서 검토','업체별 구매발주서 분리 작성',vendors().map(v=>'<div class="modal-row"><b>'+esc(v)+'</b><span>'+money(poTotal(v))+'</span><button class="linkbtn" data-action="show-po" data-value="'+esc(v)+'">미리보기</button></div>').join(''),'<button class="btn neutral" data-action="close">닫기</button>');
 });
 $('#modal').addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(!b)return;const a=b.dataset.action;
+if(a==='switch-catalog'){openCatalogPopup(b);return;}
 if(a==='save-reopen-intake'){handleScreenAction(a,b);return;}
 if(handleModalAction(a,b))return;
 if(a==='close')closeModal();
@@ -1853,6 +1918,7 @@ function handleModalAction(action,button){
 
 onAuthStateChanged(bazaarAuth,async user=>{
  const version=++authVersion;
+ if(catalogDialog)void finishCatalogClose(false);
  closeModal();$('#admin-actions').hidden=true;app.replaceChildren();
  model.active=null;model.draft=null;model.past=[];model.drafts=[];model.catalog=[];
  if(!user){
