@@ -1,4 +1,4 @@
-import {formatParisDateTime,paymentHoursFor} from '../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
+import {formatParisDateTime,formatParisPickupRange,paymentHoursFor} from '../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c =>
   ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
 const icons = {
@@ -44,7 +44,7 @@ export function renderShopEvent(event,lang,{logoUrl=''}={}) {
     '<div class="bz-shared-info">'+
     info(t('주문 마감','Clôture des commandes'),date(event.orderCutoff),eventIcons.calendar)+
     info(t('송금 기한','Délai de virement'),paymentWindow,eventIcons.wallet,finalDeadline)+
-    '<div class="bz-pickup-card">'+info(t('상품 수령','Retrait des commandes'),date(event.pickupAt),eventIcons.pin)+
+    '<div class="bz-pickup-card">'+info(t('상품 수령','Retrait des commandes'),formatParisPickupRange(event.pickupAt,event.pickupEndAt,lang),eventIcons.pin)+
     (event.pickupPlace?'<p class="bz-pickup-place">'+escape(event.pickupPlace)+'</p>':'')+
     (pickup?disclosure('pickup',t('상세 주소 및 주차 안내','Adresse et informations de retrait'),eventIcons.pin,'<p>'+escape(pickup)+'</p>'):'')+'</div></div>'+
     (intro?disclosure('intro',t('바자회 소개 및 수익금 사용 안내','Présentation du bazar et utilisation des bénéfices'),eventIcons.heart,'<p>'+escape(intro)+'</p>'):'')+'</div>';

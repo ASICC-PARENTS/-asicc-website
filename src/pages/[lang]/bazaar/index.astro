@@ -52,7 +52,7 @@ const lang = Astro.params.lang as Lang;
 </Base>
 
 <script>
-import {formatParisPaymentDeadline,paymentGuidance,transferIdentification} from '../../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
+import {formatParisPaymentDeadline,formatParisPickupRange,paymentGuidance,transferIdentification} from '../../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
 import {orderIntakeState} from '../../../../firebase-functions-bazaar/bazaar/order-intake.mjs';
 import "../../../lib/bazaar/shop-view.css";
 import {bindStorageLabels,changeCartQuantity,quantityCap,renderShopEvent,renderShopProducts,preserveShopDisclosures} from "../../../lib/bazaar/shop-view";
@@ -219,7 +219,9 @@ async function sendOrder(){
       <p class="buyer-hint">${mailMessage[status]||mailMessage.unknown}</p>
       <dl class="buyer-facts"><div><dt>${t('주문번호','Référence')}</dt><dd>${h(result.orderRef)}</dd></div>
       <div><dt>${t('주문 금액','Montant de la commande')}</dt><dd><strong>${eFormat(result.totalCents)}</strong></dd></div>
-      <div><dt>${t('송금 마감','Date limite de virement')}</dt><dd>${h(formatParisPaymentDeadline(result.transferCutoff,lang))}</dd></div></dl>
+      <div><dt>${t('송금 마감','Date limite de virement')}</dt><dd>${h(formatParisPaymentDeadline(result.transferCutoff,lang))}</dd></div>
+      ${result.pickupAt?`<div><dt>${t('상품 수령','Retrait des commandes')}</dt><dd>${h(formatParisPickupRange(result.pickupAt,result.pickupEndAt,lang))}</dd></div>`:''}
+      ${result.pickupPlace?`<div><dt>${t('수령 장소','Lieu du retrait')}</dt><dd>${h(result.pickupPlace)}</dd></div>`:''}</dl>
       <div class="buyer-actions"><a class="buyer-link" href="${h(link)}" rel="noreferrer">${t('주문 조회 링크','Lien de suivi de la commande')}</a>
       <a class="buyer-btn" href="${h(paymentLink)}" rel="noreferrer">${t('송금 정보 보기','Voir les coordonnées bancaires')}</a></div>`;
     receipt.focus();

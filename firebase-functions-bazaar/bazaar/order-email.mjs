@@ -1,5 +1,5 @@
 import {displayIban} from './iban.mjs';
-import {defaultPaymentHours,formatParisDateTime,formatParisPaymentDeadline,paymentGuidance,transferIdentification} from './payment-window.mjs';
+import {defaultPaymentHours,formatParisPickupTime,formatParisDateTime,formatParisPaymentDeadline,paymentGuidance,transferIdentification} from './payment-window.mjs';
 import {orderTerms,pickupContact,pickupTerms} from './order-terms.mjs';
 
 const palette={background:'#EFF2F5',white:'#FFFFFF',navy:'#233D55',text:'#334155',muted:'#64748B',
@@ -19,12 +19,11 @@ const muted='color:'+palette.muted+';font-size:12px;';
 const emphasis='font-size:18px;line-height:1.2;font-weight:700;color:'+palette.navy+';';
 const referenceStyle='font-size:16px;line-height:1.2;font-weight:700;color:'+palette.navy+';white-space:nowrap;word-break:normal;overflow-wrap:normal;';
 
-function parisPickup(value,lang){
+function parisPickup(value,lang,end){
   const time=Date.parse(value??'');
   if(!Number.isFinite(time))return [];
-  const locale=lang==='fr'?'fr-FR':'ko-KR';
   const date=formatParisDateTime(value,lang,{dateOnly:true});
-  const clock=new Intl.DateTimeFormat(locale,{timeZone:'Europe/Paris',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(time);
+  const clock=end?formatParisPickupTime(value,end,lang):new Intl.DateTimeFormat(lang==='fr'?'fr-FR':'ko-KR',{timeZone:'Europe/Paris',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(time);
   return lang==='fr'?[['Date',date],['Heure de Paris',clock]]:[['수령 날짜',date],['시간 (파리)',clock]];
 }
 
@@ -226,7 +225,7 @@ export function renderOrderEmail({order,type,event={},template={},change={},site
   if(receipt||reminders)addNotes(t('송금 시 유의사항','Conseils pour votre virement'),
     paymentGuidance(lang,order.paymentHours??event.paymentHours??defaultPaymentHours).slice(1,5),true);
   if(['receipt','confirmed','reminderFinal','pickup'].includes(type)||notice&&choice('pickup')){
-    addFacts(pickupTitle,[...parisPickup(event.pickupAt,lang),[t('수령 장소','Lieu'),event.pickupPlace],
+    addFacts(pickupTitle,[...parisPickup(event.pickupAt,lang,event.pickupEndAt),[t('수령 장소','Lieu'),event.pickupPlace],
       [t('추가 안내','Informations complémentaires'),t(event.pickupKo||event.pickupFr,event.pickupFr||event.pickupKo)]],false);
     if(!notice)addNotes(pickupTerms[lang].title,[t('냉장·냉동 상품은 보냉 가방을 준비해 주세요.','Prévoyez un sac isotherme pour les produits réfrigérés ou surgelés.'),
       ...pickupTerms[lang].lines,pickupTerms[lang].contact+': '+pickupContact]);

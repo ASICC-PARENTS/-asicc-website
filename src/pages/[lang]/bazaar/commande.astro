@@ -43,7 +43,7 @@ const lang = Astro.params.lang as Lang;
   </div>
 </Base>
 <script>
-import {formatParisDateTime,formatParisPaymentDeadline,paymentGuidance,transferIdentification} from '../../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
+import {formatParisDateTime,formatParisPaymentDeadline,formatParisPickupRange,paymentGuidance,transferIdentification} from '../../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
 import {compactIban,displayIban} from '../../../../firebase-functions-bazaar/bazaar/iban.mjs';
 import {buyerAction,eFormat,h} from '../../../lib/bazaar/api';
 
@@ -210,6 +210,7 @@ function draw(){
       ${order.name?`<p class="buyer-hint">${h(order.name)}</p>`:''}</div>
       <span class="buyer-status ${order.bankConfirmedAt&&!order.canceledAt&&!order.payment?.additionalDue?'confirmed':''}">${detailStatus()}</span></section>
       ${itemsSection()}${paymentHistory()}${paymentSection()}
+      ${order.pickupAt||order.pickupPlace?`<section class="buyer-section"><h2>${t('상품 수령','Retrait des commandes')}</h2><dl class="buyer-facts">${order.pickupAt?fact(t('수령 일시','Date et heure du retrait'),h(formatParisPickupRange(order.pickupAt,order.pickupEndAt,lang))):''}${order.pickupPlace?fact(t('수령 장소','Lieu du retrait'),h(order.pickupPlace)):''}</dl></section>`:''}
       ${order.pickupNote?`<section class="buyer-section"><h2>${t('판매자에게 전달할 사항','Informations complémentaires pour le retrait')}</h2><p class="buyer-note-text">${h(order.pickupNote)}</p></section>`:''}
       ${actions()?' <div class="buyer-section">'+actions()+'</div>':''}`;
   }

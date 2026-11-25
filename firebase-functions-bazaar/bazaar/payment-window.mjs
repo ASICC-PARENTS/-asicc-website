@@ -52,3 +52,20 @@ export function paymentGuidance(lang,hours=defaultPaymentHours){
   '여러분의 이해와 협조에 감사드립니다.',
  ];
 }
+
+// Optional end time is on the same Paris-local pickup date.
+export function validPickupEnd(start,end){
+ if(!end)return true;
+ const a=Date.parse(start??''),b=Date.parse(end);
+ return Number.isFinite(a)&&Number.isFinite(b)&&b>a&&formatParisDateTime(start,'ko',{dateOnly:true})===formatParisDateTime(end,'ko',{dateOnly:true});
+}
+export function formatParisPickupTime(start,end,lang){
+ if(!Number.isFinite(Date.parse(start??'')))return '';
+ const clock=value=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(value));
+ const first=clock(start),last=end&&validPickupEnd(start,end)?clock(end):'';
+ return lang==='fr'?(last?'de '+first.replace(':','h')+' à '+last.replace(':','h'):first.replace(':','h')):(last?first+'~'+last:first);
+}
+export function formatParisPickupRange(start,end,lang){
+ if(!end||!validPickupEnd(start,end))return formatParisDateTime(start,lang);
+ return formatParisDateTime(start,lang,{dateOnly:true})+' '+formatParisPickupTime(start,end,lang);
+}

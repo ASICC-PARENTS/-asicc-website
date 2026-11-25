@@ -1,6 +1,6 @@
 import {orderPaymentSummary} from './order-payments.mjs';
 import {validRefundIban} from './iban.mjs';
-import {defaultPaymentHours,personalTransferDeadline} from './payment-window.mjs';
+import {defaultPaymentHours,personalTransferDeadline,validPickupEnd} from './payment-window.mjs';
 import {orderTermsVersion} from './order-terms.mjs';
 import {randomBytes, timingSafeEqual, createHash} from 'node:crypto';
 import {catalogue, initialEvent} from './products.mjs';
@@ -178,16 +178,18 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     const { iban, beneficiary, transferCutoff } = order.eventSnapshot ?? {};
     return { orderRef: order.orderRef, totalCents: order.totalCents, iban, beneficiary, transferCutoff:order.paymentDeadline||transferCutoff,paymentHours:order.paymentHours??null };
   };
+  const pickupDetails=order=>({pickupAt:order.eventSnapshot?.pickupAt||'',pickupEndAt:order.eventSnapshot?.pickupEndAt||'',pickupPlace:order.eventSnapshot?.pickupPlace||''});
   const laterPaymentCutoff=(previous,next)=>{
     const latest=latestTransferCutoff(previous);
     return latest>Date.parse(next)?new Date(latest).toISOString():null;
   };
   function eventSchedule(input){
-    const orderStartsAt=s(input.orderStartsAt),pickupAt=s(input.pickupAt),pickupPlace=s(input.pickupPlace).slice(0,300);
+    const orderStartsAt=s(input.orderStartsAt),pickupAt=s(input.pickupAt),pickupEndAt=s(input.pickupEndAt),pickupPlace=s(input.pickupPlace).slice(0,300);
     if((orderStartsAt&&(!Number.isFinite(Date.parse(orderStartsAt))||Date.parse(orderStartsAt)>=Date.parse(input.orderCutoff)))||(pickupAt&&!Number.isFinite(Date.parse(pickupAt))))bad('주문 시작과 픽업 일정을 확인해 주세요.');
+    if(!validPickupEnd(pickupAt,pickupEndAt))bad('수령 종료 시간은 같은 날짜의 시작 시간보다 늦어야 합니다. / L’heure de fin doit être postérieure à l’heure de début, le même jour.');
     const paymentHours=input.paymentHours==null||input.paymentHours===''?defaultPaymentHours:Number(input.paymentHours);
     if(!Number.isSafeInteger(paymentHours)||paymentHours<1||paymentHours>720)bad('개인 송금 시간은 1~720시간이어야 합니다.');
-    return {orderStartsAt,pickupAt,pickupPlace,paymentHours};
+    return {orderStartsAt,pickupAt,pickupEndAt,pickupPlace,paymentHours};
   }
   const buyerCanCancel=(event,order)=>{
     const originalCutoff=Date.parse(order?.eventSnapshot?.orderCutoff);
@@ -196,7 +198,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
   const publicItem=({titleKo,titleFr,qty,priceCents})=>({titleKo,titleFr,qty,priceCents});
   function buyerOrder(order, event) {
     return {
-      ...paymentDetails(order),
+      ...paymentDetails(order),...pickupDetails(order),
       items: order.canceledAt?[]:order.items.map(publicItem),
       canceledItems:[...(order.canceledItems||[]),...(order.canceledAt?order.items:[])].map(publicItem),
       payment:orderPaymentSummary(order), name:order.name,createdAt:order.createdAt,
@@ -291,7 +293,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       }
       if(closed(current))return {serverNow:now(),event:{eventId,status:'closed'},products:[]};
       const e=current;
-      const safe={eventId,status:e.status||'draft',orderStartsAt:e.orderStartsAt||'',pickupAt:e.pickupAt||'',pickupPlace:e.pickupPlace||'',nameKo:e.nameKo,nameFr:e.nameFr,introKo:e.introKo,introFr:e.introFr,orderCutoff:e.orderCutoff,transferCutoff:e.transferCutoff,paymentHours:e.paymentHours??defaultPaymentHours,pickupKo:e.pickupKo,pickupFr:e.pickupFr,beneficiary:e.beneficiary,iban:e.iban,contactEmail:e.contactEmail,finalizedAt:null};
+      const safe={eventId,status:e.status||'draft',orderStartsAt:e.orderStartsAt||'',pickupAt:e.pickupAt||'',pickupEndAt:e.pickupEndAt||'',pickupPlace:e.pickupPlace||'',nameKo:e.nameKo,nameFr:e.nameFr,introKo:e.introKo,introFr:e.introFr,orderCutoff:e.orderCutoff,transferCutoff:e.transferCutoff,paymentHours:e.paymentHours??defaultPaymentHours,pickupKo:e.pickupKo,pickupFr:e.pickupFr,beneficiary:e.beneficiary,iban:e.iban,contactEmail:e.contactEmail,finalizedAt:null};
       safe.orderIntakeClosedAt=e.orderIntakeClosedAt||null;
       safe.orderIntakeLocked=orderIntakeLocked(e);
       const ps=e.status==='published' ? snapshotProducts(await tx.get(projectProducts(eventId))) : [];
@@ -320,7 +322,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       if(existing.exists){
         const o=existing.data();
         if(o.requestFingerprint!==fingerprint)throw new HttpsError('already-exists','같은 요청 번호에 다른 주문이 있습니다.');
-        return { order:{ id:o.id, token:o.buyerToken, ...paymentDetails(o), pickupKo:o.eventSnapshot.pickupKo } };
+        return { order:{ id:o.id, token:o.buyerToken, ...paymentDetails(o),...pickupDetails(o), pickupKo:o.eventSnapshot.pickupKo } };
       }
       const e=eventSnap.data();
       const rate=rateSnap.data()||{};
@@ -346,7 +348,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       tx.create(ref,data);
       tx.set(throttleRef,{startedMs:(rate.startedMs||0)>windowStart?rate.startedMs:Date.now(),count:(rate.startedMs||0)>windowStart?(rate.count||0)+1:1,expiresAt:new Date(Date.now()+24*3600000).toISOString()});
       await queue(tx,ref.id,'receipt',{eventId:requested});
-      return { created:true,order:{ id:ref.id, token, ...paymentDetails(data), pickupKo:e.pickupKo } };
+      return { created:true,order:{ id:ref.id, token, ...paymentDetails(data),...pickupDetails(data), pickupKo:e.pickupKo } };
     };
     const {order,created}=await (db.runCheckout
       ? db.runCheckout([checkoutEvent,throttleRef,ref,sequenceRef,...refs],checkout)
@@ -1352,7 +1354,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         const maxSerial=Math.max(cur.data()?.lastSerial??0,...archives.docs.map(d=>d.data().event?.serial||0),...existingDrafts.docs.map(d=>d.data().serial||0));
         const freshFirst=maxSerial===0;
         const serial=freshFirst?(prev.serial||1):maxSerial+1;
-      const draft={id,serial,status:'draft',createdAt,updatedAt:createdAt,event:{...prev,eventId:id,serial,nameKo:`${serial}차 ASICC 온라인 바자회`,nameFr:`Vente solidaire ASICC n°${serial}`,orderCutoff:'',transferCutoff:'',orderStartsAt:'',pickupAt:'',pickupPlace:'',paymentHours:defaultPaymentHours,pickupKo:'',pickupFr:'',finalizedAt:null,endedAt:null,publishedAt:null,createdAt,status:'draft',orderIntakeClosedAt:null,priorTransferCutoff:null},items:[]};
+      const draft={id,serial,status:'draft',createdAt,updatedAt:createdAt,event:{...prev,eventId:id,serial,nameKo:`${serial}차 ASICC 온라인 바자회`,nameFr:`Vente solidaire ASICC n°${serial}`,orderCutoff:'',transferCutoff:'',orderStartsAt:'',pickupAt:'',pickupEndAt:'',pickupPlace:'',paymentHours:defaultPaymentHours,pickupKo:'',pickupFr:'',finalizedAt:null,endedAt:null,publishedAt:null,createdAt,status:'draft',orderIntakeClosedAt:null,priorTransferCutoff:null},items:[]};
         const rows=managementEventRows({data:()=>null},archives,existingDrafts);
         const numbers=await assignManagementNumbers(tx,[...rows.events,...rows.drafts,{id,createdAt}]);
         tx.create(eventDrafts.doc(id),draft);
@@ -1420,6 +1422,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         if(!snap.exists||snap.data()?.status!=='draft')throw new HttpsError('not-found','발행할 임시저장 바자회가 없습니다.');
         if(snap.data().updatedAt!==data.updatedAt)throw new HttpsError('failed-precondition','초안이 변경되었습니다. 다시 불러와 주세요.');
         const draft=snap.data(),e=draft.event;
+        if(!validPickupEnd(e.pickupAt,e.pickupEndAt))bad('수령 종료 시간을 확인해 주세요. / Vérifiez l’heure de fin du retrait.');
         if(!e.orderCutoff||!e.transferCutoff||!Number.isFinite(Date.parse(e.orderCutoff))||!Number.isFinite(Date.parse(e.transferCutoff))||Date.parse(e.orderCutoff)<=Date.now()||Date.parse(e.transferCutoff)<=Date.parse(e.orderCutoff))bad('주문·송금 마감 날짜를 확인해 주세요.');
         if(!/^FR\d{2}[A-Z0-9]{23}$/.test(s(e.iban))||!e.beneficiary||!e.pickupKo||!e.pickupFr)bad('IBAN, 수취인과 픽업 안내를 모두 입력해 주세요.');
         if(!draft.items.some(p=>p.included))bad('판매할 상품을 하나 이상 선택해 주세요.');

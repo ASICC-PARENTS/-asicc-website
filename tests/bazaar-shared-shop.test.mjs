@@ -4,7 +4,7 @@ import {orderTerms,pickupTerms} from '../firebase-functions-bazaar/bazaar/order-
 import test from 'node:test';
 import {changeCartQuantity,renderShopEvent,renderShopProducts,stockNotice,renderShopNotice} from '../src/lib/bazaar/shop-view.js';
 import {autoMailAllowed} from '../worker/bazaar/mail-policy.mjs';
-import {formatParisDateTime,formatParisPaymentDeadline} from '../firebase-functions-bazaar/bazaar/payment-window.mjs';
+import {formatParisDateTime,formatParisPaymentDeadline,formatParisPickupRange,formatParisPickupTime,validPickupEnd} from '../firebase-functions-bazaar/bazaar/payment-window.mjs';
 
 test('storefront and preview use one notice per stock level',()=>{
   assert.equal(stockNotice(null,'ko'),'');
@@ -135,4 +135,18 @@ test('limited stock appears once below quantity controls from the first unit in 
   if(stock!==null)assert.match(html,/<div class="bz-qty">0<\/div><p class="bz-stock">/);
   if(stock===0)assert.match(html,/bz-sold-stamp/);
  }
+});
+
+test('optional pickup end time is displayed consistently in Paris and validated',()=>{
+ const start='2026-12-02T15:00:00Z',end='2026-12-02T15:30:00Z';
+ assert.equal(formatParisPickupRange(start,end,'ko'),'2026년 12월 2일 (수) 16:00~16:30');
+ assert.equal(formatParisPickupRange(start,end,'fr'),'Mercredi 2 décembre 2026 de 16h00 à 16h30');
+ assert.equal(formatParisPickupRange(start,'','fr'),'Mercredi 2 décembre 2026 à 16h00');
+ assert.equal(formatParisPickupTime(start,end,'fr'),'de 16h00 à 16h30');
+ assert.equal(validPickupEnd(start,end),true);
+ for(const bad of [start,'2026-12-02T14:59:00Z','2026-12-03T15:30:00Z','invalid'])assert.equal(validPickupEnd(start,bad),false);
+ assert.equal(validPickupEnd('',end),false);
+ assert.equal(validPickupEnd(start,''),true);
+ for(const lang of ['ko','fr'])assert.ok(renderShopEvent({pickupAt:start,pickupEndAt:end},lang).includes(formatParisPickupRange(start,end,lang)));
+ assert.equal(formatParisPickupRange('2026-07-02T14:00:00Z','2026-07-02T14:30:00Z','fr'),'Jeudi 2 juillet 2026 de 16h00 à 16h30');
 });

@@ -93,12 +93,17 @@ test('event form saves absent or complete Paris date pairs',()=>{
  const read=id=>values[id]||'';
  assert.deepEqual(eventFormFields(read),{
   paymentHours:'',orderStartsAt:'',orderCutoff:'2026-11-27T17:00:00.000Z',transferCutoff:'2026-11-27T21:00:00.000Z',
-  pickupAt:'',pickupPlace:'',nameKo:'Draft',nameFr:'',introKo:'',introFr:'',pickupKo:'',pickupFr:'',beneficiary:'',iban:'',
+  pickupAt:'',pickupEndAt:'',pickupPlace:'',nameKo:'Draft',nameFr:'',introKo:'',introFr:'',pickupKo:'',pickupFr:'',beneficiary:'',iban:'',
  });
  values['event-pickup-date']='2026-11-28';
  assert.throws(()=>eventFormFields(read),/date et l’heure/);
  values['event-pickup-time']='09:00';
  assert.equal(eventFormFields(read).pickupAt,'2026-11-28T08:00:00.000Z');
+ assert.equal(eventFormFields(read).pickupEndAt,'');
+ values['event-pickup-end-time']='09:30';
+ assert.equal(eventFormFields(read).pickupEndAt,'2026-11-28T08:30:00.000Z');
+ values['event-pickup-end-time']='08:59';
+ assert.throws(()=>eventFormFields(read),/postérieure/);
 });
 
 test('order quantities keep partial cancellation history after full cancellation',()=>{

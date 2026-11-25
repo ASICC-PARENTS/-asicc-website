@@ -1,3 +1,4 @@
+import {validPickupEnd} from '../../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
 const storageLabels = {ambient:'상온', chilled:'냉장', frozen:'냉동'};
 const storageValues = Object.fromEntries(Object.entries(storageLabels).map(([key,value])=>[value,key]));
 const paris = new Intl.DateTimeFormat('sv-SE',{
@@ -19,10 +20,15 @@ export function eventFormFields(value){
   if(!date||!hour)throw new Error('날짜와 시간을 모두 입력해 주세요. / Saisissez la date et l’heure.');
   return parisToIso(date+'T'+hour);
  };
+ const pickupAt=time('event-pickup');
+ const end=value('event-pickup-end-time');
+ if(end&&!pickupAt)throw new Error('수령 시작 날짜와 시간을 입력해 주세요. / Saisissez la date et l’heure de début du retrait.');
+ const pickupEndAt=end?parisToIso(value('event-pickup-date')+'T'+end):'';
+ if(!validPickupEnd(pickupAt,pickupEndAt))throw new Error('수령 종료 시간은 시작 시간보다 늦어야 합니다. / L’heure de fin doit être postérieure à l’heure de début.');
  return {
   paymentHours:value('event-payment-hours'),
   orderStartsAt:time('event-opening'),orderCutoff:time('event-order'),
-  transferCutoff:time('event-transfer'),pickupAt:time('event-pickup'),
+  transferCutoff:time('event-transfer'),pickupAt,pickupEndAt,
   pickupPlace:value('event-pickup-place').trim(),nameKo:value('event-name').trim(),
   nameFr:value('event-name-fr').trim(),introKo:value('event-intro-ko'),introFr:value('event-intro-fr'),
   pickupKo:value('event-pickup-ko'),pickupFr:value('event-pickup-fr'),
