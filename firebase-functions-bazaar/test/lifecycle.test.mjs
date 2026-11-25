@@ -158,20 +158,25 @@ test('administrators can publish a draft and close it without losing history or 
 
   const baseCatalog = await call('getCatalog');
   const newCatalog = await call('saveCatalog',{
-    revision:baseCatalog.revision,items:baseCatalog.items.map(p=>({...p,titleKo:'기본 상품'})),
+    revision:baseCatalog.revision,items:baseCatalog.items.map(p=>({...p,titleKo:'기본 상품',limitMode:'box',plannedBoxes:3,manualLimit:null})).reverse(),
   });
   await assert.rejects(call('saveCatalog',baseCatalog,otherStaff),failure);
-  assert.equal((await call('getCatalog')).items[0].titleKo,'기본 상품');
+  const savedBase=await call('getCatalog');
+  assert.equal(savedBase.items[0].titleKo,'기본 상품');
+  assert.deepEqual(savedBase.items.map(p=>p.id),baseCatalog.items.map(p=>p.id).reverse());
+  assert.ok(savedBase.items.every(p=>p.limitMode==='box'&&p.plannedBoxes===3));
   assert.equal((await shop(draft.id)).products[0].titleKo,'현재 행사 상품');
   const loadedDraft=(await call('createDraft')).draft;
   assert.deepEqual(loadedDraft.items,[]);
   const selectedBase=(await call('getCatalog')).items.find(item=>item.id===productId);
   assert.equal(selectedBase.titleKo,'기본 상품');
   const copiedSave=await call('saveDraft',{id:loadedDraft.id,updatedAt:loadedDraft.updatedAt,
-    event:loadedDraft.event,items:[{...selectedBase,included:true,limitMode:'unlimited',plannedBoxes:null,manualLimit:null}]});
+    event:loadedDraft.event,items:[{...selectedBase,included:true}]});
   const storedCopy=(await call('getDraft',{id:loadedDraft.id})).draft;
   assert.equal(storedCopy.updatedAt,copiedSave.updatedAt);
   const storedProduct=storedCopy.items.find(item=>item.id===productId);
+  assert.equal(storedProduct.limitMode,'box');
+  assert.equal(storedProduct.plannedBoxes,3);
   assert.match(storedProduct.photoPath,new RegExp(`^bazaar-photos/${loadedDraft.id}/`));
   assert.equal((await bucket.file(storedProduct.photoPath).download())[0].toString('base64'),originalBytes);
 

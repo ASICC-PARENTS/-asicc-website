@@ -69,11 +69,11 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
   }
   const catalogPhotoScope='base-catalog';
   function catalogItems(rows){
-    return rows.map(({soldQty,bazaarEventId,plannedBoxes,manualLimit,limitMode,...p})=>p)
+    return rows.map(({soldQty,bazaarEventId,...p})=>p)
       .sort((a,b)=>a.displayOrder-b.displayOrder);
   }
   function catalogSnapshot(products){
-    return catalogItems(products.empty?catalogue:snapshotProducts(products));
+    return catalogItems(products.empty?catalogue:snapshotProducts(products)).map(p=>({...p,plannedBoxes:null,manualLimit:null,limitMode:'unlimited'}));
   }
   function initializeCatalog(tx, products){
     const items=catalogSnapshot(products);
@@ -87,7 +87,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       const id=s(item.id);
       if(!productIdValid(id)||ids.has(id))bad('기본 상품 ID가 올바르지 않습니다.');
       ids.add(id);
-      const p=validateProduct({...item,imageUrl:item.photoPath?'':item.imageUrl,limitMode:'unlimited',visible:false},{soldQty:0},true);
+      const p=validateProduct({...item,imageUrl:item.photoPath?'':item.imageUrl,limitMode:item.limitMode??'unlimited',visible:false},{soldQty:0},true);
       return {...catalogItems([p])[0],id,visible:item.visible===true,displayOrder:index+1,
         photoPath:s(item.photoPath),archivedAt:null};
     });
