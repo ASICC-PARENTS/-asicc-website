@@ -418,6 +418,13 @@ test('direct Brevo rehearsal delivers only new test orders to an approved entere
   assert.doesNotMatch(sent[0].htmlContent,/<pre\b/i);
   assert.match(sent[0].htmlContent,/https:\/\/example\.test\/bazaar-email-wordmark\.png/);
   assert.match(sent[0].htmlContent,/width="280" height="104"/);
+  assert.match(sent[0].htmlContent,/-webkit-text-size-adjust:100%/);
+  assert.match(sent[0].htmlContent,/\.mail-copy\{font-size:13px!important\}/);
+  assert.match(sent[0].htmlContent,/\.mail-reference\{font-size:18px!important;white-space:nowrap!important/);
+  assert.match(sent[0].htmlContent,/<strong class="mail-reference" style="[^"]*white-space:nowrap;[^"]*">BZ010001<\/strong>/);
+  assert.match(sent[0].htmlContent,/class="mail-reference"[^>]*>BZ010001<\/td>/);
+  assert.match(sent[0].htmlContent,/class="mail-title" style="[^"]*font-size:24px/);
+
   assert.doesNotMatch(sent[0].htmlContent,/bazaar-email-logo\.png|>ASICC<\/div>/);
   assert.match(sent[0].htmlContent,/Association de la Section Internationale Coréenne à Courbevoie/);
   const rejected=db.doc('bazaarOutbox/'+orderId+'_unapproved');
