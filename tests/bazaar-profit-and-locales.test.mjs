@@ -65,3 +65,39 @@ test('product table exposes direct column gestures and buyer-row preview without
   assert.match(app,/changeCartQuantity\(previewCart/);
   assert.match(app,/class="bz-btn" disabled/);
 });
+
+
+test('CMS bilingual text pairs have a French value and no untranslated Korean UI copy',async()=>{
+  const {readdir}=await import('node:fs/promises');
+  const {join}=await import('node:path');
+  const root=new URL('../src/data/',import.meta.url);
+  const {fileURLToPath}=await import('node:url');
+  const findings=[];let checked=0;
+  async function walk(dir){for(const entry of await readdir(dir,{withFileTypes:true})){
+    const path=join(dir,entry.name);if(entry.isDirectory()){await walk(path);continue;}
+    if(!entry.name.endsWith('.json'))continue;
+    const content=JSON.parse(await readFile(path,'utf8'));
+    function check(value,key){if(!value||typeof value!=='object')return;
+      if(typeof value.ko==='string'&&value.ko.trim()){
+        checked++;
+        if(typeof value.fr!=='string'||!value.fr.trim())findings.push(path+': '+key+' missing French');
+        else if(/[가-힣]{2,}/.test(value.fr)&&!(entry.name==='navigation.json'&&key==='lang_switch'))findings.push(path+': '+key+' Korean in French');
+      }
+      for(const [k,v] of Object.entries(value))check(v,key?key+'.'+k:k);
+    }check(content,'');
+  }}await walk(fileURLToPath(root));
+  assert.ok(checked>100,'Expected the CMS bilingual dictionary to be checked');
+  assert.deepEqual(findings,[]);
+});
+
+test('administrator French labels distinguish cancellation action and status',async()=>{
+  const {translateAdminText}=await import('../src/lib/bazaar/admin/i18n.js');
+  for(const key of ["지난 바자회 상품 복사","복사하지 않음","송금 신고 접수","주문번호","정정 사유","관리 탭","상품명 · 프랑스어","공급업체명","집계 기준","IBAN (FR · 27자리)","이름 · 주문번호 · 연락처 · 비고 검색","신고 완료","미신고","구매발주서","총 발주금액 TTC","운영진 계정으로 로그인해 주세요."]){
+    assert.notEqual(translateAdminText(key),key,key);
+    assert.doesNotMatch(translateAdminText(key),/[가-힣]/);
+  }
+  assert.equal(translateAdminText('취소'),'Annuler');
+  assert.equal(translateAdminText('Utilisateur'),'Utilisateur');
+  const app=await read('../src/lib/bazaar/admin/app.js');
+  assert.match(app,/canceled:\\[fr\\?'Annulée':'취소'/);
+});

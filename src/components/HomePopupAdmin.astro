@@ -10,7 +10,7 @@ const {lang}=Astro.props as {lang:Lang};
     <label><input type="checkbox" name="bazaarOnly"/> {L(lang,{ko:'연결된 바자회 주문 접수 중에만 표시',fr:'Afficher uniquement pendant les commandes du bazar associé'})}</label>
     <div class="popup-admin-grid">
       {([['title','제목','Titre',120],['body','안내 문구','Description',400],['button','버튼 문구','Bouton',60],['caption1','이미지 1 설명','Image 1 – légende',100],['caption2','이미지 2 설명','Image 2 – légende',100]] as const).map(([field,ko,fr,max])=><>
-        <label class="stack gap-4"><span>{L(lang,{ko,fr})} · 한국어</span><input type="text" name={field+'Ko'} maxlength={max} required={field==='title'||field==='button'}/></label>
+        <label class="stack gap-4"><span>{L(lang,{ko,fr})} · {L(lang,{ko:'한국어',fr:'Coréen'})}</span><input type="text" name={field+'Ko'} maxlength={max} required={field==='title'||field==='button'}/></label>
         <label class="stack gap-4"><span>{L(lang,{ko,fr})} · Français</span><input type="text" name={field+'Fr'} maxlength={max} required={field==='title'||field==='button'}/></label>
       </>)}
       <label class="stack gap-4">{L(lang,{ko:'게시 시작 (파리 시간)',fr:'Début (heure de Paris)'})}<input type="datetime-local" name="startsAt"/></label>
