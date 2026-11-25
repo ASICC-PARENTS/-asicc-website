@@ -98,7 +98,7 @@ function validSelfProfileUpdate(uid) {
   let next = request.resource.data;
   let changed = next.diff(resource.data).affectedKeys();
   return isActive() && request.auth.uid == uid
-    && changed.hasOnly(['name','phone','city','associationInterest','children','memberGalleryConsent','memberPublicityConsent'])
+    && changed.hasOnly(['phone','city','associationInterest','children','memberGalleryConsent','memberPublicityConsent'])
     && next.name is string && next.name.size() > 0 && next.name.size() <= 80
     && next.get('phone','') is string && next.get('phone','').size() <= 40
     && next.get('city','') is string && next.get('city','').size() <= 100
