@@ -193,6 +193,17 @@ test('administrators can publish a draft and close it without losing history or 
   assert.equal((await call('getCatalog')).revision,unlimitedCatalog.revision);
   assert.equal((await call('getCatalog')).items[0].titleKo,'기본 상품');
   assert.equal((await call('dashboard',{eventId})).products[0].retailCents,450);
+  // Removing reference products must never modify saved event copies or orders.
+  const beforeCatalogDelete=await call('getCatalog');
+  const remaining=beforeCatalogDelete.items.filter(p=>p.id!==productId);
+  const afterCatalogDelete=await call('saveCatalog',{revision:beforeCatalogDelete.revision,items:remaining});
+  assert.deepEqual(afterCatalogDelete.items.map(p=>p.id),remaining.map(p=>p.id));
+  assert.ok(!(await call('getCatalog')).items.some(p=>p.id===productId));
+  assert.ok((await call('getDraft',{id:loadedDraft.id})).draft.items.some(p=>p.id===productId));
+  assert.ok((await call('dashboard',{eventId:draft.id})).products.some(p=>p.id===productId));
+  assert.equal((await call('dashboard',{eventId})).orders.find(p=>p.id===receipt.id).totalCents,900);
+  // Restore fixture catalog for later test cases, using the latest revision.
+  await call('saveCatalog',{revision:afterCatalogDelete.revision,items:beforeCatalogDelete.items});
 
   const purchase={eventId:draft.id,vendor:'누리커넥트',revision:0,info:{date:'2026-11-27',number:'TEST-PO-1'},
     lines:[{id:productId,name:'상품',unit:'박스',qty:2,priceCents:700,amountCents:1400,ordered:13,per:12}]};

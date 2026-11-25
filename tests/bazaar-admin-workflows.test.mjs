@@ -166,7 +166,7 @@ test('homepage popup and campaign copy prefer whole-word wrapping without trunca
   assert.match(campaign,/align-self:center/);
 });
 
-test('bulk removal is draft-only and published products use sales controls',()=>{
+test('bulk removal is allowed in the base catalog and drafts, while published products use sales controls',()=>{
   assert.match(app,/const productSelection=new Set\(\)/);
   assert.match(app,/data-product-select-all/);
   assert.match(app,/data-product-select="/);
@@ -174,7 +174,10 @@ test('bulk removal is draft-only and published products use sales controls',()=>
   assert.match(app,/data-action="product-delete-selected"[\s\S]*?data-action="refresh-products"/);
   assert.match(app,/selectedVisibleProducts=\(\)=>shownProducts\(\)\.filter/);
   assert.match(app,/productSelection\.clear\(\);productFilter=el\.value/);
-  assert.match(app,/canSelectProducts=\(\)=>productView==='event'&&selectedEvent\(\)\?\.status==='draft'/);
+  assert.match(app,/canSelectProducts=\(\)=>productView==='catalog'\|\|\(productView==='event'&&selectedEvent\(\)\?\.status==='draft'\)/);
+  assert.match(app,/rows=catalog\?store\.catalog:store\.products/);
+  assert.match(app,/기본 상품 목록에서 삭제할까요/);
+  assert.match(app,/querySelectorAll\('\[data-action=product-delete-selected\]'\)\.forEach/);
   assert.match(app,/selectedEvent\(\)\?\.status==='active'\?'product-sales':'delete-product'/);
   assert.match(app,/a==='delete-product'&&\(productView==='catalog'\|\|selectedEvent\(\)\?\.status==='draft'\)/);
   const service=read('firebase-functions-bazaar/bazaar/service.mjs');
