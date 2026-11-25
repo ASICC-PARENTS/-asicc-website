@@ -1,5 +1,9 @@
-export const orderTermsVersion='2026-11-25-r9.2-pickup';
+export const orderTermsVersion='2026-11-25-r9.2-pickup-v2';
 export const pickupContact='contact@asicc-parents.fr';
+export const refundAccountNotice={
+  ko:'예외적으로 계좌이체 환불을 진행하는 경우 운영진 안내에 따라 정확한 환불 계좌 IBAN을 제공해 주세요.',
+  fr:'En cas de remboursement exceptionnel par virement, veuillez communiquer l’IBAN exact du compte à créditer selon les instructions de l’association.',
+};
 export const pickupTerms={
  ko:{title:'상품 수령 시 유의사항',lines:[
   '지정된 수령 날짜와 시간을 반드시 준수해 주세요.',

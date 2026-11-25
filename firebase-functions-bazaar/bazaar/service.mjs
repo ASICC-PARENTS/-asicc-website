@@ -288,7 +288,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       }
       if(closed(current))return {serverNow:now(),event:{eventId,status:'closed'},products:[]};
       const e=current;
-      const safe={eventId,status:e.status||'draft',orderStartsAt:e.orderStartsAt||'',pickupAt:e.pickupAt||'',pickupPlace:e.pickupPlace||'',nameKo:e.nameKo,nameFr:e.nameFr,introKo:e.introKo,introFr:e.introFr,orderCutoff:e.orderCutoff,transferCutoff:e.transferCutoff,pickupKo:e.pickupKo,pickupFr:e.pickupFr,beneficiary:e.beneficiary,iban:e.iban,contactEmail:e.contactEmail,finalizedAt:null};
+      const safe={eventId,status:e.status||'draft',orderStartsAt:e.orderStartsAt||'',pickupAt:e.pickupAt||'',pickupPlace:e.pickupPlace||'',nameKo:e.nameKo,nameFr:e.nameFr,introKo:e.introKo,introFr:e.introFr,orderCutoff:e.orderCutoff,transferCutoff:e.transferCutoff,paymentHours:e.paymentHours??defaultPaymentHours,pickupKo:e.pickupKo,pickupFr:e.pickupFr,beneficiary:e.beneficiary,iban:e.iban,contactEmail:e.contactEmail,finalizedAt:null};
       const ps=e.status==='published' ? snapshotProducts(await tx.get(products)) : [];
       return{serverNow:now(),event:safe,products:ps.filter(p=>(!e.scopedProducts||p.bazaarEventId===eventId)&&
         !p.archivedAt&&p.visible&&cents(p.retailCents)).map(pickPublic).sort((a,b)=>a.displayOrder-b.displayOrder)};

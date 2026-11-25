@@ -1464,7 +1464,9 @@ async function saveProductDetail(id){
  const left=previousSheet?.scrollLeft??0,top=previousSheet?.scrollTop??0;
  closeModal();rerender();
  app.querySelector('.sheet')?.scrollTo(left,top);
- if(p.saved&&!productDirty)$('#product-status').textContent=language('✓ 상품 정보 저장 완료','✓ Informations produit enregistrées');
+ if(p.saved)$('#product-status').textContent=productDirty
+  ?language('✓ 상품 정보 저장 완료 · 표에 저장하지 않은 변경사항이 있습니다.','✓ Fiche enregistrée · Le tableau contient des modifications non enregistrées.')
+  :language('✓ 상품 정보 저장 완료','✓ Informations produit enregistrées');
 }
 async function savePurchase(confirmOrder){
  assertConfirmedScope();
