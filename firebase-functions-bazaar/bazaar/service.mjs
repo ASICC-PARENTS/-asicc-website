@@ -290,7 +290,8 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       const e=current;
       const safe={eventId,status:e.status||'draft',orderStartsAt:e.orderStartsAt||'',pickupAt:e.pickupAt||'',pickupPlace:e.pickupPlace||'',nameKo:e.nameKo,nameFr:e.nameFr,introKo:e.introKo,introFr:e.introFr,orderCutoff:e.orderCutoff,transferCutoff:e.transferCutoff,pickupKo:e.pickupKo,pickupFr:e.pickupFr,beneficiary:e.beneficiary,iban:e.iban,contactEmail:e.contactEmail,finalizedAt:null};
       const ps=e.status==='published' ? snapshotProducts(await tx.get(products)) : [];
-      return{serverNow:now(),event:safe,products:ps.filter(p=>!p.archivedAt&&p.visible&&cents(p.retailCents)).map(pickPublic).sort((a,b)=>a.displayOrder-b.displayOrder)};
+      return{serverNow:now(),event:safe,products:ps.filter(p=>(!e.scopedProducts||p.bazaarEventId===eventId)&&
+        !p.archivedAt&&p.visible&&cents(p.retailCents)).map(pickPublic).sort((a,b)=>a.displayOrder-b.displayOrder)};
     },{readOnly:true});
   }
   async function bazaarCreateOrder(req){
@@ -685,7 +686,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         requireCurrentEvent(active.data());
         const revision=active.data().productRevision??0;
         if(data.revision!==revision)throw new HttpsError('failed-precondition','상품이 변경됐습니다. 다시 불러와 주세요.');
-        const previous=new Map(result.docs.map(doc=>[doc.id,doc]));
+        const previous=new Map(result.docs.filter(doc=>!active.data().scopedProducts||doc.data().bazaarEventId===data.eventId).map(doc=>[doc.id,doc]));
         if(new Set([...previous.keys(),...ids]).size>70)bad('상품 수가 많습니다.');
         const history=productHistory(await tx.get(orders.where('eventId','==',data.eventId)));
         if(!base.exists)initializeCatalog(tx,result);
@@ -697,8 +698,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         }
         data.items.forEach((item,index)=>{
           const doc=previous.get(item.id);
-          const wasInEvent=!active.data().scopedProducts||doc?.data()?.bazaarEventId===data.eventId;
-          const old=(wasInEvent&&doc?.data())||{soldQty:0};
+          const old=doc?.data()||{soldQty:0};
           const p=validateProduct({...item,imageUrl:item.photoPath?'':item.imageUrl},old);
           tx.set(products.doc(item.id),{...old,...p,...photos[index],displayOrder:index+1,
             bazaarEventId:data.eventId,archivedAt:null});
@@ -1189,7 +1189,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
             throw new HttpsError('not-found','해당 바자회 기록을 찾을 수 없습니다.');
           }
         }
-        productData??=snapshotProducts(await tx.get(products));
+        productData??=snapshotProducts(await tx.get(products)).filter(product=>!ev.scopedProducts||product.bazaarEventId===ev.eventId);
         const o=await tx.get(orders.where('eventId','==',ev.eventId||initialEvent.eventId));
         const history=productHistory(o);
         productData=productData.map(p=>({...p,hasOrderHistory:history.ids.has(p.id)||history.legacy||p.soldQty>0}));

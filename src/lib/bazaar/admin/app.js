@@ -1159,8 +1159,14 @@ if(a==='product-sales'){
  if(event?.status!=='active'||!product||current())return;
  if(productDirty){alert(language('먼저 변경사항을 반영하거나 새로고침하세요.','Appliquez les modifications ou actualisez la page.'));return;}
  const visible=product.stopped===true;
- if(!visible&&!confirm(language('이 상품의 추가 판매를 중지하시겠습니까? 기존 주문내역은 유지됩니다.','Suspendre les ventes de ce produit ? Les commandes existantes seront conservées.')))return;
- void run(b,async()=>{await request('setProductSales',{id:product.id,eventId:event.id,revision:event.raw.productRevision??0,visible});await load();});return;
+ const save=async()=>{await request('setProductSales',{id:product.id,eventId:event.id,revision:event.raw.productRevision??0,visible});closeModal();await load();};
+ if(visible){void run(b,save);return;}
+ const t=language,label=t('판매 중지','Suspendre les ventes');
+ modal(label,fr?product.fr:product.ko,'<p>'+t('이 상품의 추가 판매를 중지하시겠습니까? 기존 주문내역은 유지됩니다.',
+  'Suspendre les ventes de ce produit ? Les commandes existantes seront conservées.')+'</p>',
+  '<button class="btn primary" id="product-stop-confirm">'+label+'</button><button class="btn neutral" data-action="close">'+t('취소','Annuler')+'</button>');
+ $('#product-stop-confirm').addEventListener('click',event=>void run(event.currentTarget,save));
+ return;
 }
 if(a==='order-view'){store.orderView=b.dataset.value==='products'?'products':'orders';rerender();return;}
 if(a==='product-order-detail'){productOrderDetail(b.dataset.id);return;}

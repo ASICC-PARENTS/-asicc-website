@@ -124,6 +124,10 @@ test('publishing, closing and changing the next event preserve historical produc
   const next=await admin('saveDraft',{id:second.id,updatedAt:second.updatedAt,event:{...second.event,...schedule},items:[replacement]});
   await admin('publishDraft',{id:second.id,updatedAt:next.updatedAt});
   await admin('saveProduct',{eventId:second.id,id:original.id,product:{...replacement,titleKo:'신규 수정 상품'}});
+  const unrelated='outside-current-event';
+  await db.doc('bazaarProducts/'+unrelated).set({...replacement,id:unrelated,bazaarEventId:first.id,visible:true,soldQty:1});
+  assert.equal((await admin('dashboard',{eventId:second.id})).products.some(product=>product.id===unrelated),false);
+  assert.equal((await service.bazaarPublic({data:{eventId:second.id}})).products.some(product=>product.id===unrelated),false);
   const listing=await admin('listEvents');
   assert.equal(listing.events.find(event=>event.id===first.id).status,'closed');
   const historical=await admin('dashboard',{eventId:first.id});
