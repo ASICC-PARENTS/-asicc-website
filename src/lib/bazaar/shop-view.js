@@ -9,10 +9,9 @@ const icons = {
 const storageLabels = { ambient:['실온','Température ambiante'], chilled:['냉장','Réfrigéré'], frozen:['냉동','Surgelé'] };
 const localize = (lang,ko,fr) => lang==='fr'?fr:ko;
 export function stockNotice(stock,lang) {
-  if(stock==null||stock<=0)return '';
+  if(stock==null)return '';
   const t=(ko,fr)=>localize(lang,ko,fr);
-  return '<p class="bz-stock'+(stock<=10?' is-low':'')+'">'+
-    (stock<=10?t('남은 수량 '+stock+'개','Quantité restante : '+stock):t('한정수량 '+stock+'개','Quantité limitée : '+stock))+'</p>';
+  return '<p class="bz-stock">'+escape(stock<=0?t('매진','Épuisé'):t('남은 수량 '+stock+'개','Stock restant : '+stock))+'</p>';
 }
 const eventIcons={
   calendar:'M5 4h14a2 2 0 0 1 2 2v13H3V6a2 2 0 0 1 2-2Zm2-2v5m10-5v5M3 9h18m-13 4h2m4 0h2m-8 3h2',
@@ -98,8 +97,8 @@ export function renderShopProducts(products,lang,{quantity,controls,price}) {
     const stamp=product.stockRemaining===0?'<span class="bz-sold-stamp">'+t('매진','ÉPUISÉ')+'</span>':'';
     return '<article class="bz-shared-product"><div class="bz-shared-photo">'+photo+stamp+icon+'</div>'+
       '<div class="bz-desc"><h3>'+escape(name)+'</h3><p>'+escape(t(product.descriptionKo,product.descriptionFr))+'</p>'+
-      stockNotice(product.stockRemaining,lang)+'<strong class="bz-price">'+escape(price(product.priceCents))+'</strong></div>'+
-      '<div class="bz-shared-actions">'+controls(product,quantity(product),product.stockRemaining===0)+'</div></article>';
+      '<strong class="bz-price">'+escape(price(product.priceCents))+'</strong></div>'+
+      '<div class="bz-shared-actions">'+controls(product,quantity(product),product.stockRemaining===0)+stockNotice(product.stockRemaining,lang)+'</div></article>';
   }).join('')+'</div>';
 }
 export function bindStorageLabels(root) {
