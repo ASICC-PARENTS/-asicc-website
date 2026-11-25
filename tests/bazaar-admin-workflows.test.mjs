@@ -221,3 +221,16 @@ test('catalog opens as an independent dialog and refreshes only reference produc
   assert.doesNotMatch(close,/await load\(|saveCatalog|saveDraft|saveEventProducts/);
   assert.match(read('src/lib/bazaar/admin/style.css'),/\.standalone-catalog \.site>header,\.standalone-catalog \.topline\{display:none\}/);
 });
+
+test('event list shows a persistent EV number and management actions without changing the order reference',()=>{
+ const backend=read('firebase-functions-bazaar/bazaar/service.mjs');
+ assert.ok(app.includes("['createdAt',fr?'Création':'생성일'],['managementNumber'"));
+ assert.ok(app.includes("'EV'+String(number).padStart(4,'0')"));
+ assert.ok(app.includes('data-action="list-event-delete"'));
+ assert.ok(app.includes('data-action="list-event-archive"'));
+ assert.ok(app.includes("request('deleteDraft',{id,confirm:true})"));
+ assert.ok(app.includes("request('deleteClosedEvent',{eventId:id,name,confirm:true})"));
+ assert.ok(backend.includes("db.doc('bazaarMeta/eventManagementSequence')"));
+ assert.ok(backend.includes("db.collection('bazaarEventNumbers')"));
+ assert.ok(backend.includes("return 'BZ'+String(serial).padStart(2,'0')+String(next).padStart(4,'0')"));
+});

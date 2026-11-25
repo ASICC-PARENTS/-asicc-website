@@ -45,6 +45,40 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
   const purchaseOrders=db.collection('bazaarPurchaseOrders');
   const eventFinancials=db.collection('bazaarEventFinancials');
   const orderSequences=db.collection('bazaarOrderSequences');
+  // Independent, permanent admin-only numbers; deleting an event never deletes its number.
+  const managementNumbers=db.collection('bazaarEventNumbers');
+  const managementSequence=db.doc('bazaarMeta/eventManagementSequence');
+  async function assignManagementNumbers(tx,events){
+    const unique=[...new Map(events.filter(e=>validEventId(e.id)).map(e=>[e.id,e])).values()]
+      .sort((a,b)=>String(a.createdAt||'').localeCompare(String(b.createdAt||''))||a.id.localeCompare(b.id));
+    const [sequence,...existing]=await Promise.all([tx.get(managementSequence),...unique.map(e=>tx.get(managementNumbers.doc(e.id)))]);
+    const numbers=new Map();
+    let last=sequence.data()?.last??0;
+    if(!Number.isSafeInteger(last)||last<0)throw new HttpsError('failed-precondition','행사 관리번호를 확인해 주세요.');
+    for(const snap of existing){
+      if(!snap.exists)continue;
+      const number=snap.data().number;
+      if(!Number.isSafeInteger(number)||number<1)throw new HttpsError('failed-precondition','행사 관리번호를 확인해 주세요.');
+      last=Math.max(last,number);numbers.set(snap.id,number);
+    }
+    if(new Set(numbers.values()).size!==numbers.size)throw new HttpsError('failed-precondition','중복 행사 관리번호를 확인해 주세요.');
+    for(const event of unique){
+      if(numbers.has(event.id))continue;
+      if(last>=9999)throw new HttpsError('resource-exhausted','행사 관리번호 발급 한도에 도달했습니다.');
+      numbers.set(event.id,++last);
+      tx.create(managementNumbers.doc(event.id),{number:last});
+    }
+    if(last!==(sequence.data()?.last??0))tx.set(managementSequence,{last});
+    return numbers;
+  }
+  function managementEventRows(cur,old,drafts){
+    const active=cur.data();
+    const dateFields=e=>({createdAt:e?.createdAt||'',orderStartsAt:e?.orderStartsAt||'',orderCutoff:e?.orderCutoff||'',endedAt:e?.endedAt||''});
+    const events=old.docs.map(d=>({id:d.id,nameKo:d.data().event?.nameKo||d.id,nameFr:d.data().event?.nameFr||'',...dateFields(d.data().event),serial:d.data().event?.serial||0,status:'closed',hiddenAt:d.data().hiddenAt||null}));
+    if(active&&!events.some(e=>e.id===active.eventId))events.push({id:active.eventId,nameKo:active.nameKo||'진행 중 바자회',nameFr:active.nameFr||'',...dateFields(active),serial:active.serial||1,status:active.status||'draft'});
+    const draftRows=drafts.docs.map(d=>({id:d.id,nameKo:d.data().event?.nameKo||'임시저장',nameFr:d.data().event?.nameFr||'',...dateFields(d.data().event),createdAt:d.data().createdAt||d.data().event?.createdAt||'',serial:d.data().serial||0,updatedAt:d.data().updatedAt||''}));
+    return {events,drafts:draftRows};
+  }
   function orderSerial(event) {
     const serial=event.serial??1;
     if(!Number.isSafeInteger(serial)||serial<1||serial>99)
@@ -1282,25 +1316,31 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       },{readOnly:op==='closedEventData'});
     }
     if(op==='listEvents'){
-      const [cur,old,drafts]=await Promise.all([eventRef.get(),eventArchives.get(),eventDrafts.get()]);
-      const active=cur.exists?cur.data():null;
-      const dateFields=e=>({createdAt:e?.createdAt||'',orderStartsAt:e?.orderStartsAt||'',orderCutoff:e?.orderCutoff||'',endedAt:e?.endedAt||''});
-      const events=old.docs.map(d=>({id:d.id,nameKo:d.data().event?.nameKo||d.id,nameFr:d.data().event?.nameFr||'',...dateFields(d.data().event),serial:d.data().event?.serial||0,status:'closed',hiddenAt:d.data().hiddenAt||null}));
-      if(active&&!events.some(e=>e.id===active.eventId))events.push({id:active.eventId,nameKo:active.nameKo||'진행 중 바자회',nameFr:active.nameFr||'',...dateFields(active),serial:active.serial||1,status:active.status||'draft'});
-      return{events:events.sort((a,b)=>b.serial-a.serial||b.createdAt.localeCompare(a.createdAt)),drafts:drafts.docs.map(d=>({id:d.id,nameKo:d.data().event?.nameKo||'임시저장',nameFr:d.data().event?.nameFr||'',...dateFields(d.data().event),createdAt:d.data().createdAt||d.data().event?.createdAt||'',serial:d.data().serial||0,updatedAt:d.data().updatedAt||''}))};
+      return db.runTransaction(async tx=>{
+        const [cur,old,drafts]=await Promise.all([tx.get(eventRef),tx.get(eventArchives),tx.get(eventDrafts)]);
+        const rows=managementEventRows(cur,old,drafts);
+        const numbers=await assignManagementNumbers(tx,[...rows.events,...rows.drafts]);
+        const withNumber=e=>({...e,managementNumber:numbers.get(e.id)??null});
+        return {events:rows.events.sort((a,b)=>b.serial-a.serial||b.createdAt.localeCompare(a.createdAt)).map(withNumber),drafts:rows.drafts.map(withNumber)};
+      });
     }
     if(op==='createDraft'){
-      const [cur,ps,archives,existingDrafts]=await Promise.all([eventRef.get(),products.get(),eventArchives.get(),eventDrafts.get()]);
-      if(existingDrafts.size>=10)throw new HttpsError('resource-exhausted','임시저장 바자회가 너무 많습니다.');
-      if(ps.size>70)throw new HttpsError('failed-precondition','상품이 70개를 초과하여 별도 저장 구조가 필요합니다.');
-      const prev=cur.exists?cur.data():initialEvent;
-      const maxSerial=Math.max(prev.serial||1,...archives.docs.map(d=>d.data().event?.serial||0),...existingDrafts.docs.map(d=>d.data().serial||0));
-      const freshFirst=prev.status==='draft'&&!prev.publishedAt&&existingDrafts.empty;
-      const serial=freshFirst?(prev.serial||1):maxSerial+1;
       const id=`bazaar-${Date.now()}-${randomBytes(6).toString('hex')}`;
-      const draft={id,serial,status:'draft',createdAt:now(),updatedAt:now(),event:{...prev,eventId:id,serial,nameKo:`${serial}차 ASICC 온라인 바자회`,nameFr:`Vente solidaire ASICC n°${serial}`,orderCutoff:'',transferCutoff:'',orderStartsAt:'',pickupAt:'',pickupPlace:'',paymentHours:defaultPaymentHours,pickupKo:'',pickupFr:'',finalizedAt:null,endedAt:null,publishedAt:null,createdAt:now(),status:'draft',orderIntakeClosedAt:null,priorTransferCutoff:null},items:[]};
-      await eventDrafts.doc(id).create(draft);
-      return{draft};
+      const createdAt=now();
+      return db.runTransaction(async tx=>{
+        const [cur,ps,archives,existingDrafts]=await Promise.all([tx.get(eventRef),tx.get(products),tx.get(eventArchives),tx.get(eventDrafts)]);
+        if(existingDrafts.size>=10)throw new HttpsError('resource-exhausted','임시저장 바자회가 너무 많습니다.');
+        if(ps.size>70)throw new HttpsError('failed-precondition','상품이 70개를 초과하여 별도 저장 구조가 필요합니다.');
+        const prev=cur.exists?cur.data():initialEvent;
+        const maxSerial=Math.max(prev.serial||1,...archives.docs.map(d=>d.data().event?.serial||0),...existingDrafts.docs.map(d=>d.data().serial||0));
+        const freshFirst=prev.status==='draft'&&!prev.publishedAt&&existingDrafts.empty;
+        const serial=freshFirst?(prev.serial||1):maxSerial+1;
+      const draft={id,serial,status:'draft',createdAt,updatedAt:createdAt,event:{...prev,eventId:id,serial,nameKo:`${serial}차 ASICC 온라인 바자회`,nameFr:`Vente solidaire ASICC n°${serial}`,orderCutoff:'',transferCutoff:'',orderStartsAt:'',pickupAt:'',pickupPlace:'',paymentHours:defaultPaymentHours,pickupKo:'',pickupFr:'',finalizedAt:null,endedAt:null,publishedAt:null,createdAt,status:'draft',orderIntakeClosedAt:null,priorTransferCutoff:null},items:[]};
+        const rows=managementEventRows(cur,archives,existingDrafts);
+        const numbers=await assignManagementNumbers(tx,[...rows.events,...rows.drafts,{id,createdAt}]);
+        tx.create(eventDrafts.doc(id),draft);
+        return {draft:{...draft,managementNumber:numbers.get(id)}};
+      });
     }
     if(op==='getDraft'){
       const id=s(data.id);if(!validEventId(id))bad('임시저장 ID를 확인해 주세요.');

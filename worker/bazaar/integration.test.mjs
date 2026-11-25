@@ -276,8 +276,19 @@ test('Worker API with Firebase emulators preserves checkout, admin, inventory, e
   const overview=await admin('mailOverview',{eventId});
   assert.ok(overview.messages.some(row=>row.status==='manualSent'));
   assert.equal(overview.budget.acceptedToday,0);
+  const priorListing=await admin('listEvents');
   const draft = (await admin('createDraft')).draft;
+  assert.ok(Number.isSafeInteger(draft.managementNumber)&&draft.managementNumber>0);
+  const listingWithDraft=await admin('listEvents');
+  assert.equal(listingWithDraft.drafts.find(d=>d.id===draft.id).managementNumber,draft.managementNumber);
+  for(const previous of priorListing.events){
+    assert.equal(listingWithDraft.events.find(e=>e.id===previous.id).managementNumber,previous.managementNumber);
+  }
   await admin('deleteDraft', { id: draft.id, confirm: true });
+  const afterDelete=(await admin('createDraft')).draft;
+  assert.ok(afterDelete.managementNumber>draft.managementNumber);
+  assert.equal((await db.doc('bazaarEventNumbers/'+draft.id).get()).data().number,draft.managementNumber);
+  await admin('deleteDraft',{id:afterDelete.id,confirm:true});
 });
 
 test('B2 transport mock isolates object keys and exposes posted photos only', async () => {

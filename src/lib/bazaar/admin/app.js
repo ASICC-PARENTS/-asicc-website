@@ -129,6 +129,7 @@ function eventHead(e=selectedEvent(),summary=false){
  const settled=page==='settlement'&&!summary&&!draft?!!eventFinancialRecord.finalizedAt:!!e.financialFinalizedAt;
  const intakeAction=!draft&&!past&&!orderIntakeLocked(e.raw)&&!settled;
  const title=esc((fr?e.raw.nameFr:e.raw.nameKo)||e.name);
+ const managementRef=eventManagementRef([...model.events,...model.drafts].find(item=>item.id===e.id)?.managementNumber);
  const control=(action,ko,french,style='neutral')=>'<button class="btn '+style+'" data-action="'+action+'">'+(fr?french:ko)+'</button>';
  const actions=summary?'':(
   (past?'':control('edit-draft','행사 정보 수정','Modifier les informations'))+
@@ -139,7 +140,7 @@ function eventHead(e=selectedEvent(),summary=false){
   '<details class="event-link-menu"><summary class="btn neutral">'+(fr?'Copier un lien':'링크 복사')+'</summary><div class="actions">'+control('copy-banner','배너 링크 복사','Copier le lien de la bannière')+control('copy-event','공개 주소 복사','Copier l’adresse publique')+'</div></details>'+
   (past?control('closed-export','행사 자료 다운로드','Télécharger les données')+control('closed-archive','보관 / 복원','Archiver / restaurer')+control('closed-delete','행사 기록 삭제','Supprimer les données','danger'):'')+
   (draft?control('delete-draft','임시저장 삭제','Supprimer le brouillon','danger'):past?'':'<span class="event-end-action">'+control('end-event','행사 종료','Clore le bazar','neutral')+'</span>'));
- return '<section class="panel pad event-header" data-intake-state="'+intake+'" data-event-summary="'+summary+'">'+(summary?'':'<a class="event-back" href="'+esc(url('',null))+'">← '+(fr?'Retour aux bazars':'바자회 목록으로 돌아가기')+'</a>')+'<div class="toolbar"><h2>'+title+'</h2>'+(summary?'<a class="btn neutral" href="'+esc(publicEventPath(e.id))+'" target="_blank" rel="noopener">'+language('바자회 바로가기','Accéder au bazar')+' <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M13 5h6v6m0-6-9 9m8-1v6H5V6h6"/></svg></a>':'')+'</div>'+
+ return '<section class="panel pad event-header" data-intake-state="'+intake+'" data-event-summary="'+summary+'">'+(summary?'':'<a class="event-back" href="'+esc(url('',null))+'">← '+(fr?'Retour aux bazars':'바자회 목록으로 돌아가기')+'</a>')+'<div class="toolbar"><h2>'+title+(managementRef==='—'?'':' <small class="event-number">'+esc(managementRef)+'</small>')+'</h2>'+(summary?'<a class="btn neutral" href="'+esc(publicEventPath(e.id))+'" target="_blank" rel="noopener">'+language('바자회 바로가기','Accéder au bazar')+' <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M13 5h6v6m0-6-9 9m8-1v6H5V6h6"/></svg></a>':'')+'</div>'+
   '<div class="event-states"><span class="status">'+language('행사 상태','État du bazar')+' · '+label+'</span>'+
   '<span class="status">'+language('주문 접수','Prise de commandes')+' · '+(draft?language('준비 중','En préparation'):intakeLabel)+'</span>'+
   '<span class="status">'+language('정산 상태','Clôture comptable')+' · '+(draft?language('예상 정산','Prévisionnelle'):settled?language('확정','Validée'):language('미확정','Provisoire'))+'</span></div>'+
@@ -236,15 +237,16 @@ function draftModal(resume=false){
  $('#event-name').dataset.edit=String(!!existing);
  $('#event-iban').addEventListener('input',ev=>{ev.target.value=ev.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,27).match(/.{1,4}/g)?.join(' ')||'';});
 }
+const eventManagementRef=number=>Number.isSafeInteger(number)&&number>0?'EV'+String(number).padStart(4,'0'):'—';
 function eventList(filter='all'){
  const drafts=model.drafts.map(d=>({...d,eventId:d.id,status:'draft'}));
  const all=[...model.events,...drafts];
  const controls=[['all','전체','Tous'],['draft','임시저장','Brouillons'],['published','진행 중','En cours'],['completed','종료','Terminés'],['archived','보관','Archivés']];
  const matches=(event,key)=>key==='archived'?!!event.hiddenAt:!event.hiddenAt&&(key==='all'||event.status===(key==='completed'?'closed':key));
  const columns=[
-  ['name',fr?'Bazar':'행사명'],['status',fr?'État':'상태'],['manage',fr?'Gestion':'관리'],['createdAt',fr?'Création':'생성일'],
+  ['createdAt',fr?'Création':'생성일'],['managementNumber',fr?'N° événement':'일련번호'],['name',fr?'Bazar':'행사명'],['status',fr?'État':'상태'],
   ['orderStartsAt',fr?'Ouverture':'주문 시작일'],['orderCutoff',fr?'Clôture':'주문 마감일'],
-  ['endedAt',fr?'Fin du bazar':'종료일']
+  ['endedAt',fr?'Fin du bazar':'종료일'],['manage',fr?'Gestion':'관리']
  ];
  const sort=columns.some(([key])=>key===params.get('sort'))?params.get('sort'):'createdAt';
  const direction=params.get('direction')==='asc'?1:-1;
@@ -254,16 +256,18 @@ function eventList(filter='all'){
  const shown=all.filter(event=>matches(event,filter)).sort((a,b)=>{
   const first=metric(a,sort),second=metric(b,sort);
   if(!first||!second)return Number(!first)-Number(!second);
-  return direction*String(first).localeCompare(String(second),fr?'fr':'ko');
+  return direction*(typeof first==='number'&&typeof second==='number'?first-second:String(first).localeCompare(String(second),fr?'fr':'ko'));
  });
  const actions='<button class="btn neutral" data-action="new-event">＋ '+(fr?'Créer un bazar':'새 바자회 만들기')+'</button>'+
   '<button type="button" class="btn neutral" data-action="switch-catalog">'+(fr?'Catalogue principal':'기본 상품 목록 관리')+'</button>';
  const filters=controls.map(([key,ko,french])=>'<button class="filter '+(filter===key?'active':'')+'" data-action="event-filter" data-value="'+key+'">'+(fr?french:ko)+' ('+all.filter(e=>matches(e,key)).length+')</button>').join('');
  const rows=shown.map(e=>{
   const label=e.status==='draft'?(fr?'Brouillon':'임시저장'):e.status==='closed'?(fr?'Terminé':'종료'):(fr?'En cours':'진행 중');
-  return '<tr><td>'+esc(eventName(e))+'</td><td><span class="event-state '+(e.status==='published'?'in-progress':'')+'">'+label+'</span></td>'+
-   '<td><a class="linkbtn" href="'+esc(url('products',e.id||e.eventId))+'">'+(fr?'Ouvrir':'바로가기')+'</a></td>'+
-   columns.slice(3).map(([key])=>'<td>'+esc(compactDate(e[key]))+'</td>').join('')+'</tr>';
+  const manage='<div class="event-row-actions"><a class="linkbtn" href="'+esc(url('products',e.id||e.eventId))+'">'+(fr?'Ouvrir':'바로가기')+'</a>'+
+   ((e.status==='draft'&&model.drafts.some(d=>d.id===e.id))||e.status==='closed'?'<button type="button" class="linkbtn danger" data-action="list-event-delete" data-id="'+esc(e.id)+'">'+(fr?'Supprimer':'삭제')+'</button>':'')+
+   (e.status==='closed'?'<button type="button" class="linkbtn" data-action="list-event-archive" data-id="'+esc(e.id)+'">'+(e.hiddenAt?(fr?'Restaurer':'복원'):(fr?'Archiver':'보관'))+'</button>':'')+'</div>';
+  return '<tr><td>'+esc(compactDate(e.createdAt))+'</td><td class="event-number">'+esc(eventManagementRef(e.managementNumber))+'</td><td>'+esc(eventName(e))+'</td><td><span class="event-state '+(e.status==='published'?'in-progress':'')+'">'+label+'</span></td>'+
+   ['orderStartsAt','orderCutoff','endedAt'].map(key=>'<td>'+esc(compactDate(e[key]))+'</td>').join('')+'<td>'+manage+'</td></tr>';
  }).join('');
  const headers=columns.map(([key,label])=>{
   const query=new URLSearchParams(params);query.set('sort',key);query.set('direction',sort===key&&direction===1?'desc':'asc');
@@ -1680,6 +1684,28 @@ function handleScreenAction(action,button){
  }
  if(action==='draft-list'){modal('임시저장 행사 선택','',model.drafts.map(d=>'<p><a class="btn neutral" href="'+esc(url('',d.id))+'">'+esc(d.nameKo)+'</a></p>').join('')||'임시저장 행사가 없습니다.');return true;}
  if(action==='event-filter'){const query=new URLSearchParams(params);query.delete('event');query.set('status',button.dataset.value);location.href=url('',null)+'?'+query;return true;}
+ if(action==='list-event-delete'||action==='list-event-archive'){
+  const id=button.dataset.id;
+  const draft=model.drafts.find(item=>item.id===id);
+  const event=draft||model.events.find(item=>item.id===id);
+  if(!event)return true;
+  const ref=eventManagementRef(event.managementNumber);
+  const title=(fr?event.nameFr:event.nameKo)||event.nameKo||'ASICC';
+  if(action==='list-event-archive'){
+   if(draft||event.status!=='closed')return true;
+   const message=event.hiddenAt?language('보관된 행사를 복원할까요?','Restaurer ce bazar archivé ?'):language('행사를 보관할까요? 기록은 유지됩니다.','Archiver ce bazar ? Les données seront conservées.');
+   if(confirm(ref+' · '+title+'\n'+message))run(button,async()=>{await request('archiveClosedEvent',{eventId:id,archive:!event.hiddenAt});await load();});
+   return true;
+  }
+  if(draft){
+   if(confirm(ref+' · '+title+'\n'+language('임시저장을 삭제할까요? 복구할 수 없습니다.','Supprimer ce brouillon ? Cette action est irréversible.')))
+    run(button,async()=>{await request('deleteDraft',{id,confirm:true});await load();});
+  }else if(event.status==='closed'){
+   const name=prompt(ref+' · '+title+'\n'+language('거래 기록이 없는 행사만 삭제할 수 있습니다. 삭제하려면 다음 한국어 행사명을 정확히 입력하세요: ','Seuls les bazars sans historique peuvent être supprimés. Saisissez le titre coréen exact : ')+event.nameKo);
+   if(name===event.nameKo)run(button,async()=>{await request('deleteClosedEvent',{eventId:id,name,confirm:true});await load();});
+  }
+  return true;
+ }
  if(action==='new-event'){draftModal();return true;}
  if(action==='preview-shop'){openShopPreview(selectedEvent());return true;}
  if(action==='refresh-orders'){run(button,load);return true;}
