@@ -15,9 +15,11 @@ const {lang}=Astro.props as {lang:Lang};
       </>)}
       <label class="stack gap-4">{L(lang,{ko:'게시 시작 (파리 시간)',fr:'Début (heure de Paris)'})}<input type="datetime-local" name="startsAt"/></label>
       <label class="stack gap-4">{L(lang,{ko:'게시 종료 (파리 시간)',fr:'Fin (heure de Paris)'})}<input type="datetime-local" name="endsAt"/></label>
-      <label class="stack gap-4">{L(lang,{ko:'이미지 1 주소 (HTTPS)',fr:'Adresse image 1 (HTTPS)'})}<input type="url" name="image1" maxlength="900"/></label>
-      <label class="stack gap-4">{L(lang,{ko:'이미지 2 주소 (HTTPS)',fr:'Adresse image 2 (HTTPS)'})}<input type="url" name="image2" maxlength="900"/></label>
+      <label class="stack gap-4">{L(lang,{ko:'이미지 1 주소 (HTTPS 또는 팝업 파일 경로)',fr:'Image 1 (HTTPS ou fichier du site)'})}<input type="text" name="image1" maxlength="900"/></label>
+      <label class="stack gap-4">{L(lang,{ko:'이미지 2 주소 (선택)',fr:'Image 2 (facultative)'})}<input type="text" name="image2" maxlength="900"/></label>
     </div>
+    <p class="small muted">{L(lang,{ko:'이미지를 한 장만 입력하면 포스터 형식으로 표시됩니다. 제목은 접근성용으로 유지되고 사진 위에 중복 표시하지 않습니다.',fr:'Une seule image est affichée au format affiche, sans titre visuel redondant.'})}</p>
+    <button type="button" class="btn btn-ghost" data-use-bazaar-poster>{L(lang,{ko:'제1회 바자회 포스터 적용',fr:'Utiliser l’affiche du premier bazar'})}</button>
     <label class="stack gap-4">{L(lang,{ko:'바로가기 주소',fr:'Lien du bouton'})}<input name="link" maxlength="500" required placeholder="news/identifiant/"/></label>
     <div class="popup-admin-preview" hidden><span class="preview-brand">ASICC</span><strong data-title></strong><div data-images></div><p data-body></p><span data-cta></span></div>
     <div class="row gap-12" style="flex-wrap:wrap;align-items:center">
@@ -54,6 +56,12 @@ const {lang}=Astro.props as {lang:Lang};
       catch{feedback.textContent=tr('팝업 관리 서버 연결 또는 관리자 권한을 확인해 주세요.','Vérifiez la connexion au serveur et les droits administrateur.');}
     }
     section.querySelector('[data-reload]')?.addEventListener('click',()=>void load());
+    section.querySelector('[data-use-bazaar-poster]')?.addEventListener('click',()=>{
+      const values:Record<string,string>={image1:'/popup-assets/asicc-bazaar-2026.webp',image2:'',bodyKo:'',bodyFr:'',caption1Ko:'ASICC 온라인 바자회 — 김치와 이천쌀 공동구매',caption1Fr:'Bazar ASICC — achat groupé de kimchi et de riz Rhee Chun',caption2Ko:'',caption2Fr:''};
+      for(const [name,value] of Object.entries(values)){const el=form.elements.namedItem(name);if(el instanceof HTMLInputElement)el.value=value;}
+      (section.querySelector('[data-preview]') as HTMLButtonElement)?.click();
+      feedback.textContent=tr('포스터가 선택되었습니다. 저장을 눌러 적용하세요.','Affiche sélectionnée. Enregistrez pour l’appliquer.');
+    });
     onAuthStateChanged(bazaarAuth,user=>{if(user)void load();});
     form.addEventListener('submit',async e=>{
       e.preventDefault();save.disabled=true;
@@ -73,8 +81,9 @@ const {lang}=Astro.props as {lang:Lang};
       box.querySelector('[data-body]')!.textContent=String(fd.get('body'+lang)||'');
       box.querySelector('[data-cta]')!.textContent=String(fd.get('button'+lang)||'')+' →';
       const images=box.querySelector('[data-images]')!;images.replaceChildren();
+      box.dataset.layout=[fd.get('image1'),fd.get('image2')].filter(Boolean).length===1?'poster':'products';
       for(const n of [1,2]){
-        const v=String(fd.get('image'+n)||'');if(!v.startsWith('https://'))continue;
+        const v=String(fd.get('image'+n)||'');if(!v.startsWith('https://')&&!/^\/popup-assets\/[a-z0-9-]+\.(?:png|jpe?g|webp)$/i.test(v))continue;
         const figure=document.createElement('figure'),img=document.createElement('img'),caption=document.createElement('figcaption');
         img.src=v;img.referrerPolicy='no-referrer';img.alt=String(fd.get('caption'+n+lang)||'');caption.textContent=img.alt;figure.append(img,caption);images.append(figure);
       }
@@ -94,5 +103,12 @@ const {lang}=Astro.props as {lang:Lang};
   .popup-admin-preview :global(figcaption){font-size:12px;font-weight:800;color:#08254d;background:#fff4dc;padding:5px;border-radius:999px}
   .popup-admin-preview [data-body]{font-size:14px;line-height:1.6;color:#344861}
   .popup-admin-preview [data-cta]{display:block;background:#bf2928;color:white;padding:11px;border-radius:10px;font-weight:800}
+  .popup-admin-preview[data-layout="poster"]{padding:0 0 12px;overflow:hidden;border-top:1px solid #e8e8e8;background:#fff}
+  .popup-admin-preview[data-layout="poster"] .preview-brand,.popup-admin-preview[data-layout="poster"] [data-title],.popup-admin-preview[data-layout="poster"] :global(figcaption){display:none}
+  .popup-admin-preview[data-layout="poster"] [data-images]{margin:0;padding:0;background:#fff;border-radius:0}
+  .popup-admin-preview[data-layout="poster"] :global(figure){margin:0;padding:0}
+  .popup-admin-preview[data-layout="poster"] :global(img){display:block;width:100%;height:auto;max-height:450px;object-fit:contain;mix-blend-mode:normal}
+  .popup-admin-preview[data-layout="poster"] [data-cta]{margin:10px 12px 0;background:#c92325}
+  .popup-admin-preview [data-body]:empty{display:none}
   @media(max-width:650px){.popup-admin-grid{grid-template-columns:1fr}}
 </style>

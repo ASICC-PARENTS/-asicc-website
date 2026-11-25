@@ -15,10 +15,12 @@ const {lang}=Astro.props as {lang:Lang};
       <figure hidden><img alt="" referrerpolicy="no-referrer"/><figcaption></figcaption></figure>
       <figure hidden><img alt="" referrerpolicy="no-referrer"/><figcaption></figcaption></figure>
     </div>
+    <div class="popup-actions">
     <p class="popup-body"></p>
     <p class="popup-test" hidden>{L(lang,{ko:'테스트 홈페이지 · 실제 송금 금지',fr:'Site de test · Aucun virement réel'})}</p>
     <a class="popup-cta"></a>
     <div class="popup-bottom"><button type="button" data-popup-today>{L(lang,{ko:'오늘 하루 보지 않기',fr:'Ne plus afficher aujourd’hui'})}</button><button type="button" data-popup-dismiss>{L(lang,{ko:'닫기',fr:'Fermer'})}</button></div>
+    </div>
   </div>
 </dialog>
 <script>
@@ -60,11 +62,12 @@ const {lang}=Astro.props as {lang:Lang};
         link.addEventListener('click',close);
         popup.querySelector<HTMLElement>('.popup-test')!.hidden=!bazaarTestMode;
         const figures=popup.querySelectorAll<HTMLElement>('figure');
+        popup.dataset.layout=[p.image1,p.image2].filter(Boolean).length===1?'poster':'products';
         figures.forEach((figure,index)=>{
           const n=index+1,src=p['image'+n];if(!src)return;
           const img=figure.querySelector('img')!,caption=p['caption'+n+lang]||'';
-          img.alt=caption;figure.querySelector('figcaption')!.textContent=caption;
-          img.addEventListener('error',()=>{figure.hidden=true;const panel=figure.parentElement;if(panel)panel.hidden=!Array.from(panel.querySelectorAll('figure')).some(f=>!f.hidden);},{once:true});
+          img.alt=caption||titleText;figure.querySelector('figcaption')!.textContent=caption;
+          img.addEventListener('error',()=>{figure.hidden=true;const panel=figure.parentElement;if(panel){panel.hidden=!Array.from(panel.querySelectorAll('figure')).some(f=>!f.hidden);if(panel.hidden)popup.dataset.layout='products';}},{once:true});
           img.src=src;figure.hidden=false;
         });
         const panel=popup.querySelector<HTMLElement>('.popup-products')!;
@@ -117,4 +120,21 @@ const {lang}=Astro.props as {lang:Lang};
   .home-popup :is(a,button):focus-visible{outline:3px solid #b38d35;outline-offset:3px}
   @media(max-width:480px){.home-popup{width:calc(100% - 24px);max-height:calc(100dvh - 24px);border-radius:17px}.popup-inner{padding:23px 15px 11px}.popup-brand{margin-bottom:10px}.popup-kicker{font-size:18px}.popup-heading{margin-bottom:16px;padding-inline:3px;gap:4px}.popup-rays{width:17px;flex-basis:17px;height:24px}.popup-products{margin-bottom:15px;padding:9px 4px;border-radius:20px 20px 15px 15px}.popup-products figure{padding:6px 6px 4px}.popup-products img{height:135px}.home-popup figcaption{font-size:12px;padding:6px 4px}.home-popup .popup-body{font-size:14px;margin-bottom:13px}.home-popup .popup-cta{font-size:15px;padding:12px}.popup-close{width:34px;height:34px;right:10px;top:9px}}
   @media(max-width:340px),(max-height:650px){.popup-inner{padding-block:18px 10px}.popup-products img{height:110px}.popup-heading{margin-bottom:12px}.popup-brand{margin-bottom:8px}.popup-products{margin-bottom:12px}.popup-bottom{margin-top:10px}.home-popup h2{font-size:25px}}
+  /* A single campaign poster is a complete visual: never crop it or repeat its heading. */
+  .home-popup[data-layout="poster"]{width:min(560px,calc(100% - 24px));background:#fff;border-radius:17px;}
+  .home-popup[data-layout="poster"] .popup-inner{padding:0;background:#fff;border-top:0}
+  .home-popup[data-layout="poster"] .popup-inner::before,.home-popup[data-layout="poster"] .popup-inner::after,.home-popup[data-layout="poster"] .popup-brand,.home-popup[data-layout="poster"] .popup-rays,.home-popup[data-layout="poster"] .popup-heading::after{display:none}
+  .home-popup[data-layout="poster"] .popup-heading{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}
+  .home-popup[data-layout="poster"] .popup-products{margin:0;padding:0;border:0;border-radius:0;background:#fff}
+  .home-popup[data-layout="poster"] .popup-products figure{padding:0;margin:0;max-width:none;border:0}
+  .home-popup[data-layout="poster"] .popup-products img{display:block;width:100%;height:auto;max-height:calc(100dvh - 158px);object-fit:contain;mix-blend-mode:normal;filter:none}
+  .home-popup[data-layout="poster"] figcaption{display:none}
+  .home-popup[data-layout="poster"] .popup-actions{padding:12px 20px 9px;background:#fff;border-top:1px solid #f2e9d9}
+  .home-popup[data-layout="poster"] .popup-body{margin:0 auto 10px}
+  .home-popup[data-layout="poster"] .popup-test{margin:0 auto 8px}
+  .home-popup[data-layout="poster"] .popup-cta{background:#c92325;border-color:#c92325;font-size:16px;padding:12px 15px;box-shadow:none}
+  .home-popup[data-layout="poster"] .popup-cta:hover{background:#a31b20}
+  .home-popup[data-layout="poster"] .popup-bottom{margin-top:9px;padding-top:4px}
+  .home-popup[data-layout="poster"] .popup-close{top:8px;right:8px;background:#fff;box-shadow:0 2px 9px #08254d25}
+  @media(max-width:480px){.home-popup[data-layout="poster"] .popup-actions{padding:10px 12px 7px}.home-popup[data-layout="poster"] .popup-cta{font-size:14px;padding:11px}}
 </style>

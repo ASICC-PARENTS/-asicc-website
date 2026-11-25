@@ -184,3 +184,23 @@ test('bulk removal is draft-only and published products use sales controls',()=>
   assert.match(app,/data-import-invert/);
   assert.match(app,/master\.indeterminate=n>0&&n<boxes\.length/);
 });
+
+
+test('first test bazaar uses the supplied one-image poster without changing future campaign defaults',()=>{
+  const event={eventId:'bazaar-1795524749706-cf2ffb3aa60b',status:'published'};
+  const p=defaultHomePopup(event,true);
+  assert.equal(p.image1,'/popup-assets/asicc-bazaar-2026.webp');
+  assert.equal(p.image2,'');
+  assert.equal(p.bodyKo,'');
+  assert.equal(p.bodyFr,'');
+  assert.ok(normalizeHomePopup(p));
+  assert.equal(publicHomePopup(p,event,'open').link,'bazaar/?event='+event.eventId);
+  assert.equal(publicHomePopup(p,event,'closed'),null);
+  assert.equal(publicHomePopup(defaultHomePopup(event,false),event,'open'),null);
+  assert.notEqual(defaultHomePopup({...event,eventId:'bazaar-9876543210'},true).image1,p.image1);
+  assert.equal(normalizeHomePopup({...p,image1:'/popup-assets/../secret.png'}),null);
+  assert.equal(normalizeHomePopup({...p,image1:'//example.test/a.png'}),null);
+  const html=read('src/components/HomePopup.astro');
+  assert.match(html,/data-layout="poster"/);
+  assert.match(html,/object-fit:contain/);
+});
