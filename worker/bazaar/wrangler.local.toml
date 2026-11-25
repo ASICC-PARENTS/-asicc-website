@@ -1,0 +1,16 @@
+name = "asicc-bazaar-local"
+main = "index.mjs"
+compatibility_date = "2026-11-20"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+
+[vars]
+BAZAAR_MODE = "local"
+FIREBASE_PROJECT_ID = "demo-asicc-bazaar"
+FIRESTORE_EMULATOR_URL = "http://127.0.0.1:8080"
+AUTH_EMULATOR_URL = "http://127.0.0.1:9099"
+BAZAAR_SITE_URL = "http://127.0.0.1:4321"
+MAIL_MODE = "capture"
+
+[triggers]
+crons = ["*/5 * * * *"]
