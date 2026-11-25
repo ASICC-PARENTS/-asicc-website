@@ -7,16 +7,16 @@ import { renderOrderEmail } from '../../firebase-functions-bazaar/bazaar/order-e
 import { createMail, mailFields } from './mail.mjs';
 
 const project = 'demo-asicc-bazaar';
-const origin = 'http://127.0.0.1:8787';
-const firestore = 'http://127.0.0.1:8080';
-const authOrigin = 'http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1';
+const origin = (process.env.ASICC_TEST_WORKER_URL || 'http://127.0.0.1:8787');
+const firestore = (process.env.ASICC_TEST_FIRESTORE_URL || 'http://127.0.0.1:8080');
+const authOrigin = (process.env.ASICC_TEST_AUTH_URL || 'http://127.0.0.1:9099')+'/identitytoolkit.googleapis.com/v1';
 const db = createFirestore({ projectId: project, token: () => 'owner', emulator: firestore });
 const eventId = 'bazaar-worker-integration';
 const productId = 'test-product';
 const id = () => randomBytes(16).toString('hex');
 const when = offset => new Date(Date.now() + offset).toISOString();
-const productRef = db.doc(`bazaarProducts/${productId}`);
-const eventRef = db.doc('bazaarMeta/event');
+const productRef = db.doc(`bazaarEventProjects/${eventId}/products/${productId}`);
+const eventRef = db.doc('bazaarEventProjects/'+eventId);
 
 async function call(route, data, token, expected = 200) {
   const { status, result } = await callTimed(route, data, token);
@@ -452,6 +452,7 @@ test('direct Brevo rehearsal delivers only new test orders to an approved entere
 
 test('concurrent checkouts preserve stock, receipts and administrator changes', { timeout: 150000 }, async t => {
   const fixtureEvent = 'bazaar-stock-' + id();
+  const eventRef = db.doc('bazaarEventProjects/'+fixtureEvent);
   const staff = await identity('admin', true);
   const accessRef = db.doc('bazaarMeta/access');
   const [previousEvent, previousAccess] = await db.getAll(eventRef, accessRef);
@@ -506,7 +507,7 @@ test('concurrent checkouts preserve stock, receipts and administrator changes', 
     soldQty: 0, displayOrder: 1, bazaarEventId: fixtureEvent
   };
   const createProduct = async limit => {
-    const ref = db.collection('bazaarProducts').doc('stock-' + id());
+    const ref = db.collection('bazaarEventProjects/'+fixtureEvent+'/products').doc('stock-' + id());
     await ref.create({ ...preset, manualLimit: limit });
     createdProducts.push(ref);
     return ref;

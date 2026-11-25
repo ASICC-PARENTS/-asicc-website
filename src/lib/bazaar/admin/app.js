@@ -61,15 +61,15 @@ async function load(){
   productSelection.clear();rerender();return;
  }
  const listing=await request('listEvents');
- const [catalog,latest]=await Promise.all([request('getCatalog'),request('dashboard')]);
+ const id=params.get('event');
+ const published=listing.events.find(event=>event.id===id&&event.status==='published');
+ const [catalog,latest]=await Promise.all([request('getCatalog'),request('dashboard',published?{eventId:published.id}:{})]);
  if(version!==authVersion)return;
  model.catalog=catalog.items.map(p=>({...productViewModel(p),stopped:false}));catalogRevision=catalog.revision;
- latestEventId=latest.event.eventId;
  model.active=latest.event.status==='published'?eventViewModel(latest.event,latest.products,latest.orders,latest.financialFinalizedAt):null;
  model.events=listing.events;
  model.past=listing.events.filter(e=>e.status==='closed').map(e=>({id:e.id,name:e.nameKo,round:e.serial}));
  model.drafts=listing.drafts;
- const id=params.get('event');
  const past=model.past.findIndex(e=>e.id===id);
  const draft=model.drafts.find(e=>e.id===id);
  if(past>=0){
@@ -1796,8 +1796,7 @@ function handleScreenAction(action,button){
  }
  return false;
 }
-const canReconcile=()=>!!selectedEvent()&&(selectedEvent()===model.active||selectedEvent().raw?.eventId===latestEventId);
-let latestEventId;
+const canReconcile=()=>['active','past'].includes(store.mode);
 async function confirmOrder(id){
  const order=store.orders.find(order=>order.id===id);
  if(!canReconcile()||!order||!['reported','unpaid'].includes(order.status))return;

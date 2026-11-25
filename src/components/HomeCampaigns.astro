@@ -53,6 +53,7 @@ const donationReady = (v: string) => /^https:\/\/www\.helloasso\.com\//i.test(v)
   import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
   import { firebaseConfig } from '../firebase-config';
   import { BASE } from '../config';
+  import { getEventAvailability } from '../lib/bazaar/api';
   // Public read only: never download member records or require a login on the home page.
   const app = getApps().find(a => a.name === 'asicc-website') ?? initializeApp(firebaseConfig,'asicc-website');
   const db = getFirestore(app);
@@ -64,7 +65,9 @@ const donationReady = (v: string) => /^https:\/\/www\.helloasso\.com\//i.test(v)
   for (const key of ['bazaar','admissions'] as const) {
     const banner = document.querySelector<HTMLElement>(`[data-editorial-banner="${key}"]`);
     if (!banner) continue;
-    onSnapshot(doc(db,bannerCollection,key), snap => {
+    let revision=0;
+    onSnapshot(doc(db,bannerCollection,key), async snap => {
+      const current=++revision;
       // Removing the admin override falls back to the bundled CMS values after reload.
       if (!snap.exists()) { if (banner.dataset.override === 'true') window.location.reload(); return; }
       const item=snap.data();
@@ -85,7 +88,13 @@ const donationReady = (v: string) => /^https:\/\/www\.helloasso\.com\//i.test(v)
       }
       const state=banner.querySelector<HTMLElement>('[data-status-wrap]');
       if(state)state.hidden=!item[`status_${lang}`];
-      banner.hidden = !item.enabled;
+      const eventId=key==='bazaar'?item.link.match(/^bazaar\/\?event=([a-z0-9-]+)$/)?.[1]:undefined;
+      banner.hidden = !item.enabled || !!eventId;
+      if(item.enabled&&eventId){
+        const availability=await getEventAvailability(eventId).catch(()=>null);
+        if(current!==revision)return;
+        banner.hidden=availability?.published!==true;
+      }
       banner.dataset.override='true';
     }, () => {/* Static CMS fallback remains available before rules are published. */});
   }

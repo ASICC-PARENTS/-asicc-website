@@ -29,17 +29,20 @@ function depositDetails(data) {
 export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePhoto, eventPhoto, siteUrl,
   sendQueuedMail, canSendMail, queueFields = () => ({}), mailAdmin, evidence, batchFinalization = false,
   receiptCapture = false, emailPreviewTest = false }) {
-  const eventRef=db.doc('bazaarMeta/event');
-  const products=db.collection('bazaarProducts');
   const orders=db.collection('bazaarOrders');
   const outbox=db.collection('bazaarOutbox');
   const eventArchives=db.collection('bazaarEvents');
   const eventDrafts=db.collection('bazaarDrafts');
+  const projects=db.collection('bazaarEventProjects');
+  const projectProducts=eventId=>db.collection('bazaarEventProjects/'+eventId+'/products');
+  const publicationSequence=db.doc('bazaarMeta/publicationSequence');
   const catalogRef=db.doc('bazaarMeta/baseCatalog');
   const homePopupRef=db.doc('bazaarMeta/homePopup');
   async function readHomePopup(){
-    const [saved,current]=await db.getAll(homePopupRef,eventRef);
-    const event=current.data();
+    const saved=await homePopupRef.get();
+    const linked=saved.data()?.link?.match(/^bazaar\/\?event=([a-z0-9-]+)$/)?.[1];
+    const event=linked ? (await projects.doc(linked).get()).data() :
+      (await projects.get()).docs.map(doc=>doc.data()).filter(event=>orderIntakeState(event)==='open').sort((a,b)=>b.serial-a.serial)[0];
     return {settings:saved.exists?saved.data():defaultHomePopup(event,emailPreviewTest),event};
   }
   const purchaseOrders=db.collection('bazaarPurchaseOrders');
@@ -112,14 +115,6 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
   function catalogItems(rows){
     return rows.map(({soldQty,bazaarEventId,...p})=>p)
       .sort((a,b)=>a.displayOrder-b.displayOrder);
-  }
-  function catalogSnapshot(products){
-    return catalogItems(products.empty?catalogue:snapshotProducts(products)).map(p=>({...p,plannedBoxes:null,manualLimit:null,limitMode:'unlimited'}));
-  }
-  function initializeCatalog(tx, products){
-    const items=catalogSnapshot(products);
-    if(Buffer.byteLength(JSON.stringify(items))>800000)bad('기본 상품 정보가 너무 많습니다.');
-    tx.create(catalogRef,{revision:1,items,updatedAt:now()});
   }
   function normalizeCatalog(rows){
     if(!Array.isArray(rows)||rows.length>70)bad('기본 상품 목록을 확인해 주세요.');
@@ -280,8 +275,15 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     }
     const requested=s(req.data?.eventId);
     if(requested&&!validEventId(requested))bad('행사 주소를 확인해 주세요.');
+    if(req.data?.op==='eventAvailability'){
+      if(!requested)bad('행사 주소를 확인해 주세요.');
+      const event=(await projects.doc(requested).get()).data();
+      return {published:event?.status==='published'&&!closed(event)};
+    }
     return db.runTransaction(async tx=>{
-      const current=(await tx.get(eventRef)).data();
+      const openEvents=requested?[]:(await tx.get(projects.where('status','==','published'))).docs.map(doc=>doc.data()).filter(event=>orderIntakeState(event)==='open').sort((a,b)=>b.serial-a.serial);
+      const current=requested?(await tx.get(projects.doc(requested))).data():openEvents[0];
+      const eventChoices=openEvents.map(({eventId,nameKo,nameFr})=>({eventId,nameKo,nameFr}));
       const eventId=requested||current?.eventId||initialEvent.eventId;
       if(!current||eventId!==current.eventId){
         const archived=requested&&(await tx.get(eventArchives.doc(eventId))).exists;
@@ -292,8 +294,8 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       const safe={eventId,status:e.status||'draft',orderStartsAt:e.orderStartsAt||'',pickupAt:e.pickupAt||'',pickupPlace:e.pickupPlace||'',nameKo:e.nameKo,nameFr:e.nameFr,introKo:e.introKo,introFr:e.introFr,orderCutoff:e.orderCutoff,transferCutoff:e.transferCutoff,paymentHours:e.paymentHours??defaultPaymentHours,pickupKo:e.pickupKo,pickupFr:e.pickupFr,beneficiary:e.beneficiary,iban:e.iban,contactEmail:e.contactEmail,finalizedAt:null};
       safe.orderIntakeClosedAt=e.orderIntakeClosedAt||null;
       safe.orderIntakeLocked=orderIntakeLocked(e);
-      const ps=e.status==='published' ? snapshotProducts(await tx.get(products)) : [];
-      return{serverNow:now(),event:safe,products:ps.filter(p=>(!e.scopedProducts||p.bazaarEventId===eventId)&&
+      const ps=e.status==='published' ? snapshotProducts(await tx.get(projectProducts(eventId))) : [];
+      return{serverNow:now(),event:safe,eventChoices,products:ps.filter(p=>(!e.scopedProducts||p.bazaarEventId===eventId)&&
         !p.archivedAt&&p.visible&&cents(p.retailCents)).map(pickPublic).sort((a,b)=>a.displayOrder-b.displayOrder)};
     },{readOnly:true});
   }
@@ -311,9 +313,10 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     const ipHash=createHash('sha256').update(ip).digest('hex');
     const throttleRef=db.doc(`bazaarRateLimits/${ipHash}`);
     const sequenceRef=orderSequences.doc(requested);
-    const refs=buyer.items.map(i=>products.doc(i.id));
+    const checkoutEvent=projects.doc(requested);
+    const refs=buyer.items.map(i=>projectProducts(requested).doc(i.id));
     const checkout=async tx=>{
-      const [eventSnap,rateSnap,existing]=await Promise.all([tx.get(eventRef),tx.get(throttleRef),tx.get(ref)]);
+      const [eventSnap,rateSnap,existing]=await Promise.all([tx.get(checkoutEvent),tx.get(throttleRef),tx.get(ref)]);
       if(existing.exists){
         const o=existing.data();
         if(o.requestFingerprint!==fingerprint)throw new HttpsError('already-exists','같은 요청 번호에 다른 주문이 있습니다.');
@@ -346,7 +349,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       return { created:true,order:{ id:ref.id, token, ...paymentDetails(data), pickupKo:e.pickupKo } };
     };
     const {order,created}=await (db.runCheckout
-      ? db.runCheckout([eventRef,throttleRef,ref,sequenceRef,...refs],checkout)
+      ? db.runCheckout([checkoutEvent,throttleRef,ref,sequenceRef,...refs],checkout)
       : db.runTransaction(checkout));
     if(created)await deliver(`${order.id}_receipt`).catch(()=>console.error('Bazaar receipt delivery failed'));
     return {...order,receiptMailStatus:await receiptMailStatus(order.id)};
@@ -362,7 +365,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       const o=snap.data();
       const a=Buffer.from(token,'hex'),b=Buffer.from(o.buyerToken||'','hex');
       if(a.length!==b.length||!timingSafeEqual(a,b))throw new HttpsError('permission-denied','주문 확인 권한이 없습니다.');
-      const currentEvent=(await tx.get(eventRef)).data();
+      const currentEvent=(await tx.get(projects.doc(o.eventId))).data();
       if(action==='view')return{order:buyerOrder(o,currentEvent),changed:false};
       assertOrderEvent(currentEvent,o.eventId);
       if(o.canceledAt)throw new HttpsError('failed-precondition','이미 취소된 주문입니다.');
@@ -377,7 +380,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       if(!buyerCanCancel(currentEvent,o))throw new HttpsError('failed-precondition','주문 접수 마감 후 온라인으로 취소할 수 없습니다.');
       if(!ackNoTransfer)bad('송금하지 않았음을 확인해야 합니다.');
       if(o.transferReportedAt||o.bankConfirmedAt)throw new HttpsError('failed-precondition','송금 신고 또는 입금 확인된 주문은 온라인으로 취소할 수 없습니다. 협회에 문의해 주세요.');
-      const refs=o.items.map(i=>products.doc(i.id));
+      const refs=o.items.map(i=>projectProducts(o.eventId).doc(i.id));
       const snaps=await Promise.all(refs.map(r=>tx.get(r)));
       snaps.forEach((snap,i)=>{if(snap.exists)tx.update(snap.ref,{soldQty:FieldValue.increment(-o.items[i].qty)});});
       tx.update(ref,{canceledAt:now(),cancelReason:'buyer'});
@@ -414,6 +417,10 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
   async function bazaarAdmin(req){
     await requireAdmin(req);
     const {op,...data}=req.data||{};
+    if(data.eventId!==undefined&&!validEventId(s(data.eventId)))bad('행사 주소를 확인해 주세요.');
+    const selectedEventId=data.eventId||initialEvent.eventId;
+    const eventRef=projects.doc(selectedEventId);
+    const products=projectProducts(selectedEventId);
     if(op==='getHomePopup')return {popup:(await readHomePopup()).settings};
     if(op==='saveHomePopup'){
       const clean=normalizeHomePopup(data.popup);
@@ -544,8 +551,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       }
     };
     if(op==='getCatalog'){
-      const [saved,legacy]=await Promise.all([catalogRef.get(),products.get()]);
-      return saved.exists?saved.data():{revision:0,items:catalogSnapshot(legacy)};
+      return (await catalogRef.get()).data()??{revision:0,items:catalogue};
     }
     if(op==='saveProductDetail'){
       const id=s(data.id),scope=data.scope;
@@ -579,7 +585,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         }
         if(scope==='draft'&&(saved?.status!=='draft'||saved.updatedAt!==data.updatedAt))
           throw new HttpsError('failed-precondition','초안이 변경되었습니다. 다시 불러와 주세요.');
-        const items=saved?.items??catalogSnapshot(await tx.get(products));
+        const items=saved?.items??catalogue;
         if(!items.some(item=>item.id===id))throw new HttpsError('not-found','상품을 찾을 수 없습니다.');
         const updatedAt=scope==='draft'?new Date(Math.max(Date.now(),Date.parse(saved.updatedAt)+1)).toISOString():now();
         const revision=(saved?.revision??0)+1;
@@ -756,7 +762,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         // Legacy archived records remain intact; omission of a live record is rejected.
         if([...previous.values()].some(doc=>!doc.data().archivedAt&&!ids.includes(doc.id)))
           throw new HttpsError('failed-precondition','발행된 바자회 상품은 삭제할 수 없습니다. 판매 중지 기능을 이용해 주세요.');
-        if(!base.exists)initializeCatalog(tx,result);
+        if(!base.exists)tx.create(catalogRef,{revision:0,items:catalogue});
         data.items.forEach((item,index)=>{
           const doc=previous.get(item.id);
           const old=doc?.data()||{soldQty:0};
@@ -1217,9 +1223,12 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       }
     }
     if(op==='endEvent'){
+      const eventId=s(data.eventId);
+      if(!validEventId(eventId))bad('행사 주소를 확인해 주세요.');
+      const project=projects.doc(eventId);
       if(data.confirm!==true)bad('행사 종료 확인이 필요합니다.');
       return await db.runTransaction(async tx=>{
-        const current=await tx.get(eventRef);
+        const current=await tx.get(project);
         if(!current.exists)throw new HttpsError('not-found','진행 중인 바자회가 없습니다.');
         const currentEvent=current.data();
         if(currentEvent.eventId!==data.eventId)throw new HttpsError('failed-precondition','행사가 변경되었습니다. 다시 불러와 주세요.');
@@ -1227,17 +1236,18 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         if(currentEvent.status!=='published')throw new HttpsError('failed-precondition','발행된 행사만 종료할 수 있습니다.');
         const endedAt=now();
         const archive=eventArchives.doc(currentEvent.eventId);
-        const [stored,ps]=await Promise.all([tx.get(archive),tx.get(products)]);
+        const [stored,ps]=await Promise.all([tx.get(archive),tx.get(projectProducts(eventId))]);
         if(!stored.exists)archiveEvent(tx,archive,{...currentEvent,endedAt},ps,endedAt);
-        tx.update(eventRef,{status:'closed',endedAt});
+        tx.update(project,{status:'closed',endedAt});
         return{ok:true,endedAt};
       });
     }
     if(op==='setOrderIntake'){
       const eventId=s(data.eventId), action=s(data.action);
       if(!validEventId(eventId)||!['close','reopen'].includes(action))bad('주문 접수 설정을 확인해 주세요.');
+      const project=projects.doc(eventId);
       return db.runTransaction(async tx=>{
-        const current=(await tx.get(eventRef)).data();
+        const current=(await tx.get(project)).data();
         if(current?.eventId!==eventId||current.status!=='published'||orderIntakeLocked(current))
           throw new HttpsError('failed-precondition','다시 열 수 있는 진행 중 행사인지 확인해 주세요.',{reason:'order-intake-locked'});
         const time=Date.now();
@@ -1260,7 +1270,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
           patch={orderIntakeClosedAt:null,orderCutoff:new Date(orderEnd).toISOString(),transferCutoff:new Date(transferEnd).toISOString(),
             priorTransferCutoff:laterPaymentCutoff(current,transferCutoff),finalizeNotBefore:new Date(transferEnd).toISOString()};
         }
-        tx.update(eventRef,patch);
+        tx.update(project,patch);
         const updated={...current,...patch};
         return {orderIntakeClosedAt:updated.orderIntakeClosedAt,orderCutoff:updated.orderCutoff,transferCutoff:updated.transferCutoff};
       });
@@ -1269,7 +1279,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       const requested=s(data.eventId);
       if(requested&&!validEventId(requested))bad('행사 주소를 확인해 주세요.');
       return db.runTransaction(async tx=>{
-        const active=(await tx.get(eventRef)).data()||initialEvent;
+        const active=(requested ? (await tx.get(projects.doc(requested))).data() : (await tx.get(projects)).docs.map(doc=>doc.data()).filter(event=>event.status==='published').sort((a,b)=>b.serial-a.serial)[0])||initialEvent;
         const isCurrent=!requested||requested===active.eventId;
         let ev=active, productData;
         if(!isCurrent||closed(active)){
@@ -1282,7 +1292,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
             throw new HttpsError('not-found','해당 바자회 기록을 찾을 수 없습니다.');
           }
         }
-        productData??=snapshotProducts(await tx.get(products)).filter(product=>!ev.scopedProducts||product.bazaarEventId===ev.eventId);
+        productData??=snapshotProducts(await tx.get(projectProducts(ev.eventId))).filter(product=>!ev.scopedProducts||product.bazaarEventId===ev.eventId);
         const [o,financial]=await Promise.all([
           tx.get(orders.where('eventId','==',ev.eventId||initialEvent.eventId)),
           tx.get(eventFinancials.doc(ev.eventId||initialEvent.eventId)),
@@ -1310,15 +1320,23 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         ]);
         if(op==='closedEventData')return {event:record.event,products:record.products,orders:eventOrders.docs.map(doc=>safeOrder(doc.data())),financial:financial.data()||null,purchases:purchases.docs.map(doc=>doc.data())};
         if(data.confirm!==true||s(data.name)!==record.event.nameKo)bad('삭제하려면 행사명을 정확히 입력해 주세요.');
-        if(active.data()?.eventId===id||!eventOrders.empty||financial.exists||!purchases.empty||!eventMail.empty)
+        if(!eventOrders.empty||financial.exists||!purchases.empty||!eventMail.empty)
           throw new HttpsError('failed-precondition','주문, 발주, 정산 또는 발송 기록이 있거나 최근 종료된 행사는 보관 처리해 주세요.');
+        if(active.exists){
+          const inventory=await tx.get(projectProducts(id));
+          for(const product of inventory.docs)tx.delete(product.ref);
+          tx.delete(active.ref);
+        }
         tx.delete(ref);return {ok:true};
       },{readOnly:op==='closedEventData'});
     }
     if(op==='listEvents'){
       return db.runTransaction(async tx=>{
-        const [cur,old,drafts]=await Promise.all([tx.get(eventRef),tx.get(eventArchives),tx.get(eventDrafts)]);
-        const rows=managementEventRows(cur,old,drafts);
+        const [old,drafts,published]=await Promise.all([tx.get(eventArchives),tx.get(eventDrafts),tx.get(projects)]);
+        const rows=managementEventRows({data:()=>null},old,drafts);
+        for(const doc of published.docs){
+          if(!rows.events.some(event=>event.id===doc.id))rows.events.push(...managementEventRows(doc,{docs:[]},{docs:[]}).events);
+        }
         const numbers=await assignManagementNumbers(tx,[...rows.events,...rows.drafts]);
         const withNumber=e=>({...e,managementNumber:numbers.get(e.id)??null});
         return {events:rows.events.sort((a,b)=>b.serial-a.serial||b.createdAt.localeCompare(a.createdAt)).map(withNumber),drafts:rows.drafts.map(withNumber)};
@@ -1328,15 +1346,14 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       const id=`bazaar-${Date.now()}-${randomBytes(6).toString('hex')}`;
       const createdAt=now();
       return db.runTransaction(async tx=>{
-        const [cur,ps,archives,existingDrafts]=await Promise.all([tx.get(eventRef),tx.get(products),tx.get(eventArchives),tx.get(eventDrafts)]);
+        const [cur,archives,existingDrafts]=await Promise.all([tx.get(publicationSequence),tx.get(eventArchives),tx.get(eventDrafts)]);
         if(existingDrafts.size>=10)throw new HttpsError('resource-exhausted','임시저장 바자회가 너무 많습니다.');
-        if(ps.size>70)throw new HttpsError('failed-precondition','상품이 70개를 초과하여 별도 저장 구조가 필요합니다.');
-        const prev=cur.exists?cur.data():initialEvent;
-        const maxSerial=Math.max(prev.serial||1,...archives.docs.map(d=>d.data().event?.serial||0),...existingDrafts.docs.map(d=>d.data().serial||0));
-        const freshFirst=prev.status==='draft'&&!prev.publishedAt&&existingDrafts.empty;
+        const prev=initialEvent;
+        const maxSerial=Math.max(cur.data()?.lastSerial??0,...archives.docs.map(d=>d.data().event?.serial||0),...existingDrafts.docs.map(d=>d.data().serial||0));
+        const freshFirst=maxSerial===0;
         const serial=freshFirst?(prev.serial||1):maxSerial+1;
       const draft={id,serial,status:'draft',createdAt,updatedAt:createdAt,event:{...prev,eventId:id,serial,nameKo:`${serial}차 ASICC 온라인 바자회`,nameFr:`Vente solidaire ASICC n°${serial}`,orderCutoff:'',transferCutoff:'',orderStartsAt:'',pickupAt:'',pickupPlace:'',paymentHours:defaultPaymentHours,pickupKo:'',pickupFr:'',finalizedAt:null,endedAt:null,publishedAt:null,createdAt,status:'draft',orderIntakeClosedAt:null,priorTransferCutoff:null},items:[]};
-        const rows=managementEventRows(cur,archives,existingDrafts);
+        const rows=managementEventRows({data:()=>null},archives,existingDrafts);
         const numbers=await assignManagementNumbers(tx,[...rows.events,...rows.drafts,{id,createdAt}]);
         tx.create(eventDrafts.doc(id),draft);
         return {draft:{...draft,managementNumber:numbers.get(id)}};
@@ -1356,7 +1373,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       const ids=data.items.map(x=>s(x?.id));if(new Set(ids).size!==ids.length||ids.some(x=>!/^[a-z0-9-]{2,50}$/.test(x)))bad('중복되거나 잘못된 상품 ID가 있습니다.');
       const previousItems=new Map(snap.data().items.map(item=>[item.id,item]));
       const base=await catalogRef.get();
-      const baseIds=new Set((base.exists?base.data().items:catalogSnapshot(await products.get())).map(p=>p.id));
+      const baseIds=new Set((base.exists?base.data().items:catalogue).map(p=>p.id));
       const items=await Promise.all(data.items.map(async (item,i)=>{
         const previous=previousItems.get(ids[i]);
         if(!previous&&!/^custom-[a-f0-9]{32}$/.test(ids[i])&&!baseIds.has(ids[i]))bad('초안의 상품 ID를 확인해 주세요.');
@@ -1387,7 +1404,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       const id=s(data.id);if(!validEventId(id)||data.confirm!==true)bad('임시저장 삭제를 확인해 주세요.');
       await db.runTransaction(async tx=>{
         const ref=eventDrafts.doc(id);
-        const [draft,cur,o]=await Promise.all([tx.get(ref),tx.get(eventRef),tx.get(orders.where('eventId','==',id).limit(1))]);
+        const [draft,cur,o]=await Promise.all([tx.get(ref),tx.get(projects.doc(id)),tx.get(orders.where('eventId','==',id).limit(1))]);
         if(!draft.exists)throw new HttpsError('not-found','임시저장 내역이 없습니다.');
         if(draft.data().status!=='draft'||cur.data()?.eventId===id||!o.empty)throw new HttpsError('failed-precondition','발행했거나 주문이 있는 바자회는 삭제할 수 없습니다.');
         tx.delete(ref);
@@ -1414,38 +1431,17 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
           catch(error){if(error.code!=='invalid-argument')throw error;issues.push({id:item.id,message:error.message});}
         }
         if(issues.length)throw new HttpsError('invalid-argument',issues.map(issue=>issue.message).join('\n'),{issues});
-        const [old,ps,base]=await Promise.all([tx.get(eventRef),tx.get(products),tx.get(catalogRef)]);
-        const previous=old.data();
-        if(previous?.status==='published'&&!previous.finalizedAt){
-          throw new HttpsError('failed-precondition','진행 중인 바자회를 먼저 종료해 주세요.');
-        }
-        if(previous?.reconciliationStartedAt&&!previous.reconciledAt){
-          throw new HttpsError('failed-precondition','기존 행사의 입금 정리를 완료해 주세요.');
-        }
-        if(previous&&!previous.finalizedAt){
-          const pending=await tx.get(orders.where('eventId','==',previous.eventId));
-          if(pending.docs.some(d=>!d.data().bankConfirmedAt&&!d.data().canceledAt)){
-            throw new HttpsError('failed-precondition','기존 행사에 입금 확인이 필요한 주문이 있습니다.');
-          }
-        }
-        if(closed(previous)){
-          const archive=eventArchives.doc(previous.eventId);
-          if(!(await tx.get(archive)).exists)archiveEvent(tx,archive,previous,ps,now());
-        }
-        if(!base.exists)initializeCatalog(tx,ps);
-        const byId=new Map(sellingItems.map(p=>[p.id,p]));
-        const catalogueIds=new Set(ps.docs.map(p=>p.id));
-        if(new Set([...catalogueIds,...byId.keys()]).size>70)bad('상품 수가 많습니다.');
-        for(const product of ps.docs){
-          if(!byId.has(product.id))tx.update(product.ref,{visible:false,soldQty:0});
-        }
-        for(const [productId,item] of byId){
-          const {included,id:ignored,...fields}=item;
-          tx.set(products.doc(productId),{...fields,bazaarEventId:id,visible:included&&!item.archivedAt,soldQty:0});
-        }
-        const serial=previous?.publishedAt||closed(previous)?orderSerial(previous)+1:1;
+        const project=projects.doc(id);
+        const [existing,sequence]=await Promise.all([tx.get(project),tx.get(publicationSequence)]);
+        if(existing.exists)throw new HttpsError('already-exists','이미 발행된 행사입니다.');
+        if(sellingItems.length>70)bad('상품 수가 많습니다.');
+        const serial=(sequence.data()?.lastSerial??0)+1;
         orderSerial({serial});
-        tx.set(eventRef,{...e,serial,status:'published',publishedAt:now(),endedAt:null,finalizedAt:null,
+        tx.set(publicationSequence,{lastSerial:serial});
+        for(const {included,id:productId,...fields} of sellingItems){
+          tx.set(projectProducts(id).doc(productId),{...fields,bazaarEventId:id,visible:included,soldQty:0});
+        }
+        tx.create(project,{...e,eventId:id,serial,status:'published',publishedAt:now(),endedAt:null,finalizedAt:null,
           scopedProducts:true,productRevision:0,reconciliationStartedAt:null,reconciliationCursor:null,reconciledAt:null,
           orderIntakeClosedAt:null,priorTransferCutoff:null,finalizeNotBefore:e.transferCutoff});
         tx.delete(snap.ref);
@@ -1453,12 +1449,11 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       });
     }
     if(op==='seed'){
-      const ps=await products.limit(1).get();
-      if(!ps.empty)throw new HttpsError('already-exists','상품이 이미 존재합니다. 초기화를 반복할 수 없습니다.');
-      const batch=db.batch();
-      catalogue.forEach(p=>{const {id,...rest}=p;batch.set(products.doc(id),rest);});
-      if(!(await eventRef.get()).exists)batch.set(eventRef,initialEvent);
-      await batch.commit();return{ok:true,count:catalogue.length};
+      return db.runTransaction(async tx=>{
+        if((await tx.get(catalogRef)).exists)throw new HttpsError('already-exists','상품이 이미 존재합니다. 초기화를 반복할 수 없습니다.');
+        tx.create(catalogRef,{revision:0,items:catalogue});
+        return {ok:true,count:catalogue.length};
+      });
     }
     if(op==='addProduct'){
       const id=s(data.id);
@@ -1556,11 +1551,12 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         bad('실제 입금액과 입금 정보를 확인해 주세요.');
       const ledger=ref.collection('payments').doc(key);
       const result=await db.runTransaction(async tx=>{
-        const [snap,active,prior]=await Promise.all([tx.get(ref),tx.get(eventRef),tx.get(ledger)]);
+        const [snap,prior]=await Promise.all([tx.get(ref),tx.get(ledger)]);
         if(data.eventId&&snap.data()?.eventId!==data.eventId)
           throw new HttpsError('failed-precondition','선택한 행사와 주문을 다시 확인해 주세요.');
         if(!snap.exists)throw new HttpsError('not-found','주문을 찾을 수 없습니다.');
         const o=snap.data();
+        const active=await tx.get(projects.doc(o.eventId));
         if(prior.exists){
           const record=prior.data();
           if(record.type!=='deposit'||record.initial!==true||record.amountCents!==data.amountCents||

@@ -153,7 +153,7 @@ test('homepage popup uses a native dismissible dialog and an uncached public req
   assert.match(popup,/showModal\(\)/);
   assert.match(popup,/data-popup-today/);
   assert.match(popup,/Europe\/Paris/);
-  assert.match(worker,/data\.op!=='homePopup'/);
+  assert.match(worker,/name==='bazaarPublic'&&!data\.op/);
 });
 
 test('homepage popup and campaign copy prefer whole-word wrapping without truncation',()=>{

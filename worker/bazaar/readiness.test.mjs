@@ -9,7 +9,7 @@ import { createMailAdmin } from './mail-admin.mjs';
 import { mailKinds } from './mail-policy.mjs';
 import { createPhotos } from './photos.mjs';
 
-const loopback = 'http://127.0.0.1:8080';
+const loopback = (process.env.ASICC_TEST_FIRESTORE_URL || 'http://127.0.0.1:8080');
 const site = 'https://test.example.test';
 const id = () => randomBytes(16).toString('hex');
 const future = offset => new Date(Date.now() + offset).toISOString();
@@ -24,8 +24,8 @@ test('order intake can change without ending the bazaar or modifying previous or
   });
   const service=createBazaar({db,FieldValue,siteUrl:()=>site,sendQueuedMail:async()=>false,batchFinalization:true});
   const eventId='bazaar-intake-regression';
-  const eventRef=db.doc('bazaarMeta/event');
-  const category=db.doc('bazaarProducts/intake-product');
+  const eventRef=db.doc('bazaarEventProjects/'+eventId);
+  const category=db.doc('bazaarEventProjects/'+eventId+'/products/intake-product');
   const uid='intake-test-admin';
   await db.doc('members/'+uid).set({role:'admin',status:'approved'});
   const admin=(op,data={})=>service.bazaarAdmin({auth:{uid,token:{email_verified:true}},data:{op,eventId,...data}});
@@ -164,7 +164,7 @@ test('publishing, closing and changing the next event preserve historical produc
   const publicProducts=(await service.bazaarPublic({data:{eventId:first.id}})).products;
   assert.equal(publicProducts.length,1);
   assert.equal(publicProducts[0].stockRemaining,4);
-  const ev=await db.doc('bazaarMeta/event').get();
+  const ev=await db.doc('bazaarEventProjects/'+first.id).get();
   const activePhoto={scope:'event',eventId:first.id,id:original.id,field:'photo'};
   const removed=await admin('saveProductDetail',{...activePhoto,revision:ev.data().productRevision??0,photoPath:''});
   assert.equal((await service.bazaarPublic({data:{eventId:first.id}})).products[0].imageUrl,'');
@@ -184,9 +184,9 @@ test('publishing, closing and changing the next event preserve historical produc
   const extraId='custom-'+id();
   await admin('addProduct',{eventId:first.id,id:extraId,product:{...original,imageUrl:'',photoPath:''}});
   await assert.rejects(admin('archiveProduct',{eventId:first.id,id:extraId,archive:true}),{code:'failed-precondition'});
-  const salesRevision=(await db.doc('bazaarMeta/event').get()).data().productRevision;
+  const salesRevision=(await db.doc('bazaarEventProjects/'+first.id).get()).data().productRevision;
   await admin('setProductSales',{eventId:first.id,id:extraId,revision:salesRevision,visible:false});
-  const suspended=(await db.doc('bazaarProducts/'+extraId).get()).data();
+  const suspended=(await db.doc('bazaarEventProjects/'+first.id+'/products/'+extraId).get()).data();
   assert.equal(suspended.visible,false);
   assert.equal(suspended.archivedAt,null);
   assert.equal((await service.bazaarPublic({data:{eventId:first.id}})).products.some(item=>item.id===extraId),false);
@@ -198,15 +198,13 @@ test('publishing, closing and changing the next event preserve historical produc
   await admin('bankConfirm',{id:paid.id,eventId:first.id,requestId:id(),amountCents:paid.totalCents});
   const canceled=await buy(1);
   await service.bazaarBuyerAction({data:{id:canceled.id,token:canceled.token,action:'cancel',ackNoTransfer:true}});
-  assert.equal((await db.doc('bazaarProducts/'+original.id).get()).data().soldQty,2);
+  assert.equal((await db.doc('bazaarEventProjects/'+first.id+'/products/'+original.id).get()).data().soldQty,2);
   for(const [orderId,type] of [[paid.id,'receipt'],[paid.id,'confirmed'],[canceled.id,'cancel']]){
     assert.equal((await db.doc(`bazaarOutbox/${orderId}_${type}`).get()).data().providerId,'captured');
   }
-  await db.doc('bazaarMeta/event').update({orderCutoff:future(-1000)});
+  const unpaidFirst=await buy(1);
+  await db.doc('bazaarEventProjects/'+first.id).update({orderCutoff:future(-1000)});
   await assert.rejects(buy(1),{code:'failed-precondition'});
-  await admin('endEvent',{eventId:first.id,confirm:true});
-  assert.equal((await service.bazaarPublic({data:{eventId:first.id}})).event.status,'closed');
-
   const second=(await admin('createDraft')).draft;
   const replacement={...original,titleFr:'Nouvel article',descriptionFr:'Nouvelle description',retailCents:700,
     boxPriceTtcCents:760,boxPriceHtCents:720};
@@ -214,10 +212,27 @@ test('publishing, closing and changing the next event preserve historical produc
     content:Buffer.concat([Buffer.from(photo,'base64'),Buffer.from('second fixture')]).toString('base64')
   }));
   const next=await admin('saveDraft',{id:second.id,updatedAt:second.updatedAt,event:{...second.event,...schedule},items:[replacement]});
-  await admin('publishDraft',{id:second.id,updatedAt:next.updatedAt});
+  const third=(await admin('createDraft')).draft;
+  const thirdSave=await admin('saveDraft',{id:third.id,updatedAt:third.updatedAt,
+    event:{...third.event,...schedule},items:[{...replacement,imageUrl:'',photoPath:''}]});
+  await Promise.all([
+    admin('publishDraft',{id:second.id,updatedAt:next.updatedAt}),
+    admin('publishDraft',{id:third.id,updatedAt:thirdSave.updatedAt}),
+  ]);
+  const choices=await service.bazaarPublic({data:{}});
+  assert.deepEqual(new Set(choices.eventChoices.map(event=>event.eventId)),new Set([second.id,third.id]));
+  const simultaneous=await admin('listEvents');
+  assert.equal(new Set(simultaneous.events.map(event=>event.serial)).size,3);
+  await assert.rejects(admin('bankConfirm',{id:unpaidFirst.id,eventId:third.id,requestId:id(),amountCents:450}),{code:'failed-precondition'});
+  assert.equal((await service.bazaarPublic({data:{eventId:first.id}})).event.status,'published');
+  await admin('endEvent',{eventId:first.id,confirm:true});
+  assert.equal((await service.bazaarPublic({data:{eventId:first.id}})).event.status,'closed');
+  assert.equal((await service.bazaarPublic({data:{eventId:third.id}})).event.status,'published');
+
+
   await admin('saveProduct',{eventId:second.id,id:original.id,product:{...replacement,titleKo:'신규 수정 상품'}});
   const unrelated='outside-current-event';
-  await db.doc('bazaarProducts/'+unrelated).set({...replacement,id:unrelated,bazaarEventId:first.id,visible:true,soldQty:1});
+  await db.doc('bazaarEventProjects/'+first.id+'/products/'+unrelated).set({...replacement,id:unrelated,bazaarEventId:first.id,visible:true,soldQty:1});
   assert.equal((await admin('dashboard',{eventId:second.id})).products.some(product=>product.id===unrelated),false);
   assert.equal((await service.bazaarPublic({data:{eventId:second.id}})).products.some(product=>product.id===unrelated),false);
   const listing=await admin('listEvents');
@@ -230,11 +245,14 @@ test('publishing, closing and changing the next event preserve historical produc
   const current=(await admin('dashboard',{eventId:second.id})).products.find(item=>item.id===original.id);
   assert.equal(current.titleKo,'신규 수정 상품');
   assert.notEqual(current.photoPath,past.photoPath);
-  assert.equal(historical.orders.length,2);
+  assert.equal(historical.orders.length,3);
+  assert.equal(historical.orders.find(order=>order.id===unpaidFirst.id).bankConfirmedAt,null);
   const accepted=historical.orders.filter(order=>order.bankConfirmedAt&&!order.canceledAt);
   assert.equal(accepted.reduce((sum,order)=>sum+order.totalCents,0),900);
   assert.equal(accepted[0].items[0].qty,2);
   assert.equal(accepted[0].items[0].boxPriceTtcCents,600);
+  await admin('bankConfirm',{id:unpaidFirst.id,eventId:first.id,requestId:id(),amountCents:unpaidFirst.totalCents});
+  assert.ok((await admin('dashboard',{eventId:first.id})).orders.find(order=>order.id===unpaidFirst.id).bankConfirmedAt);
   const paidChange=await service.bazaarCreateOrder({data:{eventId:second.id,requestId:id(),lang:'fr',name:'Test Refund',
     email:'buyer@example.test',phone:'0600000000',consent:true,items:[{id:original.id,qty:2,priceCents:700}]}});
   assert.equal(paidChange.transferCutoff,schedule.transferCutoff);
@@ -255,7 +273,8 @@ test('publishing, closing and changing the next event preserve historical produc
   const recorded=(await admin('orderPayments',paymentFields)).records;
   assert.equal(recorded.filter(row=>!row.initial).length,3);
   assert.equal(recorded.find(row=>row.initial).amountCents,paidChange.totalCents);
-  assert.equal((await db.doc('bazaarProducts/'+original.id).get()).data().soldQty,0);
+  assert.equal((await db.doc('bazaarEventProjects/'+second.id+'/products/'+original.id).get()).data().soldQty,0);
+  assert.equal((await db.doc('bazaarEventProjects/'+first.id+'/products/'+original.id).get()).data().soldQty,3);
   const mailPreview=await admin('mailPreview',{eventId:second.id,type:'receipt',lang:'fr',id:paidChange.id});
   assert.match(mailPreview.text,/Acheteur|Test Refund/);
   assert.match(mailPreview.text,/#token=preview-only/);
@@ -279,7 +298,7 @@ test('publishing, closing and changing the next event preserve historical produc
   const registered=await admin('createRefund',pending);
   assert.deepEqual([registered.payment.original,registered.payment.due,registered.payment.refunded,registered.payment.refundDue],[1400,700,0,700]);
   assert.equal((await admin('createRefund',pending)).payment.reservedRefund,700);
-  assert.equal((await db.doc('bazaarProducts/'+original.id).get()).data().soldQty,1);
+  assert.equal((await db.doc('bazaarEventProjects/'+second.id+'/products/'+original.id).get()).data().soldQty,1);
   const view=async()=> (await service.bazaarBuyerAction({data:{id:synthetic.id,token:synthetic.token,action:'view'}})).order;
   const awaiting=await view();
   assert.equal(awaiting.items[0].qty,1);
@@ -301,7 +320,7 @@ test('publishing, closing and changing the next event preserve historical produc
   assert.equal((await db.doc('bazaarOutbox/'+jobId).get()).data().providerId,'captured');
   const complete=await view();
   assert.deepEqual([complete.payment.net,complete.payment.refunded,complete.payment.refundDue],[700,700,0]);
-  assert.equal((await db.doc('bazaarProducts/'+original.id).get()).data().soldQty,1);
+  assert.equal((await db.doc('bazaarEventProjects/'+second.id+'/products/'+original.id).get()).data().soldQty,1);
   assert.equal((await admin('orderRefunds',scope)).refunds.length,1);
   await assert.rejects(admin('createRefund',{...pending,requestId:id(),revision:1,kind:'overpayment',items:[],restoreStock:false}),{code:'failed-precondition'});
   const stopProduct=async visible=>{
@@ -366,7 +385,7 @@ test('publishing, closing and changing the next event preserve historical produc
   await admin('createRefund',reverse);
   const restored=await admin('voidRefund',{...paymentScope,requestId:reverse.requestId,confirm:true,restoreOrder:true,reason:'Fixture restoration'});
   assert.deepEqual([restored.payment.due,restored.payment.refundDue,restored.payment.reservedRefund],[700,10,0]);
-  assert.equal((await db.doc('bazaarProducts/'+original.id).get()).data().soldQty,2);
+  assert.equal((await db.doc('bazaarEventProjects/'+second.id+'/products/'+original.id).get()).data().soldQty,2);
   const oldUrl=new URL(photos.preview(past).imageUrl);
   assert.deepEqual(Buffer.from(await (await photos.serve(oldUrl)).arrayBuffer()),Buffer.from(photo,'base64'));
   assert.equal((await service.bazaarPublic({data:{eventId:first.id}})).event.status,'closed');
@@ -390,7 +409,7 @@ test('R9.1 private evidence and immutable accounting reconcile 145 less 65, 50 a
   await db.doc('members/'+member).set({role:'member',status:'approved'});
   const invoke=(actor,op,data)=>service.bazaarAdmin({auth:{uid:actor,token:{email_verified:true}},data:{...data,op,eventId}});
   const admin=(op,data={})=>invoke(uid,op,data);
-  await db.doc('bazaarMeta/event').set({eventId,status:'published',orderCutoff:future(-1000),transferCutoff:future(10000)});
+  await db.doc('bazaarEventProjects/'+eventId).set({eventId,status:'published',orderCutoff:future(-1000),transferCutoff:future(10000)});
   const orderId=id(),orderRef=db.doc('bazaarOrders/'+orderId);
   await orderRef.set({id:orderId,eventId,orderRef:'ASICC-145-FIXTURE',name:'Synthetic',items:[{id:'remaining',qty:2,priceCents:4000,supplier:'Fournisseur fictif'}],
     totalCents:8000,originalTotalCents:14500,bankConfirmedAt:future(-20000),depositedCents:14500,refundedCents:6500,canceledAt:null});

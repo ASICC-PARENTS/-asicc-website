@@ -232,14 +232,32 @@ async function sendOrder(){
 }
 form.addEventListener('submit',ev=>{ev.preventDefault();void sendOrder();});
 retry.addEventListener('click',()=>void sendOrder());
+const eventPicker=document.createElement('nav');
+eventPicker.className='buyer-section';
+eventPicker.hidden=true;
+eventPicker.setAttribute('aria-label',t('진행 중인 행사 선택','Choisir un bazar en cours'));
+$('#bz-hero').before(eventPicker);
 let reading=false;
 async function refresh(){
  if(reading)return;
  reading=true;
  try{
-  const result=await getShop(requestedEvent||(event.status==='published'?event.eventId:'')||'');
+  const result=await getShop(requestedEvent);
   serverOffset=Date.parse(result.serverNow)-Date.now();
+  if(event.eventId&&event.eventId!==result.event.eventId&&!submitting&&!submitted){
+   cart={};
+   pendingOrder=undefined;
+  }
+  if((submitting||submitted)&&event.eventId!==result.event.eventId)return;
   event=result.event;
+  const choices=result.eventChoices??[];
+  eventPicker.hidden=choices.length<2;
+  eventPicker.replaceChildren(...choices.map((choice:{eventId:string,nameKo:string,nameFr:string})=>{
+   const link=document.createElement('a');
+   link.href='?event='+encodeURIComponent(choice.eventId);
+   link.textContent=t(choice.nameKo,choice.nameFr);
+   return link;
+  }).flatMap((link:HTMLAnchorElement,index:number)=>index?[document.createTextNode(' · '),link]:[link]));
   products=result.products;
   render();
  }catch(error){

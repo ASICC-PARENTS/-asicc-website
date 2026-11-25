@@ -52,12 +52,14 @@ test('administrators can publish a draft and close it without losing history or 
     retailCents: 450, packQty: 12, boxPriceTtcCents: 700, boxPriceHtCents: null,
     plannedBoxes: null, limitMode: 'unlimited', manualLimit: null, soldQty: 0, displayOrder: 1,
   };
-  await db.doc('bazaarMeta/event').set(active);
+  await db.doc('bazaarEventProjects/'+eventId).set(active);
+  await db.doc('bazaarMeta/publicationSequence').set({lastSerial:active.serial});
   const originalBytes = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j7hoAAAAASUVORK5CYII=';
   const replacedBytes = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
   const writePhoto = (data,auth) => call('storePhoto', {id: productId,...data},auth);
   Object.assign(product, await writePhoto({eventId,content:originalBytes}));
-  await db.doc(`bazaarProducts/${productId}`).set(product);
+  await db.doc(`bazaarEventProjects/${eventId}/products/${productId}`).set(product);
+  await db.doc('bazaarMeta/baseCatalog').set({revision:1,items:[{...product,id:productId}]});
   const disposable = (await call('createDraft')).draft;
   await call('deleteDraft', { id: disposable.id, confirm: true });
   assert.equal((await call('listEvents')).drafts.length, 0);
@@ -80,7 +82,7 @@ test('administrators can publish a draft and close it without losing history or 
   assert.ok(french.html.includes('&lt;예시&gt;'));
   assert.ok(message({...notedOrder,lang:'ko'},'receipt',active).text.includes('판매자에게 전달할 사항\n'+pickupNote));
   assert.ok(!message(blank,'receipt',active).text.includes('Informations complémentaires pour le retrait'));
-  await call('bankConfirm',{id:noted.id});
+  await call('bankConfirm',{id:noted.id,eventId:eventId,requestId:fresh(),amountCents:noted.totalCents});
   assert.deepEqual(await bazaarCreateOrder.run({ data: buyer }), receipt);
   await assert.rejects(bazaarCreateOrder.run({ data: {
     ...buyer, requestId: randomBytes(16).toString('hex'), items: [{ id: productId, qty: 2, priceCents: 1 }],
@@ -90,11 +92,12 @@ test('administrators can publish a draft and close it without losing history or 
   assert.deepEqual((await shop(eventId)).event, { eventId, status: 'closed' });
   assert.deepEqual((await shop(eventId)).products, []);
   await assert.rejects(bazaarCreateOrder.run({ data: { ...buyer, requestId: randomBytes(16).toString('hex') } }), failure);
-  await call('bankConfirm', { id: receipt.id });
+  await call('bankConfirm',{id:receipt.id,eventId:eventId,requestId:fresh(),amountCents:receipt.totalCents});
 
   const draft = (await call('createDraft',{},otherStaff)).draft;
   assert.deepEqual(draft.items,[]);
-  const baseProduct=(await call('getCatalog')).items.find(item=>item.id===productId);
+  const catalogue=await call('getCatalog');
+  const baseProduct=catalogue.items.find(item=>item.id===productId);
   assert.equal(baseProduct.imageUrl,product.imageUrl);
   assert.equal(baseProduct.retailCents,product.retailCents);
   await assert.rejects(writePhoto({eventId:draft.id,draft:true,updatedAt:draft.updatedAt,content:'eA=='}), {code:'invalid-argument'});
@@ -122,12 +125,12 @@ test('administrators can publish a draft and close it without losing history or 
     {...updates.items[0],...replaced},
     {...updates.items[0],id:newId,imageUrl:'',photoPath:'',included:false},
   ]},otherStaff);
-  assert.equal((await db.doc(`bazaarProducts/${newId}`).get()).exists,false);
+  assert.equal((await db.doc(`bazaarEventProjects/${eventId}/products/${newId}`).get()).exists,false);
   process.env.BAZAAR_SMTP_HOST = 'localhost';
   process.env.BAZAAR_SMTP_USER = 'test@example.test';
   process.env.BAZAAR_SMTP_PASSWORD = 'emulator-only';
   await call('publishDraft', { id: draft.id, updatedAt: newer.updatedAt },otherStaff);
-  assert.equal((await db.doc(`bazaarProducts/${newId}`).get()).exists,true);
+  assert.equal((await db.doc(`bazaarEventProjects/${draft.id}/products/${newId}`).get()).exists,false);
   await Promise.all([
     call('saveProduct',{eventId:draft.id,id:productId,product:{...updates.items[0],...replaced,titleKo:'현재 행사 상품'}},otherStaff),
     ...[
@@ -220,7 +223,7 @@ test('administrators can publish a draft and close it without losing history or 
   await assert.rejects(call('createManualOrder',manual,{uid:'bazaar-member',token:{email_verified:true}}),{code:'permission-denied'});
   await assert.rejects(call('createManualOrder',{...manual,eventId}),failure);
   const phoneOrder=await call('createManualOrder',manual);
-  assert.match(phoneOrder.orderRef,/^ASICC-TEL-/);
+  assert.match(phoneOrder.orderRef,/^BZ\d{6}$/);
   assert.deepEqual(await call('createManualOrder',manual),phoneOrder);
   const orderRef=db.doc(`bazaarOrders/${phoneOrder.id}`);
   const original=(await orderRef.get()).data();
@@ -237,17 +240,17 @@ test('administrators can publish a draft and close it without losing history or 
   assert.deepEqual(history.before,{items:original.items,totalCents:1300});
   assert.equal(history.after.totalCents,650);
   assert.equal(history.by,otherStaff.uid);
-  await call('bankConfirm',{id:phoneOrder.id,eventId:draft.id});
-  await assert.rejects(call('correctOrder',{...correction,revision:1,items:[{id:productId,qty:2}]}),failure);
+  await call('bankConfirm',{id:phoneOrder.id,eventId:draft.id,requestId:fresh(),amountCents:650});
+  await assert.rejects(call('correctOrder',{...correction,revision:1,items:[{id:productId,qty:2}]}),{code:'invalid-argument'});
   const additional=await call('createManualOrder',{...manual,requestId:fresh(),source:'additional',
     parentId:phoneOrder.id,email:'addon@example.test'});
-  assert.match(additional.orderRef,/^ASICC-ADD-/);
+  assert.match(additional.orderRef,/^BZ\d{6}$/);
   assert.notEqual(additional.id,phoneOrder.id);
   assert.equal((await db.doc(`bazaarOrders/${additional.id}`).get()).data().parentOrderRef,phoneOrder.orderRef);
   assert.equal((await db.doc(`bazaarOutbox/${additional.id}_receipt`).get()).exists,true);
   const additionalRecord=(await db.doc(`bazaarOrders/${additional.id}`).get()).data();
   await assert.rejects(bazaarBuyerAction.run({data:{id:additional.id,token:additionalRecord.buyerToken,action:'edit'}}),{code:'invalid-argument'});
-  await call('bankConfirm',{id:additional.id,eventId:draft.id});
+  await call('bankConfirm',{id:additional.id,eventId:draft.id,requestId:fresh(),amountCents:additional.totalCents});
   assert.equal((await orderRef.get()).data().totalCents,650);
 
   await assert.rejects(call('finalizeUnpaid',{eventId:draft.id,confirm:false}),{code:'invalid-argument'});
@@ -257,8 +260,8 @@ test('administrators can publish a draft and close it without losing history or 
     items:[{id:productId,qty:2,priceCents:650}]}});
   const paid=await place(), unpaid=await place();
   await bazaarBuyerAction.run({data:{id:unpaid.id,token:unpaid.token,action:'report'}});
-  await call('bankConfirm',{id:paid.id,eventId:draft.id});
-  await db.doc('bazaarMeta/event').update({
+  await call('bankConfirm',{id:paid.id,eventId:draft.id,requestId:fresh(),amountCents:paid.totalCents});
+  await db.doc('bazaarEventProjects/'+draft.id).update({
     orderCutoff:'2026-01-02T11:00:00.000Z',transferCutoff:'2026-01-02T17:00:00.000Z',
     finalizeNotBefore:'2026-01-05T08:00:00.000Z',
   });
@@ -272,6 +275,7 @@ test('administrators can publish a draft and close it without losing history or 
   assert.equal((await call('finalizeUnpaid',{eventId:draft.id,confirm:true})).canceled,0);
   assert.equal((await call('listPurchaseOrders',{eventId:draft.id})).documents[0].confirmed,true);
 
+  await call('endEvent',{eventId:draft.id,confirm:true});
   const originalPaidOrder=(await db.doc(`bazaarOrders/${paid.id}`).get()).data();
   const adjustment={...purchase,revision:confirmed.revision,lines:[
     {...purchase.lines[0],qty:3,amountCents:2100},
@@ -286,7 +290,7 @@ test('administrators can publish a draft and close it without losing history or 
 
   // Publish the next event, then add a vendor to the archived event.
   const nextEvent={...storedCopy.event,orderCutoff:new Date(Date.now()+3600000).toISOString(),
-    transferCutoff:new Date(Date.now()+7200000).toISOString(),pickupKo:active.pickupKo,pickupFr:active.pickupFr};
+    transferCutoff:new Date(Date.now()+7200000).toISOString(),pickupKo:active.pickupKo,pickupFr:active.pickupFr,iban:active.iban,beneficiary:active.beneficiary};
   const nextDraft=await call('saveDraft',{id:storedCopy.id,updatedAt:storedCopy.updatedAt,event:nextEvent,items:storedCopy.items});
   process.env.BAZAAR_SMTP_HOST='localhost';
   await call('publishDraft',{id:storedCopy.id,updatedAt:nextDraft.updatedAt});

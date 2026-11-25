@@ -107,9 +107,9 @@ export function createMail(env, db, send = fetch) {
           payload: null, ...reschedule(job.type,null) });
         return null;
       }
-      const [orderSnap, active] = await Promise.all([tx.get(db.doc(`bazaarOrders/${job.orderId}`)),
-        job.type==='reminderFinal' ? tx.get(db.doc('bazaarMeta/event')) : null]);
-      const order = orderSnap.data();
+      const order = (await tx.get(db.doc(`bazaarOrders/${job.orderId}`))).data();
+      const active = order?.eventId && (!job.eventId || job.eventId===order.eventId) && ['receipt','reminderFinal'].includes(job.type)
+        ? await tx.get(db.doc(`bazaarEventProjects/${order.eventId}`)) : null;
       const policy = order?.eventId
         ? (await tx.get(db.doc(`bazaarMailPolicies/${order.eventId}`))).data() : undefined;
       if (directTestMail && (!Number.isFinite(Date.parse(order?.createdAt)) || Date.parse(order.createdAt) < testMailSince
@@ -122,11 +122,11 @@ export function createMail(env, db, send = fetch) {
         return null;
       }
       if (!order?.email || !autoMailAllowed(policy,job,order) || !mailMatchesOrder(job,order) || retiredTypes.has(job.type) || (job.mode==='manual'?!manualStillEligible(job,order,active?.data(),time):job.type==='bulkCancel'&&policy?.bulkCancel!=='auto')
-        || (active && job.mode!=='manual' && (!eligibleReminder(order,active.data(),policy,time) || order.reminderFinalAt))) {
+        || (job.type==='reminderFinal' && active && job.mode!=='manual' && (!eligibleReminder(order,active.data(),policy,time) || order.reminderFinalAt))) {
         tx.update(ref, { status: 'skipped', payload:null, ...reschedule(job.type,null) });
         return null;
       }
-      if (active && job.mode!=='manual' && Date.parse(policy.reminderAt)>time) {
+      if (job.type==='reminderFinal' && active && job.mode!=='manual' && Date.parse(policy.reminderAt)>time) {
         tx.update(ref,reschedule(job.type,policy.reminderAt));
         return null;
       }
@@ -136,7 +136,7 @@ export function createMail(env, db, send = fetch) {
         return null;
       }
       const kind=mailKind(job.type,order);
-      const checkout = job.type==='receipt' ? (await tx.get(db.doc('bazaarMeta/event'))).data() : active?.data();
+      const checkout = active?.data();
       const payload = { ...message({...order,...job.change}, job.type, order.eventSnapshot,
         {...policy?.templates?.[kind],...job.template},job.change,
         {testMode:env.BAZAAR_MODE==='test',liveEvent:checkout?.eventId===order.eventId?checkout:{status:'closed'}}), to: order.email };
@@ -170,7 +170,7 @@ export function createMail(env, db, send = fetch) {
     let result;
     try {
       if(job.eventId){
-        const [current,active,policy]=await db.getAll(db.doc(`bazaarOrders/${job.orderId}`),db.doc('bazaarMeta/event'),
+        const [current,active,policy]=await db.getAll(db.doc(`bazaarOrders/${job.orderId}`),db.doc(`bazaarEventProjects/${job.eventId}`),
           db.doc(`bazaarMailPolicies/${job.eventId}`));
         const order=current.data();
         const obsolete=!order||!autoMailAllowed(policy.data(),job,order)||!mailMatchesOrder(job,order)||(job.mode==='manual'?!manualStillEligible(job,order,active.data(),Date.now()):job.type==='reminderFinal'
