@@ -59,6 +59,7 @@ const lang = Astro.params.lang as Lang;
 
 <script>
 import {paymentGuidance,transferIdentification} from '../../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
+import {orderIntakeState} from '../../../../firebase-functions-bazaar/bazaar/order-intake.mjs';
 import "../../../lib/bazaar/shop-view.css";
 import {bindStorageLabels,changeCartQuantity,quantityCap,renderShopEvent,renderShopProducts} from "../../../lib/bazaar/shop-view";
 import {getShop,createOrder,eFormat,h,orderRequestId,parisDeadline} from '../../../lib/bazaar/api';
@@ -80,9 +81,8 @@ let pendingOrder:OrderRequest|undefined;
 let products:any[]=[],event:any={},cart:Record<string,number>={},serverOffset=0,submitted=false,submitting=false;
 const $=(s:string)=>root.querySelector<HTMLElement>(s)!;
 const button=(action:string,id:string,label:string,disabled=false)=>`<button data-action="${action}" data-id="${h(id)}" ${disabled?'disabled':''}>${h(label)}</button>`;
-function isReady(){return /^FR[0-9A-Z]{25}$/.test(String(event.iban||'').replaceAll(' ',''));}
-function isEarly(){return !!event.orderStartsAt&&(Date.now()+serverOffset)<Date.parse(event.orderStartsAt);}
-function isClosed(){return isEarly()|| event.status!=='published'||!isReady()||!!event.finalizedAt||(Date.now()+serverOffset)>=Date.parse(event.orderCutoff||'1970-01-01');}
+const intakeState=()=>orderIntakeState(event,Date.now()+serverOffset);
+const isClosed=()=>intakeState()!=='open';
 function render(){
   if(submitted)return;
   // Manual event closure changes the public page to a simple notice.
@@ -105,8 +105,8 @@ function render(){
   $('#bz-transfer-window').textContent=paymentNotes[0];
   $('#bz-payment-rules').innerHTML='<h4>'+h(paymentHeading)+'</h4>'+
     paymentNotes.concat(transferIdentification(lang)).map(line=>'<p>'+h(line)+'</p>').join('');
-  $('#bz-status').textContent=!isReady()?t('계좌 등록 및 상품 확인 후 주문을 시작합니다.','La boutique sera ouverte après validation des produits et du compte bancaire.')
-    :isEarly()?t('아직 주문 접수가 시작되지 않았습니다.','Les commandes ne sont pas encore ouvertes.')
+  $('#bz-status').textContent=intakeState()==='unavailable'?t('계좌 등록 및 상품 확인 후 주문을 시작합니다.','La boutique sera ouverte après validation des produits et du compte bancaire.')
+    :intakeState()==='scheduled'?t('아직 주문 접수가 시작되지 않았습니다.','Les commandes ne sont pas encore ouvertes.')
     :closed?(Date.now()+serverOffset<Date.parse(event.transferCutoff)
       ?t(`주문 접수가 마감되었습니다. 행사 전체 송금 마감은 ${transferDeadline}입니다. 기존 주문의 개인별 송금 기한은 주문 조회에서 확인해 주세요.`,`Les commandes sont closes. La date limite générale de paiement est le ${transferDeadline}. Vérifiez votre échéance personnelle dans le suivi de commande.`)
       :t('주문 및 송금 기간이 종료되었습니다. 입금 상태는 주문 조회에서 확인해 주세요.','Les commandes et les virements sont clos. Consultez le suivi pour connaître l’état du paiement.'))
@@ -164,6 +164,10 @@ function showOrderError(error:any) {
     if(product){product.stockRemaining=details.available;render();}
   }else if(status===429){
     message=t('짧은 시간에 주문 요청이 많습니다. 잠시 후 다시 시도해 주세요.','Trop de demandes en peu de temps. Veuillez réessayer dans un instant.');
+  }else if(details?.reason==='order-intake'){
+    message=t('현재 신규 주문을 접수하지 않습니다. 기존 주문은 주문 조회 링크에서 확인할 수 있습니다.',
+      'La prise de nouvelles commandes est fermée. Vos commandes déjà passées restent accessibles depuis leur lien de suivi.');
+    void refresh();
   }else if(status===412){
     message=t('상품 가격, 판매 상태 또는 주문 마감 시간이 변경되었습니다. 장바구니를 다시 확인해 주세요.',
       'Le prix, la disponibilité ou la date de clôture a changé. Vérifiez à nouveau votre panier.');
@@ -243,9 +247,9 @@ async function refresh(){
  }finally{reading=false;}
 }
 void refresh();
-let lastPhase=true;
+let lastPhase='closed';
 setInterval(()=>{
- const phase=isClosed();
+ const phase=intakeState();
  if(event.status&&phase!==lastPhase){lastPhase=phase;render();}
 },1000);
 const refreshVisible=()=>{if(!document.hidden&&event.status!=='closed')void refresh();};

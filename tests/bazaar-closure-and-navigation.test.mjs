@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {orderIntakeState} from '../firebase-functions-bazaar/bazaar/order-intake.mjs';
 const read=p=>readFileSync(new URL(p,import.meta.url),'utf8');
 const publicPage=read('../src/pages/[lang]/bazaar/index.astro');
 const legacy=read('../src/pages/[lang]/bazaar/admin/legacy.astro');
@@ -29,8 +30,20 @@ test('closure button and backend operation exist',()=>{
  assert.match(backend,/status:'closed',endedAt/);
 });
 test('manual closed status also stops server order creation',()=>{
- assert.match(backend,/e\.status!=='published'\|\|locked\(e\)/);
+ assert.match(backend,/orderIntakeState\(e\)!=='open'/);
  assert.match(backend,/closed\(current\).*status:'closed'/);
+});
+test('buyer storefront and server share the scheduled, open, expired, paused and ended intake states',()=>{
+ const event={status:'published',orderStartsAt:'2026-11-25T12:00:00Z',orderCutoff:'2026-11-25T13:00:00Z',
+  iban:'FR7612345678901234567890123'};
+ const time=Date.parse('2026-11-25T12:30:00Z');
+ assert.equal(orderIntakeState(event,time-60*60000),'scheduled');
+ assert.equal(orderIntakeState(event,time),'open');
+ assert.equal(orderIntakeState(event,Date.parse(event.orderCutoff)),'closed');
+ assert.equal(orderIntakeState({...event,orderIntakeClosedAt:event.orderStartsAt},time),'closed');
+ assert.equal(orderIntakeState({...event,orderIntakeLocked:true},time),'closed');
+ assert.equal(orderIntakeState({...event,status:'closed'},time),'closed');
+ assert.match(publicPage,/orderIntakeState\(event,Date\.now\(\)\+serverOffset\)/);
 });
 test('draft intro and final financial reconciliation remain',()=>{
  assert.match(legacy,/name="introKo"/);

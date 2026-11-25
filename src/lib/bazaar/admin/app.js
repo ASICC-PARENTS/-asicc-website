@@ -6,6 +6,7 @@ import {estimateEvent,eventFormFields,eventViewModel,parisToIso,productOrderSumm
 import {mountMailManager,showOrderMail} from './mail';
 import {observeAdminLocale} from './i18n';
 import {validRefundIban} from '../../../../firebase-functions-bazaar/bazaar/iban.mjs';
+import {orderIntakeLocked,orderIntakeState} from '../../../../firebase-functions-bazaar/bazaar/order-intake.mjs';
 import {evidenceControls} from './evidence';
 
 (function(){'use strict';
@@ -49,7 +50,7 @@ async function load(){
  if(version!==authVersion)return;
  model.catalog=catalog.items.map(productViewModel);catalogRevision=catalog.revision;
  latestEventId=latest.event.eventId;
- model.active=latest.event.status==='published'?eventViewModel(latest.event,latest.products,latest.orders):null;
+ model.active=latest.event.status==='published'?eventViewModel(latest.event,latest.products,latest.orders,latest.financialFinalizedAt):null;
  model.events=listing.events;
  model.past=listing.events.filter(e=>e.status==='closed').map(e=>({id:e.id,name:e.nameKo,round:e.serial}));
  model.drafts=listing.drafts;
@@ -59,7 +60,7 @@ async function load(){
  if(past>=0){
   const record=await request('dashboard',{eventId:id});
   if(version!==authVersion)return;
-  model.past[past]=eventViewModel(record.event,record.products,record.orders);
+  model.past[past]=eventViewModel(record.event,record.products,record.orders,record.financialFinalizedAt);
   model.history=past;model.view='past';
  }else if(draft){
   const {draft:record}=await request('getDraft',{id});
@@ -107,21 +108,38 @@ const publicEventPath=id=>root.dataset.base.replace(/admin\/$/,'')+'?event='+enc
 function eventHead(e=selectedEvent(),summary=false){
  if(!e)return '';
  const draft=e.status==='draft',past=e.status==='past';
- const label=draft?(fr?'Brouillon':'임시저장'):past?(fr?'Terminé':'종료'):(fr?'Publié':'발행');
+ const label=language(draft?'임시저장':past?'최종 종료':'진행 중',draft?'Brouillon':past?'Terminé':'En cours');
+ const intake=orderIntakeState(e.raw);
+ const intakeLabel={open:language('접수 중','Ouverte'),scheduled:language('시작 예정','Programmée'),
+  unavailable:language('계좌 등록 대기','Coordonnées bancaires manquantes'),closed:language('접수 마감','Fermée')}[intake];
+ const settled=page==='settlement'&&!summary&&!draft?!!eventFinancialRecord.finalizedAt:!!e.financialFinalizedAt;
+ const intakeAction=!draft&&!past&&!orderIntakeLocked(e.raw)&&!settled;
  const title=esc((fr?e.raw.nameFr:e.raw.nameKo)||e.name);
  const control=(action,ko,french,style='neutral')=>'<button class="btn '+style+'" data-action="'+action+'">'+(fr?french:ko)+'</button>';
  const actions=summary?'':(
   (past?'':control('edit-draft','행사 정보 수정','Modifier les informations'))+
+  (intakeAction?(intake==='closed'?control('reopen-intake','주문 접수 재개','Rouvrir les commandes')
+    :control('close-intake','주문 접수 마감','Fermer les commandes')):'')+
   control('mail-settings','이메일 설정','Paramètres des e-mails')+
   '<a class="btn neutral" href="'+esc(publicEventPath(e.id))+'" target="_blank" rel="noopener">'+(fr?'Voir la page de commande':'구매페이지 보기')+'</a>'+
   '<details class="event-link-menu"><summary class="btn neutral">'+(fr?'Copier un lien':'링크 복사')+'</summary><div class="actions">'+control('copy-banner','배너 링크 복사','Copier le lien de la bannière')+control('copy-event','공개 주소 복사','Copier l’adresse publique')+'</div></details>'+
   (past?control('closed-export','행사 자료 다운로드','Télécharger les données')+control('closed-archive','보관 / 복원','Archiver / restaurer')+control('closed-delete','행사 기록 삭제','Supprimer les données','danger'):'')+
   (draft?control('delete-draft','임시저장 삭제','Supprimer le brouillon','danger'):past?'':'<span class="event-end-action">'+control('end-event','행사 종료','Clore le bazar','neutral')+'</span>'));
- return '<section class="panel pad event-header">'+(summary?'':'<a class="event-back" href="'+esc(url('',null))+'">← '+(fr?'Retour aux bazars':'바자회 목록으로 돌아가기')+'</a>')+'<div class="toolbar"><h2>'+title+'</h2><span class="status">'+label+'</span></div>'+
+ return '<section class="panel pad event-header" data-intake-state="'+intake+'" data-event-summary="'+summary+'">'+(summary?'':'<a class="event-back" href="'+esc(url('',null))+'">← '+(fr?'Retour aux bazars':'바자회 목록으로 돌아가기')+'</a>')+'<div class="toolbar"><h2>'+title+'</h2></div>'+
+  '<div class="event-states"><span class="status">'+language('행사 상태','État du bazar')+' · '+label+'</span>'+
+  '<span class="status">'+language('주문 접수','Prise de commandes')+' · '+(draft?language('준비 중','En préparation'):intakeLabel)+'</span>'+
+  '<span class="status">'+language('정산 상태','Clôture comptable')+' · '+(draft?language('예상 정산','Prévisionnelle'):settled?language('확정','Validée'):language('미확정','Provisoire'))+'</span></div>'+
   '<div class="info-row"><span>'+(fr?'Clôture des commandes':'주문 마감')+' <b>'+esc(dateLabel(e.raw.orderCutoff))+'</b></span><span>'+
   (fr?'Date limite de virement':'송금 마감')+' <b>'+esc(dateLabel(e.raw.transferCutoff))+'</b></span></div>'+
   (summary?metrics(stats()):'<div class="actions event-actions">'+actions+'</div><p role="status" data-copy-status></p>')+'</section>';
 }
+function refreshIntakeHeader(event=selectedEvent(),force=false){
+ if(!event)return;
+ const head=app.querySelector('.event-header');
+ if(head&&(force||head.dataset.intakeState!==orderIntakeState(event.raw)))
+  head.outerHTML=eventHead(event,head.dataset.eventSummary==='true');
+}
+window.setInterval(()=>refreshIntakeHeader(),1000);
 function tabs(){return '<nav class="tabs" aria-label="관리 탭"><a href="'+link('products')+'" class="'+(page==='products'?'active':'')+'">제품관리</a><a href="'+link('orders')+'" class="'+(page==='orders'?'active':'')+'">주문관리</a><a href="'+link('settlement')+'" class="'+(page==='settlement'?'active':'')+'">정산관리</a></nav>'}
 function banner(msg,cls=''){return '<div class="notice '+cls+'">'+msg+'</div>'}
 function modal(title,caption,body,foot){$('#modal-title').textContent=title;$('#modal-caption').textContent=caption||'';$('#modal-body').innerHTML=body;$('#modal-foot').innerHTML=foot||'<button class="btn neutral" data-action="close">닫기</button>';const footer=$('#modal-foot');const primary=[...footer.children].filter(el=>el.matches('.primary'));footer.prepend(...primary);$('#modal').hidden=false;if($('#column-list'))enableColumnDrag();}
@@ -159,6 +177,39 @@ function pastModal(){
  $('#past-selector').value=store.history;
 }
 const parisInput=value=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris',dateStyle:'short',timeStyle:'short',hourCycle:'h23'}).format(new Date(value)).replace(' ','T');
+function reopenIntakeModal(event){
+ const field=(id,label,required)=>'<label class="field">'+label+
+  '<input type="datetime-local" id="'+id+'" '+(required?'required':'')+'></label>';
+ modal(language('주문 접수 재개','Rouvrir les commandes'),
+  language('날짜와 시간은 파리 현지 기준입니다. 기존 주문의 송금 기한은 유지됩니다.',
+   'Les dates et heures sont celles de Paris. Les délais des commandes existantes sont conservés.'),
+  '<div class="form-grid">'+field('intake-order-end',language('새 주문 마감','Nouvelle clôture des commandes'),true)+
+  field('intake-transfer-end',language('신규 주문 송금 마감 · 선택','Date limite de virement des nouvelles commandes · facultative'),false)+
+  '</div><p class="small muted">'+language('비워 두면 현재 송금 마감을 사용합니다.','Laissez ce champ vide pour conserver la date limite de virement actuelle.')+
+  ' · '+esc(dateLabel(event.raw.transferCutoff))+'</p>',
+  '<button class="btn neutral" data-action="close">'+language('닫기','Fermer')+'</button>'+
+  '<button class="btn primary" data-action="save-reopen-intake">'+language('주문 접수 재개','Rouvrir les commandes')+'</button>');
+ $('#intake-order-end').focus();
+}
+async function setOrderIntake(event,action,deadlines={}){
+ try{
+  const patch=await request('setOrderIntake',{eventId:event.id,action,...deadlines});
+  Object.assign(event.raw,patch);
+  event.orderDeadline=parisInput(event.raw.orderCutoff);
+  event.transferDeadline=parisInput(event.raw.transferCutoff);
+  closeModal();
+  refreshIntakeHeader(event,true);
+ }catch(error){
+  const message={
+   'order-intake-locked':language('현재 행사는 주문 접수 상태를 변경할 수 없습니다.','La prise de commandes de ce bazar ne peut plus être modifiée.'),
+   'order-intake-account':language('먼저 송금계좌를 등록해 주세요.','Renseignez d’abord les coordonnées bancaires.'),
+   'order-intake-settled':language('정산이 확정된 행사는 접수를 재개할 수 없습니다.','Les commandes ne peuvent pas être rouvertes après la validation comptable.'),
+   'order-intake-deadlines':language('시작과 현재 시각보다 늦고 송금 마감보다 이른 주문 마감을 입력해 주세요.','La clôture des commandes doit être postérieure à l’ouverture et à l’heure actuelle, et antérieure à la date limite de virement.'),
+  }[error.details?.reason];
+  if(message)throw new Error(message);
+  throw error;
+ }
+}
 function draftModal(resume=false){
  const existing=resume?selectedEvent():null, active=existing?.status==='active';
  const field=(id,label,value,type='text')=>'<label class="field">'+label+'<input type="'+type+'" id="'+id+'" value="'+esc(value||'')+'"></label>';
@@ -354,7 +405,7 @@ function productChange(el){
  el.classList.remove('invalid');markProductDirty();
 }
 const orderSources={web:'웹 주문',phone:'전화 주문',additional:'추가 구매'};
-const canManageOrder=()=>selectedEvent()?.status!=='draft'&&canReconcile()&&!selectedEvent().raw.finalizedAt;
+const canManageOrder=()=>selectedEvent()?.status!=='draft'&&canReconcile()&&!orderIntakeLocked(selectedEvent().raw);
 function orderSource(order){return orderSources[order.source]||orderSources.web;}
 function orderViewTabs(){return '<div class="filters order-view-tabs"><button class="filter '+(store.orderView==='orders'?'active':'')+'" data-action="order-view" data-value="orders">주문별 내역</button><button class="filter '+(store.orderView==='products'?'active':'')+'" data-action="order-view" data-value="products">제품별 주문 현황</button></div>'}
 function productOrderRows(){return productOrderSummary(store.products,store.orders).sort((a,b)=>store.productOrderSort==='qty'?b.qty-a.qty:store.productOrderSort==='amount'?b.amountCents-a.amountCents:(fr?a.fr:a.ko).localeCompare(fr?b.fr:b.ko,fr?'fr':'ko'))}
@@ -1567,8 +1618,36 @@ function handleScreenAction(action,button){
   });
   return true;
  }
+ if(action==='close-intake'){
+  if(e===model.active&&confirm(language('신규 주문 접수를 마감할까요? 기존 주문의 처리는 계속할 수 있습니다.',
+   'Fermer les nouvelles commandes ? Le traitement des commandes existantes reste possible.')))
+   run(button,()=>setOrderIntake(e,'close'));
+  return true;
+ }
+ if(action==='reopen-intake'){
+  if(e===model.active)reopenIntakeModal(e);
+  return true;
+ }
+ if(action==='save-reopen-intake'){
+  if(e!==model.active)return true;
+  run(button,async()=>{
+   const input=$('#intake-order-end');
+   if(!input.reportValidity())return;
+   let orderCutoff,transferCutoff;
+   try{
+    orderCutoff=parisToIso(input.value);
+    transferCutoff=parisToIso($('#intake-transfer-end').value);
+   }catch{
+    throw new Error(language('파리 현지 시간으로 확인할 수 없는 시각입니다. 다른 시각을 선택해 주세요.',
+     'Cette heure n’est pas valide à Paris. Choisissez une autre heure.'));
+   }
+   await setOrderIntake(e,'reopen',{orderCutoff,transferCutoff});
+  });
+  return true;
+ }
  if(action==='end-event'){
-  if(e===model.active&&confirm('행사를 종료하고 기록을 보관할까요?'))run(button,async()=>{
+  if(e===model.active&&confirm(language('행사를 최종 종료하고 기록을 보관할까요? 종료 후 주문 접수를 다시 열 수 없습니다.',
+    'Clore définitivement le bazar et archiver ses données ? Les commandes ne pourront plus être rouvertes.')))run(button,async()=>{
    await request('endEvent',{eventId:e.id,confirm:true});location.href=url('',e.id);
   });
   return true;

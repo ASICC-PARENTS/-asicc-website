@@ -14,6 +14,65 @@ const id = () => randomBytes(16).toString('hex');
 const future = offset => new Date(Date.now() + offset).toISOString();
 const photo = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j7hoAAAAASUVORK5CYII=';
 
+test('order intake can change without ending the bazaar or modifying previous orders and settlement', async t => {
+  const projectId='demo-asicc-intake-'+id().slice(0,8);
+  const db=createFirestore({projectId,token:()=> 'owner',emulator:loopback});
+  t.after(async()=>{
+    const cleared=await fetch(loopback+'/emulator/v1/projects/'+projectId+'/databases/(default)/documents',{method:'DELETE'});
+    assert.ok(cleared.ok);
+  });
+  const service=createBazaar({db,FieldValue,siteUrl:()=>site,sendQueuedMail:async()=>false,batchFinalization:true});
+  const eventId='bazaar-intake-regression';
+  const eventRef=db.doc('bazaarMeta/event');
+  const category=db.doc('bazaarProducts/intake-product');
+  const uid='intake-test-admin';
+  await db.doc('members/'+uid).set({role:'admin',status:'approved'});
+  const admin=(op,data={})=>service.bazaarAdmin({auth:{uid,token:{email_verified:true}},data:{op,eventId,...data}});
+  const order=(requestId=id())=>service.bazaarCreateOrder({data:{eventId,requestId,consent:true,lang:'fr',
+    name:'Buyer',phone:'0612345678',email:'intake@example.test',items:[{id:'intake-product',qty:1,priceCents:450}]}});
+  const buyer=(o,action)=>service.bazaarBuyerAction({data:{id:o.id,token:o.token,action}});
+  const publicEvent=async()=> (await service.bazaarPublic({data:{eventId}})).event;
+  const originalDeadline=future(3*3600000);
+  const event={eventId,status:'published',serial:1,scopedProducts:true,nameKo:'검수',nameFr:'Vérification',pickupKo:'수령',
+    orderCutoff:future(3600000),transferCutoff:originalDeadline,iban:'FR7612345678901234567890123',beneficiary:'ASICC'};
+  await eventRef.set(event);
+  await category.set({bazaarEventId:eventId,visible:true,titleKo:'상품',titleFr:'Produit',supplier:'Test',
+    limitMode:'manual',manualLimit:5,retailCents:450,soldQty:0,packQty:12,boxPriceTtcCents:500,displayOrder:1});
+  const first=await order();
+  await eventRef.update({orderCutoff:future(-1000)});
+  assert.equal((await publicEvent()).status,'published');
+  await assert.rejects(order(),{code:'failed-precondition'});
+  assert.equal((await buyer(first,'view')).order.transferCutoff,originalDeadline);
+  await assert.rejects(admin('setOrderIntake',{action:'reopen',orderCutoff:future(-1000)}),{code:'invalid-argument'});
+  await admin('setOrderIntake',{action:'reopen',orderCutoff:future(1800000)});
+  assert.equal((await publicEvent()).transferCutoff,originalDeadline);
+  await admin('setOrderIntake',{action:'close'});
+  const paused=await publicEvent();
+  assert.equal(paused.status,'published');
+  assert.ok(paused.orderIntakeClosedAt);
+  await assert.rejects(order(),{code:'failed-precondition'});
+  assert.equal((await category.get()).data().soldQty,1);
+  assert.equal((await buyer(first,'report')).changed,true);
+  assert.equal((await admin('bankConfirm',{id:first.id,requestId:id(),amountCents:450})).changed,true);
+  const financial=await admin('saveEventExpenses',{revision:0,expenses:[{id:'test-expense-id',name:'Transport',amountCents:150}]});
+  const newDeadline=future(2*3600000);
+  await admin('setOrderIntake',{action:'reopen',orderCutoff:future(3600000),transferCutoff:newDeadline});
+  assert.equal((await order()).transferCutoff,newDeadline);
+  assert.equal((await buyer(first,'view')).order.transferCutoff,originalDeadline);
+  assert.deepEqual(await admin('eventFinancials'),financial);
+  assert.equal((await category.get()).data().soldQty,2);
+  assert.equal((await eventRef.get()).data().priorTransferCutoff,originalDeadline);
+  await eventRef.update({orderCutoff:future(-1000),transferCutoff:future(-500)});
+  await assert.rejects(admin('finalizeUnpaid',{confirm:true}),{code:'invalid-argument'});
+  await eventRef.update({priorTransferCutoff:future(-500)});
+  await admin('finalizeUnpaid',{confirm:true});
+  assert.equal((await publicEvent()).status,'published');
+  assert.equal((await publicEvent()).orderIntakeLocked,true);
+  await admin('endEvent',{confirm:true});
+  assert.equal((await publicEvent()).status,'closed');
+  await assert.rejects(admin('setOrderIntake',{action:'reopen',orderCutoff:future(1000000),transferCutoff:future(2000000)}),{code:'failed-precondition'});
+});
+
 test('customer mail templates use the order language and preserve the private follow-up link', () => {
   const { message } = createBazaar({ db:{ doc() {}, collection() {} }, siteUrl: () => site });
   const order = { id:id(), buyerToken:id()+id(), orderRef:'ASICC-TEST', name:'Test & <buyer>', totalCents:900,

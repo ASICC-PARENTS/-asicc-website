@@ -4,6 +4,7 @@ import {defaultPaymentHours,paymentGuidance,personalTransferDeadline,transferIde
 import {orderTerms,orderTermsVersion,pickupTerms,pickupContact} from './order-terms.mjs';
 import {randomBytes, timingSafeEqual, createHash} from 'node:crypto';
 import {catalogue, initialEvent} from './products.mjs';
+import {hasCheckoutAccount,latestTransferCutoff,orderIntakeLocked,orderIntakeState} from './order-intake.mjs';
 
 export class BazaarError extends Error {
   constructor(code, message, details) {
@@ -142,7 +143,10 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     const { iban, beneficiary, transferCutoff } = order.eventSnapshot ?? {};
     return { orderRef: order.orderRef, totalCents: order.totalCents, iban, beneficiary, transferCutoff:order.paymentDeadline||transferCutoff,paymentHours:order.paymentHours??null };
   };
-  const orderNotOpen=event=>!!event.orderStartsAt&&Date.now()<Date.parse(event.orderStartsAt);
+  const laterPaymentCutoff=(previous,next)=>{
+    const latest=latestTransferCutoff(previous);
+    return latest>Date.parse(next)?new Date(latest).toISOString():null;
+  };
   function eventSchedule(input){
     const orderStartsAt=s(input.orderStartsAt),pickupAt=s(input.pickupAt),pickupPlace=s(input.pickupPlace).slice(0,300);
     if((orderStartsAt&&(!Number.isFinite(Date.parse(orderStartsAt))||Date.parse(orderStartsAt)>=Date.parse(input.orderCutoff)))||(pickupAt&&!Number.isFinite(Date.parse(pickupAt))))bad('주문 시작과 픽업 일정을 확인해 주세요.');
@@ -150,7 +154,10 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     if(!Number.isSafeInteger(paymentHours)||paymentHours<1||paymentHours>720)bad('개인 송금 시간은 1~720시간이어야 합니다.');
     return {orderStartsAt,pickupAt,pickupPlace,paymentHours};
   }
-  const buyerCanCancel=event=>event?.status==='published'&&Date.now()<Date.parse(event.orderCutoff);
+  const buyerCanCancel=(event,order)=>{
+    const originalCutoff=Date.parse(order?.eventSnapshot?.orderCutoff);
+    return ['open','unavailable'].includes(orderIntakeState(event))&&(!Number.isFinite(originalCutoff)||Date.now()<originalCutoff);
+  };
   const publicItem=({titleKo,titleFr,qty,priceCents})=>({titleKo,titleFr,qty,priceCents});
   function buyerOrder(order, event) {
     return {
@@ -163,7 +170,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       pickupNote: order.pickupNote,
       transferReportedAt: order.transferReportedAt, bankConfirmedAt: order.bankConfirmedAt, canceledAt: order.canceledAt,
       canChange: event?.eventId === order.eventId && !locked(event),
-      canCancel: event?.eventId === order.eventId && !locked(event) && buyerCanCancel(event)
+      canCancel: event?.eventId === order.eventId && buyerCanCancel(event,order)
     };
   }
   const orderItem=(p,id,qty)=>({id,qty,priceCents:p.retailCents,titleKo:p.titleKo,titleFr:p.titleFr,supplier:p.supplier,
@@ -316,6 +323,8 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       if(closed(current))return {serverNow:now(),event:{eventId,status:'closed'},products:[]};
       const e=current;
       const safe={eventId,status:e.status||'draft',orderStartsAt:e.orderStartsAt||'',pickupAt:e.pickupAt||'',pickupPlace:e.pickupPlace||'',nameKo:e.nameKo,nameFr:e.nameFr,introKo:e.introKo,introFr:e.introFr,orderCutoff:e.orderCutoff,transferCutoff:e.transferCutoff,paymentHours:e.paymentHours??defaultPaymentHours,pickupKo:e.pickupKo,pickupFr:e.pickupFr,beneficiary:e.beneficiary,iban:e.iban,contactEmail:e.contactEmail,finalizedAt:null};
+      safe.orderIntakeClosedAt=e.orderIntakeClosedAt||null;
+      safe.orderIntakeLocked=orderIntakeLocked(e);
       const ps=e.status==='published' ? snapshotProducts(await tx.get(products)) : [];
       return{serverNow:now(),event:safe,products:ps.filter(p=>(!e.scopedProducts||p.bazaarEventId===eventId)&&
         !p.archivedAt&&p.visible&&cents(p.retailCents)).map(pickPublic).sort((a,b)=>a.displayOrder-b.displayOrder)};
@@ -348,8 +357,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       const windowStart=Date.now()-10*60*1000;
       if((rate.startedMs||0)>windowStart&&(rate.count||0)>=8)throw new HttpsError('resource-exhausted','짧은 시간에 주문 요청이 많습니다. 협회에 문의해 주세요.');
       if(!e)throw new HttpsError('failed-precondition','바자회 준비 중입니다.');
-      if(e.status!=='published'||locked(e)||orderNotOpen(e)||e.eventId!==requested||!(Date.now()<Date.parse(e.orderCutoff)))throw new HttpsError('failed-precondition','주문 접수가 마감되었습니다.');
-      if(!/^FR\d{2}[A-Z0-9 ]{20,}$/.test(s(e.iban).replaceAll(' ','')))throw new HttpsError('failed-precondition','송금계좌 등록 후 주문할 수 있습니다.');
+      if(e.eventId!==requested||orderIntakeState(e)!=='open')throw new HttpsError('failed-precondition','현재 신규 주문을 접수하지 않습니다.',{reason:'order-intake'});
       const [sequence,...snapshots]=await Promise.all([tx.get(sequenceRef),...refs.map(r=>tx.get(r))]);
       const itemDetails=[];let total=0;
       for(let i=0;i<buyer.items.length;i++){
@@ -399,7 +407,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         }
         return{order:buyerOrder({...o,transferReportedAt:reportedAt},currentEvent),changed:!o.transferReportedAt};
       }
-      if(!buyerCanCancel(currentEvent))throw new HttpsError('failed-precondition','주문 접수 마감 후 온라인으로 취소할 수 없습니다.');
+      if(!buyerCanCancel(currentEvent,o))throw new HttpsError('failed-precondition','주문 접수 마감 후 온라인으로 취소할 수 없습니다.');
       if(!ackNoTransfer)bad('송금하지 않았음을 확인해야 합니다.');
       if(o.transferReportedAt||o.bankConfirmedAt)throw new HttpsError('failed-precondition','송금 신고 또는 입금 확인된 주문은 온라인으로 취소할 수 없습니다. 협회에 문의해 주세요.');
       const refs=o.items.map(i=>products.doc(i.id));
@@ -718,7 +726,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         const errors=[];
         if(lateRows.docs.some(doc=>doc.data().status==='pending'))
           errors.push('장부에 반영하지 않은 늦은 입금 검토 건이 있습니다. / Des virements tardifs restent à comptabiliser.');
-        if(event.status==='published'&&(!Number.isFinite(Date.parse(event.orderCutoff))||Date.now()<Date.parse(event.orderCutoff)))
+        if(['open','scheduled','unavailable'].includes(orderIntakeState(event)))
           errors.push('주문 접수가 아직 열려 있습니다. / Les commandes sont encore ouvertes.');
         for(const balance of balances){
           if(balance.additionalDue||balance.refundDue||balance.reservedRefund||balance.net<0||balance.net!==balance.due)
@@ -1248,6 +1256,38 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         return{ok:true,endedAt};
       });
     }
+    if(op==='setOrderIntake'){
+      const eventId=s(data.eventId), action=s(data.action);
+      if(!validEventId(eventId)||!['close','reopen'].includes(action))bad('주문 접수 설정을 확인해 주세요.');
+      return db.runTransaction(async tx=>{
+        const current=(await tx.get(eventRef)).data();
+        if(current?.eventId!==eventId||current.status!=='published'||orderIntakeLocked(current))
+          throw new HttpsError('failed-precondition','다시 열 수 있는 진행 중 행사인지 확인해 주세요.',{reason:'order-intake-locked'});
+        const time=Date.now();
+        let patch={orderIntakeClosedAt:current.orderIntakeClosedAt||new Date(time).toISOString()};
+        if(action==='reopen'){
+          if((await tx.get(eventFinancials.doc(eventId))).data()?.finalizedAt)
+            throw new HttpsError('failed-precondition','정산이 확정된 행사는 주문 접수를 재개할 수 없습니다.',{reason:'order-intake-settled'});
+          if(!hasCheckoutAccount(current))
+            throw new HttpsError('failed-precondition','송금계좌를 등록해 주세요.',{reason:'order-intake-account'});
+          const orderCutoff=s(data.orderCutoff);
+          const requestedTransferCutoff=s(data.transferCutoff);
+          const transferCutoff=requestedTransferCutoff||current.transferCutoff;
+          const orderEnd=Date.parse(orderCutoff), transferEnd=Date.parse(transferCutoff);
+          const starts=Date.parse(current.orderStartsAt);
+          const timezone=/(?:Z|[+-]\d\d:\d\d)$/i;
+          if(!timezone.test(orderCutoff)||(requestedTransferCutoff&&!timezone.test(requestedTransferCutoff))
+            ||!Number.isFinite(orderEnd)||!Number.isFinite(transferEnd)
+            ||orderEnd<=Math.max(time,Number.isFinite(starts)?starts:0)||transferEnd<=orderEnd)
+            throw new HttpsError('invalid-argument','새 주문 마감은 미래여야 하며 송금 마감보다 빨라야 합니다.',{reason:'order-intake-deadlines'});
+          patch={orderIntakeClosedAt:null,orderCutoff:new Date(orderEnd).toISOString(),transferCutoff:new Date(transferEnd).toISOString(),
+            priorTransferCutoff:laterPaymentCutoff(current,transferCutoff),finalizeNotBefore:new Date(transferEnd).toISOString()};
+        }
+        tx.update(eventRef,patch);
+        const updated={...current,...patch};
+        return {orderIntakeClosedAt:updated.orderIntakeClosedAt,orderCutoff:updated.orderCutoff,transferCutoff:updated.transferCutoff};
+      });
+    }
     if(op==='dashboard'){
       const requested=s(data.eventId);
       if(requested&&!validEventId(requested))bad('행사 주소를 확인해 주세요.');
@@ -1266,10 +1306,13 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
           }
         }
         productData??=snapshotProducts(await tx.get(products)).filter(product=>!ev.scopedProducts||product.bazaarEventId===ev.eventId);
-        const o=await tx.get(orders.where('eventId','==',ev.eventId||initialEvent.eventId));
+        const [o,financial]=await Promise.all([
+          tx.get(orders.where('eventId','==',ev.eventId||initialEvent.eventId)),
+          tx.get(eventFinancials.doc(ev.eventId||initialEvent.eventId)),
+        ]);
         const history=productHistory(o);
         productData=productData.map(p=>({...p,hasOrderHistory:history.ids.has(p.id)||history.legacy||p.soldQty>0}));
-        return{event:ev,isCurrent,readOnly:!isCurrent||closed(ev),products:productData.sort((a,b)=>a.displayOrder-b.displayOrder),orders:o.docs.map(d=>safeOrder(d.data())).sort((a,b)=>b.createdAt.localeCompare(a.createdAt))};
+        return{event:ev,isCurrent,readOnly:!isCurrent||closed(ev),financialFinalizedAt:financial.data()?.finalizedAt||null,products:productData.sort((a,b)=>a.displayOrder-b.displayOrder),orders:o.docs.map(d=>safeOrder(d.data())).sort((a,b)=>b.createdAt.localeCompare(a.createdAt))};
       },{readOnly:true});
     }
     if(['archiveClosedEvent','closedEventData','deleteClosedEvent'].includes(op)){
@@ -1312,7 +1355,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       const freshFirst=prev.status==='draft'&&!prev.publishedAt&&existingDrafts.empty;
       const serial=freshFirst?(prev.serial||1):maxSerial+1;
       const id=`bazaar-${Date.now()}-${randomBytes(6).toString('hex')}`;
-      const draft={id,serial,status:'draft',createdAt:now(),updatedAt:now(),event:{...prev,eventId:id,serial,nameKo:`${serial}차 ASICC 온라인 바자회`,nameFr:`Vente solidaire ASICC n°${serial}`,orderCutoff:'',transferCutoff:'',orderStartsAt:'',pickupAt:'',pickupPlace:'',paymentHours:defaultPaymentHours,pickupKo:'',pickupFr:'',finalizedAt:null,endedAt:null,publishedAt:null,createdAt:now(),status:'draft'},items:[]};
+      const draft={id,serial,status:'draft',createdAt:now(),updatedAt:now(),event:{...prev,eventId:id,serial,nameKo:`${serial}차 ASICC 온라인 바자회`,nameFr:`Vente solidaire ASICC n°${serial}`,orderCutoff:'',transferCutoff:'',orderStartsAt:'',pickupAt:'',pickupPlace:'',paymentHours:defaultPaymentHours,pickupKo:'',pickupFr:'',finalizedAt:null,endedAt:null,publishedAt:null,createdAt:now(),status:'draft',orderIntakeClosedAt:null,priorTransferCutoff:null},items:[]};
       await eventDrafts.doc(id).create(draft);
       return{draft};
     }
@@ -1420,7 +1463,8 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         const serial=previous?.publishedAt||closed(previous)?orderSerial(previous)+1:1;
         orderSerial({serial});
         tx.set(eventRef,{...e,serial,status:'published',publishedAt:now(),endedAt:null,finalizedAt:null,
-          scopedProducts:true,productRevision:0,reconciliationStartedAt:null,reconciledAt:null,finalizeNotBefore:e.transferCutoff});
+          scopedProducts:true,productRevision:0,reconciliationStartedAt:null,reconciliationCursor:null,reconciledAt:null,
+          orderIntakeClosedAt:null,priorTransferCutoff:null,finalizeNotBefore:e.transferCutoff});
         tx.delete(snap.ref);
         return{ok:true,eventId:id};
       });
@@ -1510,7 +1554,10 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         if(closed(old)||old.eventId!==data.eventId)throw new HttpsError('failed-precondition','현재 행사를 다시 불러와 주세요.');
         if(locked(old))throw new HttpsError('failed-precondition','최종 입금 대조가 시작되어 행사 설정을 변경할 수 없습니다.');
         await requireOpenAccounting(tx,old.eventId);
-        tx.set(eventRef,{...old,...patch,finalizeNotBefore:patch.transferCutoff,nameKo:s(data.nameKo||old.nameKo).slice(0,120),nameFr:s(data.nameFr||old.nameFr).slice(0,120)});
+        const intake=old.status==='published'&&orderIntakeState(old)==='closed'
+          ?{orderIntakeClosedAt:old.orderIntakeClosedAt||now()}:{};
+        tx.set(eventRef,{...old,...patch,...intake,priorTransferCutoff:laterPaymentCutoff(old,patch.transferCutoff),
+          finalizeNotBefore:patch.transferCutoff,nameKo:s(data.nameKo||old.nameKo).slice(0,120),nameFr:s(data.nameFr||old.nameFr).slice(0,120)});
       });
       return{ok:true};
     }
@@ -1579,15 +1626,14 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       if(data.confirm!==true)bad('최종 계좌 대조 후 확인해야 합니다.');
       const e=await db.runTransaction(async tx=>{
         const current=(await tx.get(eventRef)).data();
-        if(!current||current.eventId!==data.eventId||!Number.isFinite(Date.parse(current.orderCutoff))||!Number.isFinite(Date.parse(current.transferCutoff))||Date.now()<Date.parse(current.orderCutoff)||Date.now()<Date.parse(current.transferCutoff)){
+        if(!current||current.eventId!==data.eventId||!['published','closed'].includes(current.status)
+          ||!Number.isFinite(Date.parse(current.orderCutoff))||!Number.isFinite(Date.parse(current.transferCutoff))
+          ||orderIntakeState(current)!=='closed'||Date.now()<latestTransferCutoff(current)){
           bad('최종 은행 대조가 가능한 현재 행사인지 확인해 주세요.');
         }
         if (batchFinalization && current.reconciliationStartedAt) return current;
-        const at=current.finalizedAt||now();
-        const archive=eventArchives.doc(current.eventId);
-        const [stored,ps]=await Promise.all([tx.get(archive),tx.get(products)]);
-        if(!stored.exists)archiveEvent(tx,archive,{...current,finalizedAt:at},ps,at);
-        tx.update(eventRef,{status:'closed',finalizedAt:at,reconciliationStartedAt:at});
+        const at=current.reconciliationStartedAt||current.finalizedAt||now();
+        tx.update(eventRef,{reconciliationStartedAt:at});
         return current;
       });
       if (batchFinalization) {

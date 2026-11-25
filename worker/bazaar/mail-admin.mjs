@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { BazaarError } from '../../firebase-functions-bazaar/bazaar/service.mjs';
 import { eligibleReminder, mailFields } from './mail.mjs';
 import {orderPaymentSummary} from '../../firebase-functions-bazaar/bazaar/order-payments.mjs';
+import {latestTransferCutoff,orderTransferCutoff} from '../../firebase-functions-bazaar/bazaar/order-intake.mjs';
 
 const choices = ['manual','auto'];
 const manualTypes=Object.keys(mailKinds).filter(kind=>!['orderChanged','additionalPayment','refundCompleted'].includes(kind));
@@ -70,7 +71,7 @@ export function createMailAdmin(db,mail) {
       const plan=planned.data(),event=active.data(),config=policy.data();
       if(!plan?.runAt||plan.runAt>check)return;
       if(event?.eventId!==planRef.id||config?.reminderMode!=='auto'||event.finalizedAt||event.reconciliationStartedAt
-        ||!(Date.now()<Date.parse(event.transferCutoff))){
+        ||!(Date.now()<latestTransferCutoff(event))){
         tx.update(planRef,{runAt:null});
         return;
       }
@@ -158,7 +159,7 @@ export function createMailAdmin(db,mail) {
         const event=isCurrent?current.data():draft.data()?.event;
         if(!event||(isCurrent&&(event.finalizedAt||event.reconciliationStartedAt)))throw conflict('현재 행사 또는 임시저장의 정책만 변경할 수 있습니다.');
         if(reminderMode==='auto'&&!(Number.isFinite(at)&&at>Date.now()&&at>=Date.parse(event.orderCutoff)
-          &&at<Date.parse(event.transferCutoff))){
+          &&at<latestTransferCutoff(event))){
           throw bad('알림 시각은 주문 마감 이후, 송금 마감 이전이어야 합니다.');
         }
         const policy={reminderMode,bulkCancel,reminderAt:reminderMode==='auto'?new Date(at).toISOString():null};
@@ -221,11 +222,12 @@ export function createMailAdmin(db,mail) {
         if(opening&&policyMode((await tx.get(policyRef)).data(),type)==='off')throw conflict('이 이메일은 발송이 꺼져 있습니다.');
         const active=type==='reminderFinal'&&opening?(await tx.get(activeRef)).data():null;
         if(type==='reminderFinal'&&opening&&(active?.eventId!==eventId||active.finalizedAt
-          ||active.reconciliationStartedAt||!(Date.now()<Date.parse(active.transferCutoff))))throw conflict('송금 마감 이전의 현재 행사만 알림을 준비할 수 있습니다.');
+          ||active.reconciliationStartedAt||!(Date.now()<latestTransferCutoff(active))))throw conflict('송금 마감 이전의 현재 행사만 알림을 준비할 수 있습니다.');
         const rows=await Promise.all(targets.map(async target=>({order:(await tx.get(target.order)).data(),job:await tx.get(target.job)})));
         const recipients=[];
         for(const {order,job} of rows){
           if(order?.eventId!==eventId)continue;
+          if(opening&&type==='reminderFinal'&&!(Date.now()<orderTransferCutoff(order,active)))continue;
           const stored=job.data();
           if(op==='mailManualPrepare'){
             if(!matchesManual(order,eventId,type,audience,data.excludeReported!==false)

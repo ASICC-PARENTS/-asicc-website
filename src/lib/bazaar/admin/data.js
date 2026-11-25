@@ -52,10 +52,10 @@ export function productPayload(p) {
     included:p.active, visible:p.active,
   };
 }
-export function eventViewModel(event, items=[], orders=[]) {
+export function eventViewModel(event, items=[], orders=[], financialFinalizedAt=null) {
   const products = items.map(productViewModel);
   return {
-    id:event.eventId, name:event.nameKo, round:event.serial, raw:event, products,
+    id:event.eventId, name:event.nameKo, round:event.serial, raw:event, products, financialFinalizedAt,
     status:event.status==='published'?'active':event.status==='closed'?'past':'draft',
     orderDeadline:local(event.orderCutoff), transferDeadline:local(event.transferCutoff),
     pickupKo:event.pickupKo, pickupFr:event.pickupFr,
