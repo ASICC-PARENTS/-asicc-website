@@ -138,7 +138,7 @@ export function createMail(env, db, send = fetch) {
       const kind=mailKind(job.type,order);
       const checkout = active?.data();
       const mailEvent = {...order.eventSnapshot};
-      if (checkout?.eventId === order.eventId) {
+      if (checkout && checkout.eventId === order.eventId) {
         for (const field of ['pickupAt','pickupEndAt','pickupPlace','pickupKo','pickupFr']) {
           if (checkout[field]) mailEvent[field] = checkout[field];
         }
