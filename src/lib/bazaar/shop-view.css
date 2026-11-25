@@ -66,3 +66,14 @@
 .bz-sold-stamp{position:absolute;left:50%;top:45%;transform:translate(-50%,-50%) rotate(-18deg);pointer-events:none;white-space:nowrap;font-weight:900;font-size:clamp(.65rem,2vw,.95rem);letter-spacing:.05em;color:#b31529;border:2px solid currentColor;border-radius:4px;padding:.12em .2em;background:#ffffffd9;line-height:1.05}
 
 .bz-shared-hero :is(h1,h2,p),.bz-shared-product .bz-desc :is(h3,p){word-break:keep-all;hyphens:none;overflow-wrap:break-word;}
+
+/* Checkout terms in the read-only admin storefront preview only. */
+.preview-shop-shell .buyer-hint,.preview-shop-shell .buyer-terms{font-size:14px;color:#675c57;line-height:1.55}
+.preview-shop-shell .buyer-terms{padding:12px 0;border-block:1px solid #e9ded9;overflow-wrap:anywhere}
+.preview-shop-shell .buyer-terms summary{font-weight:700;color:#812e43;cursor:pointer}
+.preview-shop-shell .buyer-terms-content{padding-top:12px}
+.preview-shop-shell .buyer-terms-content h3,.preview-shop-shell .buyer-terms-content h4{margin:16px 0 8px;font-size:15px}
+.preview-shop-shell .buyer-terms-content p{margin:6px 0 10px}
+.preview-shop-shell .buyer-terms-content a{color:#812e43}
+.preview-shop-shell .bz-basket .bz-consent{display:flex;align-items:flex-start;gap:8px;margin:18px 0;font-size:14px;font-weight:400;line-height:1.5}
+.preview-shop-shell .bz-basket .bz-consent input[type=checkbox]{display:inline-block;flex:none;width:auto;min-width:0;height:auto;min-height:0;padding:0;margin:.4em 0 0}

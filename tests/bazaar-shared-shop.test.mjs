@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import {renderPreviewTerms} from '../src/lib/bazaar/preview-terms.js';
+import {orderTerms,pickupTerms} from '../firebase-functions-bazaar/bazaar/order-terms.mjs';
 import test from 'node:test';
 import {changeCartQuantity,renderShopEvent,renderShopProducts,stockNotice,renderShopNotice} from '../src/lib/bazaar/shop-view.js';
 import {autoMailAllowed} from '../worker/bazaar/mail-policy.mjs';
@@ -104,4 +106,20 @@ test('event title keeps its original text and marks natural mobile phrase bounda
  const fr=renderShopEvent({nameFr:'1er bazar en ligne de l’ASICC – Célébrons le lancement de notre site internet !'},'fr');
  assert.ok(fr.includes('<span class="bz-title-phrase">1er bazar en ligne de l’ASICC –</span> <span class="bz-title-phrase">Célébrons le lancement de notre site internet !</span>'));
  assert.ok(renderShopEvent({nameKo:'일반 행사 <제목>'},'ko').includes('<h1>일반 행사 &lt;제목&gt;</h1>'));
+});
+
+test('preview shows the actual order terms and consent without a real checkout',()=>{
+ for(const lang of ['ko','fr']){
+  const html=renderPreviewTerms(lang,12);
+  assert.match(html,/<details class="buyer-terms" data-bz-disclosure="checkout-terms">/);
+  assert.doesNotMatch(html,/<details[^>]*\bopen\b/);
+  assert.match(html,/<input type="checkbox" data-preview-consent>/);
+  assert.match(renderPreviewTerms(lang,12,true),/data-preview-consent checked/);
+  assert.ok(html.includes(lang==='ko'?'12시간':'12 heures'));
+  for(const line of [...orderTerms[lang].lines,...pickupTerms[lang].lines]){
+   assert.ok(html.includes(line.replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll("'",'&#39;')));
+  }
+  assert.ok(html.includes('mailto:contact@asicc-parents.fr'));
+  assert.doesNotMatch(html,/<form|type="submit"/);
+ }
 });
