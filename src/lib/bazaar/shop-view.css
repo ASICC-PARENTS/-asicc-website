@@ -21,3 +21,5 @@
 .bz-shared-actions button:disabled{opacity:.45;cursor:not-allowed}
 .bz-shared-preview[data-device=mobile] .bz-photo{width:54px}
 .negative-margin{color:#a52630!important}
+
+.bz-sold-stamp{position:absolute;left:50%;top:45%;transform:translate(-50%,-50%) rotate(-18deg);pointer-events:none;white-space:nowrap;font-weight:900;font-size:clamp(.65rem,2vw,.95rem);letter-spacing:.05em;color:#b31529;border:2px solid currentColor;border-radius:4px;padding:.12em .2em;background:#ffffffd9;line-height:1.05}

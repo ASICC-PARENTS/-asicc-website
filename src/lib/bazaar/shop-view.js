@@ -8,9 +8,8 @@ const icons = {
 const storageLabels = { ambient:['실온','Température ambiante'], chilled:['냉장','Réfrigéré'], frozen:['냉동','Surgelé'] };
 const localize = (lang,ko,fr) => lang==='fr'?fr:ko;
 export function stockNotice(stock,lang) {
-  if(stock==null)return '';
+  if(stock==null||stock<=0)return '';
   const t=(ko,fr)=>localize(lang,ko,fr);
-  if(stock<=0)return '<p class="bz-stock is-sold">'+t('품절','Épuisé')+'</p>';
   return '<p class="bz-stock'+(stock<=10?' is-low':'')+'">'+
     (stock<=10?t('남은 수량 '+stock+'개','Quantité restante : '+stock):t('한정수량 '+stock+'개','Quantité limitée : '+stock))+'</p>';
 }
@@ -27,6 +26,12 @@ export function renderShopEvent(event,lang) {
     info(t('송금 마감','Date limite de virement'),date(event.transferCutoff))+
     info(t('상품 수령 안내','Informations de retrait'),[event.pickupAt?date(event.pickupAt):'',event.pickupPlace,t(event.pickupKo,event.pickupFr)].filter(Boolean).join('\n'))+'</div></div>';
 }
+export const quantityCap=stock=>Math.min(100,stock??100);
+export function changeCartQuantity(cart,id,delta,stock){
+ const qty=Math.max(0,Math.min(quantityCap(stock),(cart[id]||0)+delta));
+ if(qty>0)cart[id]=qty;else delete cart[id];
+ return qty;
+}
 export function renderShopProducts(products,lang,{quantity,controls,price}) {
   const t=(ko,fr)=>localize(lang,ko,fr);
   return '<div class="bz-shared-products">'+products.map(product=>{
@@ -34,7 +39,8 @@ export function renderShopProducts(products,lang,{quantity,controls,price}) {
     const label=storage?t(...storage):'';
     const icon=storage?'<button type="button" class="bz-storage-icon '+product.storage+'" title="'+escape(label)+'" aria-label="'+escape(label)+'" aria-expanded="false"><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7">'+icons[product.storage]+'</svg><span>'+escape(label)+'</span></button>':'';
     const photo=product.imageUrl?'<img class="bz-photo" src="'+escape(product.imageUrl)+'" alt="'+escape(name)+'" loading="lazy">':'<div class="bz-photo bz-placeholder" aria-hidden="true">📦</div>';
-    return '<article class="bz-shared-product"><div class="bz-shared-photo">'+photo+icon+'</div>'+
+    const stamp=product.stockRemaining===0?'<span class="bz-sold-stamp">'+t('매진','ÉPUISÉ')+'</span>':'';
+    return '<article class="bz-shared-product"><div class="bz-shared-photo">'+photo+stamp+icon+'</div>'+
       '<div class="bz-desc"><h3>'+escape(name)+'</h3><p>'+escape(t(product.descriptionKo,product.descriptionFr))+'</p>'+
       stockNotice(product.stockRemaining,lang)+'<strong class="bz-price">'+escape(price(product.priceCents))+'</strong></div>'+
       '<div class="bz-shared-actions">'+controls(product,quantity(product),product.stockRemaining===0)+'</div></article>';

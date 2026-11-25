@@ -73,14 +73,24 @@ test('publishing, closing and changing the next event preserve historical produc
   const first=(await admin('createDraft')).draft;
   assert.deepEqual(first.items,[]);
   const base=(await admin('getCatalog')).items.find(item=>item.id==='k-alt500');
-  const original={...base,included:true,limitMode:'manual',plannedBoxes:0,manualLimit:4,
+  const original={...base,included:true,limitMode:'manual',plannedBoxes:null,manualLimit:4,
     titleKo:'예전 상품',titleFr:'Ancien article',descriptionKo:'예전 설명',descriptionFr:'Ancienne description',
     retailCents:450,boxPriceTtcCents:600,boxPriceHtCents:569};
   Object.assign(original,await photos.storePhoto(first.id,original.id,{content:photo}));
-  const saved=await admin('saveDraft',{id:first.id,updatedAt:first.updatedAt,event:{...first.event,...schedule},items:[original]});
+  const incomplete={...original,retailCents:null,titleFr:'',packQty:null,boxPriceTtcCents:null};
+  const draftSave=await admin('saveDraft',{id:first.id,updatedAt:first.updatedAt,event:{...first.event,...schedule},items:[incomplete]});
+  const draftProduct=(await admin('getDraft',{id:first.id})).draft.items[0];
+  assert.equal(draftProduct.retailCents,null);
+  assert.equal(draftProduct.packQty,null);
+  assert.equal(draftProduct.boxPriceTtcCents,null);
+  await assert.rejects(admin('publishDraft',{id:first.id,updatedAt:draftSave.updatedAt}),{code:'invalid-argument'});
+  const excluded={...incomplete,id:'custom-'+id(),included:false,imageUrl:'',photoPath:''};
+  const saved=await admin('saveDraft',{id:first.id,updatedAt:draftSave.updatedAt,event:{...first.event,...schedule},items:[original,excluded]});
   assert.equal((await admin('getDraft',{id:first.id})).draft.items[0].descriptionFr,'Ancienne description');
   await admin('publishDraft',{id:first.id,updatedAt:saved.updatedAt});
-  assert.equal((await service.bazaarPublic({data:{eventId:first.id}})).products[0].stockRemaining,4);
+  const publicProducts=(await service.bazaarPublic({data:{eventId:first.id}})).products;
+  assert.equal(publicProducts.length,1);
+  assert.equal(publicProducts[0].stockRemaining,4);
 
   const extraId='custom-'+id();
   await admin('addProduct',{eventId:first.id,id:extraId,product:{...original,imageUrl:'',photoPath:''}});
@@ -127,6 +137,33 @@ test('publishing, closing and changing the next event preserve historical produc
   assert.equal(accepted.reduce((sum,order)=>sum+order.totalCents,0),900);
   assert.equal(accepted[0].items[0].qty,2);
   assert.equal(accepted[0].items[0].boxPriceTtcCents,600);
+  const paidChange=await service.bazaarCreateOrder({data:{eventId:second.id,requestId:id(),lang:'fr',name:'Test Refund',
+    email:'buyer@example.test',phone:'0600000000',consent:true,items:[{id:original.id,qty:2,priceCents:700}]}});
+  assert.equal(paidChange.transferCutoff,schedule.transferCutoff);
+  await admin('bankConfirm',{id:paidChange.id,eventId:second.id});
+  const change={id:paidChange.id,eventId:second.id,reason:'Synthetic correction',confirm:true,restoreStock:true};
+  await admin('correctOrder',{...change,revision:0,items:[{id:original.id,qty:1}]});
+  const paymentFields={id:paidChange.id,eventId:second.id,reason:'Synthetic bank record'};
+  const refund={...paymentFields,requestId:id(),type:'refund',amountCents:700};
+  assert.equal((await admin('recordOrderPayment',refund)).payment.refunded,700);
+  assert.equal((await admin('recordOrderPayment',refund)).payment.refunded,700);
+  await admin('correctOrder',{...change,revision:1,items:[{id:original.id,qty:2}]});
+  const deposit={...paymentFields,requestId:id(),type:'deposit',amountCents:700};
+  assert.equal((await admin('recordOrderPayment',deposit)).payment.additionalDue,0);
+  await admin('cancelOrder',change);
+  await admin('cancelOrder',change);
+  const finalRefund={...paymentFields,requestId:id(),type:'refund',amountCents:1400};
+  assert.equal((await admin('recordOrderPayment',finalRefund)).payment.state,'refunded');
+  assert.equal((await admin('orderPayments',paymentFields)).records.length,3);
+  assert.equal((await db.doc('bazaarProducts/'+original.id).get()).data().soldQty,0);
+  const mailPreview=await admin('mailPreview',{eventId:second.id,type:'receipt',lang:'fr',id:paidChange.id});
+  assert.match(mailPreview.text,/Acheteur|Test Refund/);
+  assert.match(mailPreview.text,/#token=preview-only/);
+  assert.doesNotMatch(mailPreview.text,new RegExp(paidChange.token));
+  await admin('archiveClosedEvent',{eventId:first.id,archive:true});
+  assert.ok((await admin('listEvents')).events.find(event=>event.id===first.id).hiddenAt);
+  await admin('archiveClosedEvent',{eventId:first.id,archive:false});
+  await assert.rejects(admin('deleteClosedEvent',{eventId:first.id,name:first.event.nameKo,confirm:true}),{code:'failed-precondition'});
   const oldUrl=new URL(photos.preview(past).imageUrl);
   assert.deepEqual(Buffer.from(await (await photos.serve(oldUrl)).arrayBuffer()),Buffer.from(photo,'base64'));
   assert.equal((await service.bazaarPublic({data:{eventId:first.id}})).event.status,'closed');

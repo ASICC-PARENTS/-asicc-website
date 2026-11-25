@@ -1,3 +1,4 @@
+import {orderPaymentSummary} from '../../firebase-functions-bazaar/bazaar/order-payments.mjs';
 import {autoMailAllowed,mailKind} from './mail-policy.mjs';
 import { randomUUID } from 'node:crypto';
 
@@ -17,6 +18,11 @@ export const eligibleReminder = (order, event, policy, time) => order?.email && 
   && !order.transferReportedAt && !order.bankConfirmedAt && !order.canceledAt
   && time < Date.parse(event.transferCutoff);
 
+function mailMatchesOrder(job,order){
+  if(job.type==='additionalPayment')return !order.canceledAt&&job.change?.amountCents>0&&orderPaymentSummary(order).additionalDue===job.change.amountCents;
+  if(job.type==='orderChanged')return !order.canceledAt;
+  return true;
+}
 function manualStillEligible(job,order,event,time){
   if(job.type==='cancel')return !!order.canceledAt&&['buyer','admin'].includes(order.cancelReason);
   if(job.type==='confirmed')return !!order.bankConfirmedAt&&!order.canceledAt;
@@ -94,7 +100,7 @@ export function createMail(env, db, send = fetch) {
       const order = orderSnap.data();
       const policy = order?.eventId
         ? (await tx.get(db.doc(`bazaarMailPolicies/${order.eventId}`))).data() : undefined;
-      if (!order?.email || !autoMailAllowed(policy,job,order) || retiredTypes.has(job.type) || (job.mode==='manual'?!manualStillEligible(job,order,active?.data(),time):job.type==='bulkCancel'&&policy?.bulkCancel!=='auto')
+      if (!order?.email || !autoMailAllowed(policy,job,order) || !mailMatchesOrder(job,order) || retiredTypes.has(job.type) || (job.mode==='manual'?!manualStillEligible(job,order,active?.data(),time):job.type==='bulkCancel'&&policy?.bulkCancel!=='auto')
         || (active && job.mode!=='manual' && (!eligibleReminder(order,active.data(),policy,time) || order.reminderFinalAt))) {
         tx.update(ref, { status: 'skipped', payload:null, ...reschedule(job.type,null) });
         return null;
@@ -109,7 +115,7 @@ export function createMail(env, db, send = fetch) {
         return null;
       }
       const kind=mailKind(job.type,order);
-      const payload = { ...message(order, job.type, order.eventSnapshot,{...policy?.templates?.[kind],...job.template}), to: order.email };
+      const payload = { ...message({...order,...job.change}, job.type, order.eventSnapshot,{...policy?.templates?.[kind],...job.template},job.change), to: order.email };
       const providerKey = job.providerKey ?? randomUUID();
       if (!isCapture) {
         const monthly = provider==='resend' ? usage.doc(`resend-month-${quotaDate.format(time).slice(0,7)}`) : null;
@@ -143,7 +149,7 @@ export function createMail(env, db, send = fetch) {
         const [current,active,policy]=await db.getAll(db.doc(`bazaarOrders/${job.orderId}`),db.doc('bazaarMeta/event'),
           db.doc(`bazaarMailPolicies/${job.eventId}`));
         const order=current.data();
-        const obsolete=!order||!autoMailAllowed(policy.data(),job,order)||(job.mode==='manual'?!manualStillEligible(job,order,active.data(),Date.now()):job.type==='reminderFinal'
+        const obsolete=!order||!autoMailAllowed(policy.data(),job,order)||!mailMatchesOrder(job,order)||(job.mode==='manual'?!manualStillEligible(job,order,active.data(),Date.now()):job.type==='reminderFinal'
           ? !eligibleReminder(current.data(),active.data(),policy.data(),Date.now())
           : job.type==='bulkCancel'&&(policy.data()?.bulkCancel!=='auto'||!order.canceledAt));
         if(obsolete) result={skip:true};

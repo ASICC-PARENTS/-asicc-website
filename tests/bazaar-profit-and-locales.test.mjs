@@ -11,7 +11,7 @@ test('event expenses use an admin-only, revisioned record separate from event cl
   assert.match(service,/op==='finalizeEventFinancials'/);
   assert.match(service,/if\(old\.finalizedAt\)throw new HttpsError\('failed-precondition'/);
   assert.match(service,/eventArchives\.doc\(eventId\)/);
-  assert.match(service,/eventFinancials\.doc\(eventId\)/);
+  assert.match(service,/eventFinancials\.doc\(planned\?'planned-'\+eventId:eventId\)/);
 });
 
 test('settlement UI keeps vendor purchase orders and adds independent event profit and expense controls',async()=>{
@@ -61,6 +61,7 @@ test('product table exposes direct column gestures and buyer-row preview without
   assert.match(app,/data-col-menu="pin"/);
   assert.match(app,/renderShopProducts\(products\.map/);
   assert.match(await read('../src/pages/[lang]/bazaar/index.astro'),/renderShopProducts\(products,lang/);
-  assert.match(app,/data-action="preview-add"/);
+  assert.doesNotMatch(app,/data-action="preview-add"/);
+  assert.match(app,/changeCartQuantity\(previewCart/);
   assert.match(app,/class="bz-btn" disabled/);
 });

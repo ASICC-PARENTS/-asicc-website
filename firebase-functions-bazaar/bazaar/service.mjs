@@ -1,3 +1,5 @@
+import {orderPaymentSummary} from './order-payments.mjs';
+import {defaultPaymentHours,paymentGuidance,personalTransferDeadline} from './payment-window.mjs';
 import {orderTerms,orderTermsVersion} from './order-terms.mjs';
 import {randomBytes, timingSafeEqual, createHash} from 'node:crypto';
 import {catalogue, initialEvent} from './products.mjs';
@@ -41,7 +43,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       const id=s(item.id);
       if(!productIdValid(id)||ids.has(id))bad('기본 상품 ID가 올바르지 않습니다.');
       ids.add(id);
-      const p=validateProduct({...item,imageUrl:item.photoPath?'':item.imageUrl,limitMode:'unlimited',visible:false},{soldQty:0});
+      const p=validateProduct({...item,imageUrl:item.photoPath?'':item.imageUrl,limitMode:'unlimited',visible:false},{soldQty:0},true);
       return {...catalogItems([p])[0],id,visible:item.visible===true,displayOrder:index+1,
         photoPath:s(item.photoPath),archivedAt:null};
     });
@@ -92,17 +94,19 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     }
     tx.create(ref,archive);
   }
-  const safeOrder=x=>{const {buyerToken,requestFingerprint,createdBy,parentId,...rest}=x;return rest};
+  const safeOrder=x=>{const {buyerToken,requestFingerprint,createdBy,parentId,...rest}=x;return {...rest,payment:orderPaymentSummary(x)}};
   const locked = event => Boolean(event?.finalizedAt || event?.reconciliationStartedAt || event?.reconciledAt);
   const paymentDetails = order => {
     const { iban, beneficiary, transferCutoff } = order.eventSnapshot ?? {};
-    return { orderRef: order.orderRef, totalCents: order.totalCents, iban, beneficiary, transferCutoff };
+    return { orderRef: order.orderRef, totalCents: order.totalCents, iban, beneficiary, transferCutoff:order.paymentDeadline||transferCutoff,paymentHours:order.paymentHours??null };
   };
   const orderNotOpen=event=>!!event.orderStartsAt&&Date.now()<Date.parse(event.orderStartsAt);
   function eventSchedule(input){
     const orderStartsAt=s(input.orderStartsAt),pickupAt=s(input.pickupAt),pickupPlace=s(input.pickupPlace).slice(0,300);
     if((orderStartsAt&&(!Number.isFinite(Date.parse(orderStartsAt))||Date.parse(orderStartsAt)>=Date.parse(input.orderCutoff)))||(pickupAt&&!Number.isFinite(Date.parse(pickupAt))))bad('주문 시작과 픽업 일정을 확인해 주세요.');
-    return {orderStartsAt,pickupAt,pickupPlace};
+    const paymentHours=input.paymentHours==null||input.paymentHours===''?defaultPaymentHours:Number(input.paymentHours);
+    if(!Number.isSafeInteger(paymentHours)||paymentHours<1||paymentHours>720)bad('개인 송금 시간은 1~720시간이어야 합니다.');
+    return {orderStartsAt,pickupAt,pickupPlace,paymentHours};
   }
   const buyerCanCancel=event=>event?.status==='published'&&Date.now()<Date.parse(event.orderCutoff);
   function buyerOrder(order, event) {
@@ -164,8 +168,9 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     return{name,email,phone,items,lang:x.lang==='fr'?'fr':'ko',...(pickupNote?{pickupNote}:{})};
   }
   async function queue(tx,orderId,type,extra={}){
-    const id=`${orderId}_${type}`;
-    tx.create(outbox.doc(id),{orderId,type,createdAt:now(),sentAt:null,attempts:0,...queueFields(type),...extra});
+    const {jobKey=type,...fields}=extra;
+    const id=`${orderId}_${jobKey}`;
+    tx.create(outbox.doc(id),{orderId,type,createdAt:now(),sentAt:null,attempts:0,...queueFields(type),...fields});
     return id;
   }
   function links(order){
@@ -173,7 +178,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     const base=`${origin}/${order.lang==='fr'?'fr':'ko'}/bazaar/commande/`;
     return `${base}?id=${encodeURIComponent(order.id)}#token=${encodeURIComponent(order.buyerToken)}`;
   }
-  function message(order,type,event={},template={}){
+  function message(order,type,event={},template={},change={}){
     const fr=order.lang==='fr';
     const t=(ko,french)=>fr?french:ko;
     const contact='contact@asicc-parents.fr';
@@ -190,6 +195,9 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         `Votre commande a été annulée faute de paiement confirmé. Si vous avez déjà effectué le virement, envoyez sa date et votre référence de commande à ${contact}.`)],
       reminder3:[t('바자회 송금 안내','Rappel de virement'),t('아직 송금 완료 표시가 접수되지 않았습니다. 송금을 마치셨다면 아래 주문 관리 링크에서 알려주세요.',
         'Nous n’avons pas encore reçu votre signalement de virement. Si vous avez déjà payé, signalez-le via le lien de suivi ci-dessous.')],
+      orderChanged:[t('바자회 주문 변경','Commande modifiée'),t('운영진이 주문 내역을 변경했습니다.','L’association a modifié votre commande.')],
+      additionalPayment:[t('바자회 추가 송금 안내','Virement complémentaire'),t('변경된 주문에 추가 송금이 필요합니다.','Un virement complémentaire est nécessaire.')],
+      refundCompleted:[t('바자회 환불 완료','Remboursement effectué'),t('은행 환불을 처리했습니다.','Le remboursement bancaire a été effectué.')],
       pickup:[t('상품 수령 안내','Retrait des produits'),t('행사 안내에 따라 상품을 수령해 주세요.','Veuillez suivre les indications de retrait.')],
       reminderFinal:[t('바자회 송금 마감 안내','Rappel avant la date limite de virement'),t('송금 마감 안내입니다. 아직 송금 완료 표시가 접수되지 않았습니다.',
         'La date limite de virement approche. Nous n’avons pas encore reçu votre signalement de virement.')]
@@ -206,7 +214,15 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     const details=[...(eventName?[eventName]:[]),`${t('주문번호','Référence de commande')}: ${order.orderRef}\n${t('주문자','Nom')}: ${order.name}${note}`,
       items,`${t('주문 총액','Total')}: ${euro(order.totalCents)}`];
     if(['receipt','reported','reminder3','reminderFinal'].includes(type)){
-      details.push(`${t('수취인','Bénéficiaire')}: ${event.beneficiary}\nIBAN: ${event.iban}\n${t('송금 금액','Montant du virement')}: ${euro(order.totalCents)}\n${t('송금 메모','Référence du virement')}: ${order.orderRef}\n${t('송금 마감 (파리 시간)','Date limite du virement (heure de Paris)')}: ${localDate(event.transferCutoff,t('ko-KR','fr-FR'))}`);
+      details.push(`${t('수취인','Bénéficiaire')}: ${event.beneficiary}\nIBAN: ${event.iban}\n${t('송금 금액','Montant du virement')}: ${euro(order.totalCents)}\n${t('송금 메모','Référence du virement')}: ${order.orderRef}\n${t('송금 마감 (파리 시간)','Date limite du virement (heure de Paris)')}: ${localDate(order.paymentDeadline||event.transferCutoff,t('ko-KR','fr-FR'))}`);
+    }
+    if(['receipt','reminderFinal'].includes(type)&&order.paymentHours!=null)details.push(paymentGuidance(order.lang,order.paymentHours).join('\n'));
+    if(type==='additionalPayment'){
+      const due=change.amountCents??orderPaymentSummary(order).additionalDue;
+      details.push([t('추가 입금액','Complément à verser')+': '+euro(due),t('수취인','Bénéficiaire')+': '+event.beneficiary,'IBAN: '+event.iban,t('송금 메모','Référence du virement')+': '+order.orderRef].join('\n'));
+    }
+    if(type==='refundCompleted'&&change.amountCents){
+      details.push([t('환불액','Montant remboursé')+': '+euro(change.amountCents),t('환불 시각','Date du remboursement')+': '+localDate(change.at,t('ko-KR','fr-FR'))].join('\n'));
     }
     const pickup=[event.pickupAt?localDate(event.pickupAt,t('ko-KR','fr-FR')):'',event.pickupPlace,t(event.pickupKo||event.pickupFr,event.pickupFr||event.pickupKo)].filter(Boolean).join('\n');
     if(pickup&&['receipt','confirmed','reminderFinal','pickup'].includes(type))details.push(`${t('수령','Retrait')}: ${pickup}`);
@@ -219,6 +235,17 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       [[t('송금 완료 알리기','Signaler le virement'),'report'],...(buyerCanCancel(event)?[[t('주문 취소하기','Annuler ma commande'),'cancel']]:[])]:[];
     const linksHtml=actions.map(([label,target])=>'<p><a href="'+esc(url+'&focus='+target)+'">'+esc(label)+'</a></p>').join('');
     const linksText=actions.map(([label,target])=>label+': '+url+'&focus='+target).join('\n');
+    if(type==='other'){
+      details.length=0;
+      const fields=template.fields||[];
+      if(fields.includes('event')&&eventName)details.push(eventName);
+      if(fields.includes('order'))details.push(t('주문번호','Référence de commande')+': '+order.orderRef);
+      if(fields.includes('items'))details.push(items);
+      if(fields.includes('total'))details.push(t('주문 총액','Total')+': '+euro(order.totalCents));
+      if(fields.includes('pickup')&&pickup)details.push(t('수령','Retrait')+': '+pickup);
+      if(fields.includes('deadline'))details.push(t('송금 마감','Date limite de virement')+': '+localDate(order.paymentDeadline||event.transferCutoff,t('ko-KR','fr-FR')));
+      details.push(t('문의','Contact')+': '+contact);
+    }
     const body=details.join('\n\n');
     return{subject,text:`${intro}\n\n${body}\n\n${action}: ${url}${linksText?'\n'+linksText:''}`,
       html:`<div style="font:15px/1.7 Arial,sans-serif;max-width:650px"><h2>${esc(subject)}</h2><p>${esc(intro)}</p><pre style="white-space:pre-wrap;font:inherit">${esc(body)}</pre><p><a href="${esc(url)}" style="color:#932b35">${esc(action)}</a></p>${linksHtml}</div>`};
@@ -282,7 +309,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       if(!cents(total)||total===0)bad('금액을 확인해 주세요.');
       const orderRef=`ASICC-${new Date().getUTCFullYear().toString().slice(-2)}-${ref.id.slice(0,10).toUpperCase()}`;
       const createdAt=now();
-      const data={id:ref.id,eventId:e.eventId||initialEvent.eventId,eventSnapshot:{...e},orderRef,...buyer,consent:true,orderTermsVersion,orderTermsAcceptedAt:createdAt,requestFingerprint:fingerprint,items:itemDetails,totalCents:total,createdAt,buyerToken:token,transferReportedAt:null,bankConfirmedAt:null,canceledAt:null,reminder3At:null,reminderFinalAt:null};
+      const data={id:ref.id,eventId:e.eventId||initialEvent.eventId,eventSnapshot:{...e},orderRef,...buyer,consent:true,orderTermsVersion,orderTermsAcceptedAt:createdAt,paymentDeadline:personalTransferDeadline(createdAt,e),paymentHours:e.paymentHours??defaultPaymentHours,requestFingerprint:fingerprint,items:itemDetails,totalCents:total,createdAt,buyerToken:token,transferReportedAt:null,bankConfirmedAt:null,canceledAt:null,reminder3At:null,reminderFinalAt:null};
       snapshots.forEach((snapshot,i)=>tx.update(snapshot.ref,{soldQty:FieldValue.increment(buyer.items[i].qty)}));
       tx.create(ref,data);
       tx.set(throttleRef,{startedMs:(rate.startedMs||0)>windowStart?rate.startedMs:Date.now(),count:(rate.startedMs||0)>windowStart?(rate.count||0)+1:1,expiresAt:new Date(Date.now()+24*3600000).toISOString()});
@@ -331,19 +358,25 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     if(mailId)await deliver(mailId).catch(error=>console.error('Bazaar cancellation delivery failed',error));
     return result;
   }
-  function validateProduct(p,existing){
+  function productHistory(snapshot){
+    const rows=snapshot.docs.map(doc=>doc.data());
+    return {ids:new Set(rows.flatMap(order=>[...(order.productHistoryIds||[]),...(order.items||[]).map(item=>item.id)])),
+      legacy:rows.some(order=>order.revision>0&&!order.productHistoryIds)};
+  }
+  function validateProduct(p,existing,allowIncomplete=false){
     if(!p||typeof p!=='object')bad('상품을 확인해 주세요.');
-    const out={titleKo:s(p.titleKo).slice(0,120),titleFr:s(p.titleFr).slice(0,120),descriptionKo:s(p.descriptionKo).slice(0,3000),descriptionFr:s(p.descriptionFr).slice(0,3000),supplier:s(p.supplier),storage:s(p.storage),imageUrl:s(p.imageUrl),visible:p.visible===true,retailCents:p.retailCents===null?null:Number(p.retailCents),packQty:Number(p.packQty),plannedBoxes:p.plannedBoxes==null?null:Number(p.plannedBoxes),boxPriceTtcCents:Number(p.boxPriceTtcCents),boxPriceHtCents:p.boxPriceHtCents==null?null:Number(p.boxPriceHtCents),limitMode:p.limitMode,manualLimit:p.manualLimit==null?null:Number(p.manualLimit)};
-    if(!out.titleKo||!out.titleFr)bad('상품명 누락: '+(out.titleKo||out.titleFr||s(p.id)||'이름 없는 상품')); 
-    if(!out.supplier.trim()||out.supplier.length>120||/[\x00-\x1f\x7f]/.test(out.supplier)||out.supplier==='__asicc_new_supplier__')bad(out.titleKo+' — 공급업체명을 확인해 주세요.');
+    const number=value=>value==null||value===''?null:typeof value==='number'?value:NaN;
+    const out={titleKo:s(p.titleKo).slice(0,120),titleFr:s(p.titleFr).slice(0,120),descriptionKo:s(p.descriptionKo).slice(0,3000),descriptionFr:s(p.descriptionFr).slice(0,3000),supplier:s(p.supplier),storage:s(p.storage),imageUrl:s(p.imageUrl),visible:p.visible===true,retailCents:number(p.retailCents),packQty:number(p.packQty),plannedBoxes:number(p.plannedBoxes),boxPriceTtcCents:number(p.boxPriceTtcCents),boxPriceHtCents:p.boxPriceHtCents==null?null:Number(p.boxPriceHtCents),limitMode:p.limitMode,manualLimit:number(p.manualLimit)};
+    if(!allowIncomplete&&(!out.titleKo||!out.titleFr))bad('상품명 누락: '+(out.titleKo||out.titleFr||s(p.id)||'이름 없는 상품'));
+    if((!allowIncomplete&&!out.supplier.trim())||out.supplier.length>120||/[\x00-\x1f\x7f]/.test(out.supplier)||out.supplier==='__asicc_new_supplier__')bad(out.titleKo+' — 공급업체명을 확인해 주세요.');
     out.supplier=out.supplier.trim();
-    if(!validUrl(out.imageUrl)||!['ambient','chilled','frozen'].includes(out.storage))bad(out.titleKo+' — 상품 이미지 주소 또는 보관 방법을 확인해 주세요.');
-    if(out.retailCents==null||!cents(out.retailCents)||out.retailCents<=0)bad(out.titleKo+' — TTC 판매가격이 없거나 0 이하입니다.');
-    if(!Number.isSafeInteger(out.packQty)||out.packQty<1||out.packQty>10000||!cents(out.boxPriceTtcCents)||out.boxPriceHtCents!=null&&!cents(out.boxPriceHtCents))bad('매입가격 또는 박스당 입수량을 확인해 주세요.');
+    if(!validUrl(out.imageUrl)||(!(allowIncomplete&&out.storage==='')&&!['ambient','chilled','frozen'].includes(out.storage)))bad(out.titleKo+' — 상품 이미지 주소 또는 보관 방법을 확인해 주세요.');
+    if(out.retailCents==null?!allowIncomplete:!cents(out.retailCents)||out.retailCents<=0)bad(out.titleKo+' — TTC 판매가격이 없거나 0 이하입니다.');
+    if((out.packQty==null?!allowIncomplete:!Number.isSafeInteger(out.packQty)||out.packQty<1||out.packQty>10000)||(out.boxPriceTtcCents==null?!allowIncomplete:!cents(out.boxPriceTtcCents))||out.boxPriceHtCents!=null&&!cents(out.boxPriceHtCents))bad('매입가격 또는 박스당 입수량을 확인해 주세요.');
     if(out.plannedBoxes!=null&&(!Number.isSafeInteger(out.plannedBoxes)||out.plannedBoxes<0||out.plannedBoxes>10000))bad('발주 박스 수를 확인해 주세요.');
     if(!['manual','box','unlimited'].includes(out.limitMode)||out.manualLimit!=null&&(!Number.isSafeInteger(out.manualLimit)||out.manualLimit<0))bad('한정 수량을 확인해 주세요.');
-    if(out.limitMode==='box'&&out.plannedBoxes==null)bad('박스 연동을 사용하려면 발주 예정 박스 수가 필요합니다.');
-    if(out.limitMode==='manual'&&(out.plannedBoxes==null||out.manualLimit==null))bad('수동 판매한도 방식은 발주 예정 박스 수와 판매한도를 모두 입력해 주세요.');
+    if(!allowIncomplete&&out.limitMode==='box'&&out.plannedBoxes==null)bad('박스 연동을 사용하려면 발주 예정 박스 수가 필요합니다.');
+    if(!allowIncomplete&&out.limitMode==='manual'&&out.manualLimit==null)bad('수동 입력 방식은 최대 판매수량을 입력해 주세요.');
     const limit=stockCap(out);
     if(limit!=null&&limit<(existing.soldQty||0))bad(`이미 접수된 ${existing.soldQty}개보다 판매 한도를 낮출 수 없습니다.`);
     if(out.visible&&out.retailCents==null)bad('판매가격 미정 상품은 공개할 수 없습니다.');
@@ -352,6 +385,25 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
   async function bazaarAdmin(req){
     await requireAdmin(req);
     const {op,...data}=req.data||{};
+    if(op==='mailPreview'){
+      const eventId=s(data.eventId),type=s(data.type);
+      if(!validEventId(eventId)||!['receipt','confirmed','buyerCancel','adminCancel','reminderFinal','bulkCancel','pickup','other','orderChanged','additionalPayment','refundCompleted'].includes(type))bad('이메일 미리보기 종류와 행사를 확인해 주세요.');
+      const [active,draft,archive]=await db.getAll(eventRef,eventDrafts.doc(eventId),eventArchives.doc(eventId));
+      const event=active.data()?.eventId===eventId?active.data():draft.data()?.event||archive.data()?.event;
+      if(!event)throw new HttpsError('not-found','해당 행사를 찾을 수 없습니다.');
+      const id=s(data.id);
+      const selected=id&&/^[a-zA-Z0-9]{15,40}$/.test(id)?(await orders.doc(id).get()).data():null;
+      if(id&&selected?.eventId!==eventId)bad('같은 행사의 주문만 선택할 수 있습니다.');
+      const lang=data.lang==='fr'?'fr':'ko';
+      const order={...(selected||{name:lang==='fr'?'Client exemple':'예시 주문자',orderRef:'ASICC-PREVIEW',totalCents:650,
+        items:[{titleKo:'예시 상품',titleFr:'Produit exemple',qty:1,priceCents:650}],paymentDeadline:personalTransferDeadline(now(),event)}),
+        id:'preview',buyerToken:'preview-only',lang,paymentHours:selected?.paymentHours??event.paymentHours??defaultPaymentHours};
+      const tpl=Object.fromEntries(['subjectKo','subjectFr','introKo','introFr'].map(key=>[key,s(data.template?.[key]).slice(0,key.startsWith('subject')?150:2500)]));
+      if(type==='other'&&Array.isArray(data.template?.fields))tpl.fields=data.template.fields.filter(field=>['event','order','items','total','pickup','deadline'].includes(field));
+      const template=message(order,['buyerCancel','adminCancel'].includes(type)?'cancel':type,selected?.eventSnapshot||event,tpl,
+        type==='refundCompleted'?{amountCents:100,at:now()}:type==='additionalPayment'?{amountCents:100}:{});
+      return {subject:template.subject,text:template.text};
+    }
     if (typeof op==='string' && op.startsWith('mail') && mailAdmin) return mailAdmin(op,data,req.auth.uid);
     const requireCurrentEvent=active=>{
       if(!validEventId(s(data.eventId))||active?.eventId!==data.eventId||closed(active)){
@@ -416,10 +468,13 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     if(op==='eventFinancials'||op==='saveEventExpenses'||op==='finalizeEventFinancials'){
       const eventId=s(data.eventId);
       if(!validEventId(eventId))bad('행사 주소를 확인해 주세요.');
-      const ref=eventFinancials.doc(eventId);
+      const planned=data.planned===true;
+      if(planned&&op==='finalizeEventFinancials')bad('예상 정산은 확정할 수 없습니다.');
+      const ref=eventFinancials.doc(planned?'planned-'+eventId:eventId);
       if(op==='eventFinancials'){
-        const [active,archive,record]=await Promise.all([eventRef.get(),eventArchives.doc(eventId).get(),ref.get()]);
-        if(active.data()?.eventId!==eventId&&!archive.exists)throw new HttpsError('not-found','해당 바자회 기록을 찾을 수 없습니다.');
+        if(planned&&!(await eventDrafts.doc(eventId).get()).exists)throw new HttpsError('not-found','초안을 찾을 수 없습니다.');
+        const [active,archive,record]=await Promise.all([eventRef.get(),(planned?eventDrafts.doc(eventId):eventArchives.doc(eventId)).get(),ref.get()]);
+        if(planned?!archive.exists:active.data()?.eventId!==eventId&&!archive.exists)throw new HttpsError('not-found','해당 바자회 기록을 찾을 수 없습니다.');
         return record.exists?record.data():{eventId,revision:0,expenses:[],finalizedAt:null};
       }
       if(op==='saveEventExpenses'){
@@ -433,8 +488,8 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
           ids.add(id);return{id,name,amountCents};
         });
         return db.runTransaction(async tx=>{
-          const [active,archive,previous]=await Promise.all([tx.get(eventRef),tx.get(eventArchives.doc(eventId)),tx.get(ref)]);
-          if(active.data()?.eventId!==eventId&&!archive.exists)throw new HttpsError('not-found','해당 바자회 기록을 찾을 수 없습니다.');
+          const [active,archive,previous]=await Promise.all([tx.get(eventRef),tx.get(planned?eventDrafts.doc(eventId):eventArchives.doc(eventId)),tx.get(ref)]);
+          if(planned?!archive.exists:active.data()?.eventId!==eventId&&!archive.exists)throw new HttpsError('not-found','해당 바자회 기록을 찾을 수 없습니다.');
           const old=previous.data()||{revision:0,expenses:[],finalizedAt:null};
           if(old.finalizedAt)throw new HttpsError('failed-precondition','정산이 확정되어 있습니다. 수정하려면 먼저 확정을 해제해 주세요.');
           if(old.revision!==data.revision)throw new HttpsError('failed-precondition','지출 내역이 변경됐습니다. 다시 불러와 주세요.');
@@ -467,8 +522,14 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         if(data.revision!==revision)throw new HttpsError('failed-precondition','상품이 변경됐습니다. 다시 불러와 주세요.');
         const previous=new Map(result.docs.map(doc=>[doc.id,doc]));
         if(new Set([...previous.keys(),...ids]).size>70)bad('상품 수가 많습니다.');
+        const history=productHistory(await tx.get(orders.where('eventId','==',data.eventId)));
         if(!base.exists)initializeCatalog(tx,result);
-        for(const doc of result.docs){if(!ids.includes(doc.id))tx.update(doc.ref,{visible:false,archivedAt:now()});}
+        for(const doc of result.docs){
+          const product=doc.data();
+          if(ids.includes(doc.id)||active.data().scopedProducts&&product.bazaarEventId!==data.eventId)continue;
+          if(history.ids.has(doc.id)||history.legacy||product.soldQty>0)tx.update(doc.ref,{visible:false,archivedAt:product.archivedAt||now()});
+          else tx.delete(doc.ref);
+        }
         data.items.forEach((item,index)=>{
           const doc=previous.get(item.id);
           const wasInEvent=!active.data().scopedProducts||doc?.data()?.bazaarEventId===data.eventId;
@@ -516,7 +577,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         const orderRef=`ASICC-${prefix}-${ref.id.slice(0,16).toUpperCase()}`;
         const order={...buyer,id:ref.id,eventId,eventSnapshot:event,orderRef,source,
           ...(parentId?{parentId,parentOrderRef:parent.data().orderRef}:{}),createdBy:req.auth.uid,
-          requestFingerprint:fingerprint,buyerToken:token,createdAt:now(),items,totalCents,
+          requestFingerprint:fingerprint,buyerToken:token,createdAt:now(),paymentDeadline:personalTransferDeadline(now(),event),paymentHours:event.paymentHours??defaultPaymentHours,items,totalCents,
           transferReportedAt:null,bankConfirmedAt:null,canceledAt:null,reminder3At:null,reminderFinalAt:null};
         tx.create(ref,order);
         snapshots.forEach((snapshot,i)=>tx.update(snapshot.ref,{soldQty:FieldValue.increment(items[i].qty)}));
@@ -552,29 +613,77 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         const revision=order?.revision??0;
         if(order?.eventId!==eventId||order.canceledAt||revision!==data.revision)
           throw new HttpsError('failed-precondition','주문 상태가 변경됐습니다. 주문을 다시 확인해 주세요.');
-        if(quantities.size!==order.items.length||order.items.some(item=>!quantities.has(item.id)))
-          bad('기존 품목의 수량만 정정할 수 있습니다. 추가 구매는 별도 주문으로 등록해 주세요.');
-        const items=order.items.map(item=>({...item,qty:quantities.get(item.id)})).filter(item=>item.qty>0);
-        if(order.items.every(item=>quantities.get(item.id)===item.qty))bad('변경된 수량이 없습니다.');
-        const totalCents=orderTotal(items);
-        if((order.transferReportedAt||order.bankConfirmedAt)&&totalCents!==order.totalCents)
-          throw new HttpsError('failed-precondition','송금 신고 또는 입금 확인된 주문의 총액은 변경할 수 없습니다.');
-        const stock=await Promise.all(order.items.map(item=>tx.get(products.doc(item.id))));
-        stock.forEach((doc,i)=>{
-          const item=order.items[i],delta=quantities.get(item.id)-item.qty;
-          const p=doc.data();
-          const matches=p&&(!event.scopedProducts||p.bazaarEventId===eventId);
-          if(delta>0&&(!matches||!p.visible||p.archivedAt))
+        if(order.items.some(item=>!quantities.has(item.id)))bad('기존 품목의 수량을 모두 지정해 주세요.');
+        const previous=new Map(order.items.map(item=>[item.id,item]));
+        const stock=await Promise.all([...quantities.keys()].map(id=>tx.get(products.doc(id))));
+        const items=[],stockChanges=[];
+        for(const doc of stock){
+          const id=doc.id,old=previous.get(id),qty=quantities.get(id);
+          const delta=qty-(old?.qty??0),product=doc.data();
+          const matches=product&&(!event.scopedProducts||product.bazaarEventId===eventId);
+          if(delta>0&&(!matches||!product.visible||product.archivedAt))
             throw new HttpsError('failed-precondition','현재 판매 중인 품목의 수량만 늘릴 수 있습니다.');
-          if(!matches||!delta)return;
-          assertAvailable(p,delta,item.id);
-          tx.update(doc.ref,{soldQty:FieldValue.increment(delta)});
-        });
+          if(qty>0)items.push(old?{...old,qty}:orderItem(product,id,qty));
+          if(matches&&delta){assertAvailable(product,delta,id);stockChanges.push([doc.ref,delta]);}
+        }
+        if(!items.length)bad('모든 상품을 취소하려면 전체 주문 취소를 사용해 주세요.');
+        if(!stockChanges.length&&items.length===order.items.length&&items.every(item=>item.qty===previous.get(item.id)?.qty))bad('변경된 수량이 없습니다.');
+        const totalCents=orderTotal(items);
+        if(order.transferReportedAt&&!order.bankConfirmedAt&&totalCents!==order.totalCents)
+          throw new HttpsError('failed-precondition','송금 신고 주문은 은행 입금을 먼저 확인해 주세요.');
+        if(order.bankConfirmedAt&&data.restoreStock!==true&&data.restoreStock!==false)bad('회수한 상품을 재고로 복원할지 선택해 주세요.');
+        for(const [product,delta] of stockChanges){
+          if(delta>0||!order.bankConfirmedAt||data.restoreStock===true)tx.update(product,{soldQty:FieldValue.increment(delta)});
+        }
         const changed={revision:revision+1,at:now(),by:req.auth.uid,reason,
           before:{items:order.items,totalCents:order.totalCents},after:{items,totalCents}};
         tx.create(ref.collection('corrections').doc(String(changed.revision)),changed);
-        tx.update(ref,{items,totalCents,revision:changed.revision});
+        const payment=orderPaymentSummary(order);
+        tx.update(ref,{items,totalCents,originalTotalCents:payment.original,depositedCents:payment.deposited,refundedCents:payment.refunded,revision:changed.revision,productHistoryIds:[...new Set([...(order.productHistoryIds||[]),...order.items.map(item=>item.id),...items.map(item=>item.id)])]});
+        if(order.email){
+          const fields={eventId,change:{items,totalCents}};
+          await queue(tx,id,'orderChanged',{...fields,jobKey:'orderChanged-'+changed.revision});
+          const due=orderPaymentSummary({...order,totalCents}).additionalDue;
+          if(order.bankConfirmedAt&&due>0)await queue(tx,id,'additionalPayment',{...fields,jobKey:'additionalPayment-'+changed.revision,change:{items,totalCents,amountCents:due}});
+        }
         return {id,totalCents,revision:changed.revision};
+      });
+    }
+    if(op==='recordOrderPayment'||op==='orderPayments'){
+      const id=s(data.id);
+      if(!/^[A-Za-z0-9]{15,40}$/.test(id))bad('주문 번호를 확인해 주세요.');
+      const ref=orders.doc(id);
+      if(op==='orderPayments'){
+        const order=(await ref.get()).data();
+        if(!order||order.eventId!==data.eventId)throw new HttpsError('not-found','해당 주문을 찾을 수 없습니다.');
+        const records=await ref.collection('payments').orderBy('at','desc').get();
+        return {payment:orderPaymentSummary(order),records:records.docs.map(doc=>doc.data())};
+      }
+      const key=s(data.requestId),reason=s(data.reason).trim(),reference=s(data.reference).trim(),amount=data.amountCents,type=data.type;
+      if(!/^[a-f0-9]{32}$/.test(key)||!['refund','deposit'].includes(type)||!cents(amount)||amount===0||
+        !reason||reason.length>500||reference.length>160)bad('거래 금액, 종류 및 사유를 확인해 주세요.');
+      const ledger=ref.collection('payments').doc(key);
+      return db.runTransaction(async tx=>{
+        const [snapshot,previous]=await Promise.all([tx.get(ref),tx.get(ledger)]);
+        const order=snapshot.data();
+        if(!order||order.eventId!==data.eventId||!order.bankConfirmedAt)
+          throw new HttpsError('failed-precondition','기본 입금 확인이 완료된 주문을 선택해 주세요.');
+        const current=orderPaymentSummary(order);
+        if(previous.exists){
+          const record=previous.data();
+          if(record.amountCents!==amount||record.type!==type||record.reason!==reason||record.reference!==reference)
+            throw new HttpsError('already-exists','같은 요청 번호로 다른 거래를 기록할 수 없습니다.');
+          return {payment:current};
+        }
+        const allowed=type==='refund'?current.refundDue:current.additionalDue;
+        if(amount>allowed)throw new HttpsError('failed-precondition','처리할 수 있는 차액보다 입력 금액이 큽니다.');
+        const record={id:key,type,amountCents:amount,reason,reference,by:req.auth.uid,at:now()};
+        const patch={originalTotalCents:current.original,depositedCents:current.deposited+(type==='deposit'?amount:0),
+          refundedCents:current.refunded+(type==='refund'?amount:0)};
+        tx.create(ledger,record);
+        tx.update(ref,patch);
+        if(type==='refund'&&order.email)await queue(tx,id,'refundCompleted',{eventId:order.eventId,jobKey:'refundCompleted-'+key,change:{amountCents:amount,at:record.at,items:order.items,totalCents:order.totalCents}});
+        return {payment:orderPaymentSummary({...order,...patch})};
       });
     }
     if(op==='cancelOrder'){
@@ -584,13 +693,21 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         const ref=orders.doc(id);
         const [active,snapshot]=await Promise.all([tx.get(eventRef),tx.get(ref)]);
         const order=snapshot.data();
-        if(!order||order.eventId!==data.eventId||order.bankConfirmedAt)
-          throw new HttpsError('failed-precondition','현재 행사의 미입금 주문만 취소할 수 있습니다.');
-        assertOrderEvent(active.data(),order.eventId);
+        if(!order||order.eventId!==data.eventId)
+          throw new HttpsError('failed-precondition','행사와 주문을 확인해 주세요.');
         if(order.canceledAt)return null;
-        const stock=await Promise.all(order.items.map(item=>tx.get(products.doc(item.id))));
-        stock.forEach((doc,i)=>{if(doc.exists)tx.update(doc.ref,{soldQty:FieldValue.increment(-order.items[i].qty)});});
-        tx.update(ref,{canceledAt:now(),cancelReason:'admin'});
+        const event=active.data(),reason=s(data.reason).trim();
+        const canRestore=event?.eventId===order.eventId&&!locked(event)&&event.status==='published';
+        const paid=!!order.bankConfirmedAt;
+        if(!paid)assertOrderEvent(event,order.eventId);
+        if(paid&&(!reason||reason.length>500||typeof data.restoreStock!=='boolean'))bad('취소 사유와 재고 복원 여부를 확인해 주세요.');
+        if(paid&&data.restoreStock&&!canRestore)throw new HttpsError('failed-precondition','종료 또는 정산 중인 행사에는 재고를 복원할 수 없습니다.');
+        const restore=!paid||data.restoreStock===true;
+        const stock=restore?await Promise.all(order.items.map(item=>tx.get(products.doc(item.id)))):[];
+        stock.forEach((doc,i)=>{if(doc.exists&&(!event.scopedProducts||doc.data().bazaarEventId===order.eventId))tx.update(doc.ref,{soldQty:FieldValue.increment(-order.items[i].qty)});});
+        const at=now();
+        tx.update(ref,{canceledAt:at,cancelReason:'admin',adminCancellation:{at,by:req.auth.uid,reason,restoreStock:restore}});
+
         return order.email?queue(tx,id,'cancel',{eventId:order.eventId}):null;
       });
       if(mailId)await deliver(mailId).catch(error=>console.error('Bazaar cancellation delivery failed',error));
@@ -650,15 +767,41 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         }
         productData??=snapshotProducts(await tx.get(products));
         const o=await tx.get(orders.where('eventId','==',ev.eventId||initialEvent.eventId));
+        const history=productHistory(o);
+        productData=productData.map(p=>({...p,hasOrderHistory:history.ids.has(p.id)||history.legacy||p.soldQty>0}));
         return{event:ev,isCurrent,readOnly:!isCurrent||closed(ev),products:productData.sort((a,b)=>a.displayOrder-b.displayOrder),orders:o.docs.map(d=>safeOrder(d.data())).sort((a,b)=>b.createdAt.localeCompare(a.createdAt))};
       },{readOnly:true});
+    }
+    if(['archiveClosedEvent','closedEventData','deleteClosedEvent'].includes(op)){
+      const id=s(data.eventId),ref=eventArchives.doc(id);
+      if(!validEventId(id))bad('행사 ID를 확인해 주세요.');
+      return db.runTransaction(async tx=>{
+        const [archived,active]=await Promise.all([tx.get(ref),tx.get(eventRef)]);
+        const record=archived.data();
+        if(!record?.event?.endedAt&&!record?.event?.finalizedAt)throw new HttpsError('not-found','종료 행사를 찾을 수 없습니다.');
+        if(op==='archiveClosedEvent'){
+          if(typeof data.archive!=='boolean')bad('보관 또는 복원을 선택해 주세요.');
+          tx.update(ref,{hiddenAt:data.archive?now():null});return {ok:true};
+        }
+        const [eventOrders,financial,purchases,eventMail]=await Promise.all([
+          tx.get(orders.where('eventId','==',id).limit(op==='closedEventData'?1000:1)),tx.get(eventFinancials.doc(id)),
+          tx.get(purchaseOrders.where('eventId','==',id).limit(op==='closedEventData'?150:1)),
+          tx.get(outbox.where('eventId','==',id).limit(1)),
+        ]);
+        if(op==='closedEventData')return {event:record.event,products:record.products,orders:eventOrders.docs.map(doc=>safeOrder(doc.data())),financial:financial.data()||null,purchases:purchases.docs.map(doc=>doc.data())};
+        if(data.confirm!==true||s(data.name)!==record.event.nameKo)bad('삭제하려면 행사명을 정확히 입력해 주세요.');
+        if(active.data()?.eventId===id||!eventOrders.empty||financial.exists||!purchases.empty||!eventMail.empty)
+          throw new HttpsError('failed-precondition','주문, 발주, 정산 또는 발송 기록이 있거나 최근 종료된 행사는 보관 처리해 주세요.');
+        tx.delete(ref);return {ok:true};
+      },{readOnly:op==='closedEventData'});
     }
     if(op==='listEvents'){
       const [cur,old,drafts]=await Promise.all([eventRef.get(),eventArchives.get(),eventDrafts.get()]);
       const active=cur.exists?cur.data():null;
-      const events=old.docs.map(d=>({id:d.id,nameKo:d.data().event?.nameKo||d.id,nameFr:d.data().event?.nameFr||'',orderCutoff:d.data().event?.orderCutoff||'',serial:d.data().event?.serial||0,status:'closed',createdAt:d.data().event?.createdAt||''}));
-      if(active&&!events.some(e=>e.id===active.eventId))events.push({id:active.eventId,nameKo:active.nameKo||'진행 중 바자회',nameFr:active.nameFr||'',orderCutoff:active.orderCutoff||'',serial:active.serial||1,status:active.status||'draft',createdAt:active.createdAt||''});
-      return{events:events.sort((a,b)=>b.serial-a.serial||b.createdAt.localeCompare(a.createdAt)),drafts:drafts.docs.map(d=>({id:d.id,nameKo:d.data().event?.nameKo||'임시저장',nameFr:d.data().event?.nameFr||'',orderCutoff:d.data().event?.orderCutoff||'',serial:d.data().serial||0,updatedAt:d.data().updatedAt||''}))};
+      const dateFields=e=>({createdAt:e?.createdAt||'',orderStartsAt:e?.orderStartsAt||'',orderCutoff:e?.orderCutoff||'',endedAt:e?.endedAt||''});
+      const events=old.docs.map(d=>({id:d.id,nameKo:d.data().event?.nameKo||d.id,nameFr:d.data().event?.nameFr||'',...dateFields(d.data().event),serial:d.data().event?.serial||0,status:'closed',hiddenAt:d.data().hiddenAt||null}));
+      if(active&&!events.some(e=>e.id===active.eventId))events.push({id:active.eventId,nameKo:active.nameKo||'진행 중 바자회',nameFr:active.nameFr||'',...dateFields(active),serial:active.serial||1,status:active.status||'draft'});
+      return{events:events.sort((a,b)=>b.serial-a.serial||b.createdAt.localeCompare(a.createdAt)),drafts:drafts.docs.map(d=>({id:d.id,nameKo:d.data().event?.nameKo||'임시저장',nameFr:d.data().event?.nameFr||'',...dateFields(d.data().event),createdAt:d.data().createdAt||d.data().event?.createdAt||'',serial:d.data().serial||0,updatedAt:d.data().updatedAt||''}))};
     }
     if(op==='createDraft'){
       const [cur,ps,archives,existingDrafts]=await Promise.all([eventRef.get(),products.get(),eventArchives.get(),eventDrafts.get()]);
@@ -669,7 +812,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       const freshFirst=prev.status==='draft'&&!prev.publishedAt&&existingDrafts.empty;
       const serial=freshFirst?(prev.serial||1):maxSerial+1;
       const id=`bazaar-${Date.now()}-${randomBytes(6).toString('hex')}`;
-      const draft={id,serial,status:'draft',createdAt:now(),updatedAt:now(),event:{...prev,eventId:id,serial,nameKo:`${serial}차 ASICC 온라인 바자회`,nameFr:`Vente solidaire ASICC n°${serial}`,orderCutoff:'',transferCutoff:'',orderStartsAt:'',pickupAt:'',pickupPlace:'',pickupKo:'',pickupFr:'',finalizedAt:null,endedAt:null,publishedAt:null,createdAt:now(),status:'draft'},items:[]};
+      const draft={id,serial,status:'draft',createdAt:now(),updatedAt:now(),event:{...prev,eventId:id,serial,nameKo:`${serial}차 ASICC 온라인 바자회`,nameFr:`Vente solidaire ASICC n°${serial}`,orderCutoff:'',transferCutoff:'',orderStartsAt:'',pickupAt:'',pickupPlace:'',paymentHours:defaultPaymentHours,pickupKo:'',pickupFr:'',finalizedAt:null,endedAt:null,publishedAt:null,createdAt:now(),status:'draft'},items:[]};
       await eventDrafts.doc(id).create(draft);
       return{draft};
     }
@@ -692,7 +835,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         const previous=previousItems.get(ids[i]);
         if(!previous&&!/^custom-[a-f0-9]{32}$/.test(ids[i])&&!baseIds.has(ids[i]))bad('초안의 상품 ID를 확인해 주세요.');
         const included=item.included===true;
-        const checked=validateProduct({...item,imageUrl:item.photoPath?'':item.imageUrl,visible:false},{soldQty:0});
+        const checked=validateProduct({...item,imageUrl:item.photoPath?'':item.imageUrl,visible:false},{soldQty:0},true);
         const photo=await copyProductPhoto(id,ids[i],item);
         return{...checked,...photo,visible:included,id:ids[i],included,displayOrder:i+1,
           soldQty:0,archivedAt:included?null:(previous?.archivedAt||null)};
@@ -726,7 +869,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       return{ok:true};
     }
     if(op==='publishDraft'){
-      if(!canSendMail())throw new HttpsError('failed-precondition','주문 접수 이메일 발송 계정이 설정되지 않았습니다. 발송 설정 후 발행하세요.');
+
       const id=s(data.id);
       if(!validEventId(id))bad('임시저장 ID를 확인해 주세요.');
       return db.runTransaction(async tx=>{
@@ -737,7 +880,14 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         if(!e.orderCutoff||!e.transferCutoff||!Number.isFinite(Date.parse(e.orderCutoff))||!Number.isFinite(Date.parse(e.transferCutoff))||Date.parse(e.orderCutoff)<=Date.now()||Date.parse(e.transferCutoff)<=Date.parse(e.orderCutoff))bad('주문·송금 마감 날짜를 확인해 주세요.');
         if(!/^FR\d{2}[A-Z0-9]{23}$/.test(s(e.iban))||!e.beneficiary||!e.pickupKo||!e.pickupFr)bad('IBAN, 수취인과 픽업 안내를 모두 입력해 주세요.');
         if(!draft.items.some(p=>p.included))bad('판매할 상품을 하나 이상 선택해 주세요.');
-        if(draft.items.some(p=>p.included&&(p.retailCents==null||p.archivedAt)))bad('선택한 상품의 판매가격을 모두 확정해 주세요.');
+        const sellingItems=draft.items.filter(p=>p.included&&!p.archivedAt);
+        if(!sellingItems.length)bad('판매 상품을 추가해 주세요.');
+        const issues=[];
+        for(const item of sellingItems){
+          try{validateProduct({...item,imageUrl:item.photoPath?'':item.imageUrl},{soldQty:0});}
+          catch(error){if(error.code!=='invalid-argument')throw error;issues.push({id:item.id,message:error.message});}
+        }
+        if(issues.length)throw new HttpsError('invalid-argument',issues.map(issue=>issue.message).join('\n'),{issues});
         const [old,ps,base]=await Promise.all([tx.get(eventRef),tx.get(products),tx.get(catalogRef)]);
         const previous=old.data();
         if(previous?.status==='published'&&!previous.finalizedAt){
@@ -757,7 +907,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
           if(!(await tx.get(archive)).exists)archiveEvent(tx,archive,previous,ps,now());
         }
         if(!base.exists)initializeCatalog(tx,ps);
-        const byId=new Map(draft.items.map(p=>[p.id,p]));
+        const byId=new Map(sellingItems.map(p=>[p.id,p]));
         const catalogueIds=new Set(ps.docs.map(p=>p.id));
         if(new Set([...catalogueIds,...byId.keys()]).size>70)bad('상품 수가 많습니다.');
         for(const product of ps.docs){
@@ -863,7 +1013,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         }
         assertOrderEvent(active.data(),o.eventId);
         if(o.canceledAt)throw new HttpsError('failed-precondition','취소된 주문은 확인할 수 없습니다.');
-        tx.update(ref,{bankConfirmedAt:now()});
+        tx.update(ref,{bankConfirmedAt:now(),originalTotalCents:o.originalTotalCents??o.totalCents,depositedCents:o.totalCents,refundedCents:0});
         const mailId=o.email?await queue(tx,o.id,'confirmed',{eventId:o.eventId}):null;
         return { changed:true, mailId };
       });

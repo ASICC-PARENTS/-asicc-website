@@ -14,10 +14,10 @@ export function parisToIso(value) {
 }
 export function productViewModel(p) {
   return {
-    id:p.id, ko:p.titleKo, fr:p.titleFr, koDesc:p.descriptionKo, frDesc:p.descriptionFr,
+    id:p.id, hasOrderHistory:p.hasOrderHistory===true, ko:p.titleKo, fr:p.titleFr, koDesc:p.descriptionKo, frDesc:p.descriptionFr,
     vendor:p.supplier, photo:p.imageUrl||'', photoPath:p.photoPath||'', emoji:'📦',
     buy:p.boxPriceTtcCents==null?'':p.boxPriceTtcCents/100, originalBuy:p.boxPriceTtcCents/100, boxHt:p.boxPriceHtCents??null,
-    sale:p.retailCents==null?'':p.retailCents/100, pack:p.packQty,
+    sale:p.retailCents==null?'':p.retailCents/100, pack:p.packQty??'',
     storage:storageLabels[p.storage]||p.storage,
     boxes:p.plannedBoxes??'', limitMode:p.limitMode==='box'?'auto':p.limitMode||'unlimited',
     manualLimit:p.manualLimit??'', active:p.included??(p.visible&&!p.archivedAt),
@@ -26,9 +26,9 @@ export function productViewModel(p) {
 export function productPayload(p) {
   return {
     id:p.id, titleKo:p.ko, titleFr:p.fr, descriptionKo:p.koDesc, descriptionFr:p.frDesc,
-    supplier:p.vendor, imageUrl:p.photo, photoPath:p.photoPath, packQty:Number(p.pack),
-    storage:storageValues[p.storage]||p.storage||'ambient',
-    boxPriceTtcCents:Math.round(p.buy*100), boxPriceHtCents:p.buy===p.originalBuy?p.boxHt:null,
+    supplier:p.vendor, imageUrl:p.photo, photoPath:p.photoPath, packQty:p.pack===''?null:Number(p.pack),
+    storage:storageValues[p.storage]||p.storage||'',
+    boxPriceTtcCents:p.buy===''?null:Math.round(p.buy*100), boxPriceHtCents:p.buy===p.originalBuy?p.boxHt:null,
     retailCents:p.sale===''?null:Math.round(p.sale*100), plannedBoxes:p.boxes===''?null:Number(p.boxes),
     manualLimit:p.manualLimit===''?null:Number(p.manualLimit), limitMode:p.limitMode==='auto'?'box':p.limitMode,
     included:p.active, visible:p.active,
@@ -43,8 +43,8 @@ export function eventViewModel(event, items=[], orders=[]) {
     pickupKo:event.pickupKo, pickupFr:event.pickupFr,
     orders:orders.map(order=>({
       id:order.id, ref:order.orderRef, name:order.name, email:order.email, phone:order.phone,
-      source:order.source||'web', parentOrderRef:order.parentOrderRef||'', revision:order.revision??0,
-      memo:order.pickupNote||'', date:local(order.createdAt).replace('T',' '),
+      payment:order.payment, bankConfirmedAt:order.bankConfirmedAt, source:order.source||'web', parentOrderRef:order.parentOrderRef||'', revision:order.revision??0,
+      paymentDeadline:order.paymentDeadline||order.eventSnapshot?.transferCutoff||'',memo:order.pickupNote||'', date:local(order.createdAt).replace('T',' '),
       reportedAt:local(order.transferReportedAt).replace('T',' '),
       verifiedAt:local(order.bankConfirmedAt).replace('T',' '),
       status:order.canceledAt?'canceled':order.bankConfirmedAt?'confirmed':order.transferReportedAt?'reported':'unpaid',
@@ -72,4 +72,23 @@ export function productOrderSummary(products=[], orders=[]) {
     }
   }
   return [...rows.values()];
+}
+
+
+export function estimateEvent(products,expenses=[]){
+ const amount=value=>value!==''&&value!=null&&Number.isFinite(Number(value))?Number(value):null;
+ const rows=products.filter(p=>p.active).map(p=>{
+  const pack=amount(p.pack),boxes=amount(p.boxes),cost=amount(p.buy),price=amount(p.sale);
+  const units=pack==null||boxes==null?null:pack*boxes;
+  const limit=p.limitMode==='auto'?units:p.limitMode==='manual'?amount(p.manualLimit):null;
+  const buy=boxes==null||cost==null?null:boxes*cost;
+  const sales=limit==null||price==null?null:limit*price;
+  const gross=sales==null||cost==null||!pack?null:sales-limit*(cost/pack);
+  return {p,pack,boxes,cost,limit,buy,sales,gross,short:limit!=null&&units!=null&&limit>units};
+ });
+ const sum=key=>rows.some(row=>row[key]==null)?null:rows.reduce((total,row)=>total+row[key],0);
+ const other=expenses.reduce((total,row)=>total+row.amountCents,0)/100;
+ const buy=sum('buy'),sales=sum('sales'),gross=sum('gross');
+ const net=buy==null||sales==null?null:sales-buy-other;
+ return {rows,buy,sales,gross,other,net,margin:net!=null&&sales>0?net/sales:null};
 }

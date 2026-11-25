@@ -4,7 +4,7 @@ import { BazaarError } from '../../firebase-functions-bazaar/bazaar/service.mjs'
 import { eligibleReminder, mailFields } from './mail.mjs';
 
 const choices = ['manual','auto'];
-const manualTypes=Object.keys(mailKinds);
+const manualTypes=Object.keys(mailKinds).filter(kind=>!['orderChanged','additionalPayment','refundCompleted'].includes(kind));
 const audiences = ['unpaid','confirmed','canceled','valid'];
 const idPattern = /^[a-z0-9-]{12,60}$/;
 const orderPattern = /^[a-zA-Z0-9]{15,40}$/;
@@ -14,10 +14,16 @@ const now = () => new Date().toISOString();
 const bad = message => new BazaarError('invalid-argument',message);
 const conflict = message => new BazaarError('failed-precondition',message);
 
-function formatJob(doc) {
-  const { orderId,type,status,sentAt,dueAt,lastError,deliveryUncertain,manualSentAt,notice,sentSnapshot }=doc.data();
-  return {id:doc.id,orderId,type,status:status??(sentAt?'sent':'queued'),sentAt,dueAt,lastError,
-    deliveryUncertain,manualSentAt,notice,sentSnapshot};
+function formatJob(doc,order){
+  const data=doc.data();
+  const {orderId,type,status,sentAt,dueAt,lastError,deliveryUncertain,manualSentAt,notice,sentSnapshot}=data;
+  const redact=text=>String(text??'').replace(/([#&?]token=)[^s&]+/g,'$1[redacted]');
+  return {id:doc.id,orderId,type,status:status??(sentAt?'sent':'queued'),sentAt,dueAt,lastError,deliveryUncertain,manualSentAt,notice,
+    createdAt:data.createdAt??null,requestedAt:data.requestedAt??null,mode:data.mode||((manualSentAt||data.manualBy)?'manual':'auto'),
+    method:manualSentAt?'OVH':data.providerId==='captured'?'capture':data.providerId?'Brevo':null,
+    actor:data.manualBy||data.retryBy||null,retries:data.retryHistory||[],
+    orderRef:order?.orderRef??null,name:order?.name??null,email:order?.email??null,
+    sentSnapshot:sentSnapshot?{...sentSnapshot,text:redact(sentSnapshot.text)}:null};
 }
 
 function matchesManual(order,eventId,type,audience,excludeReported) {
@@ -98,8 +104,11 @@ export function createMailAdmin(db,mail) {
       }
       const [policy,budget,page,schedule]=await Promise.all([policyRef.get(),mail.budget(),query.get(),schedules.doc(eventId).get()]);
       const documents=page.docs.slice(0,50);
+      const ids=[...new Set(documents.map(doc=>doc.data().orderId).filter(id=>orderPattern.test(id)))];
+      const orderSnaps=ids.length?await db.getAll(...ids.map(id=>orders.doc(id))):[];
+      const byId=new Map(orderSnaps.map(doc=>[doc.id,doc.data()]));
       return { policy:{reminderMode:'manual',bulkCancel:'manual',reminderAt:null,...policy.data()},budget,
-        messages:documents.map(formatJob),cursor:page.docs.length>50?documents.at(-1).id:null,
+        messages:documents.map(doc=>formatJob(doc,byId.get(doc.data().orderId))),cursor:page.docs.length>50?documents.at(-1).id:null,
         nextReminderAt:schedule.data()?.runAt??null };
     }
     if(op==='mailAccountUsage'){
@@ -116,6 +125,7 @@ export function createMailAdmin(db,mail) {
       if(templates&&typeof templates==='object')for(const kind of Object.keys(mailKinds)){
         const template=templates[kind];if(!template)continue;
         safeTemplates[kind]=Object.fromEntries(['subjectKo','subjectFr','introKo','introFr'].map(key=>[key,String(template[key]??'').trim().slice(0,key.startsWith('subject')?150:2500)]));
+        if(kind==='other'&&Array.isArray(template.fields))safeTemplates[kind].fields=[...new Set(template.fields.filter(key=>['event','order','items','total','pickup','deadline'].includes(key)))];
       }
       if(!choices.includes(reminderMode)||!choices.includes(bulkCancel))throw bad('발송 방식을 확인해 주세요.');
       const at=Date.parse(data.reminderAt);
@@ -164,7 +174,7 @@ export function createMailAdmin(db,mail) {
           }
           const fields=mailFields(record.type);
           tx.update(ref,{...fields,providerKey:record.providerKey??fields.providerKey,deliveryUncertain:false,
-            lastError:null,firstAttemptAt:null,sendingUntil:null,retryBy:uid,retryAt:now()});
+            lastError:null,firstAttemptAt:null,sendingUntil:null,retryBy:uid,retryAt:now(),retryHistory:[...(record.retryHistory||[]),{at:now(),by:uid,reason:record.lastError||null}]});
         }
         return {ok:true};
       });

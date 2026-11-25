@@ -60,8 +60,9 @@ const lang = Astro.params.lang as Lang;
 .bz-product-sheet{overflow-x:auto;border:1px solid #e8e1de;border-radius:12px;background:#fff}.bz-product-table{width:100%;min-width:610px;border-collapse:collapse;text-align:left;table-layout:fixed}.bz-product-table th{background:#faf1ee;color:#6d2437;font-size:13px;padding:10px 12px;border-bottom:1px solid #e8d7d2;white-space:nowrap}.bz-product-table th:nth-child(1){width:86px}.bz-product-table th:nth-child(3){width:100px}.bz-product-table th:nth-child(4){width:118px}.bz-product-table th:nth-child(5){width:112px}.bz-product-table td{padding:10px 12px;vertical-align:middle;border-bottom:1px solid #eee5e1}.bz-product-table tr:last-child td{border-bottom:0}.bz-product-table .bz-photo{display:block;width:62px;height:62px;object-fit:contain;border-radius:7px}.bz-product-table .bz-placeholder{display:grid;place-items:center;font-size:25px}.bz-product-table .bz-desc h3{font-size:16px;margin:0 0 3px;overflow-wrap:anywhere}.bz-product-table .bz-desc p{font-size:13px;line-height:1.4;margin:4px 0;overflow-wrap:anywhere}.bz-product-table .bz-price{font-size:17px;white-space:nowrap}.bz-product-table .bz-qty{gap:5px;margin:0}.bz-product-table .bz-qty button{width:27px;height:30px;min-width:27px}.bz-product-table .bz-btn{padding:9px 10px;font-size:13px;white-space:nowrap}.bz-product-table .bz-sold{background:#f5f5f5}.bz-sold-label{display:inline-block;color:#9d2424;margin-left:8px;font-size:12px}.bz-product-table .bz-stock{display:inline-block;margin-right:4px}@media(max-width:780px){.bz-product-table{min-width:560px}.bz-product-table td,.bz-product-table th{padding:8px}.bz-product-table th:nth-child(1){width:73px}.bz-product-table th:nth-child(3){width:84px}.bz-product-table th:nth-child(4){width:108px}.bz-product-table th:nth-child(5){width:90px}.bz-product-table .bz-photo{width:55px;height:55px}}
 </style>
 <script>
+import {paymentGuidance} from '../../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
 import "../../../lib/bazaar/shop-view.css";
-import {bindStorageLabels,renderShopEvent,renderShopProducts} from "../../../lib/bazaar/shop-view";
+import {bindStorageLabels,changeCartQuantity,quantityCap,renderShopEvent,renderShopProducts} from "../../../lib/bazaar/shop-view";
 import {getShop,createOrder,eFormat,h,orderRequestId,parisDeadline} from '../../../lib/bazaar/api';
 const root=document.querySelector<HTMLElement>('#bz')!;
 const lang=root.dataset.lang==='fr'?'fr':'ko';
@@ -78,7 +79,7 @@ type OrderRequest = {
   email:FormDataEntryValue|null, pickupNote:FormDataEntryValue|null, items:{id:string,qty:number,priceCents:number}[], requestId:string
 };
 let pendingOrder:OrderRequest|undefined;
-let products:any[]=[],event:any={},cart:Record<string,number>={},selected:Record<string,number>={},serverOffset=0,submitted=false,submitting=false;
+let products:any[]=[],event:any={},cart:Record<string,number>={},serverOffset=0,submitted=false,submitting=false;
 const $=(s:string)=>root.querySelector<HTMLElement>(s)!;
 const button=(action:string,id:string,label:string,disabled=false)=>`<button data-action="${action}" data-id="${h(id)}" ${disabled?'disabled':''}>${h(label)}</button>`;
 function isReady(){return /^FR[0-9A-Z]{25}$/.test(String(event.iban||'').replaceAll(' ',''));}
@@ -109,11 +110,10 @@ function render(){
     :t('주문 접수 중 · 회원가입 없이 주문 가능','Commandes ouvertes · Sans inscription');
   $('#bz-hero').innerHTML=renderShopEvent(event,lang);
   $('#bz-products').innerHTML=renderShopProducts(products,lang,{
-    quantity:p=>p.stockRemaining===0?0:Math.min(p.stockRemaining??100,selected[p.id]||1),
+    quantity:p=>Math.min(quantityCap(p.stockRemaining),cart[p.id]||0),
     price:eFormat,
-    controls:(p,qty,sold)=>'<div class="bz-qty">'+button('dec',p.id,'−',closed||sold||qty<=1)+'<span>'+qty+'</span>'+
-      button('inc',p.id,'+',closed||sold||qty>=(p.stockRemaining??100))+'</div>'+
-      '<button type="button" class="bz-btn" data-action="add" data-id="'+h(p.id)+'" '+(closed||sold?'disabled':'')+'>'+t('담기','Ajouter')+'</button>'
+    controls:(p,qty,sold)=>'<div class="bz-qty">'+button('dec',p.id,'−',closed||sold||qty<=0)+'<span>'+qty+'</span>'+
+      button('inc',p.id,'+',closed||sold||qty>=quantityCap(p.stockRemaining))+'</div>'
   });
   renderCart();
 }
@@ -121,7 +121,7 @@ function renderCart(){
   const closed=isClosed();
   const lines=Object.entries(cart).map(([id,qty])=>({p:products.find(p=>p.id===id),id,qty})).filter(x=>x.p&&x.qty>0);
   const total=lines.reduce((s,x)=>s+x.p.priceCents*x.qty,0);
-  $('#bz-cart').innerHTML=lines.length?lines.map(x=>`<div class="bz-cart-row"><span>${h(lang==='fr'?x.p.titleFr:x.p.titleKo)}</span><div>${button('cartdec',x.id,'−',closed)}<strong>${x.qty}</strong>${button('cartinc',x.id,'+',closed)}<span>${eFormat(x.p.priceCents*x.qty)}</span>${button('remove',x.id,'×',closed)}</div></div>`).join(''):`<p>${t('장바구니가 비어 있습니다.','Votre panier est vide.')}</p>`;
+  $('#bz-cart').innerHTML=lines.length?lines.map(x=>`<div class="bz-cart-row"><span>${h(lang==='fr'?x.p.titleFr:x.p.titleKo)}</span><div>${button('cartdec',x.id,'−',closed)}<strong>${x.qty}</strong>${button('cartinc',x.id,'+',closed||x.qty>=quantityCap(x.p.stockRemaining))}<span>${eFormat(x.p.priceCents*x.qty)}</span>${button('remove',x.id,'×',closed)}</div></div>`).join(''):`<p>${t('장바구니가 비어 있습니다.','Votre panier est vide.')}</p>`;
   $('#bz-total').textContent=eFormat(total);
   ($('#bz-toggle') as HTMLButtonElement).hidden=!lines.length||closed||submitted;
   if(closed)$('#bz-checkout').hidden=true;
@@ -130,14 +130,9 @@ root.addEventListener('click',async ev=>{
   const target=(ev.target as HTMLElement).closest<HTMLButtonElement>('button[data-action]');if(!target||submitted||submitting||pendingOrder||isClosed())return;
   const id=target.dataset.id!,p=products.find(x=>x.id===id);if(!p)return;
   const a=target.dataset.action!;
-  if(a==='inc')selected[id]=Math.min(100,p.stockRemaining??100,(selected[id]||1)+1);
-  if(a==='dec')selected[id]=Math.max(1,(selected[id]||1)-1);
-  if(a==='add')cart[id]=Math.min(100,(cart[id]||0)+(selected[id]||1));
-  if(a==='cartinc')cart[id]=Math.min(100,(cart[id]||0)+1);
-  if(a==='cartdec')cart[id]=Math.max(0,(cart[id]||0)-1);
+  if(a==='inc'||a==='cartinc')changeCartQuantity(cart,id,1,p.stockRemaining);
+  if(a==='dec'||a==='cartdec')changeCartQuantity(cart,id,-1,p.stockRemaining);
   if(a==='remove')delete cart[id];
-  // Actual stock is checked again atomically when the order is submitted.
-  if(p.stockRemaining!=null&&cart[id]>p.stockRemaining)cart[id]=p.stockRemaining;
   render();
 });
 $('#bz-toggle').addEventListener('click',()=>{if(isClosed())return;$('#bz-checkout').hidden=false;$('#bz-toggle').hidden=true;$('#bz-checkout').scrollIntoView({behavior:'smooth'});});
@@ -197,7 +192,8 @@ async function sendOrder(){
     const link=`${root.dataset.orderUrl}?id=${encodeURIComponent(result.id)}#token=${encodeURIComponent(result.token)}`;
     if($('#bz-shop').hidden)$('#bz-shop').after($('#bz-receipt'));
     $('#bz-receipt').hidden=false;
-    $('#bz-receipt').innerHTML=`<div class="bz-receipt"><h3>${t('주문이 접수되었습니다','Votre commande a été enregistrée')}</h3><p>${t('주문번호','Référence')}: <strong>${h(result.orderRef)}</strong></p><p>${t('총 금액','Montant')}: <strong>${eFormat(result.totalCents)}</strong></p><p>${t('수취인','Bénéficiaire')}: ${h(result.beneficiary)}</p><p>IBAN: <strong>${h(result.iban)}</strong> <button class="bz-copy" data-copy="${h(result.iban)}">${t('복사','Copier')}</button></p><p>${t('송금 시 메모','Référence du virement')}: <strong>${h(result.orderRef)}</strong> <button class="bz-copy" data-copy="${h(result.orderRef)}">${t('복사','Copier')}</button></p><p>${t('송금 기한','Date limite du virement')}: <strong>${h(parisDeadline(result.transferCutoff,lang))}</strong></p><p>${t('주문 접수 메일을 발송합니다. 이메일이 도착하지 않으면 아래 주문 확인 링크를 꼭 저장해 주세요.','Un e-mail récapitulatif sera envoyé. Conservez le lien de suivi ci-dessous.')}</p><a href="${h(link)}" rel="noreferrer">${t('송금 완료 신고 / 주문 확인','Signaler le virement / Voir la commande')}</a></div>`;
+    const guidance=result.paymentHours!=null?paymentGuidance(lang,result.paymentHours).map((line,index)=>index===0?'<h4>'+h(line)+'</h4>':'<p>'+h(line)+'</p>').join(''):'';
+    $('#bz-receipt').innerHTML=`<div class="bz-receipt">${guidance}<h3>${t('주문이 접수되었습니다','Votre commande a été enregistrée')}</h3><p>${t('주문번호','Référence')}: <strong>${h(result.orderRef)}</strong></p><p>${t('총 금액','Montant')}: <strong>${eFormat(result.totalCents)}</strong></p><p>${t('수취인','Bénéficiaire')}: ${h(result.beneficiary)}</p><p>IBAN: <strong>${h(result.iban)}</strong> <button class="bz-copy" data-copy="${h(result.iban)}">${t('복사','Copier')}</button></p><p>${t('송금 시 메모','Référence du virement')}: <strong>${h(result.orderRef)}</strong> <button class="bz-copy" data-copy="${h(result.orderRef)}">${t('복사','Copier')}</button></p><p>${t('송금 기한','Date limite du virement')}: <strong>${h(parisDeadline(result.transferCutoff,lang))}</strong></p><p>${t('주문 접수 메일을 발송합니다. 이메일이 도착하지 않으면 아래 주문 확인 링크를 꼭 저장해 주세요.','Un e-mail récapitulatif sera envoyé. Conservez le lien de suivi ci-dessous.')}</p><a href="${h(link)}" rel="noreferrer">${t('송금 완료 신고 / 주문 확인','Signaler le virement / Voir la commande')}</a></div>`;
     $('#bz-receipt').scrollIntoView({behavior:'smooth'});
   }catch(error){showOrderError(error);}
   finally{

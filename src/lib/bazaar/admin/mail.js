@@ -68,6 +68,7 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
     bulkCancel:t('최종 미입금 주문 취소 안내','Annulation pour non-paiement'),
     pickup:t('상품 수령 안내','Retrait des produits'),
     other:t('기타 공지','Autre annonce'),
+    orderChanged:t('주문 변경 안내','Commande modifiée'),additionalPayment:t('추가 송금 안내','Virement complémentaire'),refundCompleted:t('환불 완료 안내','Remboursement effectué'),
   };
   let ready=false, pending=false, cursor=null, messages=[], prepared=[], preparedOptions;
   const recipients=()=>[...new Set(prepared.map(row=>row.email.trim().toLowerCase()))].sort();
@@ -82,7 +83,11 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
     }
   };
 
-  let templates={},lastBudget;
+  let templates={},lastBudget,tab='settings';
+  function chooseTab(name){
+    tab=name;body.querySelectorAll('[data-mail-section]').forEach(section=>section.hidden=section.dataset.mailSection!==name);
+    body.querySelectorAll('[data-mail-tab]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.mailTab===name)));
+  }
   function policyEditor(policy){
     const rows=Object.entries(kinds).map(([kind,label])=>{
       const mode=policy.modes?policyMode(policy,kind):kind==='bulkCancel'?policy.bulkCancel:mailKinds[kind];
@@ -107,12 +112,16 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
     editor.innerHTML='<h4>'+esc(kinds[kind])+'</h4>'+Object.entries(fields).map(([key,label])=>'<label class="field">'+esc(label)+
       '<textarea name="'+key+'" maxlength="'+(key.startsWith('subject')?150:2500)+'">'+esc(templates[kind]?.[key]||'')+'</textarea></label>').join('')+
       '<p>'+t('주문과 행사 정보는 이메일 종류에 맞게 자동 삽입됩니다.','Les informations de commande et du bazar sont ajoutées selon le type de message.')+'</p>'+
+      (kind==='other'?'<fieldset><legend>'+t('자동 삽입 정보','Informations à inclure')+'</legend>'+[['event',t('행사명','Bazar')],['order',t('주문번호','Référence')],['items',t('상품','Produits')],['total',t('금액','Montant')],['pickup',t('수령','Retrait')],['deadline',t('송금 기한','Échéance')]].map(([key,label])=>'<label><input type="checkbox" data-notice-field value="'+key+'" '+(templates[kind]?.fields?.includes(key)?'checked':'')+'> '+label+'</label>').join('')+'</fieldset>':'')+
+      '<label>'+t('미리보기 주문','Commande exemple')+'<select data-preview-order><option value="">'+t('예시 주문','Commande fictive')+'</option>'+orders.map(order=>'<option value="'+esc(order.id)+'">'+esc(order.ref)+'</option>').join('')+'</select></label>'+
+      '<label>'+t('언어','Langue')+'<select data-preview-lang><option value="ko">한국어</option><option value="fr">Français</option></select></label>'+
       button('template-reset',t('기본 양식 복원','Rétablir le modèle par défaut'))+button('template-preview',t('미리보기','Aperçu'))+'<pre data-template-preview hidden></pre>';
   }
   function collectTemplate(){
     const editor=body.querySelector('[data-template-editor]');
     if(!editor?.dataset.kind)return;
     templates[editor.dataset.kind]=Object.fromEntries([...editor.querySelectorAll('textarea')].map(el=>[el.name,el.value]));
+    if(editor.dataset.kind==='other')templates.other.fields=[...editor.querySelectorAll('[data-notice-field]:checked')].map(input=>input.value);
   }
   async function load(append=false) {
     const data=await action('mailOverview',append?{cursor}:{});
@@ -125,19 +134,47 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
     const upcoming=[data.nextReminderAt,...messages.map(m=>m.dueAt)].filter(Boolean).sort()[0];
     const due=messages.filter(m=>['queued','delayed','sending'].includes(m.status)).length;
     const failed=messages.filter(m=>m.status==='failed').length;
-    body.innerHTML=`<p>오늘 발송 접수 ${b.acceptedToday}통 · 테스트 기록 ${b.capturedToday}통 · 내부 예약 ${b.reserved}통</p>
+    const tabs='<div class="actions">'+[['settings',t('발송 설정','Paramètres')],['manual',t('수동 발송','Envoi manuel')],['history',t('발송 이력','Historique')]].map(([key,label])=>'<button type="button" class="btn neutral" data-mail-tab="'+key+'">'+label+'</button>').join('')+'</div>';
+    body.innerHTML=tabs+`<section data-mail-section="settings"><p>오늘 발송 접수 ${b.acceptedToday}통 · 테스트 기록 ${b.capturedToday}통 · 내부 예약 ${b.reserved}통</p>
       <p>일반 잔여 ${b.normalRemaining}통 · 예비 포함 잔여 ${b.totalRemaining}통 · Brevo 계정 확인값
         ${b.providerAccountRemaining==null?'미확인':`${b.providerAccountRemaining}통 (${esc(parisDeadline(new Date(b.providerObservationAt).toISOString(),'ko'))})`}</p>
       <div class="actions"><label>Brevo에서 확인한 잔여 통수 <input name="remaining" type="number" min="0" max="300"></label>${button('account','확인값 기록')}</div>
-      ${editable?policyEditor(data.policy):''}
+      ${editable?policyEditor(data.policy):''}</section>
+      <section data-mail-section="history">
       <p>불러온 이력의 대기 ${due}건 · 실패 ${failed}건 · 다음 예정 ${upcoming?esc(parisDeadline(upcoming,'ko')):'—'}</p>
-      <div>${mailRows(messages)||'발송 이력 없음'}</div>
-      <div class="actions">${cursor?button('more','이력 더 보기'):''}${button('refresh','새로고침')}</div><div data-mail-manual></div>`;
+      <div class="actions"><input data-history-search placeholder="${t('주문번호, 이름, 이메일','Référence, nom ou e-mail')}"><input data-history-from type="date"><input data-history-to type="date"><select data-history-type><option value="">${t('모든 종류','Tous les types')}</option>${Object.entries(kinds).map(([id,label])=>'<option value="'+id+'">'+esc(label)+'</option>').join('')}</select><select data-history-state><option value="">${t('모든 상태','Tous les états')}</option>${Object.entries(states).map(([id,label])=>'<option value="'+id+'">'+esc(label)+'</option>').join('')}</select>${button('history-excel','Excel')}</div><div data-history-list></div>
+      <div class="actions">${cursor?button('more','이력 더 보기'):''}${button('refresh','새로고침')}</div></section><section data-mail-section="manual"><div data-mail-manual></div></section>`;
     if(previous)body.querySelector('[data-mail-manual]').replaceWith(previous);
     else initManual();
-    renderPrepared();
+    renderPrepared();chooseTab(tab);drawHistory();
   }
 
+  const parisDate=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris',dateStyle:'short'});
+  const timestamp=new Intl.DateTimeFormat(fr?'fr-FR':'ko-KR',{timeZone:'Europe/Paris',dateStyle:'short',timeStyle:'medium'});
+  function historyResults(){
+   const value=key=>body.querySelector('[data-history-'+key+']')?.value||'';
+   const search=value('search').trim().toLowerCase();
+   return messages.filter(row=>{
+    const when=row.sentAt||row.manualSentAt||row.createdAt;
+    const day=when?parisDate.format(new Date(when)):'';
+    return (!value('type')||value('type')===row.type)&&(!value('state')||value('state')===row.status)
+     &&(!value('from')||day>=value('from'))&&(!value('to')||day<=value('to'))
+     &&[row.orderRef,row.name,row.email].join(' ').toLowerCase().includes(search);
+   }).sort((a,b)=>String(b.sentAt||b.manualSentAt||b.createdAt||'').localeCompare(String(a.sentAt||a.manualSentAt||a.createdAt||'')));
+  }
+  function historyValues(row){
+   const date=row.sentAt||row.manualSentAt||row.createdAt;
+   return [date?timestamp.format(new Date(date)):'—',row.name,row.email,row.orderRef,kinds[row.type]||types[row.type]||row.type,
+    row.mode,row.actor,row.method,row.status].map(value=>value??'—');
+  }
+  function drawHistory(){
+   const target=body.querySelector('[data-history-list]');if(!target)return;
+   target.innerHTML=historyResults().map(row=>'<section class="panel pad">'+historyValues(row).map(esc).join(' · ')+
+    '<p>'+t('전달 상태 미확인','Remise non vérifiée')+'</p>'+mailRows([row])+
+    (row.retries?.length?'<p>'+row.retries.map(retry=>esc(retry.at)+' · '+esc(retry.by)+' · '+esc(retry.reason)).join('<br>')+'</p>':'')+
+    '</section>').join('')||t('발송 이력이 없습니다.','Aucun envoi.');
+  }
+  panel.addEventListener('input',event=>{if(event.target.matches('[data-history-search],[data-history-from],[data-history-to],[data-history-type],[data-history-state]'))drawHistory();});
   function initManual() {
     body.querySelector('[data-mail-manual]').innerHTML=`<h3>${t('수동 발송 · Brevo 또는 OVH','Envoi manuel · Brevo ou OVH')}</h3><form data-manual-form class="form-grid">
       <label class="field">안내 종류 ${select('type',['reminderFinal','bulkCancel','pickup','other','receipt','confirmed','buyerCancel','adminCancel'].map(kind=>[kind,kinds[kind]]))}</label>
@@ -176,13 +213,19 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
   panel.addEventListener('submit',e=>e.preventDefault());
   panel.addEventListener('change',e=>{if(e.target.matches('[data-order-select-all]'))panel.querySelectorAll('[data-manual-order]').forEach(box=>box.checked=e.target.checked);});
   panel.addEventListener('click',async e=>{
-    const control=e.target.closest('[data-mail],[data-mail-job],[data-mail-template]');
+    const control=e.target.closest('[data-mail],[data-mail-job],[data-mail-template],[data-mail-tab]');
     if(!control||pending)return;
+    if(control.dataset.mailTab){chooseTab(control.dataset.mailTab);return;}
     if(control.dataset.mailTemplate){collectTemplate();editTemplate(control.dataset.mailTemplate);return;}
     const click=control.dataset.mail;
     pending=true;control.disabled=true;feedback.textContent='';
     try{
       if(control.dataset.mailJob){await jobAction(control,request,eventId);await load();}
+      if(click==='history-excel'){
+        const workbook=XLSX.utils.book_new(),rows=historyResults().map(historyValues);
+        XLSX.utils.book_append_sheet(workbook,XLSX.utils.aoa_to_sheet([[t('발송 일시','Date'),t('수신자','Destinataire'),'E-mail',t('주문번호','Référence'),t('종류','Type'),'Mode',t('담당자','Agent'),t('방식','Canal'),t('결과','Résultat')],...rows]),'Historique');
+        XLSX.writeFile(workbook,'ASICC-email-history.xlsx');
+      }
       if(click==='refresh'||click==='more')await load(click==='more');
       if(click==='account'){
         const value=body.querySelector('[name=remaining]').value;
@@ -197,7 +240,8 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
       if(click==='template-preview'){
         collectTemplate();
         const editor=body.querySelector('[data-template-editor]'),preview=editor.querySelector('[data-template-preview]');
-        preview.textContent=Object.values(templates[editor.dataset.kind]).filter(Boolean).join('\n\n');
+        const rendered=await action('mailPreview',{type:editor.dataset.kind,id:editor.querySelector('[data-preview-order]').value,lang:editor.querySelector('[data-preview-lang]').value,template:templates[editor.dataset.kind]});
+        preview.textContent=rendered.subject+'\n\n'+rendered.text;
         preview.hidden=false;
       }
       if(click==='policy'){

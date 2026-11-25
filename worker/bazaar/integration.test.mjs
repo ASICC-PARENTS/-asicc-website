@@ -458,15 +458,15 @@ test('concurrent checkouts preserve stock, receipts and administrator changes', 
   const edited = await createProduct(2);
   const invalidEdit = await callTimed('bazaarAdmin', {
     op: 'saveProduct', eventId: fixtureEvent, id: edited.id,
-    product: { ...preset, plannedBoxes: undefined, manualLimit: 1 }
+    product: { ...preset, plannedBoxes: undefined, manualLimit: undefined }
   }, staff.idToken);
   assert.equal(invalidEdit.status, 400);
   assert.deepEqual(invalidEdit.result.error, {
     code: 'invalid-argument',
-    message: '수동 판매한도 방식은 발주 예정 박스 수와 판매한도를 모두 입력해 주세요.'
+    message: '수동 입력 방식은 최대 판매수량을 입력해 주세요.'
   });
   const [saved, bought] = await Promise.all([
-    callTimed('bazaarAdmin', { op: 'saveProduct', eventId: fixtureEvent, id: edited.id, product: { ...preset, manualLimit: 1 } }, staff.idToken),
+    callTimed('bazaarAdmin', { op: 'saveProduct', eventId: fixtureEvent, id: edited.id, product: { ...preset, plannedBoxes: null, manualLimit: 1 } }, staff.idToken),
     submit(buyer(edited))
   ]);
   record('administrator stock update and checkout', [saved, bought], { 200: 2 });
