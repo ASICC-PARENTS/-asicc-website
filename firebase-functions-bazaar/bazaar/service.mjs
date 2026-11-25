@@ -5,6 +5,7 @@ import {orderTermsVersion} from './order-terms.mjs';
 import {randomBytes, timingSafeEqual, createHash} from 'node:crypto';
 import {catalogue, initialEvent} from './products.mjs';
 import {renderOrderEmail} from './order-email.mjs';
+import {defaultHomePopup,normalizeHomePopup,publicHomePopup} from './home-popup.mjs';
 import {hasCheckoutAccount,latestTransferCutoff,orderIntakeLocked,orderIntakeState} from './order-intake.mjs';
 
 export class BazaarError extends Error {
@@ -35,6 +36,12 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
   const eventArchives=db.collection('bazaarEvents');
   const eventDrafts=db.collection('bazaarDrafts');
   const catalogRef=db.doc('bazaarMeta/baseCatalog');
+  const homePopupRef=db.doc('bazaarMeta/homePopup');
+  async function readHomePopup(){
+    const [saved,current]=await db.getAll(homePopupRef,eventRef);
+    const event=current.data();
+    return {settings:saved.exists?saved.data():defaultHomePopup(event,emailPreviewTest),event};
+  }
   const purchaseOrders=db.collection('bazaarPurchaseOrders');
   const eventFinancials=db.collection('bazaarEventFinancials');
   const orderSequences=db.collection('bazaarOrderSequences');
@@ -232,6 +239,10 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
   }
   const deliver = mailId => sendQueuedMail(mailId, message);
   async function bazaarPublic(req){
+    if(req.data?.op==='homePopup'){
+      const {settings,event}=await readHomePopup();
+      return {popup:publicHomePopup(settings,event,orderIntakeState(event))};
+    }
     const requested=s(req.data?.eventId);
     if(requested&&!validEventId(requested))bad('행사 주소를 확인해 주세요.');
     return db.runTransaction(async tx=>{
@@ -368,6 +379,19 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
   async function bazaarAdmin(req){
     await requireAdmin(req);
     const {op,...data}=req.data||{};
+    if(op==='getHomePopup')return {popup:(await readHomePopup()).settings};
+    if(op==='saveHomePopup'){
+      const clean=normalizeHomePopup(data.popup);
+      if(!clean)bad('팝업 설정을 확인해 주세요. / Vérifiez les paramètres de la fenêtre.');
+      const result=await db.runTransaction(async tx=>{
+        const snapshot=await tx.get(homePopupRef);
+        const revision=snapshot.data()?.revision??0;
+        if(revision!==data.revision)throw new HttpsError('failed-precondition','팝업 설정이 변경됐습니다. 다시 불러와 주세요.');
+        const popup={...clean,revision:revision+1};
+        tx.set(homePopupRef,popup);return popup;
+      });
+      return {popup:result};
+    }
     if(op==='mailPreview'){
       const eventId=s(data.eventId),type=s(data.type);
       if(!validEventId(eventId)||!['receipt','confirmed','buyerCancel','adminCancel','reminderFinal','bulkCancel','pickup','other','orderChanged','additionalPayment','refundCompleted'].includes(type))bad('이메일 미리보기 종류와 행사를 확인해 주세요.');

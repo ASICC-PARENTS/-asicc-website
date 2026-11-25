@@ -93,6 +93,7 @@ async function invoke(name:string,payload:any={}){
   return result.data;
 }
 export const getShop=(eventId:string)=>invoke('bazaarPublic',{eventId});
+export const getHomePopup=()=>invoke('bazaarPublic',{op:'homePopup'});
 export const createOrder=(buyer:any)=>invoke('bazaarCreateOrder',buyer);
 export const buyerAction=(p:any)=>invoke('bazaarBuyerAction',p);
 export async function adminAction(p:any) {

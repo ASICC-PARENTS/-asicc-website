@@ -1,0 +1,91 @@
+---
+import {L,type Lang} from '../i18n/ui';
+const {lang}=Astro.props as {lang:Lang};
+---
+<section id="admin-home-popup" class="card auth-card stack gap-12" data-lang={lang}>
+  <h2 class="h3">{L(lang,{ko:'홈페이지 팝업 관리',fr:'Gestion de la fenêtre d’accueil'})}</h2>
+  <p class="small muted">{L(lang,{ko:'홈페이지에 표시할 팝업을 설정합니다. 현재 테스트 환경과 운영 환경은 분리됩니다.',fr:'Configurez la fenêtre affichée à l’accueil. Les environnements de test et de production restent séparés.'})}</p>
+  <form class="stack gap-12">
+    <label><input type="checkbox" name="enabled"/> {L(lang,{ko:'팝업 표시',fr:'Afficher la fenêtre'})}</label>
+    <label><input type="checkbox" name="bazaarOnly"/> {L(lang,{ko:'연결된 바자회 주문 접수 중에만 표시',fr:'Afficher uniquement pendant les commandes du bazar associé'})}</label>
+    <div class="popup-admin-grid">
+      {([['title','제목','Titre',120],['body','안내 문구','Description',400],['button','버튼 문구','Bouton',60],['caption1','이미지 1 설명','Image 1 – légende',100],['caption2','이미지 2 설명','Image 2 – légende',100]] as const).map(([field,ko,fr,max])=><>
+        <label class="stack gap-4"><span>{L(lang,{ko,fr})} · 한국어</span><input type="text" name={field+'Ko'} maxlength={max} required={field==='title'||field==='button'}/></label>
+        <label class="stack gap-4"><span>{L(lang,{ko,fr})} · Français</span><input type="text" name={field+'Fr'} maxlength={max} required={field==='title'||field==='button'}/></label>
+      </>)}
+      <label class="stack gap-4">{L(lang,{ko:'게시 시작 (파리 시간)',fr:'Début (heure de Paris)'})}<input type="datetime-local" name="startsAt"/></label>
+      <label class="stack gap-4">{L(lang,{ko:'게시 종료 (파리 시간)',fr:'Fin (heure de Paris)'})}<input type="datetime-local" name="endsAt"/></label>
+      <label class="stack gap-4">{L(lang,{ko:'이미지 1 주소 (HTTPS)',fr:'Adresse image 1 (HTTPS)'})}<input type="url" name="image1" maxlength="900"/></label>
+      <label class="stack gap-4">{L(lang,{ko:'이미지 2 주소 (HTTPS)',fr:'Adresse image 2 (HTTPS)'})}<input type="url" name="image2" maxlength="900"/></label>
+    </div>
+    <label class="stack gap-4">{L(lang,{ko:'바로가기 주소',fr:'Lien du bouton'})}<input name="link" maxlength="500" required placeholder="news/identifiant/"/></label>
+    <div class="popup-admin-preview" hidden><strong data-title></strong><div data-images></div><p data-body></p><span data-cta></span></div>
+    <div class="row gap-12" style="flex-wrap:wrap;align-items:center">
+      <button type="button" class="btn btn-ghost" data-preview>{L(lang,{ko:'미리보기',fr:'Aperçu'})}</button>
+      <button type="button" class="btn btn-ghost" data-reload>{L(lang,{ko:'불러오기',fr:'Actualiser'})}</button>
+      <button type="submit" class="btn btn-dark" disabled>{L(lang,{ko:'저장',fr:'Enregistrer'})}</button>
+    </div>
+    <p class="small" role="status" data-feedback></p>
+  </form>
+</section>
+<script>
+  import {adminAction,bazaarAuth} from '../lib/bazaar/api';
+  import {onAuthStateChanged} from 'firebase/auth';
+  import {parisToIso} from '../lib/bazaar/admin/data.js';
+  const section=document.querySelector<HTMLElement>('#admin-home-popup');
+  if(section){
+    const form=section.querySelector('form')!,feedback=section.querySelector<HTMLElement>('[data-feedback]')!,save=form.querySelector<HTMLButtonElement>('[type=submit]')!;
+    const tr=(ko:string,fr:string)=>section.dataset.lang==='fr'?fr:ko;
+    let revision=0;
+    const date=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+    function fill(p:Record<string,any>){
+      revision=p.revision??0;
+      for(const el of Array.from(form.elements)){
+        if(!(el instanceof HTMLInputElement)||!el.name)continue;
+        const v=p[el.name];
+        if(el.type==='checkbox')el.checked=v===true;
+        else if(el.type==='datetime-local')el.value=v?date.format(new Date(v)).replace(' ','T'):'';
+        else el.value=String(v??'');
+      }
+    }
+    async function load(){
+      save.disabled=true;feedback.textContent=tr('불러오는 중…','Chargement…');
+      try{const {popup}=await adminAction({op:'getHomePopup'});fill(popup);save.disabled=false;feedback.textContent='';}
+      catch{feedback.textContent=tr('팝업 관리 서버 연결 또는 관리자 권한을 확인해 주세요.','Vérifiez la connexion au serveur et les droits administrateur.');}
+    }
+    section.querySelector('[data-reload]')?.addEventListener('click',()=>void load());
+    onAuthStateChanged(bazaarAuth,user=>{if(user)void load();});
+    form.addEventListener('submit',async e=>{
+      e.preventDefault();save.disabled=true;
+      try{
+        const popup:Record<string,unknown>={};
+        for(const el of Array.from(form.elements)){
+          if(!(el instanceof HTMLInputElement)||!el.name)continue;
+          popup[el.name]=el.type==='checkbox'?el.checked:el.type==='datetime-local'?parisToIso(el.value):el.value.trim();
+        }
+        const saved=await adminAction({op:'saveHomePopup',popup,revision});fill(saved.popup);
+        feedback.textContent=tr('팝업 설정을 저장했습니다.','Paramètres enregistrés.');
+      }catch(error){feedback.textContent=(error as Error).message;}finally{save.disabled=false;}
+    });
+    section.querySelector('[data-preview]')?.addEventListener('click',()=>{
+      const box=section.querySelector<HTMLElement>('.popup-admin-preview')!,fd=new FormData(form),lang=section.dataset.lang==='fr'?'Fr':'Ko';
+      box.hidden=false;box.querySelector('[data-title]')!.textContent=String(fd.get('title'+lang)||'');
+      box.querySelector('[data-body]')!.textContent=String(fd.get('body'+lang)||'');
+      box.querySelector('[data-cta]')!.textContent=String(fd.get('button'+lang)||'')+' →';
+      const images=box.querySelector('[data-images]')!;images.replaceChildren();
+      for(const n of [1,2]){
+        const v=String(fd.get('image'+n)||'');if(!v.startsWith('https://'))continue;
+        const img=document.createElement('img');img.src=v;img.referrerPolicy='no-referrer';img.alt=String(fd.get('caption'+n+lang)||'');images.append(img);
+      }
+    });
+  }
+</script>
+<style>
+  .popup-admin-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .popup-admin-grid input{min-width:0;width:100%}
+  .popup-admin-preview{max-width:410px;padding:16px;margin:auto;text-align:center;border:1px solid #ddd;border-radius:12px;background:white}
+  .popup-admin-preview [data-images]{display:flex;justify-content:center;gap:10px;margin:10px 0}
+  .popup-admin-preview :global(img){width:45%;height:145px;object-fit:contain}
+  .popup-admin-preview [data-cta]{display:block;background:#b94d30;color:white;padding:10px;border-radius:8px}
+  @media(max-width:650px){.popup-admin-grid{grid-template-columns:1fr}}
+</style>

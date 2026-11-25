@@ -1,0 +1,82 @@
+---
+import { L, href, type Lang } from '../i18n/ui';
+const {lang}=Astro.props as {lang:Lang};
+---
+<dialog id="home-popup" class="home-popup" data-lang={lang} data-home={href(lang,'')} aria-labelledby="home-popup-title">
+  <div class="popup-inner">
+    <button type="button" class="popup-close" aria-label={L(lang,{ko:'닫기',fr:'Fermer'})}>×</button>
+    <span class="popup-kicker">ASICC</span>
+    <h2 id="home-popup-title"></h2>
+    <div class="popup-products">
+      <figure hidden><img alt="" referrerpolicy="no-referrer"/><figcaption></figcaption></figure>
+      <figure hidden><img alt="" referrerpolicy="no-referrer"/><figcaption></figcaption></figure>
+    </div>
+    <p class="popup-body"></p>
+    <p class="popup-test" hidden>{L(lang,{ko:'테스트 홈페이지 · 실제 송금 금지',fr:'Site de test · Aucun virement réel'})}</p>
+    <a class="popup-cta"></a>
+    <div class="popup-bottom"><button type="button" data-popup-today>{L(lang,{ko:'오늘 하루 보지 않기',fr:'Ne plus afficher aujourd’hui'})}</button><button type="button" data-popup-dismiss>{L(lang,{ko:'닫기',fr:'Fermer'})}</button></div>
+  </div>
+</dialog>
+<script>
+  import {getHomePopup,bazaarTestMode} from '../lib/bazaar/api';
+  const popup=document.querySelector<HTMLDialogElement>('#home-popup');
+  if(popup){
+    const day=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+    let key='';
+    const close=()=>popup.close();
+    popup.querySelector('.popup-close')?.addEventListener('click',close);
+    popup.querySelector('[data-popup-dismiss]')?.addEventListener('click',close);
+    popup.querySelector('[data-popup-today]')?.addEventListener('click',()=>{try{localStorage.setItem(key,day());}catch{}close();});
+    popup.addEventListener('click',e=>{if(e.target===popup)close();});
+    popup.addEventListener('close',()=>{document.body.classList.remove('asicc-popup-open');});
+    const start=async()=>{
+      try{
+        const {popup:p}=await getHomePopup();if(!p)return;
+        key='asicc-home-popup:'+p.identity+':'+p.revision;
+        try{if(localStorage.getItem(key)===day())return;}catch{}
+        const lang=popup.dataset.lang==='fr'?'Fr':'Ko';
+        popup.querySelector('h2')!.textContent=p['title'+lang];
+        popup.querySelector('.popup-body')!.textContent=p['body'+lang];
+        const link=popup.querySelector<HTMLAnchorElement>('.popup-cta')!;
+        const target=new URL(p.link,popup.dataset.home?new URL(popup.dataset.home,location.origin):location.href);
+        if(target.protocol!=='https:'&&target.origin!==location.origin)return;
+        // Prevent a test campaign from routing visitors to the live ordering site.
+        if(bazaarTestMode&&/^(www\.)?asicc-parents\.fr$/i.test(target.hostname))return;
+        link.href=target.href;link.textContent=p['button'+lang]+' →';
+        link.addEventListener('click',close);
+        popup.querySelector<HTMLElement>('.popup-test')!.hidden=!bazaarTestMode;
+        const figures=popup.querySelectorAll<HTMLElement>('figure');
+        figures.forEach((figure,index)=>{
+          const n=index+1,src=p['image'+n];if(!src)return;
+          const img=figure.querySelector('img')!,caption=p['caption'+n+lang]||'';
+          img.alt=caption;figure.querySelector('figcaption')!.textContent=caption;
+          img.addEventListener('error',()=>{figure.hidden=true;},{once:true});
+          img.src=src;figure.hidden=false;
+        });
+        popup.showModal();document.body.classList.add('asicc-popup-open');
+      }catch{/* A failed popup request must never block the homepage. */}
+    };
+    void start();
+  }
+</script>
+<style>
+  .home-popup{border:0;padding:0;border-radius:18px;width:min(440px,calc(100% - 28px));max-height:calc(100dvh - 28px);overflow:auto;background:#fff;color:#26394a;box-shadow:0 20px 70px #0004;margin:auto;}
+  .home-popup::backdrop{background:rgba(20,32,43,.58)}
+  :global(body.asicc-popup-open){overflow:hidden}
+  .popup-inner{position:relative;padding:26px 22px 15px;text-align:center}
+  .popup-close{position:absolute;top:9px;right:12px;background:transparent;border:0;font-size:28px;color:#526474;cursor:pointer;width:36px;height:36px}
+  .popup-kicker{font-size:12px;font-weight:800;color:#08254d;letter-spacing:.12em}
+  h2{font-size:clamp(20px,4.8vw,26px);line-height:1.35;margin:8px 0 14px;color:#08254d}
+  .popup-products{display:flex;justify-content:center;gap:10px;margin-bottom:16px}
+  .popup-products figure{display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;margin:0;background:#fff;border:1px solid #efe4d8;border-radius:11px;padding:7px}
+  .popup-products figure[hidden]{display:none}
+  .popup-products img{width:100%;height:170px;object-fit:contain}
+  figcaption{font-size:12px;font-weight:700;line-height:1.35;margin-top:5px}
+  .popup-body{font-size:14px;line-height:1.6;margin:0 0 14px}
+  .popup-test{color:#a25232;font-size:12px;margin:0 0 10px}
+  .popup-cta{display:block;border-radius:9px;background:#b94d30;color:#fff!important;font-weight:750;text-decoration:none;padding:12px 16px}
+  .popup-cta:hover{background:#963b22}
+  .popup-bottom{display:flex;justify-content:space-between;gap:8px;margin-top:14px}
+  .popup-bottom button{font-size:12px;color:#526474;background:transparent;border:0;padding:6px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+  @media(max-width:420px){.popup-inner{padding:23px 14px 12px}.popup-products img{height:130px}}
+</style>

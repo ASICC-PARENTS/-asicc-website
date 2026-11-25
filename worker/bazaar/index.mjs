@@ -128,7 +128,7 @@ export default {
       const data = await readData(request, name, url);
       const edge=env.BAZAAR_MODE==='local'?undefined:globalThis.caches?.default;
       const shopId=typeof data.eventId==='string'?data.eventId.trim():'';
-      const key=edge&&name==='bazaarPublic'&&(!shopId||/^[a-z0-9-]{12,60}$/.test(shopId))?shopKey(url.origin,shopId):null;
+      const key=edge&&name==='bazaarPublic'&&data.op!=='homePopup'&&(!shopId||/^[a-z0-9-]{12,60}$/.test(shopId))?shopKey(url.origin,shopId):null;
       const cached=key?await edge.match(key).catch(()=>null):null;
       if(cached)return json({data:await cached.json()},200,cors);
       const result = await service[name]({ auth, data, rawRequest: { ip: request.headers.get('CF-Connecting-IP') } });
