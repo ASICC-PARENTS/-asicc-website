@@ -10,6 +10,7 @@
 .bz-info-icon{flex:none;color:#36536e;margin-top:1px}
 .bz-info-label{font-size:.78rem;color:#52677b;font-weight:600;line-height:1.3}
 .bz-info-date{font-size:clamp(.89rem,1.7vw,1.04rem);line-height:1.4;color:#203a53;font-weight:750;word-break:keep-all;overflow-wrap:break-word}
+.bz-info-note{font-size:.75rem;line-height:1.45;color:#52677b;font-weight:500;word-break:keep-all;overflow-wrap:break-word}
 .bz-pickup-card{grid-column:1/-1;border:1px solid #e3e9ee;border-radius:10px;background:#f0f4f7;padding:0 12px 10px}
 .bz-pickup-card>.bz-deadline{border:0;background:none;padding:12px 0 4px}
 .bz-shared-hero .bz-pickup-place{margin:0 0 5px 31px;color:#52677b;font-size:.88rem;white-space:pre-line}

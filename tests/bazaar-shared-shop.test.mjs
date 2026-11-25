@@ -83,3 +83,17 @@ test('shared buying notice keeps payment deadline, stock and pickup instructions
   assert.ok(html.includes(lang==='ko'?'송금 시 반드시 주문번호만':'uniquement votre numéro de commande'));
  }
 });
+
+test('header prioritizes the configured personal transfer window and retains the full overall cutoff',()=>{
+ const event={paymentHours:12,transferCutoff:'2026-11-27T21:00:00Z'};
+ const ko=renderShopEvent(event,'ko'),fr=renderShopEvent(event,'fr');
+ assert.ok(ko.includes('송금 기한'));
+ assert.ok(ko.includes('주문 후 12시간 이내'));
+ assert.ok(ko.includes('최종 송금 마감: 2026년 11월 27일 (금) 22:00'));
+ assert.ok(fr.includes('Délai de virement'));
+ assert.ok(fr.includes('Dans les 12 heures suivant la commande'));
+ assert.ok(fr.includes('Date limite finale : Vendredi 27 novembre 2026 à 22h00'));
+ assert.ok(renderShopEvent({},'ko').includes('주문 후 24시간 이내'));
+ assert.ok(renderShopEvent({},'fr').includes('Dans les 24 heures suivant la commande'));
+ assert.ok(!renderShopEvent({},'ko').includes('최종 송금 마감:'));
+});

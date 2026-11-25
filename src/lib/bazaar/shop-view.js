@@ -1,4 +1,4 @@
-import {formatParisDateTime} from '../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
+import {formatParisDateTime,paymentHoursFor} from '../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c =>
   ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
 const icons = {
@@ -27,7 +27,10 @@ export function renderShopEvent(event,lang,{logoUrl=''}={}) {
   const t=(ko,fr)=>localize(lang,ko,fr);
   const date=value=>formatParisDateTime(value,lang);
   const name=t(event.nameKo,event.nameFr)||t('ASICC 온라인 바자회','Bazar en ligne ASICC');
-  const info=(label,value,icon)=>'<div class="bz-deadline">'+eventIcon(icon)+'<div><span class="bz-info-label">'+escape(label)+'</span><strong class="bz-info-date">'+escape(value||'—')+'</strong></div></div>';
+  const info=(label,value,icon,note='')=>'<div class="bz-deadline">'+eventIcon(icon)+'<div><span class="bz-info-label">'+escape(label)+'</span><strong class="bz-info-date">'+escape(value||'—')+'</strong>'+(note?'<small class="bz-info-note">'+escape(note)+'</small>':'')+'</div></div>';
+  const hours=paymentHoursFor(event);
+  const paymentWindow=t('주문 후 '+hours+'시간 이내','Dans les '+hours+' heures suivant la commande');
+  const finalDeadline=event.transferCutoff?t('최종 송금 마감: ','Date limite finale : ')+date(event.transferCutoff):'';
   const intro=t(event.introKo,event.introFr);
   const pickup=t(event.pickupKo,event.pickupFr);
   return '<div class="bz-shared-hero"><div class="bz-hero-banner">'+
@@ -35,7 +38,7 @@ export function renderShopEvent(event,lang,{logoUrl=''}={}) {
     '<span class="bz-hero-kicker">'+t('온라인 바자회','BAZAR SOLIDAIRE EN LIGNE')+'</span><h1>'+escape(name)+'</h1></div>'+
     '<div class="bz-shared-info">'+
     info(t('주문 마감','Clôture des commandes'),date(event.orderCutoff),eventIcons.calendar)+
-    info(t('송금 마감','Date limite de virement'),date(event.transferCutoff),eventIcons.wallet)+
+    info(t('송금 기한','Délai de virement'),paymentWindow,eventIcons.wallet,finalDeadline)+
     '<div class="bz-pickup-card">'+info(t('상품 수령','Retrait des commandes'),date(event.pickupAt),eventIcons.pin)+
     (event.pickupPlace?'<p class="bz-pickup-place">'+escape(event.pickupPlace)+'</p>':'')+
     (pickup?disclosure('pickup',t('상세 주소 및 주차 안내','Adresse et informations de retrait'),eventIcons.pin,'<p>'+escape(pickup)+'</p>'):'')+'</div></div>'+
