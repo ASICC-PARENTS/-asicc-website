@@ -3,7 +3,8 @@
 .bz-hero-banner .bz-hero-logo{display:block;width:120px;height:auto;aspect-ratio:160/59;object-fit:contain;background:#fff;border-radius:5px;padding:5px 7px}
 .bz-hero-brand{font-weight:750;letter-spacing:.11em;font-size:1.3rem;color:white}
 .bz-hero-kicker{font-size:.73rem;font-weight:700;letter-spacing:.09em;color:#efd39a}
-.bz-shared-hero .bz-hero-banner h1{font-size:clamp(1.35rem,3vw,2.05rem);color:#fff;line-height:1.32;margin:0;font-weight:750}
+.bz-shared-hero .bz-hero-banner h1{font-size:clamp(1.35rem,3vw,2.05rem);color:#fff;line-height:1.32;margin:0;font-weight:750;width:100%;text-wrap:balance}
+.bz-shared-hero .bz-title-phrase{display:block;text-wrap:balance}
 .bz-shared-info{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}
 .bz-deadline{display:flex;align-items:flex-start;gap:9px;min-width:0;background:#f0f4f7;border:1px solid #e3e9ee;border-radius:10px;padding:12px}
 .bz-deadline>div{min-width:0;display:grid;gap:4px}
@@ -41,10 +42,8 @@
 .bz-shared-preview[data-device=mobile] .bz-info-label{font-size:.73rem}
 .bz-shared-preview[data-device=mobile] .bz-deadline .bz-info-icon{width:18px;height:18px}
 .bz-shared-preview[data-device=mobile] .bz-hero-banner h1{font-size:1.2rem;line-height:1.45;text-wrap:balance;width:100%}
-.bz-shared-preview[data-device=mobile] .bz-title-phrase{display:block;text-wrap:balance}
 @media(max-width:600px){
  .bz-shared-hero .bz-hero-banner h1{font-size:clamp(1.12rem,4.5vw,1.35rem);line-height:1.45;text-wrap:balance;width:100%}
- .bz-shared-hero .bz-title-phrase{display:block;text-wrap:balance}
 }
 .bz-shared-product{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:clamp(8px,2vw,20px);align-items:center;padding:16px 0;border-bottom:1px solid #e1e5e9}
 .bz-shared-photo{position:relative;align-self:start}
