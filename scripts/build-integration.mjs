@@ -3,15 +3,18 @@ import {readFileSync,writeFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 
 const design=process.env.ASICC_DESIGN_PREVIEW==='true';
-const site=design?'https://design-asicc-ui.asicc-integration-test.pages.dev':'https://asicc-integration-test.pages.dev';
+const baseline=process.env.ASICC_BASELINE_TEST==='true'||process.env.CF_PAGES_BRANCH==='test-cms-fr';
+if(baseline&&design)throw new Error('Conflicting test build targets');
+const site=baseline?'https://asicc-test.pages.dev':design?'https://design-asicc-ui.asicc-integration-test.pages.dev':'https://asicc-integration-test.pages.dev';
 const worker='https://asicc-bazaar-test-api.falling-hall-f390.workers.dev';
-const key=process.env.PUBLIC_ASICC_BAZAAR_TEST_API_KEY?.trim();
-const appId=process.env.PUBLIC_ASICC_BAZAAR_TEST_APP_ID?.trim();
+// Public web configuration from the existing isolated test deployment.
+const key=process.env.PUBLIC_ASICC_BAZAAR_TEST_API_KEY?.trim()||(baseline?'AIzaSyBKYgkMrEVeGwmFtgxgiQMzQCG8UWV5Ego':'');
+const appId=process.env.PUBLIC_ASICC_BAZAAR_TEST_APP_ID?.trim()||(baseline?'1:678821978206:web:a5d3bc7303fafe253dd4cf':'');
 if(!key || !appId || key==='test-project-api-key-required'){
  console.error('Set PUBLIC_ASICC_BAZAAR_TEST_API_KEY and PUBLIC_ASICC_BAZAAR_TEST_APP_ID from the existing asicc-bazaar-test Firebase web app in the Pages environment.');
  process.exit(1);
 }
-const expectedBranch=design?'design/asicc-ui':'feat/online-bazaar';
+const expectedBranch=baseline?'test-cms-fr':design?'design/asicc-ui':'feat/online-bazaar';
 if(process.env.CF_PAGES_BRANCH && process.env.CF_PAGES_BRANCH!==expectedBranch){
  console.error('Unexpected ASICC test build branch.');
  process.exit(1);
