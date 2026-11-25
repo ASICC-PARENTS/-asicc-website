@@ -1,4 +1,5 @@
 ---
+import BuyerNotice from '../../../lib/bazaar/BuyerNotice.astro';
 import BuyerTerms from '../../../lib/bazaar/BuyerTerms.astro';
 import '../../../lib/bazaar/buyer.css';
 import Base from '../../../layouts/Base.astro';
@@ -20,14 +21,7 @@ const lang = Astro.params.lang as Lang;
   </div>
   <div id="bz-shop" hidden>
   <div id="bz-status" role="status" class="bz-note">{L(lang,{ko:'상품 목록을 불러오는 중입니다…',fr:'Chargement des produits…'})}</div>
-  <aside class="buyer-section bz-before" aria-labelledby="bz-buying-notice">
-    <h2 id="bz-buying-notice">{L(lang,{ko:'구매 전 확인해 주세요',fr:'À vérifier avant de commander'})}</h2>
-    <ul>
-      <li id="bz-transfer-window"></li>
-      <li>{L(lang,{ko:'협회의 입금 확인 후 주문이 확정됩니다.',fr:'L’association confirme la commande après réception du virement.'})}</li>
-      <li>{L(lang,{ko:'안내된 일시와 장소에서 상품을 수령해 주세요.',fr:'Retirez vos articles à la date et au lieu indiqués.'})}</li>
-    </ul>
-  </aside>
+  <BuyerNotice lang={lang} />
   <section class="buyer-section" aria-labelledby="bz-products-h"><h2 id="bz-products-h">{L(lang,{ko:'상품 목록',fr:'Nos produits'})}</h2><div id="bz-products"></div></section>
   <section class="buyer-section bz-basket" aria-labelledby="bz-cart-title"><h2 id="bz-cart-title">{L(lang,{ko:'장바구니',fr:'Votre panier'})}</h2><div id="bz-cart"></div>
     <div class="buyer-total"><span>{L(lang,{ko:'합계',fr:'Total'})}</span><strong id="bz-total">0,00 €</strong></div>
@@ -58,7 +52,7 @@ const lang = Astro.params.lang as Lang;
 </Base>
 
 <script>
-import {paymentGuidance,transferIdentification} from '../../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
+import {formatParisPaymentDeadline,paymentGuidance,transferIdentification} from '../../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
 import {orderIntakeState} from '../../../../firebase-functions-bazaar/bazaar/order-intake.mjs';
 import "../../../lib/bazaar/shop-view.css";
 import {bindStorageLabels,changeCartQuantity,quantityCap,renderShopEvent,renderShopProducts} from "../../../lib/bazaar/shop-view";
@@ -102,7 +96,9 @@ function render(){
   const closed=isClosed();
   const transferDeadline=parisDeadline(event.transferCutoff,lang);
   const [paymentHeading,...paymentNotes]=paymentGuidance(lang,event.paymentHours);
-  $('#bz-transfer-window').textContent=paymentNotes[0];
+  const hours=event.paymentHours??24;
+  $('#bz-transfer-heading').textContent=t('주문 후 '+hours+'시간 이내 송금','Paiement par virement sous '+hours+' heures');
+  $('#bz-transfer-window').textContent=t('주문 완료 후 '+hours+'시간 이내에 송금해 주세요. 단, 행사 전체 송금 마감이 더 빠른 경우에는 해당 마감 시간이 적용됩니다.','Veuillez effectuer votre virement dans les '+hours+' heures suivant votre commande. Si la date limite générale de paiement du bazar intervient plus tôt, cette dernière s’applique.');
   $('#bz-payment-rules').innerHTML='<h4>'+h(paymentHeading)+'</h4>'+
     paymentNotes.concat(transferIdentification(lang)).map(line=>'<p>'+h(line)+'</p>').join('');
   $('#bz-status').textContent=intakeState()==='unavailable'?t('계좌 등록 및 상품 확인 후 주문을 시작합니다.','La boutique sera ouverte après validation des produits et du compte bancaire.')
@@ -215,7 +211,8 @@ async function sendOrder(){
     receipt.innerHTML=`<h1>${t('주문이 정상적으로 접수되었습니다.','Votre commande a bien été enregistrée.')}</h1>
       <p class="buyer-hint">${mailMessage[status]||mailMessage.unknown}</p>
       <dl class="buyer-facts"><div><dt>${t('주문번호','Référence')}</dt><dd>${h(result.orderRef)}</dd></div>
-      <div><dt>${t('주문 금액','Montant de la commande')}</dt><dd><strong>${eFormat(result.totalCents)}</strong></dd></div></dl>
+      <div><dt>${t('주문 금액','Montant de la commande')}</dt><dd><strong>${eFormat(result.totalCents)}</strong></dd></div>
+      <div><dt>${t('송금 마감','Date limite de virement')}</dt><dd>${h(formatParisPaymentDeadline(result.transferCutoff,lang))}</dd></div></dl>
       <div class="buyer-actions"><a class="buyer-link" href="${h(link)}" rel="noreferrer">${t('주문 조회 링크','Lien de suivi de la commande')}</a>
       <a class="buyer-btn" href="${h(paymentLink)}" rel="noreferrer">${t('송금 정보 보기','Voir les coordonnées bancaires')}</a></div>`;
     receipt.focus();

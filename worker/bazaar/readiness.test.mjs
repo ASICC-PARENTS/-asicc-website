@@ -1,3 +1,4 @@
+import { formatParisPaymentDeadline, personalTransferDeadline } from '../../firebase-functions-bazaar/bazaar/payment-window.mjs';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { test } from 'node:test';
@@ -80,8 +81,8 @@ test('customer mail templates use the order language and preserve the private fo
   const event = { beneficiary:'Test Association', iban:'TEST', transferCutoff:'2026-07-20T15:45:00Z',
     pickupKo:'한국어 수령 안내', pickupFr:'Instructions de retrait', contactEmail:'help@example.test' };
   for(const [lang,labels] of [
-    ['ko',['주문 접수','주문 확정','송금 마감 안내','주문 취소','주문 취소 안내']],
-    ['fr',['Commande reçue','Commande confirmée','Rappel avant la date limite de virement','Commande annulée','Commande annulée faute de paiement']]
+    ['ko',['주문 접수','주문 확정','송금 기한 안내','주문 취소','주문 취소 안내']],
+    ['fr',['Commande reçue','Commande confirmée','Rappel de paiement','Commande annulée','Commande annulée faute de paiement']]
   ]){
     const fr=lang==='fr';
     const url=`${site}/${lang}/bazaar/commande/?id=${order.id}#token=${order.buyerToken}`;
@@ -95,8 +96,8 @@ test('customer mail templates use the order language and preserve the private fo
       assert.ok(rendered.html.includes(`href="${url}"`));
       assert.ok(rendered.html.includes('Test &amp; &lt;buyer&gt;'));
       if(type==='receipt'||type==='reminderFinal'){
-        assert.ok(rendered.text.includes(fr?'Date limite du virement (heure de Paris)':'송금 마감 (파리 시간)'));
-        assert.match(rendered.text,fr?/17:45/:/오후 5:45/);
+        assert.ok(rendered.text.includes(fr?'Date limite de virement':'송금 마감'));
+        assert.match(rendered.text,fr?/17h45/:/17:45/);
       }else assert.doesNotMatch(rendered.text,/IBAN/);
       if(type==='receipt')assert.ok(rendered.html.includes('&lt;note&gt;'));
     }
@@ -424,4 +425,38 @@ test('R9.1 private evidence and immutable accounting reconcile 145 less 65, 50 a
   const ref=db.doc('bazaarEventFinancials/'+eventId);
   assert.equal((await ref.collection('snapshots').get()).size,2);
   assert.ok((await ref.collection('audit').get()).docs.some(row=>row.data().action==='reopen'));
+});
+
+test('November cutoffs apply the earlier Paris deadline to both customer emails', () => {
+  const {message}=createBazaar({db:{doc(){},collection(){}},siteUrl:()=>site});
+  const event={status:'published',orderCutoff:'2026-11-27T17:00:00.000Z',transferCutoff:'2026-11-27T21:00:00.000Z',
+    paymentHours:24,beneficiary:'Fixture Association',iban:'FR7610278060220002261190128'};
+  const cases=[
+    ['2026-11-25T15:20:00Z','2026-11-26T15:20:00.000Z'],
+    ['2026-11-26T17:00:00Z','2026-11-27T17:00:00.000Z'],
+    ['2026-11-26T21:00:00Z','2026-11-27T21:00:00.000Z'],
+    ['2026-11-27T08:00:00Z','2026-11-27T21:00:00.000Z'],
+    ['2026-11-27T14:00:00Z','2026-11-27T21:00:00.000Z'],
+    ['2026-11-27T16:59:00Z','2026-11-27T21:00:00.000Z'],
+  ];
+  for(const [createdAt,expected] of cases){
+    const paymentDeadline=personalTransferDeadline(createdAt,event);
+    assert.equal(paymentDeadline,expected);
+    for(const lang of ['ko','fr']){
+      const order={id:id(),buyerToken:id()+id(),orderRef:'BZ010001',lang,createdAt,paymentDeadline,totalCents:3020,name:'Fixture buyer'};
+      for(const type of ['receipt','reminderFinal']){
+        const mail=message(order,type,{...event,transferCutoff:'2026-11-28T21:00:00Z'},{},{},{testMode:true});
+        assert.ok(mail.text.includes(formatParisPaymentDeadline(expected,lang)));
+        assert.match(mail.subject,/^\[TEST\] \[ASICC\].* · BZ010001$/u);
+        assert.match(mail.html,/^<!doctype html>[\s\S]*<table/);
+        assert.match(mail.html,/focus=report/);
+        assert.match(mail.html,/FR76 1027 8060 2200 0226 1190 128/);
+        assert.doesNotMatch(mail.html,/<pre\b/i);
+        assert.doesNotMatch(message({...order,transferReportedAt:createdAt},type,event).html,/focus=report|focus=cancel/);
+      }
+    }
+  }
+  assert.equal(formatParisPaymentDeadline(event.transferCutoff,'fr'),'vendredi 27 novembre 2026 à 22h00 (heure de Paris)');
+  assert.equal(formatParisPaymentDeadline(event.transferCutoff,'ko'),'2026년 11월 27일 22:00 (파리 현지 시간)');
+  assert.match(formatParisPaymentDeadline('2026-07-20T15:45:00Z','fr'),/17h45/);
 });

@@ -49,7 +49,7 @@ function dependencies(env, origin, ctx) {
       return Promise.resolve(false);
     },
     queueFields: mailFields, mailAdmin:mailManagement.admin,
-    batchFinalization: true, receiptCapture: env.MAIL_MODE === 'capture'
+    batchFinalization: true, receiptCapture: env.MAIL_MODE === 'capture', emailPreviewTest: env.BAZAAR_MODE === 'test'
   });
   return { photos, mail, mailManagement, service, site };
 }

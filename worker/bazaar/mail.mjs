@@ -126,15 +126,10 @@ export function createMail(env, db, send = fetch) {
         return null;
       }
       const kind=mailKind(job.type,order);
-      const payload = { ...message({...order,...job.change}, job.type, order.eventSnapshot,{...policy?.templates?.[kind],...job.template},job.change), to: order.email };
-      if (directTestMail) {
-        const notice=order.lang==='fr'
-          ? 'TEST ASICC — Commande de test. Aucun virement n’est attendu.'
-          : 'ASICC 테스트 — 검수 주문이며 송금할 필요가 없습니다.';
-        payload.subject='[TEST] '+payload.subject;
-        payload.text=notice+'\n\n'+payload.text;
-        payload.html='<p><strong>'+notice+'</strong></p>'+payload.html;
-      }
+      const checkout = job.type==='receipt' ? (await tx.get(db.doc('bazaarMeta/event'))).data() : active?.data();
+      const payload = { ...message({...order,...job.change}, job.type, order.eventSnapshot,
+        {...policy?.templates?.[kind],...job.template},job.change,
+        {testMode:env.BAZAAR_MODE==='test',liveEvent:checkout?.eventId===order.eventId?checkout:{status:'closed'}}), to: order.email };
       const providerKey = job.providerKey ?? randomUUID();
       if (!isCapture) {
         const monthly = provider==='resend' ? usage.doc(`resend-month-${quotaDate.format(time).slice(0,7)}`) : null;

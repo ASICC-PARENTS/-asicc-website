@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { createHash, randomBytes } from 'node:crypto';
 import { createFirestore } from './firestore.mjs';
 import { createPhotos } from './photos.mjs';
+import { renderOrderEmail } from '../../firebase-functions-bazaar/bazaar/order-email.mjs';
 import { createMail, mailFields } from './mail.mjs';
 
 const project = 'demo-asicc-bazaar';
@@ -389,8 +390,8 @@ test('direct Brevo rehearsal delivers only new test orders to their entered addr
   const previous=db.doc('bazaarOutbox/'+orderId+'_old');
   const fresh=db.doc('bazaarOutbox/'+orderId+'_new');
   const job={...mailFields('receipt',when(-1000)),orderId,eventId,type:'receipt',createdAt:when(-120000)};
-  const template=()=>({subject:'Order received',text:'Body',html:'<p>Body</p>'});
-  await order.set({id:orderId,eventId,lang:'fr',email:'new-buyer@example.test',createdAt:when(-120000)});
+  const template=(order,type,event,template,change,options)=>renderOrderEmail({order,type,event,template,change,...options,site:'https://example.test'});
+  await order.set({id:orderId,eventId,lang:'fr',orderRef:'BZ010001',buyerToken:id()+id(),totalCents:500,email:'new-buyer@example.test',createdAt:when(-120000)});
   await previous.set(job);
   await fresh.set({...job,createdAt:when(-1000)});
   assert.equal(await mail.deliver(previous.id,template),false);
@@ -401,9 +402,11 @@ test('direct Brevo rehearsal delivers only new test orders to their entered addr
   assert.equal(await mail.deliver(fresh.id,template),true);
   assert.equal(await mail.deliver(fresh.id,template),false);
   assert.equal(sent.length,1);
-  assert.equal(sent[0].subject,'[TEST] Order received');
+  assert.equal(sent[0].subject,'[TEST] [ASICC] Commande reçue · BZ010001');
   assert.equal(sent[0].messageVersions[0].to[0].email,'new-buyer@example.test');
   assert.match(sent[0].textContent,/Aucun virement/);
+  assert.match(sent[0].htmlContent,/^<!doctype html>[\s\S]*<table/);
+  assert.doesNotMatch(sent[0].htmlContent,/<pre\b/i);
 });
 
 test('concurrent checkouts preserve stock, receipts and administrator changes', { timeout: 150000 }, async t => {

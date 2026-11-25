@@ -1,9 +1,10 @@
 import {orderPaymentSummary} from './order-payments.mjs';
 import {validRefundIban} from './iban.mjs';
-import {defaultPaymentHours,paymentGuidance,personalTransferDeadline,transferIdentification} from './payment-window.mjs';
-import {orderTerms,orderTermsVersion,pickupTerms,pickupContact} from './order-terms.mjs';
+import {defaultPaymentHours,personalTransferDeadline} from './payment-window.mjs';
+import {orderTermsVersion} from './order-terms.mjs';
 import {randomBytes, timingSafeEqual, createHash} from 'node:crypto';
 import {catalogue, initialEvent} from './products.mjs';
+import {renderOrderEmail} from './order-email.mjs';
 import {hasCheckoutAccount,latestTransferCutoff,orderIntakeLocked,orderIntakeState} from './order-intake.mjs';
 
 export class BazaarError extends Error {
@@ -26,7 +27,7 @@ function depositDetails(data) {
 
 export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePhoto, eventPhoto, siteUrl,
   sendQueuedMail, canSendMail, queueFields = () => ({}), mailAdmin, evidence, batchFinalization = false,
-  receiptCapture = false }) {
+  receiptCapture = false, emailPreviewTest = false }) {
   const eventRef=db.doc('bazaarMeta/event');
   const products=db.collection('bazaarProducts');
   const orders=db.collection('bazaarOrders');
@@ -119,8 +120,6 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
   const cents=n=>Number.isSafeInteger(n)&&n>=0&&n<=1_000_000_00;
   const euro=c=>(c/100).toFixed(2)+' €';
   const now=()=>new Date().toISOString();
-  const localDate=(d,locale)=>Number.isFinite(Date.parse(d))
-    ?new Intl.DateTimeFormat(locale,{timeZone:'Europe/Paris',dateStyle:'short',timeStyle:'short'}).format(new Date(d)):'—';
   const stockCap=p=>p.limitMode==='unlimited'?null:p.limitMode==='box'?(p.packQty*(p.plannedBoxes??0)):p.manualLimit;
   const esc=t=>String(t??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
   const validUrl=v=>!v||(/^https:\/\/[^\s]+$/.test(v)&&v.length<=1200);
@@ -227,87 +226,9 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     tx.create(outbox.doc(id),{orderId,type,createdAt:now(),sentAt:null,attempts:0,...queueFields(type),...fields});
     return id;
   }
-  function links(order){
-    const origin=siteUrl();
-    const base=`${origin}/${order.lang==='fr'?'fr':'ko'}/bazaar/commande/`;
-    return `${base}?id=${encodeURIComponent(order.id)}#token=${encodeURIComponent(order.buyerToken)}`;
-  }
-  function message(order,type,event={},template={},change={}){
-    const fr=order.lang==='fr';
-    const t=(ko,french)=>fr?french:ko;
-    const contact=pickupContact;
-    let [title,intro]=({
-      receipt:[t('바자회 주문 접수','Commande reçue'),t('주문이 접수되었습니다. 아직 입금 확인 또는 주문 확정 상태는 아닙니다.',
-        'Nous avons reçu votre commande. Elle sera confirmée après réception du virement.')],
-      reported:[t('송금 완료 알림 접수','Signalement de virement reçu'),t('송금 완료 알림이 접수되었습니다. 실제 입금 확인 및 주문 확정은 별도로 진행됩니다.',
-        'Votre signalement a été reçu. La validation du virement et la confirmation de la commande suivront.')],
-      confirmed:[t('바자회 주문 확정','Commande confirmée'),t('입금이 확인되어 주문이 확정되었습니다. 감사합니다!',
-        'Nous avons reçu votre virement et votre commande est confirmée. Merci !')],
-      cancel:[t('바자회 주문 취소','Commande annulée'),t('주문이 취소되었습니다.','Votre commande a été annulée.')],
-      bulkCancel:[t('바자회 주문 취소 안내','Commande annulée faute de paiement'),t(
-        `최종 입금 확인 시점까지 입금이 확인되지 않아 주문이 취소되었습니다. 이미 송금하셨다면 주문번호와 송금일을 ${contact}로 알려주세요.`,
-        `Votre commande a été annulée faute de paiement confirmé. Si vous avez déjà effectué le virement, envoyez sa date et votre référence de commande à ${contact}.`)],
-      reminder3:[t('바자회 송금 안내','Rappel de virement'),t('아직 송금 완료 표시가 접수되지 않았습니다. 송금을 마치셨다면 아래 주문 관리 링크에서 알려주세요.',
-        'Nous n’avons pas encore reçu votre signalement de virement. Si vous avez déjà payé, signalez-le via le lien de suivi ci-dessous.')],
-      orderChanged:[t('바자회 주문 변경','Commande modifiée'),t('운영진이 주문 내역을 변경했습니다.','L’association a modifié votre commande.')],
-      additionalPayment:[t('바자회 추가 송금 안내','Virement complémentaire'),t('변경된 주문에 추가 송금이 필요합니다.','Un virement complémentaire est nécessaire.')],
-      refundCompleted:[t('바자회 환불 완료','Remboursement effectué'),t('은행 환불을 처리했습니다.','Le remboursement bancaire a été effectué.')],
-      pickup:[t('상품 수령 안내','Retrait des produits'),t('행사 안내에 따라 상품을 수령해 주세요.','Veuillez suivre les indications de retrait.')],
-      reminderFinal:[t('바자회 송금 마감 안내','Rappel avant la date limite de virement'),t('송금 마감 안내입니다. 아직 송금 완료 표시가 접수되지 않았습니다.',
-        'La date limite de virement approche. Nous n’avons pas encore reçu votre signalement de virement.')]
-    })[type]||[t('바자회 안내','Informations sur la vente solidaire'),t('주문 안내','Informations sur votre commande')];
-    title=t(template.subjectKo,template.subjectFr)||title;
-    intro=t(template.introKo,template.introFr)||intro;
-    const subject=`[ASICC] ${title}`;
-    const items=order.items.map(i=>`• ${t(i.titleKo||i.titleFr,i.titleFr||i.titleKo)} × ${i.qty} = ${euro(i.qty*i.priceCents)}`).join('\n');
-    const note=type==='receipt'&&order.pickupNote
-      ?`\n\n${t('판매자에게 전달할 사항','Informations complémentaires pour le retrait')}\n${order.pickupNote}`:'';
-    const url=links(order);
-    const action=t('주문 관리 페이지','Consulter la commande');
-    const eventName=t(event.nameKo,event.nameFr);
-    const details=[...(eventName?[eventName]:[]),`${t('주문번호','Référence de commande')}: ${order.orderRef}\n${t('주문자','Nom')}: ${order.name}${note}`,
-      items,`${t('주문 총액','Total')}: ${euro(order.totalCents)}`];
-    if(['receipt','reported','reminder3','reminderFinal'].includes(type)){
-      details.push(`${t('수취인','Bénéficiaire')}: ${event.beneficiary}\nIBAN: ${event.iban}\n${t('송금 금액','Montant du virement')}: ${euro(order.totalCents)}\n${t('송금 메모','Référence du virement')}: ${order.orderRef}\n${t('송금 마감 (파리 시간)','Date limite du virement (heure de Paris)')}: ${localDate(order.paymentDeadline||event.transferCutoff,t('ko-KR','fr-FR'))}`);
-    }
-    if(['receipt','reminderFinal'].includes(type)&&order.paymentHours!=null)details.push(paymentGuidance(order.lang,order.paymentHours).join('\n'));
-    if(type==='additionalPayment'){
-      const due=change.amountCents??orderPaymentSummary(order).additionalDue;
-      details.push([t('추가 입금액','Complément à verser')+': '+euro(due),t('수취인','Bénéficiaire')+': '+event.beneficiary,'IBAN: '+event.iban,t('송금 메모','Référence du virement')+': '+order.orderRef].join('\n'));
-    }
-    if(['receipt','additionalPayment'].includes(type))details.push(transferIdentification(order.lang));
-    if(type==='refundCompleted'&&change.amountCents){
-      details.push([t('환불액','Montant remboursé')+': '+euro(change.amountCents),t('환불 시각','Date du remboursement')+': '+localDate(change.at,t('ko-KR','fr-FR'))].join('\n'));
-    }
-    const pickup=[event.pickupAt?localDate(event.pickupAt,t('ko-KR','fr-FR')):'',event.pickupPlace,t(event.pickupKo||event.pickupFr,event.pickupFr||event.pickupKo)].filter(Boolean).join('\n');
-    if(pickup&&['receipt','confirmed','reminderFinal','pickup'].includes(type))details.push(`${t('수령','Retrait')}: ${pickup}`);
-    details.push(`${t('문의','Contact')}: ${contact}`);
-    if(['receipt','confirmed','reminderFinal','pickup'].includes(type)){
-      const terms=orderTerms[fr?'fr':'ko'];
-      details.push([terms.title,...terms.lines].join('\n'));
-    }
-    const actions=['receipt','reminderFinal'].includes(type)&&!order.transferReportedAt&&!order.bankConfirmedAt&&!order.canceledAt?
-      [[t('송금 완료 알리기','Signaler le virement'),'report'],...(buyerCanCancel(event)?[[t('주문 취소하기','Annuler ma commande'),'cancel']]:[])]:[];
-    const linksHtml=actions.map(([label,target])=>'<p><a href="'+esc(url+'&focus='+target)+'">'+esc(label)+'</a></p>').join('');
-    const linksText=actions.map(([label,target])=>label+': '+url+'&focus='+target).join('\n');
-    if(type==='other'){
-      details.length=0;
-      const fields=template.fields||[];
-      if(fields.includes('event')&&eventName)details.push(eventName);
-      if(fields.includes('order'))details.push(t('주문번호','Référence de commande')+': '+order.orderRef);
-      if(fields.includes('items'))details.push(items);
-      if(fields.includes('total'))details.push(t('주문 총액','Total')+': '+euro(order.totalCents));
-      if(fields.includes('pickup')&&pickup)details.push(t('수령','Retrait')+': '+pickup);
-      if(fields.includes('deadline'))details.push(t('송금 마감','Date limite de virement')+': '+localDate(order.paymentDeadline||event.transferCutoff,t('ko-KR','fr-FR')));
-      details.push(t('문의','Contact')+': '+contact);
-    }
-    const body=details.join('\n\n');
-    const pickupPolicy=['confirmed','pickup'].includes(type)?pickupTerms[fr?'fr':'ko']:null;
-    const pickupText=pickupPolicy?'\n\n'+[pickupPolicy.title,...pickupPolicy.lines,pickupPolicy.contact+': '+contact].join('\n'):'';
-    const pickupHtml=pickupPolicy?'<h3>'+esc(pickupPolicy.title)+'</h3>'+pickupPolicy.lines.map(line=>'<p>'+esc(line)+'</p>').join('')+
-      '<p>'+esc(pickupPolicy.contact)+': <a href="mailto:'+contact+'">'+contact+'</a></p>':'';
-    return{subject,text:`${intro}\n\n${body}${pickupText}\n\n${action}: ${url}${linksText?'\n'+linksText:''}`,
-      html:`<div style="font:15px/1.7 Arial,sans-serif;max-width:650px"><h2>${esc(subject)}</h2><p>${esc(intro)}</p><pre style="white-space:pre-wrap;font:inherit">${esc(body)}</pre>${pickupHtml}<p><a href="${esc(url)}" style="color:#932b35">${esc(action)}</a></p>${linksHtml}</div>`};
+  function message(order,type,event={},template={},change={},options={}){
+    return renderOrderEmail({order,type,event,template,change,site:siteUrl(),
+      canCancel:buyerCanCancel(options.liveEvent??event,order),testMode:options.testMode??emailPreviewTest});
   }
   const deliver = mailId => sendQueuedMail(mailId, message);
   async function bazaarPublic(req){
@@ -895,7 +816,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         const removed=order.items.map(item=>({...item,qty:item.qty-quantities.get(item.id)})).filter(item=>item.qty>0);
         tx.update(ref,{items,totalCents,modifiedAt:changed.at,originalItems:order.originalItems||order.items,canceledItems:[...(order.canceledItems||[]),...removed],originalTotalCents:payment.original,depositedCents:payment.deposited,refundedCents:payment.refunded,revision:changed.revision,productHistoryIds:[...new Set([...(order.productHistoryIds||[]),...order.items.map(item=>item.id),...items.map(item=>item.id)])]});
         if(order.email){
-          const fields={eventId,change:{items,totalCents}};
+          const fields={eventId,change:{items,totalCents,previousTotalCents:order.totalCents}};
           await queue(tx,id,'orderChanged',{...fields,jobKey:'orderChanged-'+changed.revision});
           const due=orderPaymentSummary({...order,totalCents}).additionalDue;
           if(order.bankConfirmedAt&&due>0)await queue(tx,id,'additionalPayment',{...fields,jobKey:'additionalPayment-'+changed.revision,change:{items,totalCents,amountCents:due}});
@@ -1119,7 +1040,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
             if(record.restoreStock)inventory.forEach((doc,i)=>tx.update(doc.ref,{soldQty:FieldValue.increment(restored[i].qty)}));
             tx.create(ref.collection('corrections').doc(String(revision)),{revision,at,by:uid,reason,restoredRefundId:key,
               before:{items:order.items,totalCents:order.totalCents},after:before});
-            if(order.email)await queue(tx,id,'orderChanged',{eventId,jobKey:'orderChanged-'+revision,change:before});
+            if(order.email)await queue(tx,id,'orderChanged',{eventId,jobKey:'orderChanged-'+revision,change:{...before,previousTotalCents:order.totalCents}});
             change.orderRestored=true;
           }
           tx.update(document,change);tx.update(ref,patch);
@@ -1187,7 +1108,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
           tx.create(ref.collection('corrections').doc(String(revision)),{revision,at,by:uid,reason,refundId:key,
             before:{items:order.items,totalCents:order.totalCents},after:{items:afterItems,totalCents:total}});
           inventory.forEach((doc,i)=>tx.update(doc.ref,{soldQty:FieldValue.increment(-canceled[i].qty)}));
-          if(order.email)await queue(tx,id,'orderChanged',{eventId,jobKey:'orderChanged-'+revision,change:{items:afterItems,totalCents:total}});
+          if(order.email)await queue(tx,id,'orderChanged',{eventId,jobKey:'orderChanged-'+revision,change:{items:afterItems,totalCents:total,previousTotalCents:order.totalCents}});
         }
         tx.create(document,next);tx.update(ref,patch);
         return {refund:next,payment:orderPaymentSummary({...order,...patch})};

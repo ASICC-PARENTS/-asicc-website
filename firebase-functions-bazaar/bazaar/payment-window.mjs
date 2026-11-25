@@ -1,4 +1,17 @@
 export const defaultPaymentHours=24;
+export const paymentHoursFor=event=>event?.paymentHours??defaultPaymentHours;
+
+export function formatParisPaymentDeadline(value,lang){
+ const at=Date.parse(value??'');
+ if(!Number.isFinite(at))return '—';
+ const parts=Object.fromEntries(new Intl.DateTimeFormat(lang==='fr'?'fr-FR':'ko-KR',{
+  timeZone:'Europe/Paris',weekday:'long',year:'numeric',month:lang==='fr'?'long':'numeric',day:'numeric',
+  hour:'2-digit',minute:'2-digit',hourCycle:'h23'
+ }).formatToParts(at).map(part=>[part.type,part.value]));
+ return lang==='fr'
+  ? `${parts.weekday} ${parts.day} ${parts.month} ${parts.year} à ${parts.hour}h${parts.minute} (heure de Paris)`
+  : `${parts.year}년 ${parts.month}월 ${parts.day}일 ${parts.hour}:${parts.minute} (파리 현지 시간)`;
+}
 
 export const transferIdentification=lang=>lang==='fr'
  ? 'Indiquez uniquement votre numéro de commande dans le libellé du virement, y compris si vous payez depuis le compte d’une autre personne.'
@@ -6,7 +19,7 @@ export const transferIdentification=lang=>lang==='fr'
 
 export function personalTransferDeadline(createdAt,event){
  const start=Date.parse(createdAt),overall=Date.parse(event.transferCutoff);
- const hours=event.paymentHours??defaultPaymentHours;
+ const hours=paymentHoursFor(event);
  if(!Number.isFinite(start))return event.transferCutoff||null;
  const personal=start+hours*3600000;
  return new Date(Number.isFinite(overall)?Math.min(personal,overall):personal).toISOString();

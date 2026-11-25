@@ -29,12 +29,23 @@ const lang = Astro.params.lang as Lang;
         </div>
       </form>
     </dialog>
+    <dialog class="buyer-dialog" id="bo-report-dialog" aria-labelledby="bo-report-title">
+      <form method="dialog">
+        <h2 id="bo-report-title">{L(lang,{ko:'송금을 완료하셨나요?',fr:'Avez-vous effectué le virement ?'})}</h2>
+        <p>{L(lang,{ko:'협회에서 금액을 확인한 뒤 주문이 확정됩니다.',fr:'L’association confirmera votre commande après réception du virement.'})}</p>
+        <div class="buyer-actions">
+          <button class="buyer-btn buyer-secondary" value="keep" autofocus>{L(lang,{ko:'닫기',fr:'Fermer'})}</button>
+          <button class="buyer-btn" value="report">{L(lang,{ko:'송금 신고 확인',fr:'Confirmer le signalement'})}</button>
+        </div>
+      </form>
+    </dialog>
     <p id="bo-feedback" class="buyer-hint buyer-no-print" role="status"></p>
   </div>
 </Base>
 <script>
-import {paymentGuidance,transferIdentification} from '../../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
-import {buyerAction,eFormat,h,parisDeadline} from '../../../lib/bazaar/api';
+import {formatParisPaymentDeadline,paymentGuidance,transferIdentification} from '../../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
+import {compactIban,displayIban} from '../../../../firebase-functions-bazaar/bazaar/iban.mjs';
+import {buyerAction,eFormat,h} from '../../../lib/bazaar/api';
 
 const root=document.querySelector<HTMLElement>('#bo')!;
 const lang=root.dataset.lang==='fr'?'fr':'ko';
@@ -62,11 +73,15 @@ if(params.has('token')||fragment.has('token')){
 }
 const panel=$('#bo-result');
 const dialog=$<HTMLDialogElement>('#bo-cancel-dialog');
+const reportDialog=$<HTMLDialogElement>('#bo-report-dialog');
+reportDialog.addEventListener('close',()=>{
+  if(reportDialog.returnValue==='report'&&!busy&&canReport())void change('report');
+});
 const ack=$<HTMLInputElement>('#bo-ack');
 const cancelConfirm=$<HTMLButtonElement>('#bo-cancel-confirm');
 ack.addEventListener('change',()=>{cancelConfirm.disabled=!ack.checked;});
 dialog.addEventListener('close',()=>{
-  if(dialog.returnValue==='cancel'&&ack.checked)void change('cancel',true);
+  if(dialog.returnValue==='cancel'&&ack.checked&&!busy&&canCancel())void change('cancel',true);
 });
 $('#bo-print').addEventListener('click',()=>window.print());
 let order:any=null;
@@ -107,9 +122,9 @@ function paymentSection(){
     <dl class="buyer-facts">
       ${fact(t('송금 금액','Montant à virer'),'<strong>'+eFormat(amount)+'</strong>')}
       ${fact(t('예금주','Bénéficiaire'),h(order.beneficiary))}
-      ${fact('IBAN',h(order.iban)+copy(order.iban,t('IBAN 복사','Copier l’IBAN')))}
+      ${fact('IBAN',h(displayIban(order.iban))+copy(compactIban(order.iban),t('IBAN 복사','Copier l’IBAN')))}
       ${fact(t('송금 메모','Libellé du virement'),h(order.orderRef)+copy(order.orderRef,t('송금 메모 복사','Copier le libellé du virement')))}
-      ${fact(t('송금 기한','Date limite du virement'),h(parisDeadline(order.transferCutoff,lang)))}
+      ${fact(t('송금 기한','Date limite du virement'),h(formatParisPaymentDeadline(order.transferCutoff,lang)))}
     </dl><div class="buyer-guidance buyer-no-print">
       <p>${h(guidance[2])}</p>
       ${canReport()?`<p>${t('송금을 완료하신 후 송금 완료 알리기 버튼을 눌러 주세요.','Une fois le virement effectué, cliquez sur « Signaler mon virement ».')}</p>`:''}
@@ -172,7 +187,7 @@ function draw(){
       :t('송금 기한까지 재고가 예약됩니다. 이 주문 조회 페이지를 저장해 두세요. 확인 이메일을 받으셨다면 이메일의 링크로도 다시 열 수 있습니다.',
          'Vos articles restent réservés jusqu’à la date limite de paiement. Conservez cette page de suivi ou rouvrez-la depuis l’e-mail de confirmation si vous l’avez reçu.');
     panel.innerHTML=`<section class="buyer-section"><h1>${heading}</h1><p>${message}</p>
-      ${reported?'':`<p>${t('송금 기한','Date limite du virement')} · ${h(parisDeadline(order.transferCutoff,lang))}</p>`}
+      ${reported?'':`<p>${t('송금 기한','Date limite du virement')} · ${h(formatParisPaymentDeadline(order.transferCutoff,lang))}</p>`}
       <div class="buyer-actions">${reported?'':actionButton('copy-link',t('주문 조회 링크 복사','Copier le lien de suivi'),'buyer-secondary')}
       ${actionButton('detail',t('주문 상세 보기','Voir le détail de la commande'),'buyer-secondary')}</div></section>`;
   }else if(stage==='payment'){
@@ -197,6 +212,19 @@ function setStage(next:string){
   heading?.setAttribute('tabindex','-1');
   heading?.focus();
 }
+function openAction(action:string){
+  if(busy)return;
+  if(action==='report'&&canReport()){
+    reportDialog.returnValue='';
+    reportDialog.showModal();
+  }
+  if(action==='cancel'&&canCancel()){
+    ack.checked=false;
+    cancelConfirm.disabled=true;
+    dialog.returnValue='';
+    dialog.showModal();
+  }
+}
 panel.addEventListener('click',async event=>{
   const target=(event.target as HTMLElement).closest<HTMLButtonElement>('button');
   if(!target||busy)return;
@@ -217,14 +245,7 @@ panel.addEventListener('click',async event=>{
   }
   switch(target.dataset.action){
     case 'report':
-      if(confirm(t('송금을 완료하셨나요?','Avez-vous effectué le virement ?')))await change('report');
-      break;
-    case 'cancel':
-      ack.checked=false;
-      cancelConfirm.disabled=true;
-      dialog.returnValue='';
-      dialog.showModal();
-      break;
+    case 'cancel':openAction(target.dataset.action);break;
     case 'later': setStage('later');break;
     case 'detail': setStage('detail');break;
   }
@@ -255,7 +276,11 @@ async function load(){
     order=(await buyerAction({id,token,action:'view'})).order;
     draw();
     const focus=fragment.get('focus');
-    if(focus==='report'||focus==='cancel')panel.querySelector<HTMLElement>(`[data-action="${focus}"]`)?.focus();
+    if(focus==='report'||focus==='cancel'){
+      fragment.delete('focus');
+      replaceLocation();
+      openAction(focus);
+    }
   }catch(err:any){
     panel.textContent=['functions/invalid-argument','functions/permission-denied'].includes(err?.code)
       ?t('주문 확인 링크를 다시 확인해 주세요.','Veuillez vérifier votre lien de suivi.')
