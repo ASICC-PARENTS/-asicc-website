@@ -26,10 +26,18 @@ const root=document.querySelector<HTMLElement>('#bo')!,lang=root.dataset.lang===
 const t=(ko:string,fr:string)=>lang==='fr'?fr:ko;
 const params=new URLSearchParams(location.search),id=params.get('id');
 const fragment=new URLSearchParams(location.hash.slice(1));
-const token=fragment.get('token')??params.get('token');
-if(params.has('token')){
+const linkToken=fragment.get('token')??params.get('token');
+const storageKey=id&&/^[A-Za-z0-9]{15,40}$/.test(id)?'asicc-bazaar-private-order:'+id:null;
+let token=linkToken;
+if(storageKey){
+ try{
+  if(linkToken&&/^[a-f0-9]{64}$/i.test(linkToken))sessionStorage.setItem(storageKey,linkToken);
+  else if(linkToken===null)token=sessionStorage.getItem(storageKey);
+ }catch{/* An open order link still works when session storage is disabled. */}
+}
+if(params.has('token')||fragment.has('token')){
  params.delete('token');
- if(token)fragment.set('token',token);
+ fragment.delete('token');
  history.replaceState(null,'',location.pathname+(params.size?'?'+params:'')+(fragment.size?'#'+fragment:''));
 }
 const panel=document.querySelector<HTMLElement>('#bo-result')!;

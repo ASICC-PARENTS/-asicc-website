@@ -196,7 +196,11 @@ test('publishing, closing and changing the next event preserve historical produc
   assert.doesNotMatch(JSON.stringify(awaiting),/synthetic internal note|Fixture operator|boxPrice/);
   const retryFinish={...scope,requestId:pending.requestId,completedAt:future(-2000),operator:'Fixture operator',reference:'mock-reference'};
   await Promise.all([admin('finishRefund',retryFinish),admin('finishRefund',retryFinish)]);
-  await admin('mailPolicy',{eventId:second.id,modes:{...modes,refundCompleted:'manual'},preferredModes:mailKinds});
+  await admin('mailPolicy',{eventId:second.id,modes:{...modes,orderChanged:'manual',refundCompleted:'manual'},preferredModes:mailKinds});
+  const changedJob=synthetic.id+'_orderChanged-1';
+  assert.equal((await admin('mailTransactionQueue',{eventId:second.id,jobId:changedJob,confirm:true})).queued,true);
+  assert.equal(await mail.deliver(changedJob,service.message),true);
+  assert.equal(await mail.deliver(changedJob,service.message),false);
   const jobId=synthetic.id+'_refundCompleted-'+pending.requestId;
   assert.equal((await admin('mailTransactionQueue',{eventId:second.id,jobId,confirm:true})).queued,true);
   assert.equal((await admin('mailTransactionQueue',{eventId:second.id,jobId,confirm:true})).queued,true);
@@ -228,6 +232,21 @@ test('publishing, closing and changing the next event preserve historical produc
   assert.equal((await admin('bankConfirm',initial)).changed,false);
   await assert.rejects(admin('bankConfirm',{...initial,amountCents:401}),{code:'already-exists'});
   assert.equal((await db.doc('bazaarOutbox/'+installment.id+'_confirmed').get()).exists,false);
+  const balanceJob=installment.id+'_additionalPayment-'+initial.requestId;
+  await assert.rejects(admin('mailTransactionQueue',{eventId:second.id,jobId:balanceJob,confirm:true}),{code:'failed-precondition'});
+  assert.equal((await db.doc('bazaarOutbox/'+balanceJob).get()).data().providerId,undefined);
+  await admin('mailPolicy',{eventId:second.id,modes:{...modes,orderChanged:'manual',additionalPayment:'manual',refundCompleted:'manual'},preferredModes:mailKinds});
+  await admin('mailTransactionQueue',{eventId:second.id,jobId:balanceJob,confirm:true});
+  await admin('mailTransactionQueue',{eventId:second.id,jobId:balanceJob,confirm:true});
+  assert.equal(await mail.deliver(balanceJob,service.message),true);
+  assert.equal(await mail.deliver(balanceJob,service.message),false);
+  const reviewedMail=(await admin('mailOverview',{eventId:second.id})).messages;
+  for(const id of [changedJob,jobId,balanceJob]){
+    const row=reviewedMail.find(message=>message.id===id);
+    assert.equal(row?.method,'capture');
+    assert.equal(row.mode,'manual');
+    assert.doesNotMatch(row.sentSnapshot.text,/#token=[a-f0-9]{64}/i);
+  }
   const installmentDeposit=amountCents=>({...paymentScope,amountCents,requestId:id(),type:'deposit',overpayment:true});
   const secondDeposit=installmentDeposit(150);
   await Promise.all([admin('recordOrderPayment',secondDeposit),admin('recordOrderPayment',secondDeposit)]);

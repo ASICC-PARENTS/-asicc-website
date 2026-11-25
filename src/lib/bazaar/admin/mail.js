@@ -35,7 +35,7 @@ async function jobAction(button,request,eventId) {
 export async function showOrderMail(id,target,eventId,request) {
   try {
     const {messages,latePayment}=await request('mailStatus',{id});
-    target.innerHTML=`${latePayment?'<p>최종 대조 후 입금 검토 대상</p>':''}${mailRows(messages)||'<p>발송 내역 없음</p>'}`;
+    target.innerHTML=`${latePayment==='posted'?'<p>늦은 입금 장부 반영 완료</p>':latePayment==='pending'?'<p>최종 대조 후 입금 검토 대상</p>':''}${mailRows(messages)||'<p>발송 내역 없음</p>'}`;
     target.onclick=async event=>{
       const button=event.target.closest('[data-mail-job]');
       if(!button||button.disabled)return;

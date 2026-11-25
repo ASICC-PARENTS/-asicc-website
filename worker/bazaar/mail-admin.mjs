@@ -92,7 +92,10 @@ export function createMailAdmin(db,mail) {
     if(op==='mailStatus'){
       if(!orderPattern.test(data.id??''))throw bad('주문 번호를 확인해 주세요.');
       const [messages,review]=await Promise.all([mail.status(data.id),db.doc(`bazaarLatePayments/${data.id}`).get()]);
-      return {messages, latePayment:review.data()?.status??null};
+      const entry=review.data();
+      return {messages,latePayment:entry?.status??null,
+        latePaymentDetails:entry?.status==='pending'?Object.fromEntries(['amountCents','actualDate','payer','operator','reference','note']
+          .map(key=>[key,entry[key]??null])):null};
     }
     const eventId=data.eventId;
     if(!idPattern.test(eventId??''))throw bad('바자회 행사를 확인해 주세요.');

@@ -633,8 +633,9 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
           tx.set(ref,result);return result;
         }
         const event=active.data()?.eventId===eventId?active.data():archive.data().event;
-        const [orderRows,purchaseRows]=await Promise.all([
+        const [orderRows,purchaseRows,lateRows]=await Promise.all([
           tx.get(orders.where('eventId','==',eventId)),tx.get(purchaseOrders.where('eventId','==',eventId)),
+          tx.get(db.collection('bazaarLatePayments').where('eventId','==',eventId)),
         ]);
         const balances=orderRows.docs.map(doc=>({...orderPaymentSummary(doc.data()),ref:doc.data().orderRef}));
         const activeEvidence=(old.evidence||[]).filter(row=>!row.voidedAt);
@@ -642,6 +643,8 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         const supplierSet=new Set(purchaseRows.docs.filter(doc=>doc.data().confirmed).map(doc=>doc.data().vendor));
         const orderSuppliers=new Set(orderRows.docs.filter(doc=>!doc.data().canceledAt).flatMap(doc=>doc.data().items.map(item=>item.supplier).filter(Boolean)));
         const errors=[];
+        if(lateRows.docs.some(doc=>doc.data().status==='pending'))
+          errors.push('장부에 반영하지 않은 늦은 입금 검토 건이 있습니다. / Des virements tardifs restent à comptabiliser.');
         if(event.status==='published'&&(!Number.isFinite(Date.parse(event.orderCutoff))||Date.now()<Date.parse(event.orderCutoff)))
           errors.push('주문 접수가 아직 열려 있습니다. / Les commandes sont encore ouvertes.');
         for(const balance of balances){
@@ -1458,10 +1461,28 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
             throw new HttpsError('already-exists','같은 요청 번호로 다른 거래를 기록할 수 없습니다.');
           return {changed:false,payment:orderPaymentSummary(o)};
         }
+        const reviewRef=db.doc(`bazaarLatePayments/${orderId}`);
+        if(data.applyReview===true){
+          const review=(await tx.get(reviewRef)).data();
+          if(review?.eventId!==o.eventId||review.orderId!==orderId||
+            review.amountCents!==amount||Object.entries(details).some(([field,value])=>(review[field]||'')!==value))
+            throw new HttpsError('failed-precondition','등록된 늦은 입금 검토 내역을 확인해 주세요.');
+          if(review.status==='posted')return {changed:false,payment:orderPaymentSummary(o)};
+          if(review.status!=='pending'||o.bankConfirmedAt)
+            throw new HttpsError('failed-precondition','이미 처리되었거나 검토할 수 없는 입금입니다.');
+          await requireOpenAccounting(tx,o.eventId);
+          const at=now(),patch={bankConfirmedAt:at,originalTotalCents:o.originalTotalCents??o.totalCents,depositedCents:amount,refundedCents:0};
+          tx.create(ledger,{...details,id:key,initial:true,type:'deposit',amountCents:amount,by:req.auth.uid,at,lateReview:true});
+          tx.update(ref,patch);
+          tx.update(reviewRef,{status:'posted',postedAt:at,postedBy:req.auth.uid,paymentId:key});
+          return {changed:true,payment:orderPaymentSummary({...o,...patch})};
+        }
         if(o.bankConfirmedAt)throw new HttpsError('failed-precondition','이미 최초 입금이 있습니다. 추가 입금으로 기록해 주세요.');
         if(active.data()?.eventId!==o.eventId||locked(active.data())){
-          const review=db.doc(`bazaarLatePayments/${orderId}`);
-          if(!(await tx.get(review)).exists)tx.create(review,{orderId,eventId:o.eventId,status:'pending',reportedAt:now(),reportedBy:req.auth.uid,amountCents:amount,...details});
+          const review=(await tx.get(reviewRef)).data();
+          if(review&&(review.amountCents!==amount||Object.entries(details).some(([field,value])=>(review[field]||'')!==value)))
+            throw new HttpsError('already-exists','이 주문에 다른 내용의 늦은 입금 검토가 이미 있습니다.');
+          if(!review)tx.create(reviewRef,{orderId,eventId:o.eventId,status:'pending',reportedAt:now(),reportedBy:req.auth.uid,amountCents:amount,...details});
           return { changed:false, needsReview:true };
         }
         assertOrderEvent(active.data(),o.eventId);

@@ -1173,7 +1173,6 @@ if(a==='product-order-detail'){productOrderDetail(b.dataset.id);return;}
 if(a==='product-orders-excel'){exportProductOrders();return;}
 if(a==='expense-add'){expenseModal();return;}
 if(a==='expense-edit'){expenseModal(b.dataset.id);return;}
-if(a==='expense-save')run(b,async()=>{const name=$('#expense-name').value.trim(),amount=Number($('#expense-amount').value);if(!name||name.length>120||!Number.isFinite(amount)||amount<=0||amount>1000000)throw new Error('항목명과 금액을 확인해 주세요.');const id=b.dataset.id||crypto.randomUUID();const expenses=[...(eventFinancialRecord.expenses||[])].filter(x=>x.id!==id);expenses.push({id,name,amountCents:Math.round(amount*100)});await persistExpenses(expenses);});
 if(a==='expense-delete'){const row=(eventFinancialRecord.expenses||[]).find(x=>x.id===b.dataset.id);if(row&&confirm(row.name+' 지출을 삭제할까요?'))run(b,()=>persistExpenses((eventFinancialRecord.expenses||[]).filter(x=>x.id!==row.id)));}
 if(a==='settlement-finalize'){confirmAccounting('finalize');return;}
 if(a==='settlement-reopen'){confirmAccounting('reopen');return;}
@@ -1204,7 +1203,22 @@ if(a==='order-filter'){store.orderFilter=b.dataset.value;persistOrdersView();rer
  if(order&&!order.bankConfirmedAt&&!canManageOrder()){
   const review=document.createElement('button');
   review.type='button';review.className='btn neutral';review.textContent='늦은 입금 검토 등록';
-  review.addEventListener('click',()=>depositModal(order.id,true));
+  review.addEventListener('click',()=>void run(review,async()=>{
+   const {latePaymentDetails}=await request('mailStatus',{id:order.id});
+   if(!latePaymentDetails){depositModal(order.id,true);return;}
+   const t=language,title=t('늦은 입금 장부 반영','Comptabiliser le virement tardif');
+   modal(title,order.ref,
+    '<p>'+money(latePaymentDetails.amountCents/100)+' · '+esc(latePaymentDetails.actualDate||'—')+'</p>'+
+    '<p>'+esc([latePaymentDetails.payer,latePaymentDetails.operator,latePaymentDetails.reference,latePaymentDetails.note].filter(Boolean).join(' · '))+'</p>'+
+    '<p>'+t('기록된 입금만 장부에 반영합니다. 취소 상태와 재고는 유지됩니다.',
+     'Seul le virement vérifié est comptabilisé. L’annulation et le stock restent inchangés.')+'</p>',
+    '<button class="btn primary" id="late-post">'+title+'</button><button class="btn neutral" data-action="close">'+t('취소','Annuler')+'</button>');
+   const requestId=crypto.randomUUID().replaceAll('-','');
+   $('#late-post').addEventListener('click',ev=>void run(ev.currentTarget,async()=>{
+    await request('bankConfirm',{...latePaymentDetails,id:order.id,eventId:selectedEvent().id,requestId,applyReview:true});
+    closeModal();await load();
+   }));
+  }));
   $('#modal-body').append(review);
  }
  void showOrderMail(b.dataset.id,mail,selectedEvent().id,request);
@@ -1558,6 +1572,7 @@ async function confirmOrder(id){
 }
 function handleModalAction(action,button){
  const id=button.dataset.id;
+ if(action==='expense-save'){void run(button,async()=>{const name=$('#expense-name').value.trim(),amount=Number($('#expense-amount').value);if(!name||name.length>120||!Number.isFinite(amount)||amount<=0||amount>1000000)throw new Error('항목명과 금액을 확인해 주세요.');const id=button.dataset.id||crypto.randomUUID();const expenses=[...(eventFinancialRecord.expenses||[])].filter(x=>x.id!==id);expenses.push({id,name,amountCents:Math.round(amount*100)});await persistExpenses(expenses);});return true;}
  if(action==='import-past-open'){run(button,()=>importPastModal());return true;}
  if(action==='import-back'){importModal();return true;}
  if(action==='product-validation-focus'){

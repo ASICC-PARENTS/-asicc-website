@@ -213,6 +213,18 @@ test('Worker API with Firebase emulators preserves checkout, admin, inventory, e
   assert.equal(late.needsReview,true);
   assert.equal((await db.doc(`bazaarOrders/${addition.id}`).get()).data().bankConfirmedAt,null);
   assert.equal((await admin('mailStatus',{id:addition.id})).latePayment,'pending');
+  await admin('finalizeEventFinancials',{eventId,action:'finalize',confirm:true},412);
+  const apply={id:addition.id,eventId,applyReview:true,requestId:id(),amountCents:addition.totalCents};
+  const [firstPost,duplicatePost]=await Promise.all([admin('bankConfirm',apply),admin('bankConfirm',{...apply,requestId:id()})]);
+  assert.equal([firstPost,duplicatePost].filter(result=>result.changed).length,1);
+  assert.equal((await admin('bankConfirm',apply)).changed,false);
+  assert.equal((await admin('mailStatus',{id:addition.id})).latePayment,'posted');
+  const posted=await admin('orderPayments',{id:addition.id,eventId});
+  assert.equal(posted.records.length,1);
+  assert.equal(posted.payment.refundDue,addition.totalCents);
+  assert.ok((await db.doc(`bazaarOrders/${addition.id}`).get()).data().canceledAt);
+  assert.equal((await productRef.get()).data().soldQty,1);
+  await admin('recordOrderPayment',{id:addition.id,eventId,requestId:id(),amountCents:addition.totalCents,type:'refund',reason:'Synthetic late deposit refund'});
   assert.equal((await db.doc(`bazaarOutbox/${addition.id}_bulkCancel`).get()).exists,false);
   await admin('savePurchaseOrder',{...purchase,revision:2,confirm:true,confirmClosedEdit:true,info:{number:'PO-TEST',date:'2026-11-25'}});
   const upload=async name=>{
