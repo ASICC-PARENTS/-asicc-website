@@ -109,6 +109,8 @@ test('Worker API with Firebase emulators preserves checkout, admin, inventory, e
   const first = winners[0];
   const { bid, ...receipt } = first;
   assert.notEqual(receipt.id,bid.requestId);
+  assert.equal(receipt.orderRef,'BZ010001');
+  assert.equal(receipt.receiptMailStatus,'capture');
   assert.equal(receipt.transferCutoff,event.transferCutoff);
   assert.deepEqual(await call('bazaarCreateOrder', bid), receipt);
   assert.equal((await productRef.get()).data().soldQty, 1);
@@ -121,10 +123,24 @@ test('Worker API with Firebase emulators preserves checkout, admin, inventory, e
   assert.equal(viewed.transferCutoff,event.transferCutoff);
   assert.equal(viewed.email,undefined);
   assert.equal(viewed.eventSnapshot,undefined);
+  const legacyId=id(),legacyToken=randomBytes(32).toString('hex');
+  const legacyRef=db.doc('bazaarOrders/'+legacyId);
+  const legacyNumber='ASICC-26-LEGACY0001';
+  await legacyRef.create({...((await db.doc('bazaarOrders/'+first.id).get()).data()),
+    id:legacyId,buyerToken:legacyToken,orderRef:legacyNumber});
+  try{
+    const legacy=await buyerAction({id:legacyId,token:legacyToken},'view');
+    assert.equal(legacy.order.orderRef,legacyNumber);
+  }finally{
+    const cleanup=db.batch();
+    cleanup.delete(legacyRef);
+    await cleanup.commit();
+  }
   await buyerAction(first, 'cancel');
   await call('bazaarBuyerAction', { id: first.id, token: first.token, action: 'cancel', ackNoTransfer: true }, undefined, 412);
   assert.equal((await productRef.get()).data().soldQty, 0);
   const confirmed = await call('bazaarCreateOrder', { ...buyer, requestId: id() });
+  assert.equal(confirmed.orderRef,'BZ010002');
   await buyerAction(confirmed, 'report');
   await admin('bankConfirm', { id: confirmed.id, eventId, requestId:id(), amountCents:confirmed.totalCents });
   await until(async () => (await admin('mailStatus', { id: confirmed.id })).messages.some(mail => mail.status === 'sent' && mail.type === 'confirmed'));
@@ -369,6 +385,8 @@ test('concurrent checkouts preserve stock, receipts and administrator changes', 
     ]);
     const deleteRefs = new Map([...orders.docs, ...receipts.docs].map(snapshot => [snapshot.ref.name, snapshot.ref]));
     for (const ref of createdProducts) deleteRefs.set(ref.name, ref);
+    const counter = db.doc('bazaarOrderSequences/' + fixtureEvent);
+    deleteRefs.set(counter.name, counter);
     deleteRefs.set(db.doc('members/' + staff.localId).name, db.doc('members/' + staff.localId));
     const refs = [...deleteRefs.values()];
     const commitCleanup = async batch => {
@@ -400,7 +418,7 @@ test('concurrent checkouts preserve stock, receipts and administrator changes', 
   });
   await accessRef.set({ adminUids: [staff.localId] });
   await eventRef.set({
-    eventId: fixtureEvent, status: 'published', scopedProducts: true, orderCutoff: when(300000),
+    eventId: fixtureEvent, serial: 2, status: 'published', scopedProducts: true, orderCutoff: when(300000),
     transferCutoff: when(600000), beneficiary: 'Synthetic fixture', iban: 'FR7612345678901234567890123'
   });
   const preset = {
@@ -477,6 +495,7 @@ test('concurrent checkouts preserve stock, receipts and administrator changes', 
   record('discarded response and retry', [discarded, recovered], { 200: 2 });
   assert.equal(recovered.result.data.id, savedId);
   assert.equal(recovered.result.data.token, stored.buyerToken);
+  assert.equal(recovered.result.data.orderRef, stored.orderRef);
   await checkReceipts([recovered]);
   assert.equal((await lostProduct.get()).data().soldQty, 1);
   expectedOrders++;
@@ -508,6 +527,8 @@ test('concurrent checkouts preserve stock, receipts and administrator changes', 
   const orders = await db.collection('bazaarOrders').where('eventId', '==', fixtureEvent).get();
   const queue = await db.collection('bazaarOutbox').where('eventId', '==', fixtureEvent).get();
   assert.equal(orders.size, expectedOrders);
+  assert.deepEqual(orders.docs.map(doc => doc.data().orderRef).sort(),
+    Array.from({length:expectedOrders}, (_,i) => 'BZ02' + String(i + 1).padStart(4,'0')));
   assert.equal(queue.docs.filter(job => job.data().type === 'receipt').length, orders.size);
   assert.equal(queue.docs.filter(job => job.data().type === 'cancel').length, 1);
   assert.deepEqual(failures, []);

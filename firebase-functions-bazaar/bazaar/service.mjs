@@ -24,7 +24,8 @@ function depositDetails(data) {
 }
 
 export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePhoto, eventPhoto, siteUrl,
-  sendQueuedMail, canSendMail, queueFields = () => ({}), mailAdmin, evidence, batchFinalization = false }) {
+  sendQueuedMail, canSendMail, queueFields = () => ({}), mailAdmin, evidence, batchFinalization = false,
+  receiptCapture = false }) {
   const eventRef=db.doc('bazaarMeta/event');
   const products=db.collection('bazaarProducts');
   const orders=db.collection('bazaarOrders');
@@ -34,6 +35,32 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
   const catalogRef=db.doc('bazaarMeta/baseCatalog');
   const purchaseOrders=db.collection('bazaarPurchaseOrders');
   const eventFinancials=db.collection('bazaarEventFinancials');
+  const orderSequences=db.collection('bazaarOrderSequences');
+  function orderSerial(event) {
+    const serial=event.serial??1;
+    if(!Number.isSafeInteger(serial)||serial<1||serial>99)
+      throw new HttpsError('failed-precondition','행사 회차를 확인해 주세요.');
+    return serial;
+  }
+  function allocateOrderRef(tx, snapshot, event) {
+    const serial=orderSerial(event);
+    const sequence=snapshot.data();
+    const last=sequence?.last??0;
+    if((sequence&&sequence.serial!==serial)||!Number.isInteger(last)||last<0||last>=9999)
+      throw new HttpsError('failed-precondition','이 행사의 주문번호를 더 이상 발급할 수 없습니다.');
+    const next=last+1;
+    tx.set(snapshot.ref,{serial,last:next});
+    return 'BZ'+String(serial).padStart(2,'0')+String(next).padStart(4,'0');
+  }
+  async function receiptMailStatus(orderId) {
+    if(receiptCapture)return 'capture';
+    const job=(await outbox.doc(orderId+'_receipt').get().catch(()=>null))?.data();
+    if(job?.providerId==='captured')return 'capture';
+    if(job?.sentAt)return 'sent';
+    if(job?.status==='skipped')return 'off';
+    if(job?.status==='failed'||job?.lastError&&job.status!=='delayed')return 'failed';
+    return job?'pending':'unknown';
+  }
   async function requireOpenAccounting(tx,eventId){
     if((await tx.get(eventFinancials.doc(eventId))).data()?.finalizedAt)
       throw new HttpsError('failed-precondition','확정 결산을 정정 상태로 전환한 뒤 기록하세요.');
@@ -307,6 +334,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     const ip=s(req.rawRequest?.ip||req.rawRequest?.socket?.remoteAddress||'unknown');
     const ipHash=createHash('sha256').update(ip).digest('hex');
     const throttleRef=db.doc(`bazaarRateLimits/${ipHash}`);
+    const sequenceRef=orderSequences.doc(requested);
     const refs=buyer.items.map(i=>products.doc(i.id));
     const checkout=async tx=>{
       const [eventSnap,rateSnap,existing]=await Promise.all([tx.get(eventRef),tx.get(throttleRef),tx.get(ref)]);
@@ -322,7 +350,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       if(!e)throw new HttpsError('failed-precondition','바자회 준비 중입니다.');
       if(e.status!=='published'||locked(e)||orderNotOpen(e)||e.eventId!==requested||!(Date.now()<Date.parse(e.orderCutoff)))throw new HttpsError('failed-precondition','주문 접수가 마감되었습니다.');
       if(!/^FR\d{2}[A-Z0-9 ]{20,}$/.test(s(e.iban).replaceAll(' ','')))throw new HttpsError('failed-precondition','송금계좌 등록 후 주문할 수 있습니다.');
-      const snapshots=await Promise.all(refs.map(r=>tx.get(r)));
+      const [sequence,...snapshots]=await Promise.all([tx.get(sequenceRef),...refs.map(r=>tx.get(r))]);
       const itemDetails=[];let total=0;
       for(let i=0;i<buyer.items.length;i++){
         const data=snapshots[i].data(),{qty,id}=buyer.items[i];
@@ -333,7 +361,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         itemDetails.push(orderItem(data,id,qty));
       }
       if(!cents(total)||total===0)bad('금액을 확인해 주세요.');
-      const orderRef=`ASICC-${new Date().getUTCFullYear().toString().slice(-2)}-${ref.id.slice(0,10).toUpperCase()}`;
+      const orderRef=allocateOrderRef(tx,sequence,e);
       const createdAt=now();
       const data={id:ref.id,eventId:e.eventId||initialEvent.eventId,eventSnapshot:{...e},orderRef,...buyer,consent:true,orderTermsVersion,orderTermsAcceptedAt:createdAt,paymentDeadline:personalTransferDeadline(createdAt,e),paymentHours:e.paymentHours??defaultPaymentHours,requestFingerprint:fingerprint,items:itemDetails,originalItems:itemDetails,originalTotalCents:total,totalCents:total,createdAt,buyerToken:token,transferReportedAt:null,bankConfirmedAt:null,canceledAt:null,reminder3At:null,reminderFinalAt:null};
       snapshots.forEach((snapshot,i)=>tx.update(snapshot.ref,{soldQty:FieldValue.increment(buyer.items[i].qty)}));
@@ -343,10 +371,10 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       return { created:true,order:{ id:ref.id, token, ...paymentDetails(data), pickupKo:e.pickupKo } };
     };
     const {order,created}=await (db.runCheckout
-      ? db.runCheckout([eventRef,throttleRef,ref,...refs],checkout)
+      ? db.runCheckout([eventRef,throttleRef,ref,sequenceRef,...refs],checkout)
       : db.runTransaction(checkout));
-    if(created)await deliver(`${order.id}_receipt`).catch(error=>console.error('Bazaar receipt delivery failed',error));
-    return order;
+    if(created)await deliver(`${order.id}_receipt`).catch(()=>console.error('Bazaar receipt delivery failed'));
+    return {...order,receiptMailStatus:await receiptMailStatus(order.id)};
   }
   async function bazaarBuyerAction(req){
     const {id,token,action,ackNoTransfer}=req.data||{};
@@ -777,7 +805,8 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         await requireOpenAccounting(tx,eventId);
         if(parentId&&(!parent?.exists||parent.data().eventId!==eventId||parent.data().canceledAt))
           throw new HttpsError('failed-precondition','추가 구매와 연결할 주문을 다시 확인해 주세요.');
-        const snapshots=await Promise.all(buyer.items.map(item=>tx.get(products.doc(item.id))));
+        const [sequence,...snapshots]=await Promise.all([tx.get(orderSequences.doc(eventId)),
+          ...buyer.items.map(item=>tx.get(products.doc(item.id)))]);
         const items=snapshots.map((snapshot,i)=>{
           const product=snapshot.data(),{id,qty,priceCents}=buyer.items[i];
           if(!product?.visible||product.archivedAt||event.scopedProducts&&product.bazaarEventId!==eventId||!cents(product.retailCents))
@@ -787,8 +816,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
           return orderItem(product,id,qty);
         });
         const totalCents=orderTotal(items);
-        const prefix=source==='phone'?'TEL':'ADD';
-        const orderRef=`ASICC-${prefix}-${ref.id.slice(0,16).toUpperCase()}`;
+        const orderRef=allocateOrderRef(tx,sequence,event);
         const order={...buyer,id:ref.id,eventId,eventSnapshot:event,orderRef,source,
           ...(parentId?{parentId,parentOrderRef:parent.data().orderRef}:{}),createdBy:req.auth.uid,
           requestFingerprint:fingerprint,buyerToken:token,createdAt:now(),paymentDeadline:personalTransferDeadline(now(),event),paymentHours:event.paymentHours??defaultPaymentHours,items,originalItems:items,originalTotalCents:totalCents,totalCents,
@@ -1389,7 +1417,9 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
           const {included,id:ignored,...fields}=item;
           tx.set(products.doc(productId),{...fields,bazaarEventId:id,visible:included&&!item.archivedAt,soldQty:0});
         }
-        tx.set(eventRef,{...e,status:'published',publishedAt:now(),endedAt:null,finalizedAt:null,
+        const serial=previous?.publishedAt||closed(previous)?orderSerial(previous)+1:1;
+        orderSerial({serial});
+        tx.set(eventRef,{...e,serial,status:'published',publishedAt:now(),endedAt:null,finalizedAt:null,
           scopedProducts:true,productRevision:0,reconciliationStartedAt:null,reconciledAt:null,finalizeNotBefore:e.transferCutoff});
         tx.delete(snap.ref);
         return{ok:true,eventId:id};

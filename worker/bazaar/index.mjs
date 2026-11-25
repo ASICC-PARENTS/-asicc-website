@@ -46,7 +46,7 @@ function dependencies(env, origin, ctx) {
       return Promise.resolve(false);
     },
     queueFields: mailFields, mailAdmin:mailManagement.admin,
-    batchFinalization: true
+    batchFinalization: true, receiptCapture: true
   });
   return { photos, mail, mailManagement, service, site };
 }
