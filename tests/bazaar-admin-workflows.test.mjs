@@ -38,6 +38,13 @@ test('product table supports direct ordering and operator-specific column prefer
   assert.match(app,/bazaar-cols-'.*currentUser\?\.uid/s);
 });
 
+test('planned purchase boxes stay editable independently of sales limit mode',()=>{
+  assert.match(app,/data-key="boxes" value=/);
+  assert.ok(!app.includes("catalog&&p.limitMode!=='auto'"));
+  assert.ok(!app.includes("row.querySelector('[data-key=boxes]').disabled"));
+  assert.ok(app.includes("limit.disabled=p.limitMode!=='manual'"));
+});
+
 test('past-event product import copies product fields into isolated product snapshots',()=>{
   assert.match(app,/지난 행사에서 가져오기/);
   assert.match(app,/request\('dashboard',\{eventId:selected\.id\}\)/);

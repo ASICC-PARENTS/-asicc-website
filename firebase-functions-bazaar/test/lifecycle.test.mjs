@@ -180,12 +180,17 @@ test('administrators can publish a draft and close it without losing history or 
   assert.match(storedProduct.photoPath,new RegExp(`^bazaar-photos/${loadedDraft.id}/`));
   assert.equal((await bucket.file(storedProduct.photoPath).download())[0].toString('base64'),originalBytes);
 
+  const unlimitedCatalog=await call('saveCatalog',{revision:newCatalog.revision,items:savedBase.items.map(p=>({...p,limitMode:'unlimited',plannedBoxes:5}))});
+  const unlimitedBase=await call('getCatalog');
+  assert.ok(unlimitedBase.items.every(p=>p.limitMode==='unlimited'&&p.plannedBoxes===5));
+  assert.equal((await call('getDraft',{id:loadedDraft.id})).draft.items.find(p=>p.id===productId).plannedBoxes,3);
+
   const edits={eventId:draft.id,revision:current.event.productRevision,
     items:current.products.map(p=>({...p,titleKo:'행사 상품만 변경'}))};
   await assert.rejects(call('saveEventProducts',{...edits,eventId},otherStaff),failure);
   await call('saveEventProducts',edits);
   await assert.rejects(call('saveEventProducts',edits,otherStaff),failure);
-  assert.equal((await call('getCatalog')).revision,newCatalog.revision);
+  assert.equal((await call('getCatalog')).revision,unlimitedCatalog.revision);
   assert.equal((await call('getCatalog')).items[0].titleKo,'기본 상품');
   assert.equal((await call('dashboard',{eventId})).products[0].retailCents,450);
 
