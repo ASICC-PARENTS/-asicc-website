@@ -1,0 +1,7 @@
+---
+import Screen from '../../../../lib/bazaar/admin/Screen.astro';
+import {langPaths,type Lang} from '../../../../i18n/ui';
+export const getStaticPaths=()=>langPaths().flatMap(({params})=>['products','orders','settlement'].map(screen=>({params:{...params,screen}})));
+const {lang,screen}=Astro.params;
+---
+<Screen lang={lang as Lang} screen={screen} />

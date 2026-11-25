@@ -1,0 +1,96 @@
+---
+import {orderTerms} from '../../../../firebase-functions-bazaar/bazaar/order-terms.mjs';
+import Base from '../../../layouts/Base.astro';
+import { langPaths, L, href, type Lang } from '../../../i18n/ui';
+
+export const getStaticPaths = langPaths;
+const lang = Astro.params.lang as Lang;
+---
+<Base lang={lang} rest="bazaar/commande/" title={L(lang,{ko:'바자회 주문 확인',fr:'Suivi de commande'})} noindex>
+<meta slot="head" name="referrer" content="no-referrer" />
+<div class="bo-wrap" id="bo" data-lang={lang}>
+ <h1>{L(lang,{ko:'ASICC 바자회 · 주문 관리',fr:'ASICC · Suivi de votre commande'})}</h1>
+ <div id="bo-result" aria-live="polite">{L(lang,{ko:'주문 정보를 확인하고 있습니다…',fr:'Chargement de la commande…'})}</div>
+ <section><h2>{orderTerms[lang].title}</h2>{orderTerms[lang].lines.map(line=><p>{line}</p>)}</section>
+ <p><a href={href(lang,'bazaar/')}>{L(lang,{ko:'← 바자회로 돌아가기',fr:'← Retour à la boutique'})}</a></p>
+</div>
+</Base>
+<style is:global>
+.bo-wrap{max-width:750px;margin:40px auto 80px;padding:16px}.bo-panel{background:#fffbf8;border:1px solid #e8dad4;border-radius:14px;padding:24px}.bo-panel h2{margin-top:0}.bo-line{display:flex;justify-content:space-between;border-bottom:1px solid #eee;padding:9px 0;gap:10px}.bo-note{background:#fff4e4;padding:14px;border-radius:8px;margin:15px 0}.bo-btn{border:0;border-radius:8px;background:#812e43;color:white;padding:11px 16px;cursor:pointer;margin-right:12px}.bo-cancel{background:white;color:#812e43;border:1px solid #812e43}.bo-btn:disabled{opacity:.55}.bo-wrap a{color:#812e43}.bo-check{display:flex;align-items:center;gap:7px;margin:12px 0}
+.bo-refunded{color:#9b1c34}@media print{.bo-btn,.bo-check,header,footer{display:none!important}.bo-wrap{margin:0}}
+</style>
+<script>
+import {paymentGuidance,transferIdentification} from '../../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
+import {buyerAction,eFormat,h,parisDeadline,pilotMode} from '../../../lib/bazaar/api';
+const root=document.querySelector<HTMLElement>('#bo')!,lang=root.dataset.lang==='fr'?'fr':'ko';
+if(pilotMode){
+  const notice=document.createElement('p');notice.className='bo-note';
+  notice.textContent=lang==='fr'?'Commande fictive · Aucun virement à effectuer.':'가상 주문 · 실제 송금하지 마세요.';
+  root.prepend(notice);
+}
+const t=(ko:string,fr:string)=>lang==='fr'?fr:ko;
+const params=new URLSearchParams(location.search),id=params.get('id');
+const fragment=new URLSearchParams(location.hash.slice(1));
+const linkToken=fragment.get('token')??params.get('token');
+const storageKey=id&&/^[A-Za-z0-9]{15,40}$/.test(id)?'asicc-bazaar-private-order:'+id:null;
+let token=linkToken;
+if(storageKey){
+ try{
+  if(linkToken&&/^[a-f0-9]{64}$/i.test(linkToken))sessionStorage.setItem(storageKey,linkToken);
+  else if(linkToken===null)token=sessionStorage.getItem(storageKey);
+ }catch{/* An open order link still works when session storage is disabled. */}
+}
+if(params.has('token')||fragment.has('token')){
+ params.delete('token');
+ fragment.delete('token');
+ history.replaceState(null,'',location.pathname+(params.size?'?'+params:'')+(fragment.size?'#'+fragment:''));
+}
+const panel=document.querySelector<HTMLElement>('#bo-result')!;
+let order:any=null;
+function draw(){
+ const canceled=!!order.canceledAt,paid=!!order.bankConfirmedAt,reported=!!order.transferReportedAt;
+ const partial=paid&&order.payment?.additionalDue>0;
+ const guidance=!paid&&!canceled&&order.paymentHours!=null?paymentGuidance(lang,order.paymentHours).map((line,index)=>index===0?'<h4>'+h(line)+'</h4>':'<p>'+h(line)+'</p>').join(''):'';
+ const payment=order.payment;
+ const date=(value:string)=>value?new Intl.DateTimeFormat(lang==='fr'?'fr-FR':'ko-KR',{timeZone:'Europe/Paris',dateStyle:'short',timeStyle:'short',hourCycle:'h23'}).format(new Date(value)):'—';
+ const refunds=order.canceledItems||[];
+ const canceledLines=refunds.map((item:any)=>'<div class="bo-line bo-refunded"><del>'+h(lang==='fr'?item.titleFr:item.titleKo)+' × '+item.qty+'</del><span>'+eFormat(item.qty*item.priceCents)+'</span></div>').join('');
+ const refundsPanel=canceledLines?'<section><h3>'+t('취소된 상품','Articles annulés')+'</h3>'+canceledLines+'</section>':'';
+ const fields=payment?[[t('최초 주문금액','Montant initial'),payment.original],[t('입금액','Montant reçu'),payment.deposited],
+  [t('현재 유효 주문금액','Montant actuel'),payment.due],[t('환불 대기액','Remboursement en attente'),payment.reservedRefund],
+  [t('미등록 반환 필요액','Remboursement à enregistrer'),Math.max(0,payment.refundDue-payment.reservedRefund)],
+  [t('실제 환불액','Montant remboursé'),payment.refunded],[t('실제 순입금액','Montant net reçu'),payment.net],
+  [t('추가 입금 필요 금액','Complément à verser'),paid?payment.additionalDue:0]]:[];
+ const paymentPanel=payment&&(paid||canceled)?'<section><h3>'+t('결제 현황','Suivi du paiement')+'</h3>'+
+  fields.map(([label,value])=>'<div class="bo-line"><span>'+h(label)+'</span><b>'+eFormat(value as number)+'</b></div>').join('')+
+  (order.refundReason?'<p>'+h(order.refundReason)+'</p>':'')+(order.lastRefundAt?'<p>'+t('최근 환불일','Dernier remboursement')+' · '+h(date(order.lastRefundAt))+'</p>':'')+'</section>':'';
+ panel.innerHTML=`<section class="bo-panel"><p>ASICC · ${h(lang==='fr'?order.eventNameFr:order.eventNameKo)}</p><h2>${t('주문번호','Référence')} ${h(order.orderRef)}</h2><p>${h(order.name)} · ${h(date(order.createdAt))}</p><div class="bo-note">${canceled?t('취소된 주문입니다.','Commande annulée.'):partial?t('부분 입금이 확인되었습니다. 남은 금액을 송금해 주세요.','Paiement partiel reçu. Veuillez régler le solde.'):paid?t('협회에서 입금을 확인했습니다. 주문 확정 상태입니다.','Virement reçu : commande confirmée.'):reported?t('송금 완료 알림 접수됨 · 은행 입금 확인 전입니다.','Virement signalé, vérification bancaire en attente.'):t('접수 완료 · 아직 입금 확인 전입니다.','Commande reçue, virement en attente.')}</div><h3>${t('수령하실 상품','Articles à retirer')}</h3>${!order.items.length?t('수령할 상품이 없습니다.','Aucun article à retirer.'):''}${order.items.map((i:any)=>`<div class="bo-line"><span>${h(lang==='fr'?i.titleFr:i.titleKo)} × ${i.qty}</span><b>${eFormat(i.qty*i.priceCents)}</b></div>`).join('')}<p><b>${t('주문 합계','Total')}: ${eFormat(payment?.due??order.totalCents)}</b></p>${refundsPanel}${paymentPanel}${guidance}${order.iban&&!canceled&&(!paid||payment?.additionalDue>0)?`<div class="bo-note"><p>${t('수취인','Bénéficiaire')}: ${h(order.beneficiary)}</p><p>${h(transferIdentification(lang))}</p><p>IBAN: <b>${h(order.iban)}</b></p><p>${t('송금 메모','Référence du virement')}: <b>${h(order.orderRef)}</b></p><p>${t('송금 기한','Date limite du virement')}: <b>${h(parisDeadline(order.transferCutoff,lang))}</b></p></div>`:''}${order.pickupNote?`<p><strong>${t('판매자에게 전달할 사항','Informations complémentaires pour le retrait')}</strong><br><span style="white-space:pre-wrap;overflow-wrap:anywhere">${h(order.pickupNote)}</span></p>`:''}${!canceled&&!paid&&!reported&&order.canChange?`<button id="bo-report" class="bo-btn">${t('송금 완료했습니다','J’ai effectué le virement')}</button>`:''}${!canceled&&!paid&&!reported&&order.canCancel?`<div class="bo-check"><input type="checkbox" id="bo-ack"/><label for="bo-ack">${t('송금하지 않았음을 확인합니다.','Je confirme ne pas avoir effectué de virement.')}</label></div><button id="bo-cancel" class="bo-btn bo-cancel">${t('주문 취소하기','Annuler ma commande')}</button>`:''}<p style="font-size:13px">${t('이미 송금한 주문은 온라인으로 취소하지 마시고 협회에 연락해 주세요.','Si vous avez déjà effectué un virement, veuillez contacter l’association pour toute annulation.')}</p><button class="bo-btn bo-print" id="bo-print">${t('주문서 출력','Imprimer la commande')}</button></section>`;
+ document.querySelector('#bo-print')?.addEventListener('click',()=>window.print());
+ const report=document.querySelector<HTMLButtonElement>('#bo-report');
+ report?.addEventListener('click',async()=>{if(!confirm(t('송금을 완료하셨나요?','Avez-vous effectué le virement ?')))return;await change('report');});
+ const cancel=document.querySelector<HTMLButtonElement>('#bo-cancel');
+ const focus=fragment.get('focus');
+ if(focus==='report')report?.focus();
+ if(focus==='cancel')cancel?.focus();
+ cancel?.addEventListener('click',async()=>{const ack=(document.querySelector<HTMLInputElement>('#bo-ack')?.checked);if(!ack){alert(t('먼저 미송금 확인에 체크해 주세요.','Veuillez confirmer l’absence de virement.'));return;}if(!confirm(t('주문을 취소하시겠습니까? 취소한 주문은 되돌릴 수 없습니다.','Annuler définitivement cette commande ?')))return;await change('cancel',true);});
+}
+async function change(action:string,ackNoTransfer=false){
+ try{panel.textContent=t('처리 중…','Traitement…');const r=await buyerAction({id,token,action,ackNoTransfer});order=r.order;draw();}
+ catch(err:any){
+  alert(err?.code==='functions/failed-precondition'
+   ?t(err.message,'Cette commande ne peut plus être modifiée en ligne. Vérifiez son état ou contactez l’association.')
+   :t('잠시 후 주문 상태를 다시 확인해 주세요.','Veuillez vérifier l’état de la commande dans un instant.'));
+  await load();
+ }
+}
+async function load(){
+ if(!id||!token){panel.textContent=t('이메일의 주문 확인 링크를 이용해 주세요.','Utilisez le lien de suivi figurant dans votre e-mail.');return;}
+ try{const r=await buyerAction({id,token,action:'view'});order=r.order;draw();}
+ catch(err:any){
+  panel.textContent=['functions/invalid-argument','functions/permission-denied'].includes(err?.code)
+   ?t('주문 확인 링크를 다시 확인해 주세요.','Veuillez vérifier votre lien de suivi.')
+   :t('주문을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.','Impossible de charger la commande. Veuillez réessayer dans un instant.');
+ }
+}
+load();
+</script>
