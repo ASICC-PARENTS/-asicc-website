@@ -100,6 +100,15 @@ test('Worker API with Firebase emulators preserves checkout, admin, inventory, e
   const shop = await call('bazaarPublic', { eventId });
   assert.equal(shop.products[0].stockRemaining, 1);
   assert.equal(shop.products[0].boxPriceTtcCents, undefined);
+  // Published product records are immutable with respect to deletion, even with zero orders.
+  await admin('saveEventProducts',{eventId,revision:0,items:[]},412);
+  await admin('archiveProduct',{eventId,id:productId,archive:true},412);
+  assert.equal((await productRef.get()).exists,true);
+  await admin('setProductSales',{eventId,id:productId,revision:0,visible:false});
+  assert.deepEqual((await call('bazaarPublic',{eventId})).products,[]);
+  assert.equal((await productRef.get()).data().visible,false);
+  await admin('setProductSales',{eventId,id:productId,revision:1,visible:true});
+  assert.equal((await call('bazaarPublic',{eventId})).products[0].stockRemaining,1);
   const buyer = { eventId, name: 'Test Buyer', phone: '0612345678', email: 'buyer@example.test',
     consent: true, lang: 'fr', items: [{ id: productId, qty: 1, priceCents: 450 }] };
   await call('bazaarCreateOrder', { ...buyer, requestId: id(), items: [{ ...buyer.items[0], priceCents: 1 }] }, undefined, 412);

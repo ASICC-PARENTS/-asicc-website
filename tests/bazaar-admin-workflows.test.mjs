@@ -166,7 +166,7 @@ test('homepage popup and campaign copy prefer whole-word wrapping without trunca
   assert.match(campaign,/align-self:center/);
 });
 
-test('event product selection is independent of sales state and deletion protects existing orders',()=>{
+test('bulk removal is draft-only and published products use sales controls',()=>{
   assert.match(app,/const productSelection=new Set\(\)/);
   assert.match(app,/data-product-select-all/);
   assert.match(app,/data-product-select="/);
@@ -174,7 +174,12 @@ test('event product selection is independent of sales state and deletion protect
   assert.match(app,/data-action="product-delete-selected"[\s\S]*?data-action="refresh-products"/);
   assert.match(app,/selectedVisibleProducts=\(\)=>shownProducts\(\)\.filter/);
   assert.match(app,/productSelection\.clear\(\);productFilter=el\.value/);
-  assert.match(app,/if\(protectedProduct\(p\)\)\{p\.active=false;p\.stopped=true;\}/);
+  assert.match(app,/canSelectProducts=\(\)=>productView==='event'&&selectedEvent\(\)\?\.status==='draft'/);
+  assert.match(app,/selectedEvent\(\)\?\.status==='active'\?'product-sales':'delete-product'/);
+  assert.match(app,/a==='delete-product'&&\(productView==='catalog'\|\|selectedEvent\(\)\?\.status==='draft'\)/);
+  const service=read('firebase-functions-bazaar/bazaar/service.mjs');
+  assert.match(service,/some\(doc=>!doc\.data\(\)\.archivedAt&&!ids\.includes\(doc\.id\)\)/);
+  assert.match(service,/if\(data\.archive===true\)throw new HttpsError\('failed-precondition'/);
   assert.match(app,/productSelection\.clear\(\);markProductDirty\(\);rerender\(\)/);
   assert.match(app,/data-import-invert/);
   assert.match(app,/master\.indeterminate=n>0&&n<boxes\.length/);

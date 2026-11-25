@@ -717,14 +717,11 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         if(data.revision!==revision)throw new HttpsError('failed-precondition','상품이 변경됐습니다. 다시 불러와 주세요.');
         const previous=new Map(result.docs.filter(doc=>!active.data().scopedProducts||doc.data().bazaarEventId===data.eventId).map(doc=>[doc.id,doc]));
         if(new Set([...previous.keys(),...ids]).size>70)bad('상품 수가 많습니다.');
-        const history=productHistory(await tx.get(orders.where('eventId','==',data.eventId)));
+        // Published products cannot be removed, even before the first order.
+        // Legacy archived records remain intact; omission of a live record is rejected.
+        if([...previous.values()].some(doc=>!doc.data().archivedAt&&!ids.includes(doc.id)))
+          throw new HttpsError('failed-precondition','발행된 바자회 상품은 삭제할 수 없습니다. 판매 중지 기능을 이용해 주세요.');
         if(!base.exists)initializeCatalog(tx,result);
-        for(const doc of result.docs){
-          const product=doc.data();
-          if(ids.includes(doc.id)||active.data().scopedProducts&&product.bazaarEventId!==data.eventId)continue;
-          if(history.ids.has(doc.id)||history.legacy||product.soldQty>0)tx.update(doc.ref,{visible:false,archivedAt:product.archivedAt||now()});
-          else tx.delete(doc.ref);
-        }
         data.items.forEach((item,index)=>{
           const doc=previous.get(item.id);
           const old=doc?.data()||{soldQty:0};
@@ -1457,10 +1454,12 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       const id=s(data.id);if(!/^[a-z0-9-]{2,50}$/.test(id))bad('상품 ID를 확인해 주세요.');
       const ref=products.doc(id);
       await db.runTransaction(async tx=>{
-        requireCurrentEvent((await tx.get(eventRef)).data()||initialEvent);
+        const event=(await tx.get(eventRef)).data()||initialEvent;
+        requireCurrentEvent(event);
+        if(data.archive===true)throw new HttpsError('failed-precondition','발행된 바자회 상품은 삭제할 수 없습니다. 판매 중지 기능을 이용해 주세요.');
         const doc=await tx.get(ref);
-        if(!doc.exists)throw new HttpsError('not-found','상품을 찾을 수 없습니다.');
-        tx.update(ref,{archivedAt:data.archive===true?now():null,visible:false});
+        if(!doc.exists||event.scopedProducts&&doc.data().bazaarEventId!==data.eventId)throw new HttpsError('not-found','상품을 찾을 수 없습니다.');
+        tx.update(ref,{archivedAt:null,visible:false});
         tx.update(eventRef,{productRevision:FieldValue.increment(1)});
       });
       return{ok:true};
