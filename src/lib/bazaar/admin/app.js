@@ -1287,6 +1287,7 @@ if(a==='po-reset'){if(confirm('이 업체 발주서의 수동 변경을 초기�
 if(a==='po-preview')previewPO(store.vendor);if(a==='all-po')modal('전체 업체 구매발주서 검토','업체별 구매발주서 분리 작성',vendors().map(v=>'<div class="modal-row"><b>'+esc(v)+'</b><span>'+money(poTotal(v))+'</span><button class="linkbtn" data-action="show-po" data-value="'+esc(v)+'">미리보기</button></div>').join(''),'<button class="btn neutral" data-action="close">닫기</button>');
 });
 $('#modal').addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(!b)return;const a=b.dataset.action;
+if(a==='save-reopen-intake'){handleScreenAction(a,b);return;}
 if(handleModalAction(a,b))return;
 if(a==='close')closeModal();
  if(a==='column-up'||a==='column-down'){const row=b.closest('[data-column]');if(a==='column-up'&&row.previousElementSibling)row.parentNode.insertBefore(row,row.previousElementSibling);else if(a==='column-down'&&row.nextElementSibling)row.after(row.nextElementSibling);}

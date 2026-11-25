@@ -44,6 +44,7 @@ test('buyer storefront and server share the scheduled, open, expired, paused and
  assert.equal(orderIntakeState({...event,orderIntakeLocked:true},time),'closed');
  assert.equal(orderIntakeState({...event,status:'closed'},time),'closed');
  assert.match(publicPage,/orderIntakeState\(event,Date\.now\(\)\+serverOffset\)/);
+ assert.match(adminPage,/\$\('#modal'\)\.addEventListener\('click',[^\n]*\nif\(a==='save-reopen-intake'\)\{handleScreenAction\(a,b\);return;/);
 });
 test('draft intro and final financial reconciliation remain',()=>{
  assert.match(legacy,/name="introKo"/);
