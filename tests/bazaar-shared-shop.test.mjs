@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {changeCartQuantity,renderShopEvent,renderShopProducts,stockNotice} from '../src/lib/bazaar/shop-view.js';
+import {changeCartQuantity,renderShopEvent,renderShopProducts,stockNotice,renderShopNotice} from '../src/lib/bazaar/shop-view.js';
 import {autoMailAllowed} from '../worker/bazaar/mail-policy.mjs';
 import {formatParisDateTime,formatParisPaymentDeadline} from '../firebase-functions-bazaar/bazaar/payment-window.mjs';
 
@@ -55,4 +55,31 @@ test('all displayed dates include full year and Paris-local weekday in both lang
  assert.equal(formatParisPaymentDeadline(event.transferCutoff,'ko'),'2026년 11월 27일 (금) 22:00 (파리 현지 시간)');
  assert.equal(formatParisPaymentDeadline(event.transferCutoff,'fr'),'Vendredi 27 novembre 2026 à 22h00 (heure de Paris)');
  assert.equal(formatParisDateTime(undefined,'ko'),'—');
+});
+
+test('compact hero keeps all original event text in closed, accessible disclosures',()=>{
+ const event={nameKo:'행사',nameFr:'Bazar',introKo:'원래 소개 <내용>',introFr:'Présentation complète',pickupKo:'상세 주차 안내',pickupFr:'Adresse complète',pickupPlace:'Courbevoie',pickupAt:'2026-12-02T15:00:00Z'};
+ const ko=renderShopEvent(event,'ko',{logoUrl:'/bazaar-email-wordmark.png'}),fr=renderShopEvent(event,'fr');
+ for(const html of [ko,fr]){
+   assert.match(html,/<details class="bz-disclosure" data-bz-disclosure="pickup">/);
+   assert.match(html,/<details class="bz-disclosure" data-bz-disclosure="intro">/);
+   assert.match(html,/Courbevoie/);
+   assert.doesNotMatch(html,/<details[^>]*\bopen\b/);
+ }
+ assert.ok(ko.includes('원래 소개 &lt;내용&gt;'));
+ assert.ok(ko.includes('상세 주차 안내'));
+ assert.ok(fr.includes('Présentation complète'));
+ assert.ok(fr.includes('Adresse complète'));
+ assert.ok(ko.includes('bazaar-email-wordmark.png'));
+});
+test('shared buying notice keeps payment deadline, stock and pickup instructions in both languages',()=>{
+ for(const lang of ['ko','fr']){
+  const html=renderShopNotice(lang,12);
+  assert.ok(html.includes('data-bz-disclosure="notice"'));
+  assert.ok(html.includes('id="bz-transfer-heading"'));
+  assert.ok(html.includes('id="bz-transfer-window"'));
+  assert.ok(html.includes(lang==='ko'?'12시간':'12 heures'));
+  assert.ok(html.includes(lang==='ko'?'냉장·냉동 상품 안내':'Produits réfrigérés et surgelés'));
+  assert.ok(html.includes(lang==='ko'?'송금 시 반드시 주문번호만':'uniquement votre numéro de commande'));
+ }
 });
