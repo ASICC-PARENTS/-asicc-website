@@ -2,6 +2,7 @@ import {mailKinds,policyMode} from './mail-policy.mjs';
 import { createHash } from 'node:crypto';
 import { BazaarError } from '../../firebase-functions-bazaar/bazaar/service.mjs';
 import { eligibleReminder, mailFields } from './mail.mjs';
+import {orderPaymentSummary} from '../../firebase-functions-bazaar/bazaar/order-payments.mjs';
 
 const choices = ['manual','auto'];
 const manualTypes=Object.keys(mailKinds).filter(kind=>!['orderChanged','additionalPayment','refundCompleted'].includes(kind));
@@ -29,14 +30,14 @@ function formatJob(doc,order){
 function matchesManual(order,eventId,type,audience,excludeReported) {
   if(!order?.email||order.eventId!==eventId)return false;
   if(type==='receipt')return !order.canceledAt;
-  if(type==='confirmed')return !!order.bankConfirmedAt&&!order.canceledAt;
+  if(type==='confirmed')return orderPaymentSummary(order).settled;
   if(type==='buyerCancel'||type==='adminCancel')return !!order.canceledAt&&order.cancelReason===(type==='buyerCancel'?'buyer':'admin');
   if(type==='bulkCancel')return order.cancelReason==='unpaidFinalization';
   if(type==='reminderFinal'||audience==='unpaid'){
     return !order.canceledAt&&!order.bankConfirmedAt&&(!excludeReported||!order.transferReportedAt);
   }
   if(audience==='canceled')return !!order.canceledAt;
-  if(audience==='confirmed')return !order.canceledAt&&!!order.bankConfirmedAt;
+  if(audience==='confirmed')return orderPaymentSummary(order).settled;
   return !order.canceledAt;
 }
 

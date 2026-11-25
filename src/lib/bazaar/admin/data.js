@@ -38,6 +38,7 @@ export function productViewModel(p) {
     storage:storageLabels[p.storage]||p.storage,
     boxes:p.plannedBoxes??'', limitMode:p.limitMode==='box'?'auto':p.limitMode||'unlimited',
     manualLimit:p.manualLimit??'', active:p.included??(p.visible&&!p.archivedAt),
+    stopped:p.included===undefined&&!p.visible&&(!p.archivedAt||p.hasOrderHistory===true),
   };
 }
 export function productPayload(p) {
@@ -62,11 +63,12 @@ export function eventViewModel(event, items=[], orders=[]) {
       id:order.id, ref:order.orderRef, name:order.name, email:order.email, phone:order.phone,
       lang:order.lang,payment:order.payment,transferReportSource:order.transferReportSource,originalItems:order.originalItems||order.items,
       canceledItems:[...(order.canceledItems||[]),...(order.canceledAt?order.items:[])],
-      priceAdjustmentCents:order.priceAdjustmentCents||0, bankConfirmedAt:order.bankConfirmedAt, source:order.source||'web', parentOrderRef:order.parentOrderRef||'', revision:order.revision??0,
+      priceAdjustmentCents:order.priceAdjustmentCents||0, bankConfirmedAt:order.bankConfirmedAt, hasRefundRecords:order.reservedRefundCents!==undefined,
+      source:order.source||'web', parentOrderRef:order.parentOrderRef||'', revision:order.revision??0,
       paymentDeadline:order.paymentDeadline||order.eventSnapshot?.transferCutoff||'',memo:order.pickupNote||'', date:local(order.createdAt).replace('T',' '),
       reportedAt:local(order.transferReportedAt).replace('T',' '),
       verifiedAt:local(order.bankConfirmedAt).replace('T',' '),
-      status:order.canceledAt?'canceled':order.bankConfirmedAt?'confirmed':order.transferReportedAt?'reported':'unpaid',
+      status:order.canceledAt?'canceled':order.bankConfirmedAt?(order.payment?.additionalDue>0?'partial':'confirmed'):order.transferReportedAt?'reported':'unpaid',
       items:order.items.map(item=>[item.titleKo,item.qty,item.priceCents/100,item.id,item]),
     })),
     poDrafts:Object.create(null), poMeta:Object.create(null),

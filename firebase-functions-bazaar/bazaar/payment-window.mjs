@@ -1,5 +1,9 @@
 export const defaultPaymentHours=24;
 
+export const transferIdentification=lang=>lang==='fr'
+ ? 'Afin de faciliter l’identification de votre paiement, veuillez indiquer votre numéro de commande ou le nom du client dans le libellé du virement. Si le virement est effectué depuis le compte d’une autre personne, cette information doit impérativement figurer dans le libellé du virement.'
+ : '입금 확인을 위해 송금 시 입금자명 또는 송금 메모에 주문번호 혹은 주문자 이름을 정확하게 기재해 주세요. 다른 사람의 명의로 송금하시는 경우 반드시 송금 메모에 주문번호 또는 주문자 이름을 입력해 주세요.';
+
 export function personalTransferDeadline(createdAt,event){
  const start=Date.parse(createdAt),overall=Date.parse(event.transferCutoff);
  const hours=event.paymentHours??defaultPaymentHours;

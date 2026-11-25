@@ -56,7 +56,7 @@ test('product table exposes direct column gestures and buyer-row preview without
   const app=await read('../src/lib/bazaar/admin/app.js');
   assert.match(app,/h\.oncontextmenu=/);
   assert.match(app,/h\.ondrop=/);
-  assert.match(app,/fitColumn\(table,names\[i\]\)/);
+  assert.match(app,/fitColumn\(table,names\[i\],key\)/);
   assert.match(app,/data-col-menu="hide"/);
   assert.match(app,/data-col-menu="pin"/);
   assert.match(app,/renderShopProducts\(products\.map/);

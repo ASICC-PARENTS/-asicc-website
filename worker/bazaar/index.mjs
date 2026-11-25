@@ -39,7 +39,7 @@ function dependencies(env, origin, ctx) {
   const mail = createMail({...env, MAIL_MODE: 'capture'}, db);
   const mailManagement = createMailAdmin(db,mail);
   const service = createBazaar({
-    db, FieldValue, eventPhoto: photos.eventPhoto, storePhoto: photos.storePhoto,
+    db, FieldValue, eventPhoto: photos.eventPhoto, storePhoto: photos.storePhoto, evidence:photos.evidence,
     siteUrl: () => site.href.replace(/\/$/, ''), canSendMail: mail.canSend,
     sendQueuedMail: (id, message) => {
       ctx.waitUntil(mail.deliver(id, message).catch(() => {}));
@@ -52,7 +52,7 @@ function dependencies(env, origin, ctx) {
 }
 
 const shopKey=(origin,id)=>new Request(`${origin}/cached-bazaar-catalog/${id||'current'}`);
-const shopMutations=new Set(['endEvent','publishDraft','saveEvent','saveEventProducts','archiveProduct','saveProduct','addProduct','reorder','finalizeUnpaid','createRefund','correctOrder','cancelOrder']);
+const shopMutations=new Set(['endEvent','publishDraft','saveEvent','saveEventProducts','archiveProduct','setProductSales','saveProduct','addProduct','reorder','finalizeUnpaid','createRefund','voidRefund','correctOrder','cancelOrder']);
 
 function json(data, status, headers) {
   return Response.json(data, { status, headers: { ...headers, 'Cache-Control': 'no-store',
@@ -87,6 +87,8 @@ async function readBody(request, limit) {
 async function readData(request, name, url) {
   const type = request.headers.get('Content-Type') ?? '';
   if (name === 'bazaarAdmin' && type === 'application/octet-stream') {
+    if(url.searchParams.get('upload')==='evidence')return {op:'storeEvidence',eventId:url.searchParams.get('eventId'),
+      name:url.searchParams.get('name'),content:await readBody(request,maxPhoto)};
     return { op: 'storePhoto', eventId: url.searchParams.get('eventId'), id: url.searchParams.get('id'),
       draft: url.searchParams.get('draft') === 'true', catalog: url.searchParams.get('catalog') === 'true',
       updatedAt: url.searchParams.get('updatedAt'), content: await readBody(request, maxPhoto) };
@@ -124,6 +126,8 @@ export default {
       const cached=key?await edge.match(key).catch(()=>null):null;
       if(cached)return json({data:await cached.json()},200,cors);
       const result = await service[name]({ auth, data, rawRequest: { ip: request.headers.get('CF-Connecting-IP') } });
+      if(name==='bazaarAdmin'&&data.op==='getEvidence'&&result instanceof Response)
+        return new Response(result.body,{status:result.status,headers:{...cors,...Object.fromEntries(result.headers)}});
       if(key)ctx.waitUntil(edge.put(key,Response.json(result,{headers:{'Cache-Control':'public, max-age=10'}})).catch(()=>{}));
       if(edge&&name==='bazaarAdmin'&&shopMutations.has(data.op)){
         const affected=data.eventId??result?.eventId??data.id;

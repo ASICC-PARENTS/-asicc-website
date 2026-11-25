@@ -67,7 +67,7 @@ test('publishing, closing and changing the next event preserve historical produc
   const uid='readiness-admin';
   await db.doc('members/'+uid).set({ role:'admin',status:'approved' });
   const admin=(op,data={})=>service.bazaarAdmin({auth:{uid,token:{email_verified:true}},data:{op,...data}});
-  const schedule={orderCutoff:future(3600000),transferCutoff:future(7200000),beneficiary:'ASICC',
+  const schedule={orderCutoff:future(3600000),transferCutoff:future(7200000),pickupAt:future(10800000),beneficiary:'ASICC',
     iban:'FR7612345678901234567890123',pickupKo:'한국어 수령',pickupFr:'Retrait en français'};
   const obsolete=(await admin('createDraft')).draft;
   await admin('deleteDraft',{id:obsolete.id,confirm:true});
@@ -103,7 +103,7 @@ test('publishing, closing and changing the next event preserve historical produc
   const paid=await buy(2);
   assert.equal(paid.iban,schedule.iban);
   assert.equal(paid.totalCents,900);
-  await admin('bankConfirm',{id:paid.id,eventId:first.id});
+  await admin('bankConfirm',{id:paid.id,eventId:first.id,requestId:id(),amountCents:paid.totalCents});
   const canceled=await buy(1);
   await service.bazaarBuyerAction({data:{id:canceled.id,token:canceled.token,action:'cancel',ackNoTransfer:true}});
   assert.equal((await db.doc('bazaarProducts/'+original.id).get()).data().soldQty,2);
@@ -142,7 +142,7 @@ test('publishing, closing and changing the next event preserve historical produc
   const paidChange=await service.bazaarCreateOrder({data:{eventId:second.id,requestId:id(),lang:'fr',name:'Test Refund',
     email:'buyer@example.test',phone:'0600000000',consent:true,items:[{id:original.id,qty:2,priceCents:700}]}});
   assert.equal(paidChange.transferCutoff,schedule.transferCutoff);
-  await admin('bankConfirm',{id:paidChange.id,eventId:second.id});
+  await admin('bankConfirm',{id:paidChange.id,eventId:second.id,requestId:id(),amountCents:paidChange.totalCents});
   const change={id:paidChange.id,eventId:second.id,reason:'Synthetic correction',confirm:true,restoreStock:true};
   await admin('correctOrder',{...change,revision:0,items:[{id:original.id,qty:1}]});
   const paymentFields={id:paidChange.id,eventId:second.id,reason:'Synthetic bank record'};
@@ -156,7 +156,9 @@ test('publishing, closing and changing the next event preserve historical produc
   await admin('cancelOrder',change);
   const finalRefund={...paymentFields,requestId:id(),type:'refund',amountCents:1400};
   assert.equal((await admin('recordOrderPayment',finalRefund)).payment.state,'refunded');
-  assert.equal((await admin('orderPayments',paymentFields)).records.length,3);
+  const recorded=(await admin('orderPayments',paymentFields)).records;
+  assert.equal(recorded.filter(row=>!row.initial).length,3);
+  assert.equal(recorded.find(row=>row.initial).amountCents,paidChange.totalCents);
   assert.equal((await db.doc('bazaarProducts/'+original.id).get()).data().soldQty,0);
   const mailPreview=await admin('mailPreview',{eventId:second.id,type:'receipt',lang:'fr',id:paidChange.id});
   assert.match(mailPreview.text,/Acheteur|Test Refund/);
@@ -175,7 +177,7 @@ test('publishing, closing and changing the next event preserve historical produc
   assert.equal((await admin('adminTransferReport',{...scope,reason:'Synthetic call'})).changed,true);
   assert.equal((await admin('adminTransferReport',scope)).changed,false);
   assert.equal((await service.bazaarBuyerAction({data:{id:synthetic.id,token:synthetic.token,action:'report'}})).changed,false);
-  await admin('bankConfirm',scope);
+  await admin('bankConfirm',{...scope,requestId:id(),amountCents:synthetic.totalCents});
   const pending={...scope,requestId:id(),revision:0,kind:'items',items:[{id:original.id,qty:1}],amountCents:700,
     restoreStock:true,reason:'synthetic internal note',publicReason:'Supply shortage',operator:'Fixture operator',method:'cash'};
   const registered=await admin('createRefund',pending);
@@ -202,7 +204,115 @@ test('publishing, closing and changing the next event preserve historical produc
   assert.equal((await db.doc('bazaarProducts/'+original.id).get()).data().soldQty,1);
   assert.equal((await admin('orderRefunds',scope)).refunds.length,1);
   await assert.rejects(admin('createRefund',{...pending,requestId:id(),revision:1,kind:'overpayment',items:[],restoreStock:false}),{code:'failed-precondition'});
+  const stopProduct=async visible=>{
+    const {event}=await admin('dashboard',{eventId:second.id});
+    await admin('setProductSales',{eventId:second.id,id:original.id,revision:event.productRevision,visible});
+  };
+  await stopProduct(false);
+  const stopped=(await admin('dashboard',{eventId:second.id})).products.find(item=>item.id===original.id);
+  assert.equal(stopped.visible,false);
+  assert.equal(stopped.soldQty,1);
+  assert.equal(stopped.hasOrderHistory,true);
+  assert.equal((await service.bazaarPublic({data:{eventId:second.id}})).products.some(item=>item.id===original.id),false);
+  const buyAgain=()=>service.bazaarCreateOrder({data:{eventId:second.id,requestId:id(),name:'R9.1 fixture',
+    email:'r91@example.test',phone:'06 00 00 00 00',consent:true,items:[{id:original.id,qty:1,priceCents:700}]}});
+  await assert.rejects(buyAgain(),{code:'failed-precondition'});
+  await stopProduct(true);
+  const installment=await buyAgain(),paymentScope={id:installment.id,eventId:second.id};
+  const initial={...paymentScope,requestId:id(),amountCents:400,actualDate:'2026-11-25'};
+  assert.equal((await admin('bankConfirm',initial)).payment.additionalDue,300);
+  assert.equal((await admin('bankConfirm',initial)).changed,false);
+  await assert.rejects(admin('bankConfirm',{...initial,amountCents:401}),{code:'already-exists'});
+  assert.equal((await db.doc('bazaarOutbox/'+installment.id+'_confirmed').get()).exists,false);
+  const installmentDeposit=amountCents=>({...paymentScope,amountCents,requestId:id(),type:'deposit',overpayment:true});
+  const secondDeposit=installmentDeposit(150);
+  await Promise.all([admin('recordOrderPayment',secondDeposit),admin('recordOrderPayment',secondDeposit)]);
+  assert.equal((await admin('orderPayments',paymentScope)).payment.additionalDue,150);
+  assert.equal((await admin('recordOrderPayment',installmentDeposit(150))).payment.settled,true);
+  assert.equal((await db.doc('bazaarOutbox/'+installment.id+'_confirmed').get()).exists,true);
+  const surplus=await admin('recordOrderPayment',installmentDeposit(100));
+  assert.deepEqual([surplus.payment.deposited,surplus.payment.refundDue,surplus.payment.due],[800,100,700]);
+  const over=await admin('createRefund',{...paymentScope,requestId:id(),revision:0,kind:'overpayment',confirm:true,
+    amountCents:100,reason:'Synthetic overpayment',operator:'Fixture operator',method:'cash'});
+  assert.deepEqual([over.payment.due,over.payment.refunded,over.payment.reservedRefund],[700,0,100]);
+  const surplusScope={...paymentScope,requestId:over.refund.id,confirm:true};
+  const edited={...surplusScope,auditId:id(),editRevision:0,amountCents:95,reason:'Fixture correction',operator:'Fixture operator'};
+  await admin('editRefund',edited);
+  await admin('editRefund',edited);
+  assert.equal((await admin('refundAudit',{...paymentScope,refundId:over.refund.id})).edits.length,1);
+  await admin('editRefund',{...edited,editRevision:1,auditId:id(),amountCents:100});
+  await admin('finishRefund',{...surplusScope,completedAt:future(-1000),operator:'Fixture operator'});
+  const correction={...paymentScope,paymentId:secondDeposit.requestId,requestId:id(),beforeCents:150,amountCents:160,reason:'Fixture deposit correction'};
+  await admin('correctDeposit',correction);
+  const correctionResult=await admin('correctDeposit',correction);
+  assert.equal(correctionResult.payment.refundDue,10);
+  const reverse={...paymentScope,requestId:id(),revision:0,kind:'items',confirm:true,items:[{id:original.id,qty:1}],
+    amountCents:700,restoreStock:true,reason:'Fixture cancellation',operator:'Fixture operator',method:'cash'};
+  await admin('createRefund',reverse);
+  const restored=await admin('voidRefund',{...paymentScope,requestId:reverse.requestId,confirm:true,restoreOrder:true,reason:'Fixture restoration'});
+  assert.deepEqual([restored.payment.due,restored.payment.refundDue,restored.payment.reservedRefund],[700,10,0]);
+  assert.equal((await db.doc('bazaarProducts/'+original.id).get()).data().soldQty,2);
   const oldUrl=new URL(photos.preview(past).imageUrl);
   assert.deepEqual(Buffer.from(await (await photos.serve(oldUrl)).arrayBuffer()),Buffer.from(photo,'base64'));
   assert.equal((await service.bazaarPublic({data:{eventId:first.id}})).event.status,'closed');
+});
+
+test('R9.1 private evidence and immutable accounting reconcile 145 less 65, 50 and 5', {timeout:30000},async t=>{
+  const projectId='demo-asicc-accounting-'+id().slice(0,8),eventId='accounting-fixture';
+  const db=createFirestore({projectId,token:()=> 'owner',emulator:loopback});
+  t.after(async()=>assert.ok((await fetch(`${loopback}/emulator/v1/projects/${projectId}/databases/(default)/documents`,{method:'DELETE'})).ok));
+  const stored=new Map();
+  const photos=createPhotos({BAZAAR_MODE:'test',B2_BUCKET:'fixture-bucket',B2_S3_ENDPOINT:'https://s3.eu-central-003.backblazeb2.com',
+    B2_KEY_ID:'fixture',B2_APPLICATION_KEY:'fixture',BAZAAR_PHOTO_SIGNING_KEY:'fixture'},db,site,null,async(url,init)=>{
+    const path=new URL(url).pathname;
+    assert.match(path,/^\/fixture-bucket\/bazaar\/test\/photos\/evidence\/accounting-fixture\/[a-f0-9]{32}$/);
+    if(init.method==='PUT'){stored.set(path,Buffer.from(init.body));return new Response();}
+    return new Response(stored.get(path));
+  });
+  const service=createBazaar({db,FieldValue,evidence:photos.evidence,siteUrl:()=>site});
+  const uid='accounting-admin',member='accounting-member';
+  await db.doc('members/'+uid).set({role:'admin',status:'approved'});
+  await db.doc('members/'+member).set({role:'member',status:'approved'});
+  const invoke=(actor,op,data)=>service.bazaarAdmin({auth:{uid:actor,token:{email_verified:true}},data:{...data,op,eventId}});
+  const admin=(op,data={})=>invoke(uid,op,data);
+  await db.doc('bazaarMeta/event').set({eventId,status:'published',orderCutoff:future(-1000),transferCutoff:future(10000)});
+  const orderId=id(),orderRef=db.doc('bazaarOrders/'+orderId);
+  await orderRef.set({id:orderId,eventId,orderRef:'ASICC-145-FIXTURE',name:'Synthetic',items:[{id:'remaining',qty:2,priceCents:4000,supplier:'Fournisseur fictif'}],
+    totalCents:8000,originalTotalCents:14500,bankConfirmedAt:future(-20000),depositedCents:14500,refundedCents:6500,canceledAt:null});
+  await assert.rejects(admin('finalizeEventFinancials',{action:'finalize',confirm:true}),{code:'failed-precondition'});
+  const vendor='Fournisseur fictif';
+  await admin('savePurchaseOrder',{vendor,revision:0,confirm:true,info:{number:'PO-FIXTURE',date:'2026-11-25'},
+    lines:[{id:'remaining',name:'Test',unit:'박스',qty:1,priceCents:5500,amountCents:5500}]});
+  const invoice=Buffer.from('%PDF-1.4\nSynthetic invoice; no financial data');
+  const photoBytes=Buffer.from(photo,'base64');
+  const files=[await admin('storeEvidence',{name:'preuve.pdf',content:invoice}),await admin('storeEvidence',{name:'photo.png',content:photoBytes})];
+  assert.ok([...stored.values()].every(bytes=>!bytes.includes(invoice)&&!bytes.includes(photoBytes)));
+  const purchase={id:id(),revision:0,scope:'purchase',kind:'invoice',vendor,number:'INV-001',date:'2026-11-25',paymentStatus:'partial',
+    amountCents:5000,paidCents:3500,files};
+  let saved=await admin('saveEvidence',purchase);
+  assert.equal(saved.evidence[0].files.length,2);
+  await assert.rejects(admin('saveEvidence',{...purchase,id:id(),revision:saved.revision}),{code:'already-exists'});
+  await assert.rejects(invoke(member,'getEvidence',{id:purchase.id,fileId:files[0].id}),{code:'permission-denied'});
+  const opened=await admin('getEvidence',{id:purchase.id,fileId:files[0].id});
+  assert.deepEqual(Buffer.from(await opened.arrayBuffer()),invoice);
+  saved=await admin('confirmPurchaseCosts',{confirm:true,revision:saved.revision});
+  await assert.rejects(admin('finalizeEventFinancials',{action:'finalize',confirm:true}),/미결제/);
+  saved=await admin('saveEvidence',{...purchase,revision:saved.revision,paymentStatus:'paid',paidCents:5000,reason:'Supplier fully paid'});
+  const expenseId=id();
+  saved=await admin('saveEventExpenses',{revision:saved.revision,expenses:[{id:expenseId,name:'Transport fixture',amountCents:500}]});
+  const receipt=await admin('storeEvidence',{name:'transport.pdf',content:Buffer.from('%PDF-1.4\nSynthetic receipt')});
+  saved=await admin('saveEvidence',{id:id(),revision:saved.revision,scope:'expense',expenseId,kind:'receipt',date:'2026-11-25',
+    paymentStatus:'paid',amountCents:500,paidCents:500,files:[receipt]});
+  saved=await admin('confirmPurchaseCosts',{confirm:true,revision:saved.revision});
+  const result=await admin('finalizeEventFinancials',{action:'finalize',confirm:true});
+  const {salesCents,purchaseCents,expenseCents,depositedCents,refundedCents,netCents,profitCents}=result.snapshot;
+  assert.deepEqual([salesCents,purchaseCents,expenseCents,depositedCents,refundedCents,netCents,profitCents],[8000,5000,500,14500,6500,8000,2500]);
+  await assert.rejects(admin('saveEventExpenses',{revision:result.revision,expenses:[]}),{code:'failed-precondition'});
+  const openedAgain=await admin('finalizeEventFinancials',{action:'reopen',confirm:true,reason:'Synthetic accounting correction'});
+  assert.deepEqual(openedAgain.snapshot,result.snapshot);
+  const final=await admin('finalizeEventFinancials',{action:'finalize',confirm:true});
+  assert.equal(final.snapshot.profitCents,2500);
+  const ref=db.doc('bazaarEventFinancials/'+eventId);
+  assert.equal((await ref.collection('snapshots').get()).size,2);
+  assert.ok((await ref.collection('audit').get()).docs.some(row=>row.data().action==='reopen'));
 });

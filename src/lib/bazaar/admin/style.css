@@ -16,13 +16,25 @@ tr.row-drop-after td{box-shadow:inset 0 -3px #286197}
 .event-list-table th:first-child{width:auto}
 .event-list-table td:first-child{overflow-wrap:anywhere}
 .event-list-table th:nth-child(2){width:85px}
-.event-list-table th:nth-child(n+3):nth-child(-n+6){width:95px}
-.event-list-table th:nth-child(7){width:100px}
+.event-list-table th:nth-child(3){width:86px}
+.event-list-table th:nth-child(n+4){width:90px}
+.event-state{display:inline-block;border-radius:4px;background:#eef0f2;color:#3e454d;padding:3px 5px}
+.event-state.in-progress{background:#e0f2e6;color:#22633a;font-weight:700}
+.sheet tr.sales-stopped td{background:#f1f2f3}
+.sales-state{display:block;color:#a12430;font-weight:650}
+.refund-form{display:grid;gap:24px;line-height:1.55}
+.refund-form .form-grid{gap:16px}
+.refund-form #refund-lines td{padding-block:11px}
+.refund-form #refund-calculated{margin-block:16px 20px}
+.refund-form [hidden]{display:none}
+.modal [aria-invalid=true]{border:2px solid #a12430}
+.modal [data-field-error]{color:#a12430}
+.modal [data-operation-error]{flex-basis:100%}
 @media(max-width:760px){.event-list-table th:nth-child(n){width:auto}.event-list-table :is(th,td){padding:6px 3px;overflow-wrap:anywhere}}
 
 @media(min-width:781px){.modal-wrap{background:#19273524}.modal-wrap .modal-h{cursor:move;touch-action:none}.modal-wrap .modal-h button{cursor:pointer}.modal-wrap .modal.modal-moved{position:fixed;margin:0}}
 
-@media(min-width:761px){.event-list-table{width:min(100%,1010px)}.event-list-table th:first-child{width:clamp(230px,30vw,350px)}}
+@media(min-width:761px){.event-list-table{width:min(100%,785px)}.event-list-table th:first-child{width:240px}}
 .event-header .event-back{display:inline-block;margin-bottom:12px}.event-header .info-row{margin-top:12px}.event-actions{margin-top:24px;gap:8px;align-items:center}.event-end-action{margin-inline-start:auto}.event-link-menu summary{cursor:pointer}.event-link-menu[open]>div{padding-block:8px}.event-header [data-copy-status]:empty{display:none}.event-header+.tabs{margin-top:24px}
 
 .canceled-line{color:#9b1c34}.modal :is(input,textarea,select).invalid{outline:2px solid #b52c2c}

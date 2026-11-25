@@ -8,5 +8,7 @@ export function orderPaymentSummary(order){
  const additionalDue=Math.max(0,due-net);
  const state=refundDue?'refund-due':additionalDue?(deposited?'additional-due':'unpaid'):
    refunded?(net===0?'refunded':'partially-refunded'):'paid';
- return {original,deposited,refunded,due,net,refundDue,additionalDue,state,reservedRefund:order.reservedRefundCents||0};
+ return {original,deposited,refunded,due,net,refundDue,additionalDue,state,
+  overpayment:order.canceledAt?0:Math.max(0,net-Math.max(original,due)),
+  settled:!order.canceledAt&&deposited>0&&additionalDue===0,reservedRefund:order.reservedRefundCents||0};
 }

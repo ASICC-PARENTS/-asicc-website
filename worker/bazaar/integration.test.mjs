@@ -126,7 +126,7 @@ test('Worker API with Firebase emulators preserves checkout, admin, inventory, e
   assert.equal((await productRef.get()).data().soldQty, 0);
   const confirmed = await call('bazaarCreateOrder', { ...buyer, requestId: id() });
   await buyerAction(confirmed, 'report');
-  await admin('bankConfirm', { id: confirmed.id, eventId });
+  await admin('bankConfirm', { id: confirmed.id, eventId, requestId:id(), amountCents:confirmed.totalCents });
   await until(async () => (await admin('mailStatus', { id: confirmed.id })).messages.some(mail => mail.status === 'sent' && mail.type === 'confirmed'));
   const mail = await admin('mailStatus', { id: confirmed.id });
   assert.equal(mail.messages.filter(row => row.type === 'confirmed').length, 1);
@@ -213,7 +213,7 @@ test('Worker API with Firebase emulators preserves checkout, admin, inventory, e
   assert.equal((await admin('finalizeUnpaid', { eventId, confirm: true })).canceled, 0);
   await call('bazaarBuyerAction',{id:confirmed.id,token:confirmed.token,action:'report'},undefined,412);
   await admin('createManualOrder',{...buyer,requestId:id(),source:'phone',email:''},412);
-  const late=await admin('bankConfirm',{id:addition.id,eventId});
+  const late=await admin('bankConfirm',{id:addition.id,eventId,requestId:id(),amountCents:addition.totalCents});
   assert.equal(late.needsReview,true);
   assert.equal((await db.doc(`bazaarOrders/${addition.id}`).get()).data().bankConfirmedAt,null);
   assert.equal((await admin('mailStatus',{id:addition.id})).latePayment,'pending');

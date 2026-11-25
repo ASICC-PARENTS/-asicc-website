@@ -59,9 +59,16 @@ async function invoke(name:string,payload:any={}){
   }
   const token = name === 'bazaarAdmin' ? await bazaarAuth.currentUser?.getIdToken() : undefined;
   const target = new URL(`/api/${name}`, url);
-  let body: BodyInit = JSON.stringify({ data: payload });
+  let body: BodyInit;
   let contentType = 'application/json';
-  if (name === 'bazaarAdmin' && payload.op === 'storePhoto' && typeof payload.content === 'string' && payload.content) {
+  if(name==='bazaarAdmin'&&payload.op==='storeEvidence'&&payload.content instanceof File){
+    if(payload.content.size>4*1024*1024)throw new Error('증빙 파일의 크기는 최대 4MB입니다. / Chaque fichier est limité à 4 Mo.');
+    body=payload.content;
+    contentType='application/octet-stream';
+    target.searchParams.set('upload','evidence');
+    target.searchParams.set('eventId',payload.eventId);
+    target.searchParams.set('name',payload.content.name);
+  } else if (name === 'bazaarAdmin' && payload.op === 'storePhoto' && typeof payload.content === 'string' && payload.content) {
     if (payload.content.length > Math.ceil(4 * 1024 * 1024 / 3) * 4) throw new Error('4MB 이하의 사진 파일을 선택해 주세요.');
     const raw = atob(payload.content);
     const bytes = new Uint8Array(raw.length);
@@ -71,12 +78,13 @@ async function invoke(name:string,payload:any={}){
     for (const key of ['eventId', 'id', 'draft', 'catalog', 'updatedAt']) {
       if (payload[key] != null) target.searchParams.set(key, String(payload[key]));
     }
-  }
+  }else body=JSON.stringify({ data: payload });
   const response = await fetch(target, {
     method: 'POST', credentials: 'omit', redirect: 'error',
     headers: { 'Content-Type': contentType, ...(token && { Authorization: `Bearer ${token}` }) },
     body
   });
+  if(response.ok&&name==='bazaarAdmin'&&payload.op==='getEvidence')return response.blob();
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw Object.assign(new Error(result.error?.message || '바자회 서버에 연결하지 못했습니다.'),

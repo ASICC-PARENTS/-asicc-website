@@ -1,4 +1,4 @@
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { BazaarError } from '../../firebase-functions-bazaar/bazaar/service.mjs';
 
 const maxBytes = 4 * 1024 * 1024;
@@ -6,6 +6,9 @@ const pathPattern = /^bazaar-photos\/([a-z0-9-]{12,60})\/([a-z0-9-]{2,50})\/([a-
 const types = ['image/jpeg', 'image/png', 'image/webp'];
 const hash = data => createHash('sha256').update(data).digest('hex');
 const hmac = (key, data) => createHmac('sha256', key).update(data);
+const localEvidence=new Map();
+const privateType='application/octet-stream';
+const evidencePath=/^[a-z0-9-]{12,60}\/[a-f0-9]{32}$/;
 
 async function storageError(method, response) {
   const body = method === 'HEAD' ? '' : await response.text().catch(() => '');
@@ -27,7 +30,7 @@ export function createPhotos(env, db, origin, ctx, fetcher = fetch) {
   const makeUrl = path => `${origin}/photo/${path}`;
   const previewSignature = (path, expires) => hmac(env.BAZAAR_PHOTO_SIGNING_KEY, `${path}:${expires}`).digest('hex');
 
-  async function storage(method, digest, bytes, contentType) {
+  async function storage(method, key, bytes, contentType) {
     const endpoint = new URL(env.B2_S3_ENDPOINT);
     if (endpoint.protocol !== 'https:' || !/^s3\.[a-z0-9-]+\.backblazeb2\.com$/.test(endpoint.host)
       || endpoint.pathname !== '/' || endpoint.username || endpoint.password || endpoint.search
@@ -36,12 +39,12 @@ export function createPhotos(env, db, origin, ctx, fetcher = fetch) {
       error.code = 'B2:invalid-settings';
       throw error;
     }
-    const path = `/${env.B2_BUCKET}/${storagePrefix}/${digest}`;
+    const path = `/${env.B2_BUCKET}/${storagePrefix}/${key}`;
     const region = endpoint.host.split('.')[1];
     const date = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
     const day = date.slice(0, 8);
     const scope = `${day}/${region}/s3/aws4_request`;
-    const payload = bytes ? digest : hash('');
+    const payload = bytes ? (/^[a-f0-9]{64}$/.test(key)?key:hash(bytes)) : hash('');
     const headers = { host: endpoint.host, 'x-amz-date': date, 'x-amz-content-sha256': payload };
     if (contentType) headers['content-type'] = contentType;
     const names = Object.keys(headers).sort();
@@ -53,6 +56,56 @@ export function createPhotos(env, db, origin, ctx, fetcher = fetch) {
     headers.Authorization = `AWS4-HMAC-SHA256 Credential=${env.B2_KEY_ID}/${scope}, SignedHeaders=${names.join(';')}, Signature=${signature}`;
     return fetcher(endpoint.origin + path, { method, headers, ...(bytes ? { body: bytes } : {}), redirect: 'manual' });
   }
+
+  function evidenceKey(){
+    const secret=env.BAZAAR_PHOTO_SIGNING_KEY||(env.BAZAAR_MODE==='local'?'local-evidence-fixture':'');
+    if(!secret)throw new BazaarError('failed-precondition','증빙 저장소 암호화 설정을 확인해 주세요.');
+    return hmac(secret,'asicc-bazaar-evidence-encryption-v1').digest();
+  }
+
+  const evidence={
+    async put(eventId,name,content){
+      const id=randomBytes(16).toString('hex'),path=eventId+'/'+id;
+      if(!evidencePath.test(path)||typeof name!=='string'||!name.trim()||name.length>140||/[\\/\x00-\x1f\x7f]/.test(name)||
+         !(content instanceof Uint8Array)||!content.length||content.length>maxBytes)
+        throw new BazaarError('invalid-argument','4MB 이하의 증빙과 파일명을 확인해 주세요.');
+      const bytes=Buffer.from(content.buffer,content.byteOffset,content.byteLength);
+      const mime=bytes.toString('ascii',0,5)==='%PDF-'?'application/pdf':typeOf(bytes);
+      if(!['application/pdf','image/jpeg','image/png'].includes(mime))throw new BazaarError('invalid-argument','PDF, JPEG 또는 PNG를 선택해 주세요.');
+      const iv=randomBytes(12),cipher=createCipheriv('aes-256-gcm',evidenceKey(),iv);
+      cipher.setAAD(Buffer.from(path));
+      const encrypted=Buffer.concat([iv,cipher.update(bytes),cipher.final(),cipher.getAuthTag()]);
+      if(env.BAZAAR_MODE==='local'&&!env.B2_S3_ENDPOINT)localEvidence.set(path,encrypted);
+      else {
+        const response=await storage('PUT','evidence/'+path,encrypted,privateType);
+        if(!response.ok)throw await storageError('PUT',response);
+      }
+      const file={id,name,mime,size:bytes.length,digest:hash(bytes)};
+      return {...file,proof:hmac(evidenceKey(),JSON.stringify([eventId,file])).digest('hex')};
+    },
+    verify(eventId,raw){
+      const {id,name,mime,size,digest,proof}=raw||{},file={id,name,mime,size,digest};
+      if(typeof proof!=='string'||!/^[a-f0-9]{64}$/.test(proof)||!evidencePath.test(eventId+'/'+id))return null;
+      const expected=hmac(evidenceKey(),JSON.stringify([eventId,file])).digest('hex');
+      return timingSafeEqual(Buffer.from(proof),Buffer.from(expected))?file:null;
+    },
+    async get(eventId,file){
+      const path=eventId+'/'+file.id;
+      if(!evidencePath.test(path))throw new BazaarError('invalid-argument','증빙 파일 경로를 확인해 주세요.');
+      let encrypted=localEvidence.get(path);
+      if(!encrypted){
+        const response=await storage('GET','evidence/'+path);
+        if(!response.ok)throw await storageError('GET',response);
+        encrypted=Buffer.from(await response.arrayBuffer());
+      }
+      const decipher=createDecipheriv('aes-256-gcm',evidenceKey(),encrypted.subarray(0,12));
+      decipher.setAAD(Buffer.from(path));decipher.setAuthTag(encrypted.subarray(-16));
+      const bytes=Buffer.concat([decipher.update(encrypted.subarray(12,-16)),decipher.final()]);
+      if(bytes.length!==file.size||hash(bytes)!==file.digest)throw new Error('Evidence integrity check failed');
+      return new Response(bytes,{headers:{'Content-Type':file.mime,'Cache-Control':'private, no-store',
+        'X-Content-Type-Options':'nosniff','Content-Security-Policy':"sandbox; default-src 'none'"}});
+    },
+  };
 
   function preview(value) {
     if (!env.BAZAAR_PHOTO_SIGNING_KEY || !value || typeof value !== 'object') return value;
@@ -70,6 +123,7 @@ export function createPhotos(env, db, origin, ctx, fetcher = fetch) {
   }
 
   return {
+    evidence,
     preview,
     async storePhoto(eventId, productId, { content, sourcePath }) {
       const source = typeof sourcePath === 'string' && pathPattern.exec(sourcePath);

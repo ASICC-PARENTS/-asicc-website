@@ -1,5 +1,5 @@
 ---
-import {orderTerms} from '../../../../firebase-functions-bazaar/bazaar/order-terms.mjs';
+import {orderTerms,pickupTerms,pickupContact} from '../../../../firebase-functions-bazaar/bazaar/order-terms.mjs';
 import Base from '../../../layouts/Base.astro';
 import { langPaths, L, href, type Lang } from '../../../i18n/ui';
 
@@ -30,7 +30,10 @@ const lang = Astro.params.lang as Lang;
         <label>{L(lang,{ko:'휴대전화',fr:'Téléphone'})}<input name="phone" autocomplete="tel" maxlength="40" required/></label>
         <label>{L(lang,{ko:'이메일',fr:'Adresse e-mail'})}<input name="email" type="email" autocomplete="email" maxlength="200" required/></label>
         <label>{L(lang,{ko:'판매자에게 전달할 사항 (선택)',fr:'Informations complémentaires pour le retrait (facultatif)'})}<textarea name="pickupNote" maxlength="500" rows="4"></textarea></label>
-        <section id="bz-terms"><h4>{orderTerms[lang].title}</h4>{orderTerms[lang].lines.map(line=><p>{line}</p>)}</section>
+        <section id="bz-terms"><h4>{orderTerms[lang].title}</h4>{orderTerms[lang].lines.map(line=><p>{line}</p>)}
+          <h4>{pickupTerms[lang].title}</h4>{pickupTerms[lang].lines.map(line=><p>{line}</p>)}
+          <p>{pickupTerms[lang].contact} · <a href={`mailto:${pickupContact}`}>{pickupContact}</a></p>
+        </section>
         <label class="bz-consent"><input type="checkbox" name="consent" required/> {L(lang,{ko:'주문 변경·취소·환불 안내를 확인했으며, 주문 처리와 연락을 위한 개인정보 이용에 동의합니다.',fr:'J’ai lu les conditions de modification, d’annulation et de remboursement et j’accepte l’utilisation de mes données pour le traitement de la commande.'})}</label>
         <button id="bz-send" class="bz-btn" type="submit">{L(lang,{ko:'주문 확정 및 송금 안내 받기',fr:'Valider ma commande et recevoir les coordonnées bancaires'})}</button>
         <small>{L(lang,{ko:'계좌이체는 주문 접수 후 별도로 진행하며, 입금 확인 후 주문이 확정됩니다.',fr:'Le paiement se fait par virement après validation. La commande est confirmée après réception du paiement.'})}</small>
@@ -60,7 +63,7 @@ const lang = Astro.params.lang as Lang;
 .bz-product-sheet{overflow-x:auto;border:1px solid #e8e1de;border-radius:12px;background:#fff}.bz-product-table{width:100%;min-width:610px;border-collapse:collapse;text-align:left;table-layout:fixed}.bz-product-table th{background:#faf1ee;color:#6d2437;font-size:13px;padding:10px 12px;border-bottom:1px solid #e8d7d2;white-space:nowrap}.bz-product-table th:nth-child(1){width:86px}.bz-product-table th:nth-child(3){width:100px}.bz-product-table th:nth-child(4){width:118px}.bz-product-table th:nth-child(5){width:112px}.bz-product-table td{padding:10px 12px;vertical-align:middle;border-bottom:1px solid #eee5e1}.bz-product-table tr:last-child td{border-bottom:0}.bz-product-table .bz-photo{display:block;width:62px;height:62px;object-fit:contain;border-radius:7px}.bz-product-table .bz-placeholder{display:grid;place-items:center;font-size:25px}.bz-product-table .bz-desc h3{font-size:16px;margin:0 0 3px;overflow-wrap:anywhere}.bz-product-table .bz-desc p{font-size:13px;line-height:1.4;margin:4px 0;overflow-wrap:anywhere}.bz-product-table .bz-price{font-size:17px;white-space:nowrap}.bz-product-table .bz-qty{gap:5px;margin:0}.bz-product-table .bz-qty button{width:27px;height:30px;min-width:27px}.bz-product-table .bz-btn{padding:9px 10px;font-size:13px;white-space:nowrap}.bz-product-table .bz-sold{background:#f5f5f5}.bz-sold-label{display:inline-block;color:#9d2424;margin-left:8px;font-size:12px}.bz-product-table .bz-stock{display:inline-block;margin-right:4px}@media(max-width:780px){.bz-product-table{min-width:560px}.bz-product-table td,.bz-product-table th{padding:8px}.bz-product-table th:nth-child(1){width:73px}.bz-product-table th:nth-child(3){width:84px}.bz-product-table th:nth-child(4){width:108px}.bz-product-table th:nth-child(5){width:90px}.bz-product-table .bz-photo{width:55px;height:55px}}
 </style>
 <script>
-import {paymentGuidance} from '../../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
+import {paymentGuidance,transferIdentification} from '../../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
 import "../../../lib/bazaar/shop-view.css";
 import {bindStorageLabels,changeCartQuantity,quantityCap,renderShopEvent,renderShopProducts} from "../../../lib/bazaar/shop-view";
 import {getShop,createOrder,eFormat,h,orderRequestId,parisDeadline} from '../../../lib/bazaar/api';
@@ -193,7 +196,7 @@ async function sendOrder(){
     if($('#bz-shop').hidden)$('#bz-shop').after($('#bz-receipt'));
     $('#bz-receipt').hidden=false;
     const guidance=result.paymentHours!=null?paymentGuidance(lang,result.paymentHours).map((line,index)=>index===0?'<h4>'+h(line)+'</h4>':'<p>'+h(line)+'</p>').join(''):'';
-    $('#bz-receipt').innerHTML=`<div class="bz-receipt">${guidance}<h3>${t('주문이 접수되었습니다','Votre commande a été enregistrée')}</h3><p>${t('주문번호','Référence')}: <strong>${h(result.orderRef)}</strong></p><p>${t('총 금액','Montant')}: <strong>${eFormat(result.totalCents)}</strong></p><p>${t('수취인','Bénéficiaire')}: ${h(result.beneficiary)}</p><p>IBAN: <strong>${h(result.iban)}</strong> <button class="bz-copy" data-copy="${h(result.iban)}">${t('복사','Copier')}</button></p><p>${t('송금 시 메모','Référence du virement')}: <strong>${h(result.orderRef)}</strong> <button class="bz-copy" data-copy="${h(result.orderRef)}">${t('복사','Copier')}</button></p><p>${t('송금 기한','Date limite du virement')}: <strong>${h(parisDeadline(result.transferCutoff,lang))}</strong></p><p>${t('주문 접수 메일을 발송합니다. 이메일이 도착하지 않으면 아래 주문 확인 링크를 꼭 저장해 주세요.','Un e-mail récapitulatif sera envoyé. Conservez le lien de suivi ci-dessous.')}</p><a href="${h(link)}" rel="noreferrer">${t('송금 완료 신고 / 주문 확인','Signaler le virement / Voir la commande')}</a></div>`;
+    $('#bz-receipt').innerHTML=`<div class="bz-receipt">${guidance}<p>${h(transferIdentification(lang))}</p><h3>${t('주문이 접수되었습니다','Votre commande a été enregistrée')}</h3><p>${t('주문번호','Référence')}: <strong>${h(result.orderRef)}</strong></p><p>${t('총 금액','Montant')}: <strong>${eFormat(result.totalCents)}</strong></p><p>${t('수취인','Bénéficiaire')}: ${h(result.beneficiary)}</p><p>IBAN: <strong>${h(result.iban)}</strong> <button class="bz-copy" data-copy="${h(result.iban)}">${t('복사','Copier')}</button></p><p>${t('송금 시 메모','Référence du virement')}: <strong>${h(result.orderRef)}</strong> <button class="bz-copy" data-copy="${h(result.orderRef)}">${t('복사','Copier')}</button></p><p>${t('송금 기한','Date limite du virement')}: <strong>${h(parisDeadline(result.transferCutoff,lang))}</strong></p><p>${t('주문 접수 메일을 발송합니다. 이메일이 도착하지 않으면 아래 주문 확인 링크를 꼭 저장해 주세요.','Un e-mail récapitulatif sera envoyé. Conservez le lien de suivi ci-dessous.')}</p><a href="${h(link)}" rel="noreferrer">${t('송금 완료 신고 / 주문 확인','Signaler le virement / Voir la commande')}</a></div>`;
     $('#bz-receipt').scrollIntoView({behavior:'smooth'});
   }catch(error){showOrderError(error);}
   finally{

@@ -1,4 +1,6 @@
 import {eventFormFields,eventViewModel,productOrderSummary,validManualPhone} from '../src/lib/bazaar/admin/data.js';
+import {validRefundIban} from '../firebase-functions-bazaar/bazaar/iban.mjs';
+import {orderPaymentSummary} from '../firebase-functions-bazaar/bazaar/order-payments.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -100,4 +102,20 @@ test('order quantities keep partial cancellation history after full cancellation
  ]);
  const [row]=productOrderSummary(event.products,event.orders);
  assert.deepEqual([row.initialQty,row.canceledQty,row.qty,row.amountCents],[6,3,3,425]);
+});
+
+test('payment receipts distinguish partial, settled, surplus, and refund reservations',()=>{
+ const order={totalCents:5000,bankConfirmedAt:'2026-11-25'};
+ const cases=[[0,5000,0,false],[4000,1000,0,false],[5000,0,0,true],[6000,0,1000,true]];
+ for(const [depositedCents,additionalDue,overpayment,settled] of cases){
+  const value=orderPaymentSummary({...order,depositedCents});
+  assert.deepEqual([value.additionalDue,value.overpayment,value.settled],[additionalDue,overpayment,settled]);
+ }
+ const reserved=orderPaymentSummary({...order,depositedCents:6000,reservedRefundCents:600});
+ assert.deepEqual([reserved.net,reserved.refundDue,reserved.reservedRefund],[6000,1000,600]);
+});
+
+test('refund IBAN validation checks European registry lengths and mod-97',()=>{
+ for(const iban of ['FR1420041010050500013M02606','DE89370400440532013000','BE68539007547034'])assert.equal(validRefundIban(iban),true);
+ for(const iban of ['FR1520041010050500013M02606','FR1420041010050500013M0260','ZY1420041010050500013M02606'])assert.equal(validRefundIban(iban),false);
 });
