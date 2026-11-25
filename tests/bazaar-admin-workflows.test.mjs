@@ -1,4 +1,4 @@
-import {validManualPhone} from '../src/lib/bazaar/admin/data.js';
+import {eventFormFields,eventViewModel,productOrderSummary,validManualPhone} from '../src/lib/bazaar/admin/data.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -75,4 +75,29 @@ test('OVH recipient preparation retains deduplication, Bcc output and send histo
 test('telephone review accepts French domestic and international input',()=>{
  for(const number of ['06 12 34 56 78','+33 6 12 34 56 78','06-12-34-56-78'])assert.equal(validManualPhone(number),true);
  for(const number of ['', 'abcdef', '06abc12345678', '1234'])assert.equal(validManualPhone(number),false);
+});
+
+
+test('event form saves absent or complete Paris date pairs',()=>{
+ const values={'event-name':'  Draft  ','event-order-date':'2026-11-27','event-order-time':'18:00','event-transfer-date':'2026-11-27','event-transfer-time':'22:00'};
+ const read=id=>values[id]||'';
+ assert.deepEqual(eventFormFields(read),{
+  paymentHours:'',orderStartsAt:'',orderCutoff:'2026-11-27T17:00:00.000Z',transferCutoff:'2026-11-27T21:00:00.000Z',
+  pickupAt:'',pickupPlace:'',nameKo:'Draft',nameFr:'',introKo:'',introFr:'',pickupKo:'',pickupFr:'',beneficiary:'',iban:'',
+ });
+ values['event-pickup-date']='2026-11-28';
+ assert.throws(()=>eventFormFields(read),/date et l’heure/);
+ values['event-pickup-time']='09:00';
+ assert.equal(eventFormFields(read).pickupAt,'2026-11-28T08:00:00.000Z');
+});
+
+test('order quantities keep partial cancellation history after full cancellation',()=>{
+ const item=(qty,priceCents)=>({id:'sku',titleKo:'상품',titleFr:'Article',qty,priceCents});
+ const event=eventViewModel({},[],[
+  {id:'a',originalItems:[item(3,100)],canceledItems:[item(1,100)],items:[item(2,100)],canceledAt:'2026-11-22'},
+  {id:'b',items:[item(2,125)]},
+  {id:'c',items:[item(1,175)]},
+ ]);
+ const [row]=productOrderSummary(event.products,event.orders);
+ assert.deepEqual([row.initialQty,row.canceledQty,row.qty,row.amountCents],[6,3,3,425]);
 });
