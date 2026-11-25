@@ -19,7 +19,6 @@ const routeNames = new Set(['bazaarPublic', 'bazaarCreateOrder', 'bazaarBuyerAct
 const productionSite = 'https://asicc-parents.fr';
 const productionApi = 'https://asicc-bazaar-api.falling-hall-f390.workers.dev';
 const productionDraft = 'bazaar-production-first-v1';
-const pilotPrefix = 'bazaarPilot/rehearsal/';
 const productionReads = new Set(['listEvents','dashboard','getCatalog','getDraft','eventFinancials','getEventProducts']);
 
 function settings(env, origin) {
@@ -43,41 +42,24 @@ function settings(env, origin) {
   return site;
 }
 
-function dependencies(env, origin, ctx, pilot = false) {
+function dependencies(env, origin, ctx) {
   const site = settings(env, origin);
-  const firestore = createFirestore({ projectId: env.FIREBASE_PROJECT_ID, token: () => serverToken(env),
+  const db = createFirestore({ projectId: env.FIREBASE_PROJECT_ID, token: () => serverToken(env),
     emulator: env.FIRESTORE_EMULATOR_URL });
-  const db = pilot ? { ...firestore,
-    doc: path => firestore.doc(path === 'bazaarMeta/access' || path.startsWith('members/') ? path : pilotPrefix+path),
-    collection: path => firestore.collection(path === 'members' ? path : pilotPrefix+path)
-  } : firestore;
   const photos = createPhotos(env, db, origin, ctx);
   const mail = createMail({...env, MAIL_MODE: 'capture'}, db);
   const mailManagement = createMailAdmin(db,mail);
   const service = createBazaar({
-    db, FieldValue, eventPhoto: pilot ? async()=>({imageUrl:'',photoPath:''}) : photos.eventPhoto,
-    storePhoto: pilot ? async()=>{throw new BazaarError('permission-denied','검수에서는 B2 쓰기가 차단됩니다.');} : photos.storePhoto,
-    evidence:pilot?undefined:photos.evidence,
+    db, FieldValue, eventPhoto: photos.eventPhoto, storePhoto: photos.storePhoto, evidence:photos.evidence,
     siteUrl: () => site.href.replace(/\/$/, ''), canSendMail: mail.canSend,
     sendQueuedMail: (id, message) => {
       ctx.waitUntil(mail.deliver(id, message).catch(() => {}));
       return Promise.resolve(false);
     },
     queueFields: mailFields, mailAdmin:mailManagement.admin,
-    batchFinalization: true, requireExplicitAdmin:env.BAZAAR_MODE==='production',pilot
+    batchFinalization: true, requireExplicitAdmin:env.BAZAAR_MODE==='production'
   });
   return { db, photos, mail, mailManagement, service, site };
-}
-
-function pilotEnabled(env) {
-  return env.BAZAAR_MODE==='production'&&env.BAZAAR_PUBLIC_OPEN==='false'
-    && Date.now()<Date.parse(env.BAZAAR_PILOT_EXPIRES_AT)
-    && /^[a-f0-9]{64}$/.test(env.BAZAAR_PILOT_ACCESS_CODE??'');
-}
-
-function buyerCanPilot(env, header) {
-  return pilotEnabled(env)&&/^[a-f0-9]{64}$/.test(header??'')
-    &&timingSafeEqual(Buffer.from(env.BAZAAR_PILOT_ACCESS_CODE),Buffer.from(header));
 }
 
 function permitsDraftSetup(data) {
@@ -171,30 +153,28 @@ export default {
       const origin = request.headers.get('Origin');
       if (origin && origin !== site.origin && !(env.BAZAAR_MODE === 'test' && origin === 'http://127.0.0.1:4321')) return json({}, 403, cors);
       if (origin) cors = { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-ASICC-Pilot', 'Access-Control-Max-Age': '600', Vary: 'Origin' };
+        'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Max-Age': '600', Vary: 'Origin' };
       if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
       if (request.method !== 'POST') return json({}, 405, cors);
-      const pilotHeader=request.headers.get('X-ASICC-Pilot');
-      const pilot=name==='bazaarAdmin' ? pilotHeader==='admin'&&pilotEnabled(env) : buyerCanPilot(env,pilotHeader);
-      if (pilotHeader&&env.BAZAAR_MODE==='production'&&!pilot || !publicOpen&&name!=='bazaarAdmin'&&!pilot)
+      if (request.headers.has('X-ASICC-Pilot') || !publicOpen && name !== 'bazaarAdmin')
         return json({},404,cors);
-      const {service,photos}=dependencies(env,url.origin,ctx,pilot);
+      const {service,photos}=dependencies(env,url.origin,ctx);
       const auth = name === 'bazaarAdmin' ? await authenticate(request, env) : undefined;
       const data = await readData(request, name, url);
-      if(prelaunchReadOnly&&name==='bazaarAdmin'&&!pilot&&!permitsDraftSetup(data))
+      if(prelaunchReadOnly&&name==='bazaarAdmin'&&!permitsDraftSetup(data))
         return json({error:{code:'failed-precondition',message:'운영 데이터는 현재 읽기 전용입니다.'}},412,cors);
-      if(env.BAZAAR_MODE==='production'&&name==='bazaarAdmin'&&(data.op==='seed'||!publicOpen&&!pilot&&data.op==='publishDraft'))
+      if(env.BAZAAR_MODE==='production'&&name==='bazaarAdmin'&&(data.op==='seed'||!publicOpen&&data.op==='publishDraft'))
         return json({error:{code:'failed-precondition',message:'운영 공개 설정을 확인해 주세요.'}},412,cors);
       const edge=env.BAZAAR_MODE==='local'?undefined:globalThis.caches?.default;
       const shopId=typeof data.eventId==='string'?data.eventId.trim():'';
-      const key=edge&&!pilot&&name==='bazaarPublic'&&(!shopId||/^[a-z0-9-]{12,60}$/.test(shopId))?shopKey(url.origin,shopId):null;
+      const key=edge&&name==='bazaarPublic'&&(!shopId||/^[a-z0-9-]{12,60}$/.test(shopId))?shopKey(url.origin,shopId):null;
       const cached=key?await edge.match(key).catch(()=>null):null;
       if(cached)return json({data:await cached.json()},200,cors);
       const result = await service[name]({ auth, data, rawRequest: { ip: request.headers.get('CF-Connecting-IP') } });
       if(name==='bazaarAdmin'&&data.op==='getEvidence'&&result instanceof Response)
         return new Response(result.body,{status:result.status,headers:{...cors,...Object.fromEntries(result.headers)}});
       if(key)ctx.waitUntil(edge.put(key,Response.json(result,{headers:{'Cache-Control':'public, max-age=10'}})).catch(()=>{}));
-      if(edge&&!pilot&&name==='bazaarAdmin'&&(shopMutations.has(data.op)||data.op==='saveProductDetail'&&data.scope==='event')){
+      if(edge&&name==='bazaarAdmin'&&(shopMutations.has(data.op)||data.op==='saveProductDetail'&&data.scope==='event')){
         const affected=data.eventId??result?.eventId??data.id;
         ctx.waitUntil(Promise.allSettled(['',affected].filter(id=>typeof id==='string'&&(!id||/^[a-z0-9-]{12,60}$/.test(id)))
           .map(id=>edge.delete(shopKey(url.origin,id)))));
