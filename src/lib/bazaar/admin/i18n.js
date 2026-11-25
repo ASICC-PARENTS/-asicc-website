@@ -202,15 +202,24 @@ export function translateAdminText(value){
  const key=value.trim();
  return Object.hasOwn(copy,key)?value.replace(key,copy[key]):value;
 }
+function translateTextNode(node){
+ const old=node.nodeValue||'',updated=translateAdminText(old);
+ if(old===updated)return;
+ // Preserve the actual form value when a select uses an implicit option value.
+ const option=node.parentElement?.closest('option');
+ if(option&&!option.hasAttribute('value'))option.setAttribute('value',option.value);
+ if(node.parentElement?.closest('textarea,[contenteditable="true"]'))return;
+ node.nodeValue=updated;
+}
 export function observeAdminLocale(root,isFrench){
  if(!isFrench)return;
  const apply=node=>{
   if(!isFrench)return;
   const walker=document.createTreeWalker(node,NodeFilter.SHOW_TEXT);let text;
-  while((text=walker.nextNode())){const updated=translateAdminText(text.nodeValue||'');if(updated!==text.nodeValue)text.nodeValue=updated;}
+  while((text=walker.nextNode()))translateTextNode(text);
   const attributeNodes=[...(node.matches?.('[placeholder],[title],[aria-label]')?[node]:[]),...(node.querySelectorAll?.('[placeholder],[title],[aria-label]')||[])];
   attributeNodes.forEach(el=>{for(const attr of ['placeholder','title','aria-label']){const value=el.getAttribute(attr);if(value){const next=translateAdminText(value);if(next!==value)el.setAttribute(attr,next);}}});
  };
  apply(root);
- new MutationObserver(records=>records.forEach(record=>{if(record.type==='characterData')apply(record.target.parentElement||root);else record.addedNodes.forEach(node=>{if(node.nodeType===Node.ELEMENT_NODE)apply(node);else if(node.nodeType===Node.TEXT_NODE){const next=translateAdminText(node.nodeValue||'');if(next!==node.nodeValue)node.nodeValue=next;}});})).observe(root,{subtree:true,childList:true,characterData:true});
+ new MutationObserver(records=>records.forEach(record=>{if(record.type==='characterData')apply(record.target.parentElement||root);else record.addedNodes.forEach(node=>{if(node.nodeType===Node.ELEMENT_NODE)apply(node);else if(node.nodeType===Node.TEXT_NODE)translateTextNode(node);});})).observe(root,{subtree:true,childList:true,characterData:true});
 }

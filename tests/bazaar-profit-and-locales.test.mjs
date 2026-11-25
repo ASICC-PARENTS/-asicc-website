@@ -99,5 +99,5 @@ test('administrator French labels distinguish cancellation action and status',as
   assert.equal(translateAdminText('취소'),'Annuler');
   assert.equal(translateAdminText('Utilisateur'),'Utilisateur');
   const app=await read('../src/lib/bazaar/admin/app.js');
-  assert.match(app,/canceled:\\[fr\\?'Annulée':'취소'/);
+  assert.ok(app.includes("canceled:[fr?'Annulée':'취소'"));
 });
