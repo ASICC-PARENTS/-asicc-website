@@ -42,10 +42,15 @@ export function createMail(env, db, send = fetch) {
   const testMailSince = Date.parse(env.BAZAAR_TEST_MAIL_SINCE ?? '');
   const directTestMail = env.BAZAAR_MODE === 'test' && env.FIREBASE_PROJECT_ID === 'asicc-bazaar-test'
     && provider === 'brevo' && Number.isFinite(testMailSince);
+  // Never send direct rehearsal mail to an address supplied by an arbitrary visitor.
+  // Explicit, comma-separated recipients; empty/malformed configuration fails closed.
+  const approvedTestRecipients = new Set(String(env.BAZAAR_TEST_MAIL_RECIPIENTS ?? '')
+    .split(',').map(address=>address.trim().toLowerCase()).filter(isTestAddress));
+  const approvedRecipient = address => typeof address === 'string' && approvedTestRecipients.has(address.trim().toLowerCase());
   const key = env.BAZAAR_MAIL_API_KEY;
   const from = env.BAZAAR_MAIL_FROM;
   const canSend = () => isCapture || (env.MAIL_MODE === 'api' && ['resend', 'brevo'].includes(provider) && !!key && isTestAddress(from)
-    && (env.BAZAAR_MODE === 'production' || directTestMail || isTestAddress(testRecipient)));
+    && (env.BAZAAR_MODE === 'production' || (directTestMail ? approvedTestRecipients.size > 0 : isTestAddress(testRecipient))));
 
   const usage = db.collection('bazaarMailUsage');
   const budgetRef = usage.doc(`${provider || 'brevo'}-rolling`);
@@ -55,6 +60,7 @@ export function createMail(env, db, send = fetch) {
   async function providerSend(job, payload) {
     if (isCapture) return { ok: true, id: 'captured' };
     const to = env.BAZAAR_MODE === 'production' || directTestMail ? payload.to : testRecipient;
+    if (directTestMail && !approvedRecipient(to)) return { skip:true, code:'test-recipient-not-approved' };
     // Workers supports manual redirects. Keep the credentials on the configured provider host.
     const common = { method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(8000) };
     const response = provider === 'resend'
@@ -109,6 +115,10 @@ export function createMail(env, db, send = fetch) {
       if (directTestMail && (!Number.isFinite(Date.parse(order?.createdAt)) || Date.parse(order.createdAt) < testMailSince
         || !Number.isFinite(Date.parse(job.createdAt)) || Date.parse(job.createdAt) < testMailSince)) {
         tx.update(ref, {status:'skipped',lastError:'before-test-mail-activation',payload:null,...reschedule(job.type,null)});
+        return null;
+      }
+      if (directTestMail && !approvedRecipient(order?.email)) {
+        tx.update(ref,{status:'skipped',lastError:'test-recipient-not-approved',payload:null,...reschedule(job.type,null)});
         return null;
       }
       if (!order?.email || !autoMailAllowed(policy,job,order) || !mailMatchesOrder(job,order) || retiredTypes.has(job.type) || (job.mode==='manual'?!manualStillEligible(job,order,active?.data(),time):job.type==='bulkCancel'&&policy?.bulkCancel!=='auto')
@@ -166,7 +176,8 @@ export function createMail(env, db, send = fetch) {
         const obsolete=!order||!autoMailAllowed(policy.data(),job,order)||!mailMatchesOrder(job,order)||(job.mode==='manual'?!manualStillEligible(job,order,active.data(),Date.now()):job.type==='reminderFinal'
           ? !eligibleReminder(current.data(),active.data(),policy.data(),Date.now())
           : job.type==='bulkCancel'&&(policy.data()?.bulkCancel!=='auto'||!order.canceledAt));
-        if(obsolete) result={skip:true};
+        if(directTestMail&&!approvedRecipient(order?.email)) result={skip:true,code:'test-recipient-not-approved'};
+        else if(obsolete) result={skip:true};
       }
       result ??= await providerSend(job, job.payload);
     }
@@ -197,7 +208,7 @@ export function createMail(env, db, send = fetch) {
       }
       tx.update(ref, { status: result.skip ? 'skipped' : result.retry ? 'delayed' : 'failed',
         ...reschedule(job.type,result.retry ? iso(Date.now()+result.retry) : null),
-        sendingUntil: null, lastError: result.skip ? null : result.code ?? 'provider-result-uncertain',
+        sendingUntil: null, lastError: result.skip ? result.code??null : result.code ?? 'provider-result-uncertain',
         deliveryUncertain: result.uncertain === true });
       return false;
     });

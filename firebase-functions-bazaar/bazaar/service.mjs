@@ -175,6 +175,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       refundReason:order.publicRefundReason||'',lastRefundAt:order.lastRefundAt||null,
       pickupNote: order.pickupNote,
       transferReportedAt: order.transferReportedAt, bankConfirmedAt: order.bankConfirmedAt, canceledAt: order.canceledAt,
+      changeRestriction: event?.eventId !== order.eventId ? 'different-event' : locked(event) ? 'reconciliation' : null,
       canChange: event?.eventId === order.eventId && !locked(event),
       canCancel: event?.eventId === order.eventId && buyerCanCancel(event,order)
     };

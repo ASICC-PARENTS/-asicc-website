@@ -140,11 +140,17 @@ function actions(){
     canCancel()?actionButton('cancel',t('주문 취소하기','Annuler ma commande'),'buyer-danger'):'',
   ].join('');
   const restriction=!order.canceledAt&&!order.bankConfirmedAt&&!order.transferReportedAt&&!order.canChange
-    ?t('이 검수 주문은 별도 행사로 격리되어 송금 신고와 온라인 취소를 사용할 수 없습니다. 실제 운영진에게 문의해 주세요.',
-       'Cette commande de vérification appartient à un événement isolé. Le signalement du virement et l’annulation en ligne ne sont pas disponibles.')
+    ?(order.changeRestriction==='different-event'
+        ?t('이 주문은 현재 행사에 속하지 않아 송금 신고와 온라인 취소를 할 수 없습니다. 협회에 문의해 주세요.',
+           'Cette commande ne concerne pas le bazar en cours. Le signalement du virement et l’annulation en ligne ne sont pas disponibles. Contactez l’association.')
+        :order.changeRestriction==='reconciliation'
+        ?t('이 행사의 결제 정산이 시작되었거나 완료되어 송금 신고와 온라인 취소를 할 수 없습니다. 협회에 문의해 주세요.',
+           'Le rapprochement des paiements de ce bazar est en cours ou terminé. Le signalement du virement et l’annulation en ligne ne sont pas disponibles. Contactez l’association.')
+        :t('현재 주문 상태에서는 송금 신고와 온라인 취소를 할 수 없습니다. 협회에 문의해 주세요.',
+           'Le signalement du virement et l’annulation en ligne ne sont pas disponibles pour cette commande. Contactez l’association.'))
     :!order.canceledAt&&!order.bankConfirmedAt&&!order.transferReportedAt&&order.canChange&&!order.canCancel
-      ?t('주문 마감 후에는 온라인으로 취소할 수 없습니다. 송금 신고와 주문 조회는 계속 이용할 수 있습니다.',
-         'Après la clôture des commandes, l’annulation en ligne n’est plus disponible. Le signalement du virement et le suivi restent accessibles.')
+      ?t('현재 주문 상태에서는 온라인 취소를 할 수 없습니다. 송금 신고와 주문 조회는 계속 이용할 수 있습니다.',
+         'L’annulation en ligne n’est pas disponible pour cette commande. Le signalement du virement et le suivi restent accessibles.')
       :'';
   return buttons||restriction?`<div class="buyer-actions">${buttons}</div>${restriction?`<p class="buyer-hint" role="status">${h(restriction)}</p>`:''}`:'';
 }

@@ -381,14 +381,14 @@ test('Brevo retries quota-limited delivery with one idempotency key and a test-o
   assert.equal((await uncertain.get()).data().deliveryUncertain,true);
 });
 
-test('direct Brevo rehearsal delivers only new test orders to their entered address', async () => {
+test('direct Brevo rehearsal delivers only new test orders to an approved entered address', async () => {
   const eventId='test-mail-scope-'+id();
   const since=when(-60000);
   const sent=[];
   const mail=createMail({
     BAZAAR_MODE:'test',FIREBASE_PROJECT_ID:'asicc-bazaar-test',MAIL_MODE:'api',MAIL_PROVIDER:'brevo',
     BAZAAR_MAIL_FROM:'sender@example.test',BAZAAR_MAIL_API_KEY:'mock',TEST_MAIL_TO:'override@example.test',
-    BAZAAR_TEST_MAIL_SINCE:since
+    BAZAAR_TEST_MAIL_SINCE:since,BAZAAR_TEST_MAIL_RECIPIENTS:'new-buyer@example.test'
   },db,async (url,options)=>{
     assert.equal(url,'https://api.brevo.com/v3/smtp/email');
     sent.push(JSON.parse(options.body));
@@ -420,6 +420,16 @@ test('direct Brevo rehearsal delivers only new test orders to their entered addr
   assert.match(sent[0].htmlContent,/width="280" height="104"/);
   assert.doesNotMatch(sent[0].htmlContent,/bazaar-email-logo\.png|>ASICC<\/div>/);
   assert.match(sent[0].htmlContent,/Association de la Section Internationale Coréenne à Courbevoie/);
+  const rejected=db.doc('bazaarOutbox/'+orderId+'_unapproved');
+  await order.update({email:'unapproved@example.test'});
+  await rejected.set({...job,createdAt:when(-1000)});
+  assert.equal(await mail.deliver(rejected.id,template),false);
+  assert.equal(sent.length,1);
+  assert.equal((await rejected.get()).data().lastError,'test-recipient-not-approved');
+  const disabled=createMail({BAZAAR_MODE:'test',FIREBASE_PROJECT_ID:'asicc-bazaar-test',MAIL_MODE:'api',
+    MAIL_PROVIDER:'brevo',BAZAAR_MAIL_FROM:'sender@example.test',BAZAAR_MAIL_API_KEY:'mock',
+    BAZAAR_TEST_MAIL_SINCE:since},db,async()=>{throw Error('Unexpected provider call');});
+  assert.equal(disabled.canSend(),false);
 });
 
 test('concurrent checkouts preserve stock, receipts and administrator changes', { timeout: 150000 }, async t => {

@@ -13,6 +13,8 @@ BAZAAR_SITE_URL = "https://asicc-integration-test.pages.dev"
 MAIL_MODE = "api"
 MAIL_PROVIDER = "brevo"
 BAZAAR_TEST_MAIL_SINCE = "2026-11-25T15:00:00Z"
+# Previously used association test mailbox; add other recipients only after approval.
+BAZAAR_TEST_MAIL_RECIPIENTS = "contact@asicc-parents.fr"
 
 [triggers]
 crons = ["*/5 * * * *"]
