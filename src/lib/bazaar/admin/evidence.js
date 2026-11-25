@@ -1,4 +1,4 @@
-export function evidenceControls({event,record,vendors,expected,request,modal,close,run,refresh,t,esc,money}){
+export function evidenceControls({event,record,vendors,registeredVendors,expected,request,modal,close,run,refresh,t,esc,money}){
  const entries=(record.evidence||[]).filter(row=>!row.voidedAt);
  const purchases=entries.filter(row=>row.scope==='purchase');
  const actual=purchases.reduce((total,row)=>total+(row.kind==='credit'?-1:1)*row.amountCents,0);
@@ -18,7 +18,7 @@ export function evidenceControls({event,record,vendors,expected,request,modal,cl
  const button=(text,attrs='',style='neutral')=>'<button class="btn '+style+'" '+attrs+'>'+text+'</button>';
  const closeButton=button(t('닫기','Fermer'),'data-action="close"');
  function form(scope,row){
-  const optionsList=scope==='purchase'?vendors:record.expenses||[];
+  const optionsList=scope==='purchase'?registeredVendors:record.expenses||[];
   if(!optionsList.length)throw new Error(scope==='purchase'?t('발주서를 먼저 등록해 주세요.','Enregistrez d’abord le bon de commande.'):t('지출 항목을 먼저 등록해 주세요.','Enregistrez d’abord une dépense.'));
   const id=row?.id||crypto.randomUUID().replaceAll('-','');
   const optional=(key,label,value='',max=120)=>'<label class="field">'+label+'<input name="'+key+'" maxlength="'+max+'" value="'+esc(value)+'"></label>';

@@ -10,7 +10,9 @@
 tr.row-drop-before td{box-shadow:inset 0 3px #286197}
 tr.row-drop-after td{box-shadow:inset 0 -3px #286197}
 
-.event-list-table{table-layout:fixed;min-width:0;width:100%}
+.sheet .event-list-table{table-layout:fixed;min-width:0;width:100%}
+.bazaar-financial-board .sheet table{table-layout:auto;min-width:0;width:100%}
+.bazaar-financial-board .sheet td:last-child{white-space:normal}
 .event-list-table :is(th,td){padding:8px 6px}
 .event-list-table th a{color:inherit}
 .event-list-table th:first-child{width:auto}
@@ -34,7 +36,7 @@ tr.row-drop-after td{box-shadow:inset 0 -3px #286197}
 
 @media(min-width:781px){.modal-wrap{background:#19273524}.modal-wrap .modal-h{cursor:move;touch-action:none}.modal-wrap .modal-h button{cursor:pointer}.modal-wrap .modal.modal-moved{position:fixed;margin:0}}
 
-@media(min-width:761px){.event-list-table{width:min(100%,785px)}.event-list-table th:first-child{width:240px}}
+@media(min-width:761px){.sheet .event-list-table{width:min(100%,785px)}.event-list-table th:first-child{width:240px}}
 .event-header .event-back{display:inline-block;margin-bottom:12px}.event-header .info-row{margin-top:12px}.event-actions{margin-top:24px;gap:8px;align-items:center}.event-end-action{margin-inline-start:auto}.event-link-menu summary{cursor:pointer}.event-link-menu[open]>div{padding-block:8px}.event-header [data-copy-status]:empty{display:none}.event-header+.tabs{margin-top:24px}
 
 .canceled-line{color:#9b1c34}.modal :is(input,textarea,select).invalid{outline:2px solid #b52c2c}

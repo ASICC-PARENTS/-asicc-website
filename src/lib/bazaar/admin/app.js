@@ -901,18 +901,20 @@ function eventCashTotals(){
  const source=store.orders.map(order=>order.payment).filter(Boolean);
  return source.reduce((total,payment)=>({
   deposited:total.deposited+payment.deposited,refunded:total.refunded+payment.refunded,
-  net:total.net+payment.net,refundDue:total.refundDue+payment.refundDue,additionalDue:total.additionalDue+(payment.deposited>0?payment.additionalDue:0)
- }),{deposited:0,refunded:0,net:0,refundDue:0,additionalDue:0});
+  net:total.net+payment.net,refundDue:total.refundDue+payment.refundDue,reserved:total.reserved+payment.reservedRefund,
+  additionalDue:total.additionalDue+(payment.deposited>0?payment.additionalDue:0)
+ }),{deposited:0,refunded:0,net:0,refundDue:0,reserved:0,additionalDue:0});
 }
 function cashRows(){
  const cash=eventCashTotals(),t=(ko,french)=>fr?french:ko;
  return [[t('실제 누적 입금','Encaissements cumulés'),cash.deposited],[t('실제 누적 환불','Remboursements cumulés'),cash.refunded],
-  [t('실제 순입금','Encaissements nets'),cash.net],[t('환불 대기','Reste à rembourser'),cash.refundDue],
+  [t('실제 순입금','Encaissements nets'),cash.net],[t('환불 대기','Remboursements en attente'),cash.reserved],
+  [t('미등록 반환 필요','Remboursements à enregistrer'),Math.max(0,cash.refundDue-cash.reserved)],
   [t('추가 입금 대기','Compléments attendus'),cash.additionalDue]].map(([label,cents])=>[label,cents/100]);
 }
 function accountingEvidence(){
  const names=vendors();
- return evidenceControls({event:selectedEvent().id,record:eventFinancialRecord,vendors:names.filter(name=>poMeta(name).revision>0),
+ return evidenceControls({event:selectedEvent().id,record:eventFinancialRecord,vendors:names,registeredVendors:names.filter(name=>poMeta(name).revision>0),
   expected:names.reduce((sum,vendor)=>sum+poTotal(vendor),0),request,modal,close:closeModal,run,refresh:load,t:language,esc,money});
 }
 function confirmAccounting(action){
@@ -1003,8 +1005,51 @@ function profitExportRows(){
  const expenses=eventFinancialRecord.expenses||[],other=expenses.reduce((n,x)=>n+x.amountCents,0)/100,gross=finance(sales-buy),net=finance(gross-other);
  return {sales,buy,other,gross,net,margin:sales?net/sales*100:0,expenses};
 }
-function exportProfitExcel(){const x=profitExportRows(),rows=[['ASICC 전체 바자회 수익 결산'],['행사',selectedEvent()?.name||''],['집계 범위',store.settleScope==='confirmed'?'입금 확인 주문':'취소 제외 전체 주문'],[],['항목','금액 EUR','비율'],['총매출액',x.sales,null],['상품 매입비용 TTC',x.buy,null],['매출총이익',x.gross,null],['기타 지출',x.other,null],['순수익',x.net,null],['순수익률',null,x.margin/100],...cashRows(),[],['기타 지출 항목','금액 EUR'],...x.expenses.map(e=>[e.name,e.amountCents/100])];const sheet=XLSX.utils.aoa_to_sheet(rows);sheet['!cols']=[{wch:36},{wch:20},{wch:16}];const book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,sheet,'수익 결산');XLSX.writeFile(book,'ASICC-바자회-수익결산.xlsx')}
-function exportProfitPdf(){const x=profitExportRows(),pdf=new jspdf.jsPDF();const canvas=document.createElement('canvas');canvas.width=1240;canvas.height=1754;const ctx=canvas.getContext('2d');if(!ctx)return;ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#81364d';ctx.font='bold 42px system-ui';ctx.fillText('ASICC · 전체 바자회 수익 결산',70,90);ctx.fillStyle='#29262a';ctx.font='26px system-ui';ctx.fillText(selectedEvent()?.name||'',70,145);ctx.font='24px system-ui';const values=[['총매출액',money(x.sales)],['상품 매입비용 TTC',money(x.buy)],['매출총이익',money(x.gross)],['기타 지출',money(x.other)],['순수익',money(x.net)],['순수익률',x.sales?x.margin.toFixed(1)+'%':'—'],...cashRows().map(([name,value])=>[name,money(value)])];let y=220;for(const [label,value] of values){ctx.fillText(label,80,y);ctx.textAlign='right';ctx.fillText(value,1150,y);ctx.textAlign='left';ctx.strokeStyle='#ded6d4';ctx.beginPath();ctx.moveTo(70,y+18);ctx.lineTo(1170,y+18);ctx.stroke();y+=72;}y+=42;ctx.font='bold 28px system-ui';ctx.fillText('기타 지출 항목',70,y);y+=55;ctx.font='23px system-ui';for(const expense of x.expenses){if(y>1650){pdf.addImage(canvas.toDataURL('image/png'),'PNG',0,0,210,297);pdf.addPage();ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#29262a';y=90;}ctx.fillText(expense.name,80,y);ctx.textAlign='right';ctx.fillText(money(expense.amountCents/100),1150,y);ctx.textAlign='left';y+=48;}pdf.addImage(canvas.toDataURL('image/png'),'PNG',0,0,210,297);pdf.save('ASICC-바자회-수익결산.pdf')}
+function profitLabels(x){
+ const t=language;
+ return [[t('총매출액','Chiffre d’affaires'),x.sales],[t('상품 매입비용 TTC','Achats TTC'),x.buy],
+  [t('매출총이익','Marge brute'),x.gross],[t('기타 지출','Autres dépenses'),x.other],[t('순수익','Résultat net'),x.net]];
+}
+function profitTitle(){return language('ASICC · 전체 바자회 수익 결산','ASICC · Résultat financier du bazar');}
+function profitEventName(){const event=selectedEvent();return (fr?event?.raw?.nameFr:event?.name)||event?.name||'';}
+function profitStatus(){
+ return eventFinancialRecord.finalizedAt?language('정산 확정','Résultat arrêté'):language('정산 미확정','Résultat provisoire');
+}
+function exportProfitExcel(){
+ const x=profitExportRows(),t=language;
+ const rows=[[profitTitle()],[t('행사','Bazar'),profitEventName()],[t('상태','État'),profitStatus()],[],
+  [t('항목','Libellé'),t('금액 EUR','Montant EUR'),t('비율','Taux')],...profitLabels(x),
+  [t('순수익률','Taux de marge nette'),null,x.sales?x.margin/100:null],...cashRows(),[],
+  [t('기타 지출 항목','Autres dépenses'),t('금액 EUR','Montant EUR')],...x.expenses.map(e=>[e.name,e.amountCents/100])];
+ const sheet=XLSX.utils.aoa_to_sheet(rows);
+ sheet['!cols']=[{wch:42},{wch:25},{wch:12}];
+ if(sheet.C11)sheet.C11.z='0.0%';
+ const book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,sheet,t('수익 결산','Résultat'));
+ XLSX.writeFile(book,fr?'ASICC-resultat-bazar.xlsx':'ASICC-바자회-수익결산.xlsx');
+}
+function exportProfitPdf(){
+ const x=profitExportRows(),t=language,pdf=new jspdf.jsPDF(),canvas=document.createElement('canvas');
+ canvas.width=1240;canvas.height=1754;
+ const ctx=canvas.getContext('2d');if(!ctx)return;
+ const blank=()=>{ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#29262a';};
+ const page=()=>pdf.addImage(canvas.toDataURL('image/jpeg',0.94),'JPEG',0,0,210,297);
+ blank();
+ ctx.fillStyle='#81364d';ctx.font='bold 42px system-ui';ctx.fillText(profitTitle(),70,90,1100);
+ ctx.fillStyle='#29262a';ctx.font='26px system-ui';ctx.fillText(profitEventName()+' · '+profitStatus(),70,145,1100);
+ ctx.font='24px system-ui';let y=220;
+ const values=[...profitLabels(x).map(([label,value])=>[label,money(value)]),
+  [t('순수익률','Taux de marge nette'),x.sales?x.margin.toFixed(1)+' %':'—'],...cashRows().map(([label,value])=>[label,money(value)])];
+ for(const [label,value] of values){
+  ctx.fillText(label,80,y,780);ctx.textAlign='right';ctx.fillText(value,1150,y);ctx.textAlign='left';
+  ctx.strokeStyle='#ded6d4';ctx.beginPath();ctx.moveTo(70,y+18);ctx.lineTo(1170,y+18);ctx.stroke();y+=72;
+ }
+ y+=42;ctx.font='bold 28px system-ui';ctx.fillText(t('기타 지출 항목','Autres dépenses'),70,y);y+=55;ctx.font='23px system-ui';
+ for(const expense of x.expenses){
+  if(y>1650){page();pdf.addPage();blank();y=90;}
+  ctx.fillText(expense.name,80,y,780);ctx.textAlign='right';ctx.fillText(money(expense.amountCents/100),1150,y);ctx.textAlign='left';y+=48;
+ }
+ page();pdf.save(fr?'ASICC-resultat-bazar.pdf':'ASICC-바자회-수익결산.pdf');
+}
 const closedPurchaseWarning='종료된 행사의 발주 내역을 수정합니다. 이미 업체에 보낸 발주서가 있으면 변경사항을 별도로 전달하세요. 고객 주문과 입금 기록은 그대로 유지됩니다.';
 function canEditPurchase(){
  const event=selectedEvent();
