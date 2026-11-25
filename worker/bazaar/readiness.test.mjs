@@ -183,7 +183,12 @@ test('publishing, closing and changing the next event preserve historical produc
 
   const extraId='custom-'+id();
   await admin('addProduct',{eventId:first.id,id:extraId,product:{...original,imageUrl:'',photoPath:''}});
-  await admin('archiveProduct',{eventId:first.id,id:extraId,archive:true});
+  await assert.rejects(admin('archiveProduct',{eventId:first.id,id:extraId,archive:true}),{code:'failed-precondition'});
+  const salesRevision=(await db.doc('bazaarMeta/event').get()).data().productRevision;
+  await admin('setProductSales',{eventId:first.id,id:extraId,revision:salesRevision,visible:false});
+  const suspended=(await db.doc('bazaarProducts/'+extraId).get()).data();
+  assert.equal(suspended.visible,false);
+  assert.equal(suspended.archivedAt,null);
   assert.equal((await service.bazaarPublic({data:{eventId:first.id}})).products.some(item=>item.id===extraId),false);
   const buy=qty=>service.bazaarCreateOrder({data:{eventId:first.id,requestId:id(),lang:'fr',name:'Test Buyer',
     email:'buyer@example.test',phone:'0600000000',consent:true,items:[{id:original.id,qty,priceCents:450}]}});
