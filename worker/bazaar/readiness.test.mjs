@@ -164,6 +164,32 @@ test('publishing, closing and changing the next event preserve historical produc
   assert.ok((await admin('listEvents')).events.find(event=>event.id===first.id).hiddenAt);
   await admin('archiveClosedEvent',{eventId:first.id,archive:false});
   await assert.rejects(admin('deleteClosedEvent',{eventId:first.id,name:first.event.nameKo,confirm:true}),{code:'failed-precondition'});
+  const synthetic=await service.bazaarCreateOrder({data:{eventId:second.id,requestId:id(),name:'Synthetic R9',
+    email:'r9@example.test',phone:'06 00 00 00 00',consent:true,items:[{id:original.id,qty:2,priceCents:700}]}});
+  const scope={id:synthetic.id,eventId:second.id,confirm:true};
+  assert.equal((await admin('adminTransferReport',{...scope,reason:'Synthetic call'})).changed,true);
+  assert.equal((await admin('adminTransferReport',scope)).changed,false);
+  assert.equal((await service.bazaarBuyerAction({data:{id:synthetic.id,token:synthetic.token,action:'report'}})).changed,false);
+  await admin('bankConfirm',scope);
+  const pending={...scope,requestId:id(),revision:0,kind:'items',items:[{id:original.id,qty:1}],amountCents:700,
+    restoreStock:true,reason:'synthetic internal note',publicReason:'Supply shortage',operator:'Fixture operator',method:'cash'};
+  const registered=await admin('createRefund',pending);
+  assert.deepEqual([registered.payment.original,registered.payment.due,registered.payment.refunded,registered.payment.refundDue],[1400,700,0,700]);
+  assert.equal((await admin('createRefund',pending)).payment.reservedRefund,700);
+  assert.equal((await db.doc('bazaarProducts/'+original.id).get()).data().soldQty,1);
+  const view=async()=> (await service.bazaarBuyerAction({data:{id:synthetic.id,token:synthetic.token,action:'view'}})).order;
+  const awaiting=await view();
+  assert.equal(awaiting.items[0].qty,1);
+  assert.equal(awaiting.canceledItems[0].qty,1);
+  assert.equal(awaiting.refundReason,'Supply shortage');
+  assert.doesNotMatch(JSON.stringify(awaiting),/synthetic internal note|Fixture operator|boxPrice/);
+  const retryFinish={...scope,requestId:pending.requestId,completedAt:future(-2000),operator:'Fixture operator',reference:'mock-reference'};
+  await Promise.all([admin('finishRefund',retryFinish),admin('finishRefund',retryFinish)]);
+  const complete=await view();
+  assert.deepEqual([complete.payment.net,complete.payment.refunded,complete.payment.refundDue],[700,700,0]);
+  assert.equal((await db.doc('bazaarProducts/'+original.id).get()).data().soldQty,1);
+  assert.equal((await admin('orderRefunds',scope)).refunds.length,1);
+  await assert.rejects(admin('createRefund',{...pending,requestId:id(),revision:1,kind:'overpayment',items:[],restoreStock:false}),{code:'failed-precondition'});
   const oldUrl=new URL(photos.preview(past).imageUrl);
   assert.deepEqual(Buffer.from(await (await photos.serve(oldUrl)).arrayBuffer()),Buffer.from(photo,'base64'));
   assert.equal((await service.bazaarPublic({data:{eventId:first.id}})).event.status,'closed');

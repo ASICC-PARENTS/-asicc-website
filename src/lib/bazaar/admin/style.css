@@ -21,3 +21,12 @@ tr.row-drop-after td{box-shadow:inset 0 -3px #286197}
 @media(max-width:760px){.event-list-table th:nth-child(n){width:auto}.event-list-table :is(th,td){padding:6px 3px;overflow-wrap:anywhere}}
 
 @media(min-width:781px){.modal-wrap{background:#19273524}.modal-wrap .modal-h{cursor:move;touch-action:none}.modal-wrap .modal-h button{cursor:pointer}.modal-wrap .modal.modal-moved{position:fixed;margin:0}}
+
+@media(min-width:761px){.event-list-table{width:min(100%,1010px)}.event-list-table th:first-child{width:clamp(230px,30vw,350px)}}
+.event-header .event-back{display:inline-block;margin-bottom:12px}.event-header .info-row{margin-top:12px}.event-actions{margin-top:24px;gap:8px;align-items:center}.event-end-action{margin-inline-start:auto}.event-link-menu summary{cursor:pointer}.event-link-menu[open]>div{padding-block:8px}.event-header [data-copy-status]:empty{display:none}.event-header+.tabs{margin-top:24px}
+
+.canceled-line{color:#9b1c34}.modal :is(input,textarea,select).invalid{outline:2px solid #b52c2c}
+
+.mail-switch,.mail-mode label{display:inline-flex;align-items:center;gap:4px;padding:2px 5px}.mail-switch span{border-radius:10px;background:#e6e6e6;padding:2px 7px;color:#333}.mail-switch input:checked+span{background:#d5efde;color:#165329}.mail-mode input:checked+span{font-weight:bold}.mail-mode input:disabled+span{opacity:.5}
+
+.mobile-order-sort{display:none}.column-sort{background:none;border:none;cursor:pointer;color:inherit;font:inherit;padding:0;text-align:left}.order-cards .muted,.sheet td.tiny{white-space:normal}.sheet:has(.column-sort) :is(td,th){overflow-wrap:anywhere}@media(max-width:780px){.mobile-order-sort{display:inline-flex;align-items:center;gap:5px}}

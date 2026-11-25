@@ -141,6 +141,7 @@ export function createMailAdmin(db,mail) {
         const policy={reminderMode,bulkCancel,reminderAt:reminderMode==='auto'?new Date(at).toISOString():null};
         if(modes){
           policy.modes=modes;
+          policy.preferredModes=Object.fromEntries(Object.keys(mailKinds).map(kind=>[kind,(mailKinds[kind]==='auto'||kind==='bulkCancel')&&data.preferredModes?.[kind]==='auto'?'auto':'manual']));
           policy.templates=templates?safeTemplates:(previous.data()?.templates||{});
           policy.autoSince={...(previous.data()?.autoSince||{})};
           policy.enabledSince={...(previous.data()?.enabledSince||{})};

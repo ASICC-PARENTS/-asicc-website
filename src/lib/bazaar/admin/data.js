@@ -43,7 +43,7 @@ export function eventViewModel(event, items=[], orders=[]) {
     pickupKo:event.pickupKo, pickupFr:event.pickupFr,
     orders:orders.map(order=>({
       id:order.id, ref:order.orderRef, name:order.name, email:order.email, phone:order.phone,
-      payment:order.payment, bankConfirmedAt:order.bankConfirmedAt, source:order.source||'web', parentOrderRef:order.parentOrderRef||'', revision:order.revision??0,
+      payment:order.payment,transferReportSource:order.transferReportSource,originalItems:order.originalItems||order.items,canceledItems:order.canceledAt?order.items:(order.canceledItems||[]),priceAdjustmentCents:order.priceAdjustmentCents||0, bankConfirmedAt:order.bankConfirmedAt, source:order.source||'web', parentOrderRef:order.parentOrderRef||'', revision:order.revision??0,
       paymentDeadline:order.paymentDeadline||order.eventSnapshot?.transferCutoff||'',memo:order.pickupNote||'', date:local(order.createdAt).replace('T',' '),
       reportedAt:local(order.transferReportedAt).replace('T',' '),
       verifiedAt:local(order.bankConfirmedAt).replace('T',' '),

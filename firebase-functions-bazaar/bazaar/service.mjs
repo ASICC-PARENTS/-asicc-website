@@ -109,10 +109,15 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     return {orderStartsAt,pickupAt,pickupPlace,paymentHours};
   }
   const buyerCanCancel=event=>event?.status==='published'&&Date.now()<Date.parse(event.orderCutoff);
+  const publicItem=({titleKo,titleFr,qty,priceCents})=>({titleKo,titleFr,qty,priceCents});
   function buyerOrder(order, event) {
     return {
       ...paymentDetails(order),
-      items: order.items.map(({ titleKo, titleFr, qty, priceCents }) => ({ titleKo, titleFr, qty, priceCents })),
+      items: order.canceledAt?[]:order.items.map(publicItem),
+      canceledItems:(order.canceledAt?order.items:(order.canceledItems||[])).map(publicItem),
+      payment:orderPaymentSummary(order), name:order.name,createdAt:order.createdAt,
+      modifiedAt:order.modifiedAt||null,eventNameKo:order.eventSnapshot?.nameKo||'',eventNameFr:order.eventSnapshot?.nameFr||'',
+      refundReason:order.publicRefundReason||'',lastRefundAt:order.lastRefundAt||null,
       pickupNote: order.pickupNote,
       transferReportedAt: order.transferReportedAt, bankConfirmedAt: order.bankConfirmedAt, canceledAt: order.canceledAt,
       canChange: event?.eventId === order.eventId && !locked(event),
@@ -309,7 +314,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       if(!cents(total)||total===0)bad('금액을 확인해 주세요.');
       const orderRef=`ASICC-${new Date().getUTCFullYear().toString().slice(-2)}-${ref.id.slice(0,10).toUpperCase()}`;
       const createdAt=now();
-      const data={id:ref.id,eventId:e.eventId||initialEvent.eventId,eventSnapshot:{...e},orderRef,...buyer,consent:true,orderTermsVersion,orderTermsAcceptedAt:createdAt,paymentDeadline:personalTransferDeadline(createdAt,e),paymentHours:e.paymentHours??defaultPaymentHours,requestFingerprint:fingerprint,items:itemDetails,totalCents:total,createdAt,buyerToken:token,transferReportedAt:null,bankConfirmedAt:null,canceledAt:null,reminder3At:null,reminderFinalAt:null};
+      const data={id:ref.id,eventId:e.eventId||initialEvent.eventId,eventSnapshot:{...e},orderRef,...buyer,consent:true,orderTermsVersion,orderTermsAcceptedAt:createdAt,paymentDeadline:personalTransferDeadline(createdAt,e),paymentHours:e.paymentHours??defaultPaymentHours,requestFingerprint:fingerprint,items:itemDetails,originalItems:itemDetails,originalTotalCents:total,totalCents:total,createdAt,buyerToken:token,transferReportedAt:null,bankConfirmedAt:null,canceledAt:null,reminder3At:null,reminderFinalAt:null};
       snapshots.forEach((snapshot,i)=>tx.update(snapshot.ref,{soldQty:FieldValue.increment(buyer.items[i].qty)}));
       tx.create(ref,data);
       tx.set(throttleRef,{startedMs:(rate.startedMs||0)>windowStart?rate.startedMs:Date.now(),count:(rate.startedMs||0)>windowStart?(rate.count||0)+1:1,expiresAt:new Date(Date.now()+24*3600000).toISOString()});
@@ -341,7 +346,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         if(o.bankConfirmedAt)throw new HttpsError('failed-precondition','이미 입금이 확인된 주문입니다.');
         const reportedAt=o.transferReportedAt||now();
         if(!o.transferReportedAt){
-          tx.update(ref,{transferReportedAt:reportedAt});
+          tx.update(ref,{transferReportedAt:reportedAt,transferReportSource:'buyer'});
         }
         return{order:buyerOrder({...o,transferReportedAt:reportedAt},currentEvent),changed:!o.transferReportedAt};
       }
@@ -577,7 +582,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         const orderRef=`ASICC-${prefix}-${ref.id.slice(0,16).toUpperCase()}`;
         const order={...buyer,id:ref.id,eventId,eventSnapshot:event,orderRef,source,
           ...(parentId?{parentId,parentOrderRef:parent.data().orderRef}:{}),createdBy:req.auth.uid,
-          requestFingerprint:fingerprint,buyerToken:token,createdAt:now(),paymentDeadline:personalTransferDeadline(now(),event),paymentHours:event.paymentHours??defaultPaymentHours,items,totalCents,
+          requestFingerprint:fingerprint,buyerToken:token,createdAt:now(),paymentDeadline:personalTransferDeadline(now(),event),paymentHours:event.paymentHours??defaultPaymentHours,items,originalItems:items,originalTotalCents:totalCents,totalCents,
           transferReportedAt:null,bankConfirmedAt:null,canceledAt:null,reminder3At:null,reminderFinalAt:null};
         tx.create(ref,order);
         snapshots.forEach((snapshot,i)=>tx.update(snapshot.ref,{soldQty:FieldValue.increment(items[i].qty)}));
@@ -628,7 +633,9 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         }
         if(!items.length)bad('모든 상품을 취소하려면 전체 주문 취소를 사용해 주세요.');
         if(!stockChanges.length&&items.length===order.items.length&&items.every(item=>item.qty===previous.get(item.id)?.qty))bad('변경된 수량이 없습니다.');
-        const totalCents=orderTotal(items);
+        const totalCents=orderTotal(items)-(order.priceAdjustmentCents||0);
+        if(totalCents<0)bad('현재 주문금액보다 가격 조정액이 클 수 없습니다.');
+        if((order.reservedRefundCents||0)>orderPaymentSummary({...order,totalCents}).refundDue)throw new HttpsError('failed-precondition','환불 대기 금액이 변경되는 정정은 먼저 환불 대기를 처리해야 합니다.');
         if(order.transferReportedAt&&!order.bankConfirmedAt&&totalCents!==order.totalCents)
           throw new HttpsError('failed-precondition','송금 신고 주문은 은행 입금을 먼저 확인해 주세요.');
         if(order.bankConfirmedAt&&data.restoreStock!==true&&data.restoreStock!==false)bad('회수한 상품을 재고로 복원할지 선택해 주세요.');
@@ -639,7 +646,8 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
           before:{items:order.items,totalCents:order.totalCents},after:{items,totalCents}};
         tx.create(ref.collection('corrections').doc(String(changed.revision)),changed);
         const payment=orderPaymentSummary(order);
-        tx.update(ref,{items,totalCents,originalTotalCents:payment.original,depositedCents:payment.deposited,refundedCents:payment.refunded,revision:changed.revision,productHistoryIds:[...new Set([...(order.productHistoryIds||[]),...order.items.map(item=>item.id),...items.map(item=>item.id)])]});
+        const removed=order.items.map(item=>({...item,qty:item.qty-quantities.get(item.id)})).filter(item=>item.qty>0);
+        tx.update(ref,{items,totalCents,modifiedAt:changed.at,originalItems:order.originalItems||order.items,canceledItems:[...(order.canceledItems||[]),...removed],originalTotalCents:payment.original,depositedCents:payment.deposited,refundedCents:payment.refunded,revision:changed.revision,productHistoryIds:[...new Set([...(order.productHistoryIds||[]),...order.items.map(item=>item.id),...items.map(item=>item.id)])]});
         if(order.email){
           const fields={eventId,change:{items,totalCents}};
           await queue(tx,id,'orderChanged',{...fields,jobKey:'orderChanged-'+changed.revision});
@@ -675,8 +683,8 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
             throw new HttpsError('already-exists','같은 요청 번호로 다른 거래를 기록할 수 없습니다.');
           return {payment:current};
         }
-        const allowed=type==='refund'?current.refundDue:current.additionalDue;
-        if(amount>allowed)throw new HttpsError('failed-precondition','처리할 수 있는 차액보다 입력 금액이 큽니다.');
+        const allowed=type==='refund'?Math.max(0,current.refundDue-(order.reservedRefundCents||0)):current.additionalDue;
+        if(amount>allowed&&!(type==='deposit'&&data.overpayment===true&&!order.canceledAt&&!!reference))throw new HttpsError('failed-precondition','처리할 수 있는 차액보다 입력 금액이 큽니다.');
         const record={id:key,type,amountCents:amount,reason,reference,by:req.auth.uid,at:now()};
         const patch={originalTotalCents:current.original,depositedCents:current.deposited+(type==='deposit'?amount:0),
           refundedCents:current.refunded+(type==='refund'?amount:0)};
@@ -684,6 +692,115 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         tx.update(ref,patch);
         if(type==='refund'&&order.email)await queue(tx,id,'refundCompleted',{eventId:order.eventId,jobKey:'refundCompleted-'+key,change:{amountCents:amount,at:record.at,items:order.items,totalCents:order.totalCents}});
         return {payment:orderPaymentSummary({...order,...patch})};
+      });
+    }
+    if(['adminTransferReport','orderRefunds','createRefund','finishRefund','voidRefund'].includes(op)){
+      const id=s(data.id),eventId=s(data.eventId),uid=req.auth.uid;
+      if(!/^[A-Za-z0-9]{15,40}$/.test(id)||!validEventId(eventId))bad('행사와 주문을 확인해 주세요.');
+      const ref=orders.doc(id),refunds=ref.collection('refunds');
+      if(op==='orderRefunds'){
+        const order=(await ref.get()).data();
+        if(!order||order.eventId!==eventId)throw new HttpsError('not-found','주문을 찾을 수 없습니다.');
+        const rows=await refunds.orderBy('createdAt','desc').get();
+        return {refunds:rows.docs.map(doc=>doc.data())};
+      }
+      if(op==='adminTransferReport'){
+        const reason=s(data.reason).trim();
+        if(data.confirm!==true||reason.length>500||data.undo===true&&!reason)bad('송금 신고 내용을 확인해 주세요.');
+        return db.runTransaction(async tx=>{
+          const [snapshot,active]=await Promise.all([tx.get(ref),tx.get(eventRef)]);
+          const order=snapshot.data();
+          if(!order||order.eventId!==eventId)throw new HttpsError('not-found','주문을 찾을 수 없습니다.');
+          assertOrderEvent(active.data(),eventId);
+          if(order.bankConfirmedAt||order.canceledAt)throw new HttpsError('failed-precondition','취소 또는 입금 확인된 주문은 변경할 수 없습니다.');
+          if(data.undo===true&&order.transferReportSource!=='admin')throw new HttpsError('failed-precondition','운영진이 등록한 신고만 정정할 수 있습니다.');
+          if(data.undo!==true&&order.transferReportedAt)return {changed:false};
+          const at=now();
+          const seq=(order.transferReportRevision||0)+1;
+          tx.create(ref.collection('transferReports').doc(String(seq)),{at,by:uid,reason,undo:data.undo===true,previousAt:order.transferReportedAt||null});
+          tx.update(ref,{transferReportedAt:data.undo===true?null:at,transferReportSource:data.undo===true?null:'admin',
+            transferReportBy:data.undo===true?null:uid,transferReportRevision:seq});
+          return {changed:true};
+        });
+      }
+      const key=s(data.requestId),reason=s(data.reason).trim();
+      if(!/^[a-f0-9]{32}$/.test(key)||data.confirm!==true||reason.length>500)bad('환불 요청을 확인해 주세요.');
+      const document=refunds.doc(key);
+      return db.runTransaction(async tx=>{
+        const [snapshot,existing,active]=await Promise.all([tx.get(ref),tx.get(document),tx.get(eventRef)]);
+        const order=snapshot.data(),record=existing.data(),event=active.data();
+        if(!order||order.eventId!==eventId||!order.bankConfirmedAt)throw new HttpsError('failed-precondition','같은 행사의 입금 확인 주문을 선택하세요.');
+        const reserved=order.reservedRefundCents||0,at=now(),payment=orderPaymentSummary(order);
+        if(op==='voidRefund'){
+          if(record?.status==='void')return {refund:record,payment};
+          if(record?.status!=='pending'||!reason)throw new HttpsError('failed-precondition','사유를 입력하고 환불 대기 기록을 선택하세요.');
+          const change={status:'void',voidAt:at,voidBy:uid,voidReason:reason};
+          tx.update(document,change);tx.update(ref,{reservedRefundCents:reserved-record.amountCents});
+          return {refund:{...record,...change},payment};
+        }
+        if(op==='finishRefund'){
+          if(record?.status==='completed')return {refund:record,payment};
+          const actual=s(data.completedAt),reference=s(data.reference).trim(),operator=s(data.operator).trim();
+          if(record?.status!=='pending'||record.amountCents>reserved||record.amountCents>payment.refundDue||
+            !actual||!Number.isFinite(Date.parse(actual))||Date.parse(actual)>Date.now()||!operator||operator.length>120||reference.length>160)
+            throw new HttpsError('failed-precondition','환불 대기 금액, 실제 날짜 및 담당자를 확인해 주세요.');
+          const change={status:'completed',completedAt:new Date(actual).toISOString(),completedBy:uid,recordedAt:at,operator,reference};
+          const patch={reservedRefundCents:reserved-record.amountCents,refundedCents:payment.refunded+record.amountCents,lastRefundAt:change.completedAt};
+          tx.update(document,change);tx.update(ref,patch);
+          if(order.email)await queue(tx,id,'refundCompleted',{eventId,jobKey:'refundCompleted-'+key,change:{
+            amountCents:record.amountCents,at:change.completedAt,items:record.items,totalCents:order.totalCents}});
+          return {refund:{...record,...change},payment:orderPaymentSummary({...order,...patch})};
+        }
+        const kind=data.kind,amount=data.amountCents,restore=data.restoreStock===true,method=s(data.method),operator=s(data.operator).trim();
+        const publicReason=s(data.publicReason).trim(),note=s(data.note).trim(),iban=s(data.iban).replace(/s/g,'').toUpperCase(),beneficiary=s(data.beneficiary).trim();
+        const quantities=data.items??[];
+        if(!['items','price','overpayment','balance'].includes(kind)||!cents(amount)||amount<=0||!reason||!operator||operator.length>120||
+          !['bank','cash','other'].includes(method)||publicReason.length>400||note.length>500||beneficiary.length>120||
+          (iban&&(method!=='bank'||!/^[A-Z]{2}d{2}[A-Z0-9]{11,30}$/.test(iban)))||!Array.isArray(quantities)||quantities.length>30||
+          (kind!=='items'&&(quantities.length||restore)))bad('환불 종류, 금액, 담당자 또는 취소 수량을 확인해 주세요.');
+        const fingerprint=createHash('sha256').update(JSON.stringify({kind,amount,reason,restore,method,operator,publicReason,note,iban,beneficiary,quantities})).digest('hex');
+        if(record){
+          if(record.fingerprint!==fingerprint)throw new HttpsError('already-exists','같은 요청 번호의 환불 내용이 다릅니다.');
+          return {refund:record,payment};
+        }
+        if((order.revision||0)!==data.revision)throw new HttpsError('failed-precondition','주문이 수정되었습니다. 다시 불러와 주세요.');
+        if(order.canceledAt&&['items','price'].includes(kind))bad('이미 취소된 주문의 상품 또는 가격을 변경할 수 없습니다.');
+        const previous=new Map(order.items.map(item=>[item.id,item])),canceled=[];
+        for(const item of quantities){
+          const old=previous.get(s(item?.id));
+          if(!old||!Number.isSafeInteger(item.qty)||item.qty<1||item.qty>old.qty||canceled.some(line=>line.id===old.id))bad('현재 유효한 수량 이내에서 취소할 상품을 선택하세요.');
+          canceled.push({...old,qty:item.qty});
+        }
+        const calculated=canceled.reduce((total,item)=>total+item.qty*item.priceCents,0);
+        if(kind==='items'&&(!canceled.length||amount!==calculated&&!s(data.differenceReason).trim()))bad('취소 상품을 선택하고 계산값과 금액 차이의 사유를 입력하세요.');
+        if(restore&&(event?.eventId!==eventId||event.status!=='published'||locked(event)))
+          throw new HttpsError('failed-precondition','진행 중이며 정산이 시작되지 않은 행사만 재고를 복원할 수 있습니다.');
+        const inventory=restore?await Promise.all(canceled.map(item=>tx.get(products.doc(item.id)))):[];
+        if(inventory.some((doc,i)=>!doc.exists||event.scopedProducts&&doc.data().bazaarEventId!==eventId||doc.data().soldQty<canceled[i].qty))
+          throw new HttpsError('failed-precondition','재고를 복원할 수 없는 상품이 있습니다.');
+        const afterItems=order.items.map(item=>({...item,qty:item.qty-(canceled.find(line=>line.id===item.id)?.qty||0)})).filter(item=>item.qty>0);
+        const total=payment.due-(kind==='items'?calculated:kind==='price'?amount:0);
+        if(total<0||amount+reserved>payment.net-total)throw new HttpsError('failed-precondition','기존 환불 대기를 포함해 실제 환불 가능 금액을 초과했습니다.');
+        const financialOnly=!['items','price'].includes(kind);
+        const revision=(order.revision||0)+(financialOnly?0:1);
+        const next={id:key,eventId,kind,status:'pending',amountCents:amount,createdAt:at,createdBy:uid,reason,method,operator,
+          publicReason,note,beneficiary,iban,restoreStock:restore,calculatedCents:calculated,differenceReason:s(data.differenceReason).slice(0,500),
+          items:canceled.length?canceled:afterItems,revision,fingerprint};
+        const patch={reservedRefundCents:reserved+amount};
+        if(!financialOnly){
+          const first=order.originalItems||((order.revision||0)>0?(await tx.get(ref.collection('corrections').doc('1'))).data()?.before?.items:null)||order.items;
+          Object.assign(patch,{items:afterItems,totalCents:total,modifiedAt:at,revision,originalItems:first,originalTotalCents:payment.original,
+            depositedCents:payment.deposited,refundedCents:payment.refunded,canceledItems:[...(order.canceledItems||[]),...canceled],
+            priceAdjustmentCents:(order.priceAdjustmentCents||0)+(kind==='price'?amount:0),publicRefundReason:publicReason,
+            productHistoryIds:[...new Set([...(order.productHistoryIds||[]),...order.items.map(item=>item.id)])]});
+          if(!afterItems.length)Object.assign(patch,{canceledAt:at,cancelReason:'admin'});
+          tx.create(ref.collection('corrections').doc(String(revision)),{revision,at,by:uid,reason,refundId:key,
+            before:{items:order.items,totalCents:order.totalCents},after:{items:afterItems,totalCents:total}});
+          inventory.forEach((doc,i)=>tx.update(doc.ref,{soldQty:FieldValue.increment(-canceled[i].qty)}));
+          if(order.email)await queue(tx,id,'orderChanged',{eventId,jobKey:'orderChanged-'+revision,change:{items:afterItems,totalCents:total}});
+        }
+        tx.create(document,next);tx.update(ref,patch);
+        return {refund:next,payment:orderPaymentSummary({...order,...patch})};
       });
     }
     if(op==='cancelOrder'){

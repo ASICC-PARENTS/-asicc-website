@@ -90,18 +90,30 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
   }
   function policyEditor(policy){
     const rows=Object.entries(kinds).map(([kind,label])=>{
-      const mode=policy.modes?policyMode(policy,kind):kind==='bulkCancel'?policy.bulkCancel:mailKinds[kind];
-      const automatic=mailKinds[kind]==='auto'||kind==='bulkCancel';
-      return '<tr><th scope="row">'+esc(label)+'</th><td><input type="checkbox" name="on-'+kind+'" '+(mode!=='off'?'checked':'')+'></td>'+
-        '<td><select name="mode-'+kind+'">'+(automatic?'<option value="auto" '+(mode==='auto'?'selected':'')+'>'+t('자동','Automatique')+'</option>':'')+
-        '<option value="manual" '+(mode==='manual'?'selected':'')+'>'+t('수동','Manuel')+'</option></select></td>'+
+      const mode=policyMode(policy,kind),automatic=mailKinds[kind]==='auto'||kind==='bulkCancel';
+      const retained=policy.preferredModes?.[kind]||(mode==='off'?mailKinds[kind]:mode);
+      const toggle='<label class="mail-switch"><input role="switch" type="checkbox" name="on-'+kind+'" '+(mode!=='off'?'checked':'')+'><span></span></label>';
+      const choices=automatic?['auto','manual'].map(value=>'<label><input type="radio" name="mode-'+kind+'" value="'+value+'" '+
+        (retained===value?'checked':'')+(mode==='off'?' disabled':'')+'><span>'+ (value==='auto'?t('자동','Automatique'):t('수동','Manuel'))+'</span></label>').join(''):
+        '<input type="hidden" name="mode-'+kind+'" value="manual">'+t('수동 전용','Manuel uniquement');
+      return '<tr><th scope="row">'+esc(label)+'</th><td>'+toggle+'</td><td class="mail-mode">'+choices+'</td>'+
         '<td><button type="button" data-mail-template="'+kind+'">'+t('내용 수정','Modifier le contenu')+'</button></td></tr>';
     }).join('');
-    return '<form data-mail-form><div class="actions">'+button('enable-all',t('전체 켜기','Tout activer'))+
-      button('disable-all',t('전체 끄기','Tout désactiver'))+'</div><div class="sheet"><table><thead><tr>'+
-      [t('이메일 종류','Type de message'),'ON/OFF',t('발송 방식','Mode'),t('양식','Modèle')].map(label=>'<th scope="col">'+label+'</th>').join('')+
-      '</tr></thead><tbody>'+rows+'</tbody></table></div><div data-template-editor hidden></div>'+
+    return '<form data-mail-form><div class="sheet"><table><thead><tr><th scope="col">'+t('이메일 종류','Type de message')+
+      '</th><th scope="col"><label><input type="checkbox" data-mail-master> ON/OFF</label></th><th scope="col">'+t('발송 방식','Mode')+'</th><th scope="col">'+
+      t('양식','Modèle')+'</th></tr></thead><tbody>'+rows+'</tbody></table></div><div data-template-editor hidden></div>'+
       button('policy',t('행사 발송 설정 저장','Enregistrer les paramètres'))+'</form>';
+  }
+  function syncMailSwitches(){
+    const formNode=form();if(!formNode)return;
+    const master=formNode.querySelector('[data-mail-master]'),switches=[...formNode.querySelectorAll('input[role=switch]')];
+    for(const input of switches){
+      input.parentElement.querySelector('span').textContent=input.checked?'ON':'OFF';
+      input.closest('tr').querySelectorAll('input[type=radio]').forEach(radio=>radio.disabled=!input.checked);
+    }
+    const count=switches.filter(input=>input.checked).length;
+    master.checked=count===switches.length;
+    master.indeterminate=count>0&&count<switches.length;
   }
   function editTemplate(kind){
     const editor=body.querySelector('[data-template-editor]');
@@ -146,7 +158,7 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
       <div class="actions">${cursor?button('more','이력 더 보기'):''}${button('refresh','새로고침')}</div></section><section data-mail-section="manual"><div data-mail-manual></div></section>`;
     if(previous)body.querySelector('[data-mail-manual]').replaceWith(previous);
     else initManual();
-    renderPrepared();chooseTab(tab);drawHistory();
+    renderPrepared();chooseTab(tab);drawHistory();syncMailSwitches();
   }
 
   const parisDate=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris',dateStyle:'short'});
@@ -211,7 +223,11 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
     void load().then(()=>{ready=true;},error=>{feedback.textContent=error.message;}).finally(()=>{pending=false;});
   });
   panel.addEventListener('submit',e=>e.preventDefault());
-  panel.addEventListener('change',e=>{if(e.target.matches('[data-order-select-all]'))panel.querySelectorAll('[data-manual-order]').forEach(box=>box.checked=e.target.checked);});
+  panel.addEventListener('change',e=>{
+    if(e.target.matches('[data-mail-master]'))form().querySelectorAll('input[role=switch]').forEach(input=>input.checked=e.target.checked);
+    if(e.target.matches('[data-mail-master],input[role=switch]'))syncMailSwitches();
+    if(e.target.matches('[data-order-select-all]'))panel.querySelectorAll('[data-manual-order]').forEach(box=>box.checked=e.target.checked);
+  });
   panel.addEventListener('click',async e=>{
     const control=e.target.closest('[data-mail],[data-mail-job],[data-mail-template],[data-mail-tab]');
     if(!control||pending)return;
@@ -247,8 +263,9 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
       if(click==='policy'){
         collectTemplate();
         const f=form().elements;
-        const modes=Object.fromEntries(Object.keys(kinds).map(kind=>[kind,f['on-'+kind].checked?f['mode-'+kind].value:'off']));
-        await action('mailPolicy',{modes,templates});await load();
+        const preferredModes=Object.fromEntries(Object.keys(kinds).map(kind=>[kind,f['mode-'+kind].value]));
+        const modes=Object.fromEntries(Object.keys(kinds).map(kind=>[kind,f['on-'+kind].checked?preferredModes[kind]:'off']));
+        await action('mailPolicy',{modes,preferredModes,templates});await load();
       }
       if(click==='prepare-selected'||click==='prepare-all'){
         if(prepared.length)throw new Error('기존 준비 건을 먼저 완료하거나 해제해 주세요.');

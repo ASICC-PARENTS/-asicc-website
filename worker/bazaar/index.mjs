@@ -52,7 +52,7 @@ function dependencies(env, origin, ctx) {
 }
 
 const shopKey=(origin,id)=>new Request(`${origin}/cached-bazaar-catalog/${id||'current'}`);
-const shopMutations=new Set(['endEvent','publishDraft','saveEvent','saveEventProducts','archiveProduct','saveProduct','addProduct','reorder','finalizeUnpaid']);
+const shopMutations=new Set(['endEvent','publishDraft','saveEvent','saveEventProducts','archiveProduct','saveProduct','addProduct','reorder','finalizeUnpaid','createRefund','correctOrder','cancelOrder']);
 
 function json(data, status, headers) {
   return Response.json(data, { status, headers: { ...headers, 'Cache-Control': 'no-store',
