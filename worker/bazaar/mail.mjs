@@ -108,7 +108,7 @@ export function createMail(env, db, send = fetch) {
         return null;
       }
       const order = (await tx.get(db.doc(`bazaarOrders/${job.orderId}`))).data();
-      const active = order?.eventId && (!job.eventId || job.eventId===order.eventId) && ['receipt','reminderFinal'].includes(job.type)
+      const active = order?.eventId && (!job.eventId || job.eventId===order.eventId) && ['receipt','reminderFinal','confirmed','pickup','other'].includes(job.type)
         ? await tx.get(db.doc(`bazaarEventProjects/${order.eventId}`)) : null;
       const policy = order?.eventId
         ? (await tx.get(db.doc(`bazaarMailPolicies/${order.eventId}`))).data() : undefined;
@@ -137,7 +137,13 @@ export function createMail(env, db, send = fetch) {
       }
       const kind=mailKind(job.type,order);
       const checkout = active?.data();
-      const payload = { ...message({...order,...job.change}, job.type, order.eventSnapshot,
+      const mailEvent = {...order.eventSnapshot};
+      if (checkout?.eventId === order.eventId) {
+        for (const field of ['pickupAt','pickupEndAt','pickupPlace','pickupKo','pickupFr']) {
+          if (checkout[field]) mailEvent[field] = checkout[field];
+        }
+      }
+      const payload = { ...message({...order,...job.change}, job.type, mailEvent,
         {...policy?.templates?.[kind],...job.template},job.change,
         {testMode:env.BAZAAR_MODE==='test',liveEvent:checkout?.eventId===order.eventId?checkout:{status:'closed'}}), to: order.email };
       const providerKey = job.providerKey ?? randomUUID();

@@ -173,7 +173,7 @@ export function renderOrderEmail({order,type,event={},template={},change={},site
   body.push(`<div style="text-align:center;">
     <p style="margin:0 0 6px;color:${palette[tone]};font-size:17px;line-height:1;">${tone==='success'||receipt?'✓':tone==='canceled'?'×':'•'}</p>
     <h1 class="mail-title" style="margin:0 0 8px;color:${palette.navy};font-size:17px;line-height:1.25;word-break:keep-all;">${html(receipt&&!t(template.subjectKo,template.subjectFr)?t('주문이 접수되었습니다','Votre commande a été reçue'):title)}</h1>
-    ${choice('event')&&eventName?paragraph(eventName,muted):''}${paragraph(intro)}</div>`);
+    ${choice('event')&&eventName?paragraph(eventName,muted)+'<br>':''}${paragraph(intro)}</div>`);
   const state=type==='reported'?t('입금 확인 대기','Vérification du virement en attente')
     :type==='confirmed'?t('입금 확인 완료','Paiement confirmé')
     :type==='cancel'||type==='bulkCancel'?t('주문 취소','Commande annulée')
@@ -207,6 +207,11 @@ export function renderOrderEmail({order,type,event={},template={},change={},site
       [t('송금 메모','Libellé du virement'),order.orderRef,'background:#E7EEF4;'+referenceStyle],
       ...(!balance?[[deadlineTitle,deadline,'font-weight:700;color:'+palette.pending+';']]:[])];
     addFacts(paymentTitle,rows);
+    const paymentUrl=new URL(url);
+    paymentUrl.searchParams.set('payment','1');
+    const copyLabel=t('송금 정보 확인 및 복사하기','Consulter et copier les coordonnées du virement');
+    body.push(button(copyLabel,paymentUrl.href,'secondary'));
+    plain.push(copyLabel+' '+paymentUrl.href);
     const instruction=transferIdentification(lang);
     body.push(paragraph(instruction,muted+'margin-top:10px;'));
     plain.push(instruction);

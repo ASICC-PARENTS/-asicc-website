@@ -118,8 +118,8 @@ function paymentSection(){
   const guidance=paymentGuidance(lang,order.paymentHours??undefined);
   return `<section class="buyer-section"><h${stage==='payment'?'1':'2'}>${t('송금 정보','Coordonnées bancaires')}</h${stage==='payment'?'1':'2'}>
     <dl class="buyer-facts">
-      ${fact(t('송금 금액','Montant à virer'),'<strong>'+eFormat(amount)+'</strong>')}
-      ${fact(t('예금주','Bénéficiaire'),h(order.beneficiary))}
+      ${fact(t('송금 금액','Montant à virer'),'<strong>'+eFormat(amount)+'</strong>'+copy((amount/100).toFixed(2).replace('.',','),t('송금 금액 복사','Copier le montant')))}
+      ${fact(t('예금주','Bénéficiaire'),h(order.beneficiary)+copy(order.beneficiary,t('수취인 복사','Copier le bénéficiaire')))}
       ${fact('IBAN',h(displayIban(order.iban))+copy(compactIban(order.iban),t('IBAN 복사','Copier l’IBAN')))}
       ${fact(t('송금 메모','Libellé du virement'),h(order.orderRef)+copy(order.orderRef,t('송금 메모 복사','Copier le libellé du virement')))}
       ${fact(t('송금 기한','Date limite du virement'),h(formatParisPaymentDeadline(order.transferCutoff,lang)))}
