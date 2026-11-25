@@ -1,8 +1,0 @@
----
-import Screen from '../../../lib/bazaar/admin/Screen.astro';
-import { langPaths, type Lang } from '../../../i18n/ui';
-
-export const getStaticPaths = langPaths;
-const lang = Astro.params.lang as Lang;
----
-<Screen lang={lang} screen="main" />
