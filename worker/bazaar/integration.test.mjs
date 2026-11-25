@@ -403,7 +403,7 @@ test('direct Brevo rehearsal delivers only new test orders to their entered addr
   assert.equal(sent.length,1);
   assert.equal(sent[0].subject,'[TEST] Order received');
   assert.equal(sent[0].messageVersions[0].to[0].email,'new-buyer@example.test');
-  assert.match(sent[0].text,/Aucun virement/);
+  assert.match(sent[0].textContent,/Aucun virement/);
 });
 
 test('concurrent checkouts preserve stock, receipts and administrator changes', { timeout: 150000 }, async t => {
