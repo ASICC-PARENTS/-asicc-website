@@ -40,7 +40,12 @@
 .bz-shared-preview[data-device=mobile] .bz-info-date{font-size:.86rem}
 .bz-shared-preview[data-device=mobile] .bz-info-label{font-size:.73rem}
 .bz-shared-preview[data-device=mobile] .bz-deadline .bz-info-icon{width:18px;height:18px}
-.bz-shared-preview[data-device=mobile] .bz-hero-banner h1{font-size:1.35rem}
+.bz-shared-preview[data-device=mobile] .bz-hero-banner h1{font-size:1.2rem;line-height:1.45;text-wrap:balance;width:100%}
+.bz-shared-preview[data-device=mobile] .bz-title-phrase{display:block;text-wrap:balance}
+@media(max-width:600px){
+ .bz-shared-hero .bz-hero-banner h1{font-size:clamp(1.12rem,4.5vw,1.35rem);line-height:1.45;text-wrap:balance;width:100%}
+ .bz-shared-hero .bz-title-phrase{display:block;text-wrap:balance}
+}
 .bz-shared-product{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:clamp(8px,2vw,20px);align-items:center;padding:16px 0;border-bottom:1px solid #e1e5e9}
 .bz-shared-photo{position:relative;align-self:start}
 .bz-shared-product .bz-photo{width:clamp(52px,13vw,100px);height:auto;aspect-ratio:1;object-fit:contain;background:#f4f5f6;border-radius:6px}

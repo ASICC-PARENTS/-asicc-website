@@ -97,3 +97,11 @@ test('header prioritizes the configured personal transfer window and retains the
  assert.ok(renderShopEvent({},'fr').includes('Dans les 24 heures suivant la commande'));
  assert.ok(!renderShopEvent({},'ko').includes('최종 송금 마감:'));
 });
+
+test('event title keeps its original text and marks natural mobile phrase boundaries',()=>{
+ const ko=renderShopEvent({nameKo:'ASICC 홈페이지 오픈 기념! 제 1회 온라인 바자회'},'ko');
+ assert.ok(ko.includes('<span class="bz-title-phrase">ASICC 홈페이지 오픈 기념!</span> <span class="bz-title-phrase">제 1회 온라인 바자회</span>'));
+ const fr=renderShopEvent({nameFr:'1er bazar en ligne de l’ASICC – Célébrons le lancement de notre site internet !'},'fr');
+ assert.ok(fr.includes('<span class="bz-title-phrase">1er bazar en ligne de l’ASICC –</span> <span class="bz-title-phrase">Célébrons le lancement de notre site internet !</span>'));
+ assert.ok(renderShopEvent({nameKo:'일반 행사 <제목>'},'ko').includes('<h1>일반 행사 &lt;제목&gt;</h1>'));
+});

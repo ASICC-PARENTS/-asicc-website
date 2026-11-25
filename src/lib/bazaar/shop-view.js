@@ -23,6 +23,12 @@ const eventIcons={
 };
 const eventIcon=path=>'<svg class="bz-info-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="'+path+'"/></svg>';
 const disclosure=(key,label,icon,body)=>'<details class="bz-disclosure" data-bz-disclosure="'+key+'"><summary>'+eventIcon(icon)+'<span>'+escape(label)+'</span><span class="bz-chevron" aria-hidden="true"></span></summary><div class="bz-disclosure-body">'+body+'</div></details>';
+// Keep the original event title, but allow a deliberate mobile break at a phrase boundary.
+function eventTitleMarkup(name){
+  const parts=String(name).match(/^(.+?(?:!|！| [–—-]))\s+(.+)$/u);
+  if(!parts)return escape(name);
+  return '<span class="bz-title-phrase">'+escape(parts[1])+'</span> <span class="bz-title-phrase">'+escape(parts[2])+'</span>';
+}
 export function renderShopEvent(event,lang,{logoUrl=''}={}) {
   const t=(ko,fr)=>localize(lang,ko,fr);
   const date=value=>formatParisDateTime(value,lang);
@@ -35,7 +41,7 @@ export function renderShopEvent(event,lang,{logoUrl=''}={}) {
   const pickup=t(event.pickupKo,event.pickupFr);
   return '<div class="bz-shared-hero"><div class="bz-hero-banner">'+
     (logoUrl?'<img class="bz-hero-logo" src="'+escape(logoUrl)+'" alt="ASICC" width="160" height="59">':'<span class="bz-hero-brand">ASICC</span>')+
-    '<span class="bz-hero-kicker">'+t('온라인 바자회','BAZAR SOLIDAIRE EN LIGNE')+'</span><h1>'+escape(name)+'</h1></div>'+
+    '<span class="bz-hero-kicker">'+t('온라인 바자회','BAZAR SOLIDAIRE EN LIGNE')+'</span><h1>'+eventTitleMarkup(name)+'</h1></div>'+
     '<div class="bz-shared-info">'+
     info(t('주문 마감','Clôture des commandes'),date(event.orderCutoff),eventIcons.calendar)+
     info(t('송금 기한','Délai de virement'),paymentWindow,eventIcons.wallet,finalDeadline)+
