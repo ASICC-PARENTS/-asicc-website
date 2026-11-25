@@ -155,3 +155,13 @@ test('homepage popup uses a native dismissible dialog and an uncached public req
   assert.match(popup,/Europe\/Paris/);
   assert.match(worker,/data\.op!=='homePopup'/);
 });
+
+test('homepage popup and campaign copy prefer whole-word wrapping without truncation',()=>{
+  const popup=read('src/components/HomePopup.astro');
+  const campaign=read('src/components/HomeCampaigns.astro');
+  assert.match(popup,/word-break:keep-all;overflow-wrap:break-word;hyphens:none/);
+  assert.match(popup,/object-fit:contain/);
+  assert.match(popup,/max-height:calc\(100dvh - 28px\);overflow:auto/);
+  assert.match(campaign,/word-break:keep-all/);
+  assert.match(campaign,/align-self:center/);
+});
