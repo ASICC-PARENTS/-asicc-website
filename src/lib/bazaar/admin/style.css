@@ -47,3 +47,10 @@ tr.row-drop-after td{box-shadow:inset 0 -3px #286197}
 
 @media print{#approved-admin.print-order .site,#approved-admin.print-order .modal-h,#approved-admin.print-order .modal-f,#approved-admin.print-order .modal-b>:not(.order-print-body){display:none!important}#approved-admin.print-order :is(.modal-wrap,.modal,.modal-b){position:static;width:100%;max-width:none;max-height:none;overflow:visible;display:block;background:white;padding:0;border:0;box-shadow:none}.order-print-body .canceled-line{color:#9b1c34!important}}
 .event-states{display:flex;flex-wrap:wrap;gap:8px 12px;margin-top:8px}
+
+/* Selection lives in the existing sort column; all other column IDs and widths stay unchanged. */
+.product-select-all{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:650;color:#5e5155;white-space:normal}
+.product-select-all input,.product-row-select input{margin:0;flex:none;cursor:pointer}
+.product-row-select{display:flex;justify-content:center;align-items:center;min-height:22px;margin-bottom:3px}
+.product-invert{white-space:normal}
+[data-action=product-delete-selected]{white-space:normal}
