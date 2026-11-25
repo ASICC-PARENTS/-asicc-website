@@ -139,7 +139,14 @@ function actions(){
     hasPayment()?actionButton('later',t('나중에 송금하기','Payer plus tard'),'buyer-secondary'):'',
     canCancel()?actionButton('cancel',t('주문 취소하기','Annuler ma commande'),'buyer-danger'):'',
   ].join('');
-  return buttons?`<div class="buyer-actions">${buttons}</div>`:'';
+  const restriction=!order.canceledAt&&!order.bankConfirmedAt&&!order.transferReportedAt&&!order.canChange
+    ?t('이 검수 주문은 별도 행사로 격리되어 송금 신고와 온라인 취소를 사용할 수 없습니다. 실제 운영진에게 문의해 주세요.',
+       'Cette commande de vérification appartient à un événement isolé. Le signalement du virement et l’annulation en ligne ne sont pas disponibles.')
+    :!order.canceledAt&&!order.bankConfirmedAt&&!order.transferReportedAt&&order.canChange&&!order.canCancel
+      ?t('주문 마감 후에는 온라인으로 취소할 수 없습니다. 송금 신고와 주문 조회는 계속 이용할 수 있습니다.',
+         'Après la clôture des commandes, l’annulation en ligne n’est plus disponible. Le signalement du virement et le suivi restent accessibles.')
+      :'';
+  return buttons||restriction?`<div class="buyer-actions">${buttons}</div>${restriction?`<p class="buyer-hint" role="status">${h(restriction)}</p>`:''}`:'';
 }
 function itemsSection(){
   const line=(item:any,canceled=false)=>{

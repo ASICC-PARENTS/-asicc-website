@@ -51,8 +51,9 @@ function button(label,url,variant='primary'){
 }
 
 function actionTable({view,report,cancel}){
+  if(!view&&!report&&!cancel)return '';
   const primary=report?button(...report):'';
-  if(!cancel&&!report)return button(...view);
+  if(!cancel&&!report)return view?button(...view):'';
   if(!cancel)return primary+table(row(td(button(...view,'secondary'),'padding-top:10px;')));
   return primary+table(row(td(button(...view,'secondary'),'padding:10px 5px 0 0;','class="mail-button-col" width="50%"')+
     td(button(...cancel,'danger'),'padding:10px 0 0 5px;','class="mail-button-col" width="50%"')));
@@ -104,7 +105,22 @@ export function renderOrderEmail({order,type,event={},template={},change={},site
   url.searchParams.set('id',order.id);
   url.hash='token='+encodeURIComponent(order.buyerToken);
   const anchor=focus=>url.href+'&focus='+focus;
-  const view=[t('주문 내역 확인','Consulter ma commande'),url.href];
+  const viewLabels={
+    receipt:[t('주문내역 확인하기','Voir ma commande')],
+    confirmed:[t('확정 주문 확인하기','Voir ma commande confirmée')],
+    reminder3:[t('주문내역 확인하기','Voir ma commande')],
+    reminderFinal:[t('주문내역 확인하기','Voir ma commande')],
+    additionalPayment:[t('추가 입금 내역 확인하기','Voir le complément à verser')],
+    orderChanged:[t('변경내역 확인하기','Voir les modifications')],
+    cancel:[t('취소내역 확인하기','Voir les détails de l’annulation')],
+    buyerCancel:[t('취소내역 확인하기','Voir les détails de l’annulation')],
+    adminCancel:[t('취소내역 확인하기','Voir les détails de l’annulation')],
+    bulkCancel:[t('취소내역 확인하기','Voir les détails de l’annulation')],
+    refundPending:[t('환불내역 확인하기','Voir mon remboursement')],
+    refundCompleted:[t('환불내역 확인하기','Voir mon remboursement')],
+    pickupCompleted:[t('확정 주문 확인하기','Voir ma commande confirmée')],
+  };
+  const view=viewLabels[type]?[viewLabels[type][0],url.href]:null;
   const receipt=type==='receipt';
   const reminders=['reminder3','reminderFinal'].includes(type);
   const balance=type==='additionalPayment';
@@ -184,7 +200,8 @@ export function renderOrderEmail({order,type,event={},template={},change={},site
       [t('처리 상태','État'),state],
       [t('처리 일시','Date de traitement'),change.at?formatParisPaymentDeadline(change.at,lang):'']]);
   }
-  body.push(section('',actionTable({view,report,cancel})));
+  const actions=actionTable({view,report,cancel});
+  if(actions)body.push(section('',actions));
   for(const action of [report,view,cancel].filter(Boolean))plain.push('',action[0]+': '+action[1]);
   if(receipt||reminders)addNotes(t('송금 시 유의사항','Conseils pour votre virement'),
     paymentGuidance(lang,order.paymentHours??event.paymentHours??defaultPaymentHours).slice(1,5),true);
