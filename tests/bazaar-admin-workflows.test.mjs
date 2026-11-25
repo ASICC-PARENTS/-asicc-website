@@ -1,3 +1,4 @@
+import {defaultHomePopup,normalizeHomePopup,publicHomePopup} from '../firebase-functions-bazaar/bazaar/home-popup.mjs';
 import {eventFormFields,eventViewModel,productOrderSummary,validManualPhone} from '../src/lib/bazaar/admin/data.js';
 import {validRefundIban} from '../firebase-functions-bazaar/bazaar/iban.mjs';
 import {orderPaymentSummary} from '../firebase-functions-bazaar/bazaar/order-payments.mjs';
@@ -125,4 +126,32 @@ test('payment receipts distinguish partial, settled, surplus, and refund reserva
 test('refund IBAN validation checks European registry lengths and mod-97',()=>{
  for(const iban of ['FR1420041010050500013M02606','DE89370400440532013000','BE68539007547034'])assert.equal(validRefundIban(iban),true);
  for(const iban of ['FR1520041010050500013M02606','FR1420041010050500013M0260','ZY1420041010050500013M02606'])assert.equal(validRefundIban(iban),false);
+});
+
+test('homepage popup is test-only by default and respects campaign schedule and order intake',()=>{
+  const event={eventId:'bazaar-1234567890',status:'published'};
+  const cfg=defaultHomePopup(event,true);
+  assert.ok(normalizeHomePopup(cfg));
+  assert.equal(publicHomePopup(cfg,event,'open').identity,event.eventId);
+  assert.equal(publicHomePopup(cfg,event,'closed'),null);
+  assert.equal(publicHomePopup(cfg,{...event,eventId:'bazaar-9876543210'},'open'),null);
+  assert.equal(publicHomePopup(defaultHomePopup(event,false),event,'open'),null);
+  assert.equal(publicHomePopup({...cfg,enabled:false},event,'open'),null);
+  assert.equal(publicHomePopup({...cfg,startsAt:'2026-11-26T12:00:00.000Z'},event,'open',Date.parse('2026-11-25T12:00:00Z')),null);
+  assert.equal(publicHomePopup({...cfg,endsAt:'2026-11-26T12:00:00.000Z'},event,'open',Date.parse('2026-11-26T12:00:00Z')),null);
+  assert.ok(publicHomePopup({...cfg,bazaarOnly:false,link:'news/example/'},null,'closed'));
+  assert.equal(normalizeHomePopup({...cfg,link:'javascript:alert(1)'}),null);
+  assert.equal(normalizeHomePopup({...cfg,image1:'http://example.test/image.jpg'}),null);
+  assert.equal(normalizeHomePopup({...cfg,startsAt:'2026-11-26T12:00:00.000Z',endsAt:'2026-11-25T12:00:00.000Z'}),null);
+  const normalized=normalizeHomePopup({...cfg,privateData:'not public'});
+  assert.equal(normalized.privateData,undefined);
+});
+test('homepage popup uses a native dismissible dialog and an uncached public request',()=>{
+  const popup=read('src/components/HomePopup.astro');
+  const worker=read('worker/bazaar/index.mjs');
+  assert.match(popup,/<dialog id="home-popup"/);
+  assert.match(popup,/showModal\(\)/);
+  assert.match(popup,/data-popup-today/);
+  assert.match(popup,/Europe\/Paris/);
+  assert.match(worker,/data\.op!=='homePopup'/);
 });
