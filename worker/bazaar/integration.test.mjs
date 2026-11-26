@@ -109,6 +109,21 @@ test('Worker API with Firebase emulators preserves checkout, admin, inventory, e
   assert.equal((await productRef.get()).data().visible,false);
   await admin('setProductSales',{eventId,id:productId,revision:1,visible:true});
   assert.equal((await call('bazaarPublic',{eventId})).products[0].stockRemaining,1);
+  // Independent emulator-only fixture: preserve the existing manual product and checkout tests.
+  const cartonId='carton-confirm-fixture', cartonRef=db.doc(`bazaarEventProjects/${eventId}/products/${cartonId}`);
+  await cartonRef.set({titleKo:'확정 테스트',titleFr:'Cartons',supplier:'Test',imageUrl:'',storage:'ambient',
+    visible:true,retailCents:100,packQty:12,boxPriceTtcCents:900,limitMode:'box',plannedBoxes:4,soldQty:13,displayOrder:2});
+  const fields={eventId,id:cartonId,revision:2,confirmed:true,expectedSoldQty:13,expectedBoxes:2};
+  await admin('setCartonConfirmation',{...fields,expectedSoldQty:12},400);
+  await admin('setCartonConfirmation',fields);
+  assert.equal((await cartonRef.get()).data().plannedBoxes,2);
+  assert.equal((await cartonRef.get()).data().cartonConfirmed,true);
+  assert.equal((await call('bazaarPublic',{eventId})).products.find(p=>p.id===cartonId).stockRemaining,11);
+  await admin('setCartonConfirmation',{...fields,confirmed:false},412);
+  await admin('setCartonConfirmation',{...fields,revision:3,confirmed:false});
+  assert.equal((await cartonRef.get()).data().plannedBoxes,2);
+  assert.equal((await cartonRef.get()).data().cartonConfirmed,false);
+  await cartonRef.delete();
   const buyer = { eventId, name: 'Test Buyer', phone: '0612345678', email: 'buyer@example.test',
     consent: true, lang: 'fr', items: [{ id: productId, qty: 1, priceCents: 450 }] };
   await call('bazaarCreateOrder', { ...buyer, requestId: id(), items: [{ ...buyer.items[0], priceCents: 1 }] }, undefined, 412);
