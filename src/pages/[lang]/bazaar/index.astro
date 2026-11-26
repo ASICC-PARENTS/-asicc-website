@@ -57,6 +57,7 @@ import {orderIntakeState} from '../../../../firebase-functions-bazaar/bazaar/ord
 import "../../../lib/bazaar/shop-view.css";
 import {bindStorageLabels,changeCartQuantity,quantityCap,renderShopEvent,renderShopProducts,preserveShopDisclosures} from "../../../lib/bazaar/shop-view";
 import {getShop,createOrder,eFormat,h,orderRequestId,parisDeadline} from '../../../lib/bazaar/api';
+import {renderPickupDetail} from '../../../lib/bazaar/pickup-view';
 const root=document.querySelector<HTMLElement>('#bz')!;
 const lang=root.dataset.lang==='fr'?'fr':'ko';
 const t=(ko:string,fr:string)=>lang==='fr'?fr:ko;
@@ -199,6 +200,8 @@ async function sendOrder(){
         name:fd.get('name'),phone:fd.get('phone'),email:fd.get('email'),pickupNote:fd.get('pickupNote'),items};
       pendingOrder={...request, requestId:await orderRequestId(request.eventId,request)};
     }
+    // Older test workers return pickupKo only. The already loaded matching event provides the other language until the API is updated.
+    const pickupSnapshot={pickupKo:event.pickupKo,pickupFr:event.pickupFr};
     const result=await createOrder(pendingOrder);
     if(!result?.id||!result?.token)throw new Error('Order result missing');
     pendingOrder=undefined;
@@ -226,6 +229,7 @@ async function sendOrder(){
       <div><dt>${t('송금 마감','Date limite de virement')}</dt><dd>${h(formatParisPaymentDeadline(result.transferCutoff,lang))}</dd></div>
       ${result.pickupAt?`<div><dt>${t('상품 수령','Retrait des commandes')}</dt><dd>${h(formatParisPickupRange(result.pickupAt,result.pickupEndAt,lang))}</dd></div>`:''}
       ${result.pickupPlace?`<div><dt>${t('수령 장소','Lieu du retrait')}</dt><dd>${h(result.pickupPlace)}</dd></div>`:''}</dl>
+      ${renderPickupDetail({...pickupSnapshot,...result},lang)}
       <div class="buyer-actions"><a class="buyer-link" href="${h(link)}" rel="noreferrer">${t('주문 조회 링크','Lien de suivi de la commande')}</a>
       <a class="buyer-btn" href="${h(paymentLink)}" rel="noreferrer">${t('송금 정보 보기','Voir les coordonnées bancaires')}</a></div>`;
     receipt.focus();

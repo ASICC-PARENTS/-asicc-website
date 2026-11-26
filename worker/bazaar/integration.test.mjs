@@ -121,6 +121,8 @@ test('Worker API with Firebase emulators preserves checkout, admin, inventory, e
   assert.notEqual(receipt.id,bid.requestId);
   assert.equal(receipt.orderRef,'BZ010001');
   assert.equal(receipt.receiptMailStatus,'capture');
+  assert.equal(receipt.pickupKo,event.pickupKo);
+  assert.equal(receipt.pickupFr,event.pickupFr);
   assert.equal(receipt.transferCutoff,event.transferCutoff);
   assert.deepEqual(await call('bazaarCreateOrder', bid), receipt);
   assert.equal((await productRef.get()).data().soldQty, 1);
@@ -130,6 +132,8 @@ test('Worker API with Firebase emulators preserves checkout, admin, inventory, e
   const viewed=(await buyerAction(first,'view')).order;
   assert.deepEqual(Object.keys(viewed.items[0]).sort(),['priceCents','qty','titleFr','titleKo']);
   assert.equal(viewed.iban,event.iban);
+  assert.equal(viewed.pickupKo,event.pickupKo);
+  assert.equal(viewed.pickupFr,event.pickupFr);
   assert.equal(viewed.transferCutoff,event.transferCutoff);
   assert.equal(viewed.email,undefined);
   assert.equal(viewed.eventSnapshot,undefined);

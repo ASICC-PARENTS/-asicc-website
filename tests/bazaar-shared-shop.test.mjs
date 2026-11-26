@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {renderPickupDetail} from '../src/lib/bazaar/pickup-view.js';
 import {renderPreviewTerms} from '../src/lib/bazaar/preview-terms.js';
 import {orderTerms,pickupTerms} from '../firebase-functions-bazaar/bazaar/order-terms.mjs';
 import test from 'node:test';
@@ -176,4 +177,16 @@ test('optional pickup end time is displayed consistently in Paris and validated'
  assert.equal(validPickupEnd(start,''),true);
  for(const lang of ['ko','fr'])assert.ok(renderShopEvent({pickupAt:start,pickupEndAt:end},lang).includes(formatParisPickupRange(start,end,lang)));
  assert.equal(formatParisPickupRange('2026-07-02T14:00:00Z','2026-07-02T14:30:00Z','fr'),'Jeudi 2 juillet 2026 de 16h00 à 16h30');
+});
+
+test('pickup details use the selected language and only link an explicit street address',()=>{
+  const event={pickupKo:'학교 맞은편\n173 rue Armand Silvestre, 92400 Courbevoie\n<주차 안내>',pickupFr:'Face à l’école\n173 rue Armand Silvestre, 92400 Courbevoie\nParking'};
+  const ko=renderPickupDetail(event,'ko'),fr=renderPickupDetail(event,'fr');
+  assert.match(ko,/학교 맞은편/);
+  assert.match(ko,/&lt;주차 안내&gt;/);
+  assert.match(fr,/Face à l’école/);
+  assert.doesNotMatch(fr,/학교 맞은편/);
+  assert.match(ko,/https:\/\/www.google.com\/maps\/search\/\?api=1&amp;query=173%20rue%20Armand/);
+  assert.doesNotMatch(renderPickupDetail({pickupKo:'학교 앞'},'ko'),/google.com/);
+  assert.equal(renderPickupDetail({pickupKo:'학교 앞'},'fr'),'');
 });
