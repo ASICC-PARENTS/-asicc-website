@@ -77,7 +77,8 @@ test('compact hero keeps all original event text in closed, accessible disclosur
  assert.ok(fr.includes('Adresse complète'));
  assert.doesNotMatch(ko,/bz-hero-logo|bz-hero-brand/);
  assert.match(ko,/<\/h1><div class="bz-hero-status-slot"><\/div>/);
- assert.match(ko,/bz-pickup-card[^]*M2 3h3l3 12h11l3-9H6/);
+ assert.match(ko,/bz-pickup-card[^]*M20 10c0 5-8 11-8 11/);
+ assert.match(ko,/data-bz-disclosure="pickup"[^]*M5 4v7a3 3 0 0 0 3 3h11/);
 });
 test('shared buying notice keeps payment deadline, stock and pickup instructions in both languages',()=>{
  for(const lang of ['ko','fr']){

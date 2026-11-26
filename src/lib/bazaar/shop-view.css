@@ -87,3 +87,10 @@
 .bz-pickup-card .bz-disclosure-body{padding-left:31px}
 .bz-shared-hero .bz-pickup-place{margin-left:31px}
 @media(max-width:480px){.bz-hero-banner{padding:18px 12px}.bz-deadline .bz-info-icon,.bz-disclosure>summary .bz-info-icon{width:20px;height:20px}.bz-pickup-card .bz-info-icon{width:20px;height:20px}.bz-pickup-card>.bz-deadline,.bz-pickup-card .bz-disclosure>summary{gap:8px}.bz-shared-hero .bz-pickup-place{margin-left:28px}.bz-pickup-card .bz-disclosure-body{padding-left:28px}}
+
+/* Pickup address is subordinate to the pickup information, not another top-level row. */
+.bz-pickup-card .bz-disclosure{margin-left:31px;margin-top:7px;border-top:1px solid #dce4eb}
+.bz-pickup-card .bz-disclosure>summary{padding:9px 0;gap:7px;font-size:.83rem;color:#52677b;font-weight:600}
+.bz-pickup-card .bz-disclosure>summary .bz-info-icon{width:17px;height:17px;color:#61788b;margin-top:0}
+.bz-pickup-card .bz-disclosure-body{padding:2px 8px 10px 24px}
+@media(max-width:480px){.bz-pickup-card .bz-disclosure{margin-left:28px}.bz-pickup-card .bz-disclosure>summary{font-size:.8rem}.bz-pickup-card .bz-disclosure>summary .bz-info-icon{width:16px;height:16px}.bz-pickup-card .bz-disclosure-body{padding-left:23px}}
