@@ -748,9 +748,9 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       });
     }
     // Event-only carton confirmation. Do not rewrite the product catalogue or orders.
-    if(op==='setCartonConfirmation'){
+    if(op==='setCartonProposal'||op==='setCartonConfirmation'){
       const id=s(data.id);
-      if(!productIdValid(id)||typeof data.confirmed!=='boolean'||!Number.isSafeInteger(data.revision))bad('발주 확정 정보를 확인해 주세요.');
+      if(!productIdValid(id)||(op==='setCartonConfirmation'&&typeof data.confirmed!=='boolean')||!Number.isSafeInteger(data.revision))bad('발주 확정 정보를 확인해 주세요.');
       const ref=products.doc(id);
       return db.runTransaction(async tx=>{
         const [eventDoc,doc]=await Promise.all([tx.get(eventRef),tx.get(ref)]);
@@ -759,13 +759,18 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         if(!p||p.archivedAt||event.scopedProducts&&p.bazaarEventId!==data.eventId)bad('행사 상품을 확인해 주세요.');
         if((event.productRevision??0)!==data.revision)throw new HttpsError('failed-precondition','상품이 변경됐습니다. 다시 불러와 주세요.');
         if(p.limitMode!=='box')bad('자동 수량 설정 상품만 발주를 확정할 수 있습니다.');
-        if(data.confirmed){
+        const sold=p.soldQty??0,pack=p.packQty;
+        const validBoxes=boxes=>Number.isSafeInteger(boxes)&&boxes>=0&&boxes<=10000&&Number.isSafeInteger(pack)&&pack>0&&Number.isSafeInteger(sold)&&sold>=0&&boxes*pack>=sold;
+        if(op==='setCartonProposal'){
+          if(p.cartonConfirmed===true)bad('발주 확정을 해제한 후 예정 수량을 변경해 주세요.');
+          if(!validBoxes(data.boxes))bad('현재 주문을 충족하는 발주 박스 수를 입력해 주세요.');
+          tx.update(ref,{proposedBoxes:data.boxes});
+        }else if(data.confirmed){
           if(p.cartonConfirmed===true)bad('이미 확정된 상품입니다.');
-          const sold=p.soldQty??0,pack=p.packQty;
           if(!Number.isSafeInteger(sold)||sold<0||!Number.isSafeInteger(pack)||pack<=0||sold!==data.expectedSoldQty)bad('주문 수량이 변경됐습니다. 다시 불러와 주세요.');
-          const boxes=Math.ceil(sold/pack);
-          if(boxes!==data.expectedBoxes||boxes>10000)bad('발주 수량이 변경됐습니다. 다시 불러와 주세요.');
-          tx.update(ref,{plannedBoxes:boxes,cartonConfirmed:true});
+          const boxes=p.proposedBoxes??Math.ceil(sold/pack);
+          if(boxes!==data.expectedBoxes||!validBoxes(boxes))bad('발주 수량이 변경됐습니다. 다시 불러와 주세요.');
+          tx.update(ref,{plannedBoxes:boxes,proposedBoxes:boxes,cartonConfirmed:true});
         }else {
           tx.update(ref,{cartonConfirmed:false});
         }
