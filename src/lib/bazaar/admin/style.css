@@ -79,3 +79,5 @@ tr.row-drop-after td{box-shadow:inset 0 -3px #286197}
 .event-name-link,.order-ref-link{font-weight:700;color:var(--wine);text-decoration:underline;text-underline-offset:2px}.order-ref-link{padding:0;text-align:left;white-space:nowrap}
 
 .carton-remainder{display:inline-block;min-width:2.3em;text-align:center;padding:3px 7px;border-radius:4px;color:var(--muted)}.carton-remainder-low{background:#fff3cd;color:#98701b}.carton-remainder-high{background:#fce4d6;color:#a34d25}.carton-confirm{padding:4px 6px;font-size:11px;white-space:nowrap}.carton-confirmed-label{color:var(--green);white-space:nowrap}
+
+.site > header .brand img{display:block;width:180px;max-width:42vw;height:auto;object-fit:contain}
