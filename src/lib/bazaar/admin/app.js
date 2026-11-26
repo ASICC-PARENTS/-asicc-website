@@ -104,7 +104,7 @@ async function load(){
  }
  rerender();
 }
-const store={search:'',orderFilter:'all',orderSort:'new',orderView:'orders',productOrderSort:'name',settleScope:'confirmed',vendor:'업체 A',
+const store={search:'',orderFilter:'all',orderSort:'new',orderView:'orders',productOrderSort:'remaining',settleScope:'confirmed',vendor:'업체 A',
  get catalog(){return model.catalog;},get products(){return selectedEvent()?.products??[];},
  get orders(){return selectedEvent()?.orders??[];},get poDrafts(){return selectedEvent()?.poDrafts??{};},
  get mode(){return model.view;},set mode(value){model.view=value==='active'&&!model.active?'empty':value;},
@@ -524,11 +524,31 @@ const orderSources={web:'웹 주문',phone:'전화 주문',additional:'추가 �
 const canManageOrder=()=>selectedEvent()?.status!=='draft'&&canReconcile()&&!orderIntakeLocked(selectedEvent().raw);
 function orderSource(order){return orderSources[order.source]||orderSources.web;}
 function orderViewTabs(){return '<div class="filters order-view-tabs"><button class="filter '+(store.orderView==='orders'?'active':'')+'" data-action="order-view" data-value="orders">주문별 내역</button><button class="filter '+(store.orderView==='products'?'active':'')+'" data-action="order-view" data-value="products">제품별 주문 현황</button></div>'}
-function productOrderRows(){return productOrderSummary(store.products,store.orders).sort((a,b)=>store.productOrderSort==='qty'?b.qty-a.qty:store.productOrderSort==='amount'?b.amountCents-a.amountCents:(fr?a.fr:a.ko).localeCompare(fr?b.fr:b.ko,fr?'fr':'ko'))}
+
+function productOrderRows(){
+ const rows=productOrderSummary(store.products,store.orders);
+ const name=p=>(fr?p.fr:p.ko)||p.ko||p.fr||'';
+ return rows.sort((a,b)=>{
+  const sort=store.productOrderSort;
+  const diff=sort==='qty'?b.qty-a.qty:sort==='amount'?b.amountCents-a.amountCents:sort==='remaining'?(b.remainingQty??-1)-(a.remainingQty??-1):0;
+  return diff||name(a).localeCompare(name(b),fr?'fr':'ko');
+ });
+}
+function productOrderTotals(rows){
+ const sum=field=>rows.some(p=>p[field]==null)?null:rows.reduce((n,p)=>n+p[field],0);
+ return {qty:sum('qty'),boxes:sum('boxes'),purchaseQty:sum('purchaseQty'),remainingQty:sum('remainingQty'),amountCents:sum('amountCents')};
+}
 function renderProductOrders(){
- const rows=productOrderRows();
- const t=language;
- app.innerHTML=eventHead()+tabs()+'<section class="tabbody"><div class="toolbar"><div><h2>주문관리</h2><p class="muted small">취소 주문을 제외하고 주문 당시 판매가격으로 집계합니다.</p></div><button class="btn neutral" data-action="product-orders-excel">제품별 주문 현황 Excel</button><button class="btn neutral" data-action="pickup-excel">'+t('상품 수령 목록 Excel','Retraits (Excel)')+'</button></div>'+orderViewTabs()+'<div class="toolbar"><select class="select" id="product-order-sort"><option value="name">상품명순</option><option value="qty">주문량 높은 순</option><option value="amount">주문금액 높은 순</option></select><span class="muted tiny">'+(fr?rows.length+' produits · '+store.orders.filter(o=>o.status!=='canceled').length+' commandes valides':'상품 '+rows.length+'개 · 유효 주문 '+store.orders.filter(o=>o.status!=='canceled').length+'건')+'</span></div><div class="sheet"><table style="min-width:940px"><colgroup><col style="width:86px"><col style="width:280px"><col style="width:150px"><col style="width:150px"><col style="width:170px"></colgroup><thead><tr><th>사진</th><th>상품명</th><th>현재 판매단가</th><th>'+t('최초 수량','Quantité initiale')+'</th><th>'+t('취소 수량','Quantité annulée')+'</th><th>'+t('유효 수량','Quantité active')+'</th><th>누적 주문금액</th></tr></thead><tbody>'+rows.map(p=>'<tr data-action="product-order-detail" data-id="'+esc(p.id)+'" style="cursor:pointer"><td>'+(p.photo?'<img src="'+esc(p.photo)+'" alt="" class="thumb" style="object-fit:cover">':'<div class="thumb">📦</div>')+'</td><td><b>'+esc((fr?p.fr:p.ko)||p.ko||p.fr||'상품')+'</b><div class="muted tiny">'+(fr?p.orders.length+' commandes · Voir les détails ›':'주문 '+p.orders.length+'건 · 상세 보기 ›')+'</div></td><td>'+ (p.price==null?'—':money(p.price))+'</td><td>'+p.initialQty+'</td><td class="canceled-line">'+p.canceledQty+'</td><td><b>'+p.qty+'</b></td><td><b>'+money(p.amountCents/100)+'</b></td></tr>').join('')+'</tbody><tfoot><tr><th colspan="3">합계</th><th>'+rows.reduce((n,p)=>n+p.initialQty,0)+'</th><th>'+rows.reduce((n,p)=>n+p.canceledQty,0)+'</th><th>'+rows.reduce((n,p)=>n+p.qty,0)+'</th><th>'+money(rows.reduce((n,p)=>n+p.amountCents,0)/100)+'</th></tr></tfoot></table></div></section>';
+ const rows=productOrderRows(),totals=productOrderTotals(rows),t=language;
+ const n=value=>value==null?'—':String(value);
+ const extra=p=>'<b'+(p.remainingQty>0?' style="color:var(--amber)"':'')+'>'+n(p.remainingQty)+'</b>';
+ const labels=[t('사진','Photo'),t('상품명','Produit'),t('유효 수량','Quantité active'),t('박스당 수량','Unités/carton'),t('예상 발주 박스','Cartons à commander'),t('예상 입고 수량','Quantité prévue'),t('남는 수량','Quantité restante'),t('현재 판매단가','Prix actuel'),t('누적 주문금액','Total commandes')];
+ const summary=metrics([[t('유효 주문수량','Quantité commandée'),n(totals.qty)+(fr?'':'개')],[t('예상 발주 박스','Cartons à commander'),n(totals.boxes)+(totals.boxes==null?'':fr?'':'박스')],[t('예상 입고 수량','Quantité prévue'),n(totals.purchaseQty)+(totals.purchaseQty==null?'':fr?'':'개')],[t('추가 판매 필요수량','Unités à vendre en plus'),n(totals.remainingQty)+(totals.remainingQty==null?'':fr?'':'개')]]);
+ const body=rows.map(p=>'<tr data-action="product-order-detail" data-id="'+esc(p.id)+'" style="cursor:pointer"><td>'+(p.photo?'<img src="'+esc(p.photo)+'" alt="" class="thumb" style="object-fit:cover">':'<div class="thumb">📦</div>')+'</td><td><b>'+esc((fr?p.fr:p.ko)||p.ko||p.fr||t('상품','Produit'))+'</b><div class="muted tiny">'+esc(p.suppliers.join(' · '))+'</div><div class="muted tiny">'+(fr?p.orders.length+' commandes · Voir les détails ›':'주문 '+p.orders.length+'건 · 상세 보기 ›')+'</div></td><td><b>'+p.qty+'</b></td><td>'+esc(p.packSizes.length?p.packSizes.join(' / '):'—')+'</td><td><b>'+n(p.boxes)+'</b></td><td>'+n(p.purchaseQty)+'</td><td>'+extra(p)+'</td><td>'+(p.price==null?'—':money(p.price))+'</td><td><b>'+money(p.amountCents/100)+'</b></td></tr>').join('');
+ app.innerHTML=eventHead()+tabs()+'<section class="tabbody" data-product-carton-summary><div class="toolbar"><div><h2>주문관리</h2><p class="muted small">'+t('취소 제외 · 미입금 포함 · 유효 주문을 충족하는 최소 박스 발주량을 자동 계산합니다.','Hors annulations · inclut les commandes non payées · nombre minimal de cartons requis.')+'</p></div><div class="actions"><button class="btn neutral" data-action="product-orders-excel">제품별 주문 현황 Excel</button><button class="btn neutral" data-action="pickup-excel">'+t('상품 수령 목록 Excel','Retraits (Excel)')+'</button></div></div>'+orderViewTabs()+summary+
+ '<p class="muted small">'+t('남는 수량은 박스를 모두 발주했을 때 아직 주문되지 않은 예상 수량입니다. 추가 판매로 박스를 채울 수 있습니다. 주문 당시 공급업체·박스 입수량이 다르면 각각 올림한 뒤 합산합니다.','Le reliquat correspond aux unités non encore commandées si tous les cartons requis sont achetés. Les conditionnements/fournisseurs différents sont arrondis séparément.')+'</p>'+
+ (totals.boxes==null?'<div class="notice">'+t('박스 입수량이 확인되지 않은 주문 품목이 있습니다. 관련 발주량은 미확정(—)으로 표시합니다.','Un conditionnement est manquant. Les quantités concernées restent indéterminées (—).')+'</div>':'')+
+ '<div class="toolbar"><select class="select" id="product-order-sort" aria-label="'+t('정렬','Tri')+'"><option value="remaining">'+t('남는 수량 높은 순','Reliquat décroissant')+'</option><option value="name">'+t('상품명순','Nom du produit')+'</option><option value="qty">'+t('주문량 높은 순','Quantité décroissante')+'</option><option value="amount">'+t('주문금액 높은 순','Montant décroissant')+'</option></select><span class="muted tiny">'+(fr?rows.length+' produits · '+store.orders.filter(o=>o.status!=='canceled').length+' commandes valides':'상품 '+rows.length+'개 · 유효 주문 '+store.orders.filter(o=>o.status!=='canceled').length+'건')+'</span></div><div class="sheet" style="display:block;overflow-x:auto"><table style="min-width:1100px"><colgroup><col style="width:74px"><col style="width:255px"><col style="width:98px"><col style="width:105px"><col style="width:120px"><col style="width:115px"><col style="width:105px"><col style="width:110px"><col style="width:130px"></colgroup><thead><tr>'+labels.map(label=>'<th>'+label+'</th>').join('')+'</tr></thead><tbody>'+body+'</tbody><tfoot><tr><th colspan="2">'+t('합계','Total')+'</th><th>'+totals.qty+'</th><th>—</th><th>'+n(totals.boxes)+'</th><th>'+n(totals.purchaseQty)+'</th><th>'+extra(totals)+'</th><th>—</th><th>'+money(totals.amountCents/100)+'</th></tr></tfoot></table></div></section>';
  $('#product-order-sort').value=store.productOrderSort;
 }
 function productOrderDetail(id){const p=productOrderRows().find(row=>row.id===id);if(!p)return;modal((fr?p.fr:p.ko)||p.ko||p.fr||'상품 주문 상세','주문 당시 판매가격으로 계산된 누적 매출',p.orders.length?p.orders.map(o=>'<div class="modal-row"><span><b>'+esc(o.name)+'</b><div class="muted tiny">'+esc(o.ref)+'</div></span><span>'+o.qty+(fr?' unité(s) · ':'개 · ')+money(o.amountCents/100)+'</span></div>').join(''):'<p>주문이 없는 상품입니다.</p>','<button class="btn neutral" data-action="close">닫기</button>')}
@@ -539,10 +559,10 @@ function orderWorkbook(name,headers,rows){
  XLSX.writeFile(book,name+'.xlsx');
 }
 function exportProductOrders(){
- const t=language;
- orderWorkbook('ASICC-product-orders',[t('상품명','Produit'),t('판매가 EUR','Prix EUR'),
-  t('최초 수량','Quantité initiale'),t('취소 수량','Quantité annulée'),t('유효 수량','Quantité active'),t('유효 상품 합계 EUR','Total articles EUR')],
-  productOrderRows().map(row=>[(fr?row.fr:row.ko)||row.ko||row.fr,row.price,row.initialQty,row.canceledQty,row.qty,row.amountCents/100]));
+ const t=language,rows=productOrderRows(),totals=productOrderTotals(rows);
+ orderWorkbook('ASICC-product-orders',[t('상품명','Produit'),t('공급업체','Fournisseur'),t('유효 수량','Quantité active'),t('박스당 수량','Unités/carton'),t('예상 발주 박스','Cartons à commander'),t('예상 입고 수량','Quantité prévue'),t('남는 수량','Quantité restante'),t('현재 판매단가 EUR','Prix actuel EUR'),t('누적 주문금액 EUR','Total commandes EUR')],
+  [...rows.map(row=>[(fr?row.fr:row.ko)||row.ko||row.fr,row.suppliers.join(' / '),row.qty,row.packSizes.length===1?row.packSizes[0]:row.packSizes.join(' / '),row.boxes,row.purchaseQty,row.remainingQty,row.price,row.amountCents/100]),
+   [t('합계','Total'),'',totals.qty,null,totals.boxes,totals.purchaseQty,totals.remainingQty,null,totals.amountCents/100]]);
 }
 function exportPickupOrders(){
  const t=language;
