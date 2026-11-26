@@ -36,8 +36,8 @@
     "path": "membres/",
     "title_ko": "회원 영역",
     "title_fr": "Espace membres",
-    "desc_ko": "회원 전용 공간 준비 중",
-    "desc_fr": "Un espace réservé aux membres, en cours de préparation"
+    "desc_ko": "회원게시판 · 학습자료실 · 내 정보 관리",
+    "desc_fr": "Forum, ressources pédagogiques et profil"
   },
   {
     "k": "contact",
