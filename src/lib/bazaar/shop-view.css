@@ -54,9 +54,9 @@
 .bz-storage-icon span{display:none;position:absolute;z-index:2;left:0;bottom:100%;padding:4px 6px;background:#1f3145;color:white;border-radius:4px;white-space:nowrap;font-size:.78rem}
 .bz-storage-icon:hover span,.bz-storage-icon:focus-visible span,.bz-storage-icon[aria-expanded=true] span{display:block}
 .bz-shared-product .bz-desc h3{margin:0;font-size:1rem;overflow-wrap:break-word}
-.bz-shared-product .bz-desc p{margin:4px 0;font-size:.84rem;line-height:1.7;color:#546375}
+.bz-shared-product .bz-desc p{margin:6px 0 0;font-size:.84rem;line-height:1.75;color:#546375}
 .bz-shared-product .bz-shared-actions .bz-stock{margin:0;color:#a52630;font-size:.76rem;font-weight:700;line-height:1.35;text-align:center;justify-self:center;max-width:108px;overflow-wrap:break-word;word-break:keep-all}
-.bz-shared-product .bz-price{font-size:1rem;color:#253952;white-space:nowrap}
+.bz-shared-product .bz-price{display:block;margin-top:12px;font-size:1rem;color:#253952;white-space:nowrap}
 .bz-shared-actions{display:grid;justify-items:stretch;gap:4px}.bz-shared-actions .bz-qty{display:flex;align-items:center;justify-content:space-between;gap:4px;margin:0}
 .bz-shared-actions .bz-qty button{width:30px;height:32px;min-width:0;padding:0}.bz-shared-actions .bz-btn{font-size:.82rem;padding:6px 8px}
 .bz-shared-actions button:disabled{opacity:.45;cursor:not-allowed}
