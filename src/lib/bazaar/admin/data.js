@@ -141,6 +141,59 @@ export function orderIntakeSummary(orders=[], products=[]){
   estimatedGrossCents:estimatedCostCents==null?null:salesCents-estimatedCostCents,missingCosts};
 }
 
+/** Product sales are independent of editable supplier purchase orders.
+ * Split historical supplier/pack/cost versions rather than overwrite saved snapshots. */
+export function productSalesReport(products=[],orders=[],scope='all'){
+ const byId=new Map(products.map(p=>[p.id,p])),rows=new Map(),soldIds=new Set();
+ const selected=orders.filter(o=>scope==='confirmed'?o.status==='confirmed':o.status!=='canceled');
+ const positiveInt=n=>Number.isSafeInteger(n)&&n>0;
+ const validPrice=n=>Number.isSafeInteger(n)&&n>=0;
+ const basis=(product,snapshot)=>{
+  const pack=snapshot?.packQty,box=snapshot?.boxPriceTtcCents;
+  const fallbackPack=Number(product?.pack);
+  const fallbackBox=product?.buy===''||product?.buy==null?null:Math.round(Number(product.buy)*100);
+  const useSnapshot=positiveInt(pack)&&validPrice(box);
+  return {vendor:snapshot?.supplier||product?.vendor||'',pack:useSnapshot?pack:positiveInt(fallbackPack)?fallbackPack:null,
+   boxCents:useSnapshot?box:validPrice(fallbackBox)?fallbackBox:null};
+ };
+ let dueCents=0;
+ for(const order of selected){
+  let subtotal=0;
+  for(const item of order.items||[]){
+   const qty=Number(item[1]),price=Math.round(Number(item[2])*100);
+   if(!positiveInt(qty)||!validPrice(price))continue;
+   const id=item[3]||'legacy:'+(item[0]||''),p=byId.get(id),snap=item[4],b=basis(p,snap);
+   const key=JSON.stringify([id,b.vendor,b.pack,b.boxCents]);
+   const r=rows.get(key)||{id,ko:item[0]||p?.ko||'',fr:snap?.titleFr||p?.fr||'',...b,qty:0,revenueCents:0};
+   r.qty+=qty;r.revenueCents+=qty*price;subtotal+=qty*price;
+   rows.set(key,r);soldIds.add(id);
+  }
+  dueCents+=validPrice(order.payment?.due)?order.payment.due:subtotal;
+ }
+ for(const p of products){
+  if(soldIds.has(p.id))continue;
+  const b=basis(p,null),id=p.id||'legacy:'+(p.ko||p.fr||'');
+  rows.set(JSON.stringify([id,b.vendor,b.pack,b.boxCents]),{id,ko:p.ko||'',fr:p.fr||'',...b,qty:0,revenueCents:0});
+ }
+ const result=[...rows.values()].map(r=>{
+  const known=positiveInt(r.pack)&&validPrice(r.boxCents);
+  const boxes=r.qty===0?0:positiveInt(r.pack)?Math.ceil(r.qty/r.pack):null;
+  const remaining=boxes==null?null:r.qty===0?0:boxes*r.pack-r.qty;
+  const soldCostCents=r.qty===0?0:known?Math.round(r.qty*r.boxCents/r.pack):null;
+  const purchaseCents=r.qty===0?0:known?boxes*r.boxCents:null;
+  const remainingCostCents=purchaseCents==null?null:purchaseCents-soldCostCents;
+  const grossCents=soldCostCents==null?null:r.revenueCents-soldCostCents;
+  return {...r,boxes,remaining,soldCostCents,purchaseCents,remainingCostCents,grossCents};
+ });
+ const sum=(list,field)=>list.some(r=>r[field]==null)?null:list.reduce((n,r)=>n+r[field],0);
+ const total=list=>Object.fromEntries(['qty','revenueCents','boxes','remaining','soldCostCents','purchaseCents','remainingCostCents','grossCents'].map(field=>[field,sum(list,field)]));
+ const totals=total(result);
+ const groups=[...new Set(result.map(r=>r.vendor))].map(vendor=>{
+  const items=result.filter(r=>r.vendor===vendor);return {vendor,rows:items,totals:total(items)};
+ });
+ return {rows:result,groups,totals,orderCount:selected.length,dueCents,adjustmentCents:dueCents-totals.revenueCents};
+}
+
 export function estimateEvent(products,expenses=[]){
  const amount=value=>value!==''&&value!=null&&Number.isFinite(Number(value))?Number(value):null;
  const rows=products.filter(p=>p.active).map(p=>{
