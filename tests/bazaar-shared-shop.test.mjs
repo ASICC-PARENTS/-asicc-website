@@ -12,6 +12,11 @@ test('storefront and preview use one notice per stock level',()=>{
   assert.match(stockNotice(10,'ko'),/남은 수량 10개/);
   assert.match(stockNotice(1,'fr'),/Stock restant : 1/);
   assert.match(stockNotice(0,'fr'),/Épuisé/);
+  assert.match(stockNotice(30,'ko',2),/남은 수량 28개/);
+  assert.match(stockNotice(2,'ko',2),/남은 수량 0개/);
+  assert.doesNotMatch(stockNotice(2,'ko',2),/매진/);
+  assert.equal(stockNotice(null,'fr',2),'');
+  assert.match(stockNotice(30,'fr',2),/Stock restant : 28/);
   assert.doesNotMatch(stockNotice(30,'ko'),/한정수량/);
   const html=renderShopProducts([{id:'p',titleKo:'<abc>',storage:'chilled',priceCents:300,stockRemaining:0}],'ko',{
     quantity:()=>0,controls:(_p,_qty,sold)=>sold?'Sold':'Available',price:()=> '3 €'
@@ -21,6 +26,16 @@ test('storefront and preview use one notice per stock level',()=>{
   assert.match(html,/Sold/);
   assert.equal((html.match(/매진/g)||[]).length,2); // existing photo stamp + one stock notice
   assert.match(html,/<div class="bz-shared-actions">Sold<p class="bz-stock">매진<\/p>/);
+});
+
+test('selected quantity reduces only the displayed remaining stock, not actual availability',()=>{
+  const product={id:'p',titleKo:'상품',stockRemaining:3,priceCents:300};
+  const render=qty=>renderShopProducts([product],'ko',{quantity:()=>qty,controls:(_p,_qty,sold)=>sold?'Sold':'Available',price:()=> '3 €'});
+  assert.match(render(2),/남은 수량 1개/);
+  assert.match(render(3),/남은 수량 0개/);
+  assert.doesNotMatch(render(3),/bz-sold-stamp|Sold/);
+  assert.match(render(1),/남은 수량 2개/);
+  assert.equal(product.stockRemaining,3);
 });
 
 test('shared event header uses Paris time and escapes editor text',()=>{
@@ -87,6 +102,7 @@ test('shared buying notice keeps payment deadline, stock and pickup instructions
   assert.ok(html.includes('id="bz-transfer-heading"'));
   assert.ok(html.includes('id="bz-transfer-window"'));
   assert.ok(html.includes(lang==='ko'?'12시간':'12 heures'));
+  assert.ok(html.includes(lang==='ko'?'즉시 계좌이체(Virement instantané)':'virement instantané'));
   assert.ok(html.includes(lang==='ko'?'냉장·냉동 상품 안내':'Produits réfrigérés et surgelés'));
   assert.ok(html.includes(lang==='ko'?'송금 시 반드시 주문번호만':'uniquement votre numéro de commande'));
  }

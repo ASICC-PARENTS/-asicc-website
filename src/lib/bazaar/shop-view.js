@@ -8,10 +8,11 @@ const icons = {
 };
 const storageLabels = { ambient:['실온','Température ambiante'], chilled:['냉장','Réfrigéré'], frozen:['냉동','Surgelé'] };
 const localize = (lang,ko,fr) => lang==='fr'?fr:ko;
-export function stockNotice(stock,lang) {
+export function stockNotice(stock,lang,selected=0) {
   if(stock==null)return '';
   const t=(ko,fr)=>localize(lang,ko,fr);
-  return '<p class="bz-stock">'+escape(stock<=0?t('매진','Épuisé'):t('남은 수량 '+stock+'개','Stock restant : '+stock))+'</p>';
+  const remaining=Math.max(0,stock-Math.max(0,selected));
+  return '<p class="bz-stock">'+escape(stock<=0?t('매진','Épuisé'):t('남은 수량 '+remaining+'개','Stock restant : '+remaining))+'</p>';
 }
 const eventIcons={
   calendar:'M5 4h14a2 2 0 0 1 2 2v13H3V6a2 2 0 0 1 2-2Zm2-2v5m10-5v5M3 9h18m-13 4h2m4 0h2m-8 3h2',
@@ -59,6 +60,7 @@ const rows = [
     L(lang,{ko:'일부 상품은 한정된 수량으로 판매되며, 재고 소진 시 해당 상품의 주문 접수가 조기에 마감될 수 있습니다.',fr:'Certains produits sont proposés en quantité limitée. Les commandes de ces produits pourront être clôturées avant la date prévue en cas d’épuisement des stocks.'})]},
   { title:L(lang,{ko:'주문 후 24시간 이내 송금',fr:'Paiement par virement sous 24 heures'}), icon:'M12 7v5l3 2m6-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z', payment:true, lines:[
     '',
+    L(lang,{ko:'신속한 입금 확인을 위해 가능하면 즉시 계좌이체(Virement instantané)로 송금해 주세요.',fr:'Pour permettre une confirmation rapide du paiement, merci de privilégier le virement instantané.'}),
     L(lang,{ko:'한정 수량 상품에 대한 다른 구매자의 구매 기회를 보장하기 위해 기한 내 송금 완료 신고가 이루어지지 않은 주문은 취소될 수 있습니다.',fr:'Afin de permettre à d’autres acheteurs de bénéficier des produits disponibles en quantité limitée, toute commande dont le virement n’a pas été signalé dans le délai imparti pourra être annulée.'}),
     L(lang,{ko:'송금 시 반드시 주문번호만 송금 메모에 기재해 주세요.',fr:'Merci d’indiquer uniquement votre numéro de commande dans le libellé du virement.'})]},
   { title:L(lang,{ko:'주문 변경 및 취소',fr:'Modification et annulation des commandes'}), icon:'M4 19h16M5 15l-1 4 4-1L19 7l-3-3L5 15Zm9-9 3 3', lines:[
@@ -95,11 +97,12 @@ export function renderShopProducts(products,lang,{quantity,controls,price}) {
     const label=storage?t(...storage):'';
     const icon=storage?'<button type="button" class="bz-storage-icon '+product.storage+'" title="'+escape(label)+'" aria-label="'+escape(label)+'" aria-expanded="false"><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7">'+icons[product.storage]+'</svg><span>'+escape(label)+'</span></button>':'';
     const photo=product.imageUrl?'<img class="bz-photo" src="'+escape(product.imageUrl)+'" alt="'+escape(name)+'" loading="lazy">':'<div class="bz-photo bz-placeholder" aria-hidden="true">📦</div>';
+    const selected=quantity(product);
     const stamp=product.stockRemaining===0?'<span class="bz-sold-stamp">'+t('매진','ÉPUISÉ')+'</span>':'';
     return '<article class="bz-shared-product"><div class="bz-shared-photo">'+photo+stamp+icon+'</div>'+
       '<div class="bz-desc"><h3>'+escape(name)+'</h3><p>'+escape(t(product.descriptionKo,product.descriptionFr))+'</p>'+
       '<strong class="bz-price">'+escape(price(product.priceCents))+'</strong></div>'+
-      '<div class="bz-shared-actions">'+controls(product,quantity(product),product.stockRemaining===0)+stockNotice(product.stockRemaining,lang)+'</div></article>';
+      '<div class="bz-shared-actions">'+controls(product,selected,product.stockRemaining===0)+stockNotice(product.stockRemaining,lang,selected)+'</div></article>';
   }).join('')+'</div>';
 }
 export function bindStorageLabels(root) {

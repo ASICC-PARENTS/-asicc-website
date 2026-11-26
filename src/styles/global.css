@@ -1062,7 +1062,7 @@ html[lang] main :is(.intro-school,.tile,.panel-head) > *{min-width:0;}
 html[lang] main :is(.intro h1,.panel-head h2){text-wrap:balance;}
 
 /* Official wordmark is indivisible: scale the complete image proportionally. */
-.site-header .brand{gap:0;align-items:center;justify-content:flex-start;flex:0 1 170px;max-width:170px;min-width:0}
-.site-header .site-wordmark{display:block;width:100%;max-width:170px;height:auto;object-fit:contain;object-position:left center;flex:none}
-@media(max-width:980px){.site-header .brand{flex:0 1 153px;max-width:153px}}
-@media(max-width:600px){.site-header .brand{max-width:136px;flex:0 1 136px}.site-header .tools{flex-shrink:0}}
+.site-header .brand{gap:0;align-items:center;justify-content:flex-start;flex:0 1 150px;max-width:150px;min-width:0}
+.site-header .site-wordmark{display:block;width:100%;max-width:150px;height:auto;object-fit:contain;object-position:left center;flex:none}
+@media(max-width:980px){.site-header .brand{flex:0 1 135px;max-width:135px}}
+@media(max-width:600px){.site-header .brand{max-width:120px;flex:0 1 120px}.site-header .tools{flex-shrink:0}}

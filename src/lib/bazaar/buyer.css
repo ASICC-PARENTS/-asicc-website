@@ -147,9 +147,9 @@
 /* Status remains live and derives from the existing intake state. */
 .bz-wrap .bz-hero-status-slot #bz-status{margin:0;padding:4px 10px;font-size:11.5px;font-weight:600;line-height:1.45;max-width:100%;background:#fff4e4;color:#664823;text-align:center;border-radius:7px;word-break:keep-all;overflow-wrap:break-word}
 .bz-wrap .bz-hero-status-slot #bz-status.is-open{display:inline-flex;align-items:center;justify-content:center;gap:5px;background:#eaf4ef;color:#28563f;border:1px solid #cddfd4;border-radius:999px}
-.bz-wrap .bz-hero-status-slot #bz-status.is-open::before{content:"";display:block;flex:0 0 5px;height:5px;border-radius:50%;background:#43815e}
+.bz-wrap .bz-hero-status-slot #bz-status.is-open::before{content:"";display:block;flex:0 0 7px;height:7px;border-radius:50%;background:#27834d}
 
 /* A calm, short pulse highlights live ordering; the text stays still and readable. */
-@keyframes bz-live-pulse{0%,100%{box-shadow:0 0 0 0 #43815e00;opacity:1}50%{box-shadow:0 0 0 3px #43815e36;opacity:.65}}
-.bz-wrap .bz-hero-status-slot #bz-status.is-open::before{animation:bz-live-pulse 1.6s ease-in-out 3}
+@keyframes bz-live-pulse{0%,100%{box-shadow:0 0 0 0 #27834d70;transform:scale(1)}50%{box-shadow:0 0 0 5px #27834d45;transform:scale(1.18)}}
+.bz-wrap .bz-hero-status-slot #bz-status.is-open::before{animation:bz-live-pulse 1.5s ease-in-out 3}
 @media(prefers-reduced-motion:reduce){.bz-wrap .bz-hero-status-slot #bz-status.is-open::before{animation:none}}
