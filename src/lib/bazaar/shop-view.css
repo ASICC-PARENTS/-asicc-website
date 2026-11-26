@@ -94,3 +94,16 @@
 .bz-pickup-card .bz-disclosure>summary .bz-info-icon{width:17px;height:17px;color:#61788b;margin-top:0}
 .bz-pickup-card .bz-disclosure-body{padding:2px 8px 10px 24px}
 @media(max-width:480px){.bz-pickup-card .bz-disclosure{margin-left:28px}.bz-pickup-card .bz-disclosure>summary{font-size:.8rem}.bz-pickup-card .bz-disclosure>summary .bz-info-icon{width:16px;height:16px}.bz-pickup-card .bz-disclosure-body{padding-left:23px}}
+
+/* Make the nested pickup disclosure visibly interactive without duplicating the location pin. */
+.bz-pickup-card .bz-disclosure{border:1px solid #cddbe5;border-radius:8px;background:#fff;margin-top:9px;overflow:hidden}
+.bz-pickup-card .bz-disclosure>summary{padding:10px 11px;color:#34546f;min-height:44px;box-sizing:border-box;gap:8px}
+.bz-pickup-card .bz-disclosure>summary:hover{background:#f2f6f9}
+.bz-pickup-card .bz-disclosure>summary:focus-visible{outline-offset:-3px}
+.bz-pickup-card .bz-toggle-label{font-size:.73rem;font-weight:650;color:#456781;flex:none;white-space:nowrap}
+.bz-pickup-card .bz-collapse-label,.bz-pickup-card .bz-disclosure[open] .bz-expand-label{display:none}
+.bz-pickup-card .bz-disclosure[open] .bz-collapse-label{display:inline}
+.bz-pickup-card .bz-disclosure[open]>summary{border-bottom:1px solid #e2e9ef}
+.bz-pickup-card .bz-chevron{width:9px;height:9px;color:#34546f;border-color:currentColor}
+.bz-pickup-card .bz-disclosure-body{padding:10px 12px 12px 35px}
+@media(max-width:480px){.bz-pickup-card .bz-disclosure>summary{padding:9px 8px;gap:6px}.bz-pickup-card .bz-toggle-label{font-size:.69rem}.bz-pickup-card .bz-disclosure-body{padding-left:30px}}

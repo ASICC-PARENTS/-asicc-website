@@ -22,7 +22,7 @@ const eventIcons={
   info:'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 9v6m0-10h.01'
 };
 const eventIcon=path=>'<svg class="bz-info-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="'+path+'"/></svg>';
-const disclosure=(key,label,icon,body)=>'<details class="bz-disclosure" data-bz-disclosure="'+key+'"><summary>'+eventIcon(icon)+'<span>'+escape(label)+'</span><span class="bz-chevron" aria-hidden="true"></span></summary><div class="bz-disclosure-body">'+body+'</div></details>';
+const disclosure=(key,label,icon,body,toggleLabels)=>'<details class="bz-disclosure" data-bz-disclosure="'+key+'"><summary>'+eventIcon(icon)+'<span>'+escape(label)+'</span>'+(toggleLabels?'<span class="bz-toggle-label" aria-hidden="true"><span class="bz-expand-label">'+escape(toggleLabels[0])+'</span><span class="bz-collapse-label">'+escape(toggleLabels[1])+'</span></span>':'')+'<span class="bz-chevron" aria-hidden="true"></span></summary><div class="bz-disclosure-body">'+body+'</div></details>';
 // Keep the original event title, but allow a deliberate mobile break at a phrase boundary.
 function eventTitleMarkup(name){
   const parts=String(name).match(/^(.+?(?:!|！| [–—-]))\s+(.+)$/u);
@@ -47,7 +47,7 @@ export function renderShopEvent(event,lang,{showStatus=false}={}) {
     info(t('송금 기한','Délai de virement'),paymentWindow,eventIcons.wallet,finalDeadline)+
     '<div class="bz-pickup-card">'+info(t('상품 수령','Retrait des commandes'),formatParisPickupRange(event.pickupAt,event.pickupEndAt,lang),eventIcons.pin)+
     (event.pickupPlace?'<p class="bz-pickup-place">'+escape(event.pickupPlace)+'</p>':'')+
-    (pickup?disclosure('pickup',t('상세 주소 및 주차 안내','Adresse et informations de retrait'),eventIcons.detailArrow,'<p>'+escape(pickup)+'</p>'):'')+'</div></div>'+
+    (pickup?disclosure('pickup',t('상세 주소 및 주차 안내','Adresse et informations de retrait'),eventIcons.detailArrow,'<p>'+escape(pickup)+'</p>',[t('펼치기','Afficher'),t('접기','Replier')]):'')+'</div></div>'+
     (intro?disclosure('intro',t('바자회 소개 및 수익금 사용 안내','Présentation du bazar et utilisation des bénéfices'),eventIcons.heart,'<p>'+escape(intro)+'</p>'):'')+'</div>';
 }
 export function renderShopNotice(lang,paymentHours=24){
