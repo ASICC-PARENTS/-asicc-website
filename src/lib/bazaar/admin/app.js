@@ -662,7 +662,6 @@ function orderTools(order){
  let buttons='';
  if(canManageOrder()&&order.status!=='canceled'){
   buttons+='<button class="btn primary" data-action="order-correct" data-id="'+esc(order.id)+'">'+language('주문 수정','Modifier')+'</button>';
-  buttons+='<button class="btn neutral" data-action="manual-order" data-id="'+esc(order.id)+'">'+language('추가 주문','Commande complémentaire')+'</button>';
  }
  if(order.bankConfirmedAt)buttons+='<button class="btn neutral" data-action="refund-open" data-id="'+esc(order.id)+'">'+language('환불 등록','Remboursement')+'</button>';
  if(order.bankConfirmedAt)buttons+='<button class="btn neutral" data-action="order-payments" data-id="'+esc(order.id)+'">'+(fr?'Paiements et remboursements':'입금·환불 기록')+'</button>';
