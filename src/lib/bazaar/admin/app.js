@@ -467,10 +467,10 @@ function productChange(el){
  const k=el.dataset.key;
  let val=el.value;
  if(k==='vendor'&&val==='__asicc_new_supplier__'){
-  const entered=prompt('새 공급업체명을 입력해 주세요 (최대 120자).');
+  const entered=prompt(language('새 공급업체명을 입력해 주세요 (최대 120자).','Saisissez le nom du nouveau fournisseur (120 caractères maximum).'));
   if(entered===null||!entered.trim()){el.value=p.vendor||'';return;}
   val=entered.trim().normalize('NFC');const found=[...store.catalog,...store.products].find(x=>x.vendor?.normalize('NFC').toLowerCase()===val.toLowerCase());if(found)val=found.vendor;
-  if(val.length>120){alert('공급업체명은 120자 이내로 입력해 주세요.');el.value=p.vendor||'';return;}
+  if(val.length>120){alert(language('공급업체명은 120자 이내로 입력해 주세요.','Le nom du fournisseur doit comporter au maximum 120 caractères.'));el.value=p.vendor||'';return;}
  }
  const numeric=['buy','pack','boxes','manualLimit','roi','sale'].includes(k);
  if(numeric&&val!=='')val=Number(val);
@@ -1021,7 +1021,7 @@ async function saveCorrection(id){
  const reason=$('#order-correction-reason').value.trim();
  if(!reason)throw new Error('정정 사유를 입력해 주세요.');
  const items=[...root.querySelectorAll('[data-order-quantity]')].map(el=>({id:el.dataset.orderQuantity,qty:Number(el.value)})).filter(item=>item.qty!==0||order.items.some(row=>row[3]===item.id));
- if(!confirm('이 주문을 정정할까요? 원본과 정정 사유가 보관됩니다.'))return;
+ if(!confirm(language('이 주문을 정정할까요? 원본과 정정 사유가 보관됩니다.','Corriger cette commande ? La version d’origine et le motif seront conservés.')))return;
  await request('correctOrder',{id,eventId:selectedEvent().id,revision:order.revision,reason,items,restoreStock:$('#correction-restore')?.checked??false,confirm:true});
  closeModal();await load();orderModal(id);
 }
@@ -1208,7 +1208,7 @@ function exportProfitPdf(){
  }
  page();pdf.save(fr?'ASICC-resultat-bazar.pdf':'ASICC-바자회-수익결산.pdf');
 }
-const closedPurchaseWarning='종료된 행사의 발주 내역을 수정합니다. 이미 업체에 보낸 발주서가 있으면 변경사항을 별도로 전달하세요. 고객 주문과 입금 기록은 그대로 유지됩니다.';
+const closedPurchaseWarning=language('종료된 행사의 발주 내역을 수정합니다. 이미 업체에 보낸 발주서가 있으면 변경사항을 별도로 전달하세요. 고객 주문과 입금 기록은 그대로 유지됩니다.','Vous modifiez les achats d’un bazar terminé. Si le bon a déjà été transmis au fournisseur, communiquez-lui les modifications. Les commandes clients et les paiements restent inchangés.');
 function canEditPurchase(){
  const event=selectedEvent();
  return !!event&&store.settleScope==='confirmed'&&(current()||event===model.active&&!poMeta(store.vendor).confirmed);
@@ -1332,13 +1332,13 @@ if(a==='product-order-detail'){productOrderDetail(b.dataset.id);return;}
 if(a==='product-orders-excel'){exportProductOrders();return;}
 if(a==='expense-add'){expenseModal();return;}
 if(a==='expense-edit'){expenseModal(b.dataset.id);return;}
-if(a==='expense-delete'){const row=(eventFinancialRecord.expenses||[]).find(x=>x.id===b.dataset.id);if(row&&confirm(row.name+' 지출을 삭제할까요?'))run(b,()=>persistExpenses((eventFinancialRecord.expenses||[]).filter(x=>x.id!==row.id)));}
+if(a==='expense-delete'){const row=(eventFinancialRecord.expenses||[]).find(x=>x.id===b.dataset.id);if(row&&confirm(language(row.name+' 지출을 삭제할까요 ?','Supprimer la dépense « '+row.name+' » ?')))run(b,()=>persistExpenses((eventFinancialRecord.expenses||[]).filter(x=>x.id!==row.id)));}
 if(a==='settlement-finalize'){confirmAccounting('finalize');return;}
 if(a==='settlement-reopen'){confirmAccounting('reopen');return;}
 if(a==='profit-excel'){exportProfitExcel();return;}
 if(a==='profit-pdf'){exportProfitPdf();return;}
 if(a==='mode-active')location.href=url('','');if(a==='show-past')pastModal();if(a==='new-event')draftModal();
-if(a==='switch-catalog'){openCatalogPopup(b);return;}if(a==='switch-event'){closeStandaloneCatalog();return;}if(a==='edit-product'&&(productView==='catalog'||!current()))editProduct(b.dataset.id);if(a==='edit-photo'&&(productView==='catalog'||!current()))editProduct(b.dataset.id,true);if(a==='import'&&!current())importModal();if(a==='delete-product'&&(productView==='catalog'||selectedEvent()?.status==='draft')){const ar=productView==='catalog'?store.catalog:store.products;const p=ar.find(x=>x.id===b.dataset.id);if(p&&confirm(p.ko+' 상품을 '+(productView==='catalog'?'기본 상품 목록':'이번 바자회')+'에서 삭제할까요?')){ar.splice(ar.indexOf(p),1);markProductDirty();rerender();}}
+if(a==='switch-catalog'){openCatalogPopup(b);return;}if(a==='switch-event'){closeStandaloneCatalog();return;}if(a==='edit-product'&&(productView==='catalog'||!current()))editProduct(b.dataset.id);if(a==='edit-photo'&&(productView==='catalog'||!current()))editProduct(b.dataset.id,true);if(a==='import'&&!current())importModal();if(a==='delete-product'&&(productView==='catalog'||selectedEvent()?.status==='draft')){const ar=productView==='catalog'?store.catalog:store.products;const p=ar.find(x=>x.id===b.dataset.id);if(p&&confirm(language(p.ko+' 상품을 '+(productView==='catalog'?'기본 상품 목록':'이번 바자회')+'에서 삭제할까요?', 'Supprimer « '+(p.fr||p.ko)+' » '+(productView==='catalog'?'du catalogue':'de ce bazar')+' ?'))){ar.splice(ar.indexOf(p),1);markProductDirty();rerender();}}
 if(a==='add-product'){
  const ar=productView==='catalog'?store.catalog:store.products;
  const p={id:newId(),ko:'',fr:'',koDesc:'',frDesc:'',vendor:'',buy:'',sale:'',pack:1,storage:'상온',photo:'',photoPath:'',emoji:'📦',active:false,boxes:'',manualLimit:'',limitMode:'unlimited'};
@@ -1346,9 +1346,9 @@ if(a==='add-product'){
 }
 if(a==='product-up'||a==='product-down'){if(current()&&productView!=='catalog')return;const ar=productView==='catalog'?store.catalog:store.products,shown=shownProducts(),index=shown.findIndex(p=>p.id===b.dataset.id);const from=ar.indexOf(shown[index]),to=ar.indexOf(shown[index+(a==='product-up'?-1:1)]);if(index>=0&&from>=0&&to>=0){[ar[from],ar[to]]=[ar[to],ar[from]];markProductDirty();rerender();}}
 if(a==='column-settings')columnSettings();if(a==='column-reset'){localStorage.removeItem(colKey());rerender();}if(a==='import-past-open')run(b,()=>importPastModal());
- if(a==='products-publish'&&selectedEvent()?.status==='draft')run(b,async()=>{if(!confirm('상품 변경사항을 저장하고 이 바자회를 발행할까요?'))return;await saveProducts(true);if(productValidationIssues.length)return;const event=selectedEvent();await request('publishDraft',{id:event.id,updatedAt:event.updatedAt});location.href=url('',event.id);});
+ if(a==='products-publish'&&selectedEvent()?.status==='draft')run(b,async()=>{if(!confirm(language('상품 변경사항을 저장하고 이 바자회를 발행할까요?','Enregistrer les modifications et publier ce bazar ?')))return;await saveProducts(true);if(productValidationIssues.length)return;const event=selectedEvent();await request('publishDraft',{id:event.id,updatedAt:event.updatedAt});location.href=url('',event.id);});
  if(a==='save-product'&&(productView==='catalog'||!current()))run(b,()=>saveProducts());
- if(a==='refresh-products'&&(!productDirty||confirm('저장하지 않은 변경사항을 버리고 새로고침할까요?'))){run(b,async()=>{productDirty=false;await load();});}
+ if(a==='refresh-products'&&(!productDirty||confirm(language('저장하지 않은 변경사항을 버리고 새로고침할까요?','Ignorer les modifications non enregistrées et actualiser ?')))){run(b,async()=>{productDirty=false;await load();});}
  if(a==='reorder-products'&&!current()){const ps=visibleProducts();modal('상품 진열 순서 변경','위아래로 이동하세요.','<div id="reorder-list">'+ps.map(p=>'<div class="modal-row" data-reorder-id="'+p.id+'"><span>'+esc(p.ko)+'</span><div class="actions"><button class="btn neutral" data-action="move-up">↑</button><button class="btn neutral" data-action="move-down">↓</button></div></div>').join('')+'</div>','<button class="btn neutral" data-action="close">취소</button><button class="btn primary" data-action="reorder-save">적용</button>');}
 if(a==='manual-order'&&canManageOrder())manualOrderModal();
 if(a==='order-filter'){store.orderFilter=b.dataset.value;persistOrdersView();rerender();}if(a==='order-detail'){
@@ -1383,8 +1383,8 @@ if(a==='order-filter'){store.orderFilter=b.dataset.value;persistOrdersView();rer
  void showOrderMail(b.dataset.id,mail,selectedEvent().id,request);
 }
 if(a==='confirm')void confirmOrder(b.dataset.id,b);
-if(a==='scope'){store.settleScope=b.dataset.value;rerender();}if(a==='vendor'){store.vendor=b.dataset.value;rerender();}if(a==='po-add')addPOModal();if(a==='po-del'){const ar=editablePO(store.vendor);if(confirm('발주서에서 해당 품목을 삭제할까요? 고객 주문 원본은 유지됩니다.')){const x=ar.findIndex(p=>p.id===b.dataset.id);if(x>=0)ar.splice(x,1);rerender();}}
-if(a==='po-reset'){if(confirm('이 업체 발주서의 수동 변경을 초기화할까요?')){delete store.poDrafts[store.vendor];editablePO(store.vendor);rerender();}}
+if(a==='scope'){store.settleScope=b.dataset.value;rerender();}if(a==='vendor'){store.vendor=b.dataset.value;rerender();}if(a==='po-add')addPOModal();if(a==='po-del'){const ar=editablePO(store.vendor);if(confirm(language('발주서에서 해당 품목을 삭제할까요? 고객 주문 원본은 유지됩니다.','Retirer cet article du bon fournisseur ? Les commandes clients restent inchangées.'))){const x=ar.findIndex(p=>p.id===b.dataset.id);if(x>=0)ar.splice(x,1);rerender();}}
+if(a==='po-reset'){if(confirm(language('이 업체 발주서의 수동 변경을 초기화할까요?','Réinitialiser les modifications manuelles de ce bon fournisseur ?'))){delete store.poDrafts[store.vendor];editablePO(store.vendor);rerender();}}
 if(a==='po-preview')previewPO(store.vendor);if(a==='all-po')modal('전체 업체 구매발주서 검토','업체별 구매발주서 분리 작성',vendors().map(v=>'<div class="modal-row"><b>'+esc(v)+'</b><span>'+money(poTotal(v))+'</span><button class="linkbtn" data-action="show-po" data-value="'+esc(v)+'">미리보기</button></div>').join(''),'<button class="btn neutral" data-action="close">닫기</button>');
 });
 $('#modal').addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(!b)return;const a=b.dataset.action;
@@ -1402,7 +1402,7 @@ if(a==='new-product-save'){const ko=$('#new-ko').value.trim(),fr=$('#new-fr').va
 if(a==='import-back'){importModal();return;}
 if(a==='import-apply'){let ids=[...document.querySelectorAll('[data-import]:checked')].map(x=>x.dataset.import);ids.forEach(id=>{let x=store.catalog.find(p=>p.id===id);if(x){const previous=store.products.find(p=>p.id===id);if(previous)previous.active=true;else store.products.push({...defaults(x),active:true});markProductDirty();}});closeModal();rerender();}
 if(a==='import-past-apply'){const ids=new Set([...document.querySelectorAll('[data-import]:checked')].map(x=>x.dataset.import));const existing=new Set(store.products.filter(p=>p.active).map(p=>(p.ko+'|'+p.fr).trim().normalize('NFC').toLocaleLowerCase()));for(const raw of importPastProducts.filter(p=>ids.has(p.id))){const p=productViewModel(raw),key=(p.ko+'|'+p.fr).trim().normalize('NFC').toLocaleLowerCase();if(existing.has(key))continue;const copy={...clone(p),id:newId(),active:true,saved:false};store.products.push(copy);existing.add(key);}if(ids.size)markProductDirty();closeModal();rerender();}
-if(a==='po-add-save'){const name=$('#po-new-name').value.trim(),qty=Number($('#po-new-qty').value),price=Number($('#po-new-price').value);if(!name||!(qty>0)||!(price>=0)){alert('품목명·수량·단가를 확인해 주세요.');return}editablePO(store.vendor).push({id:newId(),name,ordered:0,per:0,qty,unit:$('#po-new-unit').value,price,amount:Math.round(qty*price*100)/100,manual:true});closeModal();rerender();}
+if(a==='po-add-save'){const name=$('#po-new-name').value.trim(),qty=Number($('#po-new-qty').value),price=Number($('#po-new-price').value);if(!name||!(qty>0)||!(price>=0)){alert(language('품목명·수량·단가를 확인해 주세요.','Vérifiez le nom, la quantité et le prix unitaire.'));return}editablePO(store.vendor).push({id:newId(),name,ordered:0,per:0,qty,unit:$('#po-new-unit').value,price,amount:Math.round(qty*price*100)/100,manual:true});closeModal();rerender();}
 if(a==='show-po'){store.vendor=b.dataset.value;previewPO(store.vendor);}
 });
 function syncImportSelection(){
@@ -1631,7 +1631,7 @@ async function saveProductDetail(id){
 async function savePurchase(confirmOrder){
  assertConfirmedScope();
  const isClosed=current();
- if(isClosed&&!confirm(closedPurchaseWarning+'\n\n변경사항을 저장할까요?'))return;
+ if(isClosed&&!confirm(closedPurchaseWarning+'\n\n'+language('변경사항을 저장할까요?','Enregistrer les modifications ?')))return;
  const vendor=store.vendor,meta=poMeta(vendor);
  const lines=makePO(vendor).map(({price,amount,...row})=>({...row,priceCents:Math.round(price*100),amountCents:Math.round(amount*100)}));
  const result=await request('savePurchaseOrder',{
@@ -1715,7 +1715,7 @@ function handleScreenAction(action,button){
  if(action==='preview-shop'){openShopPreview(selectedEvent());return true;}
  if(action==='refresh-orders'){run(button,load);return true;}
  if(action==='csv-orders'){const rows=[['주문번호','성함','전화','이메일','품목','금액','상태'],...store.orders.map(o=>[o.ref,o.name,o.phone,o.email,o.items.map(i=>i[0]+' ×'+i[1]).join(' / '),total(o).toFixed(2),statuses[o.status][0]])];const csv='\uFEFF'+rows.map(row=>row.map(v=>'"'+String(v??'').replace(/^[=+@-]/,"'$&").replaceAll('"','""')+'"').join(';')).join('\r\n');const uri=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=uri;a.download='ASICC_orders.csv';a.click();URL.revokeObjectURL(uri);return true;}
- if(action==='finalize-unpaid'){if(prompt('은행 최종 대조 완료 후 미입금 주문을 취소합니다. 계속하려면 최종 확인을 입력하세요.')==='최종 확인')run(button,async()=>{let count=0,result;do{result=await request('finalizeUnpaid',{eventId:e.id,confirm:true});count+=result.canceled||0;}while(result.pending);alert(count+'건 취소 완료');location.href=url('',e.id);});return true;}
+ if(action==='finalize-unpaid'){if(prompt(language('은행 최종 대조 완료 후 미입금 주문을 취소합니다. 계속하려면 최종 확인을 입력하세요.','Après rapprochement bancaire final, les commandes impayées seront annulées. Saisissez CONFIRMER pour continuer.'))===language('최종 확인','CONFIRMER'))run(button,async()=>{let count=0,result;do{result=await request('finalizeUnpaid',{eventId:e.id,confirm:true});count+=result.canceled||0;}while(result.pending);alert(language(count+'건 취소 완료',count+' commande(s) annulée(s).'));location.href=url('',e.id);});return true;}
  if(action==='closed-archive'){
   const archived=!!model.events.find(event=>event.id===e.id)?.hiddenAt;
   run(button,async()=>{await request('archiveClosedEvent',{eventId:e.id,archive:!archived});await load();});return true;
@@ -1739,13 +1739,13 @@ function handleScreenAction(action,button){
  }
  if(action==='edit-draft'){draftModal(true);return true;}
  if(action==='delete-draft'){
-  if(e?.status==='draft'&&confirm('임시저장을 삭제할까요?'))run(button,async()=>{
+  if(e?.status==='draft'&&confirm(language('임시저장을 삭제할까요?','Supprimer ce brouillon ?')))run(button,async()=>{
    await request('deleteDraft',{id:e.id,confirm:true});location.href=url('','');
   });
   return true;
  }
  if(action==='publish-draft'){
-  if(e?.status==='draft'&&confirm('바자회를 발행할까요? 저장된 내용이 방문객에게 공개됩니다.'))run(button,async()=>{
+  if(e?.status==='draft'&&confirm(language('바자회를 발행할까요? 저장된 내용이 방문객에게 공개됩니다.','Publier le bazar ? Les informations enregistrées seront visibles par les visiteurs.')))run(button,async()=>{
    await request('publishDraft',{id:e.id,updatedAt:e.updatedAt});location.href=url('',e.id);
   });
   return true;
@@ -1795,7 +1795,7 @@ function handleScreenAction(action,button){
  if(action==='po-settings'){poSettings();return true;}
  if(action==='po-save'){run(button,()=>savePurchase(false));return true;}
  if(action==='po-confirm'){
-  if(current()||confirm('발주서를 확정할까요? 진행 중에는 확정한 발주서를 수정할 수 없습니다.'))
+  if(current()||confirm(language('발주서를 확정할까요? 진행 중에는 확정한 발주서를 수정할 수 없습니다.','Valider le bon de commande ? Il ne pourra plus être modifié tant que le bazar est en cours.')))
    run(button,()=>savePurchase(true));
   return true;
  }
@@ -1875,7 +1875,7 @@ function handleModalAction(action,button){
  }
  if(action==='preview-draft-form'){
   const fields=readDraftForm(),existing=$('#event-name').dataset.edit==='true'?selectedEvent():null;
-  if(!fields.nameKo||!fields.nameFr){alert('한국어와 프랑스어 행사명을 입력해 주세요.');return true;}
+  if(!fields.nameKo||!fields.nameFr){alert(language('한국어와 프랑스어 행사명을 입력해 주세요.','Saisissez le titre du bazar en coréen et en français.'));return true;}
   const base=existing?.raw||{};
   const event={...base,...fields};previewSnapshot={id:existing?.id,updatedAt:existing?.updatedAt,status:'draft',name:fields.nameKo,raw:event,products:existing?.products||[],orderDeadline:fields.orderCutoff?new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris',dateStyle:'short',timeStyle:'short',hourCycle:'h23'}).format(new Date(fields.orderCutoff)).replace(' ','T'):'',transferDeadline:fields.transferCutoff?new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris',dateStyle:'short',timeStyle:'short',hourCycle:'h23'}).format(new Date(fields.transferCutoff)).replace(' ','T'):'',pickupKo:fields.pickupKo,pickupFr:fields.pickupFr};
   openShopPreview(previewSnapshot);return true;
@@ -1917,7 +1917,7 @@ function handleModalAction(action,button){
  if(action==='po-vendor-save'){
   if(!current()||!canEditPurchase())return true;
   const vendor=$('#po-vendor-name').value.trim();
-  if(!vendor){alert('공급업체명을 입력해 주세요.');return true;}
+  if(!vendor){alert(language('공급업체명을 입력해 주세요.','Saisissez le nom du fournisseur.'));return true;}
   if(!vendors().includes(vendor))store.poDrafts[vendor]=[];
   store.vendor=vendor;
   closeModal();rerender();return true;
@@ -1929,7 +1929,7 @@ function handleModalAction(action,button){
  }
  if(action==='cancel-order'){
   const order=store.orders.find(o=>o.id===button.dataset.id);
-  if(canReconcile()&&order&&['reported','unpaid'].includes(order.status)&&confirm(order.ref+' 주문을 취소하고 고객에게 알릴까요?'))
+  if(canReconcile()&&order&&['reported','unpaid'].includes(order.status)&&confirm(language(order.ref+' 주문을 취소하고 고객에게 알릴까요 ?','Annuler la commande '+order.ref+' et en informer le client ?')))
    run(button,async()=>{
     await request('cancelOrder',{id:order.id,eventId:selectedEvent().id,confirm:true});closeModal();await load();
    });

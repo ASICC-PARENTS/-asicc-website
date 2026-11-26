@@ -101,3 +101,11 @@ test('administrator French labels distinguish cancellation action and status',as
   const app=await read('../src/lib/bazaar/admin/app.js');
   assert.ok(app.includes("canceled:[fr?'Annulée':'취소'"));
 });
+
+test('French native admin dialogs and test sign-in have explicit translations',async()=>{
+  const app=await read('../src/lib/bazaar/admin/app.js');
+  assert.doesNotMatch(app,/(?:alert|confirm|prompt)\(['"][^'"]*[가-힣]/);
+  assert.ok(app.includes("language('최종 확인','CONFIRMER')"));
+  const api=await read('../src/lib/bazaar/api.ts');
+  assert.ok(api.includes("t('테스트 로그인','Connexion de test')"));
+});
