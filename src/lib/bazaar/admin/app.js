@@ -556,14 +556,22 @@ function renderProductOrders(){
  const labels=[t('사진','Photo'),t('상품명','Produit'),t('유효 수량','Quantité active'),t('박스당 수량','Unités/carton'),t('예상 발주 박스','Cartons à commander'),t('예상 입고 수량','Quantité prévue'),t('남는 수량','Quantité restante'),t('최대 판매수량','Quantité maximale'),t('추가 주문 가능','Disponible à la vente'),t('현재 판매단가','Prix actuel'),t('누적 주문금액','Total commandes')];
  const summary=metrics([[t('유효 주문수량','Quantité commandée'),n(totals.qty)+(fr?'':'개')],[t('예상 발주 박스','Cartons à commander'),n(totals.boxes)+(totals.boxes==null?'':fr?'':'박스')],[t('예상 입고 수량','Quantité prévue'),n(totals.purchaseQty)+(totals.purchaseQty==null?'':fr?'':'개')],[t('추가 판매 필요수량','Unités à vendre en plus'),n(totals.remainingQty)+(totals.remainingQty==null?'':fr?'':'개')]]);
  const stock=p=>{const product=store.products.find(q=>q.id===p.id);if(!product)return ['—','—'];const cap=lim(product);return Number.isFinite(cap)?[String(cap),product.soldQty==null?'—':String(Math.max(0,cap-product.soldQty))]:[t('제한 없음','Sans limite'),'—'];};
- const body=rows.map(p=>'<tr data-action="product-order-detail" data-id="'+esc(p.id)+'" style="cursor:pointer"><td>'+(p.photo?'<img src="'+esc(p.photo)+'" alt="" class="thumb" style="object-fit:cover">':'<div class="thumb">📦</div>')+'</td><td><b>'+esc((fr?p.fr:p.ko)||p.ko||p.fr||t('상품','Produit'))+'</b><div class="muted tiny">'+esc(p.suppliers.join(' · '))+'</div><div class="muted tiny">'+(fr?p.orders.length+' commandes · Voir les détails ›':'주문 '+p.orders.length+'건 · 상세 보기 ›')+'</div></td><td><b>'+p.qty+'</b></td><td>'+esc(p.packSizes.length?p.packSizes.join(' / '):'—')+'</td><td><b>'+n(p.boxes)+'</b>'+confirmation(p)+'</td><td>'+n(p.purchaseQty)+'</td><td>'+extra(p)+'</td><td>'+stock(p)[0]+'</td><td>'+stock(p)[1]+'</td><td>'+(p.price==null?'—':money(p.price))+'</td><td><b>'+money(p.amountCents/100)+'</b></td></tr>').join('');
+ const body=rows.map(p=>'<tr><td>'+(p.photo?'<img src="'+esc(p.photo)+'" alt="" class="thumb" style="object-fit:cover">':'<div class="thumb">📦</div>')+'</td><td><button type="button" class="linkbtn product-order-name" data-action="product-order-detail" data-id="'+esc(p.id)+'"><b>'+esc((fr?p.fr:p.ko)||p.ko||p.fr||t('상품','Produit'))+'</b></button><div class="muted tiny">'+esc(p.suppliers.join(' · '))+'</div><div class="muted tiny">'+(fr?p.orders.length+' commandes':'주문 '+p.orders.length+'건')+'</div></td><td><b>'+p.qty+'</b></td><td>'+esc(p.packSizes.length?p.packSizes.join(' / '):'—')+'</td><td><b>'+n(p.boxes)+'</b>'+confirmation(p)+'</td><td>'+n(p.purchaseQty)+'</td><td>'+extra(p)+'</td><td>'+stock(p)[0]+'</td><td>'+stock(p)[1]+'</td><td>'+(p.price==null?'—':money(p.price))+'</td><td><b>'+money(p.amountCents/100)+'</b></td></tr>').join('');
  app.innerHTML=eventHead()+tabs()+'<section class="tabbody" data-product-carton-summary><div class="toolbar"><div><h2>주문관리</h2><p class="muted small">'+t('취소 제외 · 미입금 포함 · 유효 주문을 충족하는 최소 박스 발주량을 자동 계산합니다.','Hors annulations · inclut les commandes non payées · nombre minimal de cartons requis.')+'</p></div><div class="actions"><button class="btn neutral" data-action="product-orders-excel">제품별 주문 현황 Excel</button><button class="btn neutral" data-action="pickup-excel">'+t('상품 수령 목록 Excel','Retraits (Excel)')+'</button></div></div>'+orderViewTabs()+summary+
  '<p class="muted small">'+t('남는 수량은 박스를 모두 발주했을 때 아직 주문되지 않은 예상 수량입니다. 추가 판매로 박스를 채울 수 있습니다. 주문 당시 공급업체·박스 입수량이 다르면 각각 올림한 뒤 합산합니다.','Le reliquat correspond aux unités non encore commandées si tous les cartons requis sont achetés. Les conditionnements/fournisseurs différents sont arrondis séparément.')+'</p>'+
  (totals.boxes==null?'<div class="notice">'+t('박스 입수량이 확인되지 않은 주문 품목이 있습니다. 관련 발주량은 미확정(—)으로 표시합니다.','Un conditionnement est manquant. Les quantités concernées restent indéterminées (—).')+'</div>':'')+
  '<div class="toolbar"><select class="select" id="product-order-sort" aria-label="'+t('정렬','Tri')+'"><option value="remaining">'+t('남는 수량 높은 순','Reliquat décroissant')+'</option><option value="name">'+t('상품명순','Nom du produit')+'</option><option value="qty">'+t('주문량 높은 순','Quantité décroissante')+'</option><option value="amount">'+t('주문금액 높은 순','Montant décroissant')+'</option></select><span class="muted tiny">'+(fr?rows.length+' produits · '+store.orders.filter(o=>o.status!=='canceled').length+' commandes valides':'상품 '+rows.length+'개 · 유효 주문 '+store.orders.filter(o=>o.status!=='canceled').length+'건')+'</span></div><div class="sheet" style="display:block;overflow-x:auto"><table style="min-width:1100px"><colgroup><col style="width:74px"><col style="width:255px"><col style="width:98px"><col style="width:105px"><col style="width:120px"><col style="width:115px"><col style="width:105px"><col style="width:105px"><col style="width:105px"><col style="width:110px"><col style="width:130px"></colgroup><thead><tr>'+labels.map(label=>'<th>'+label+'</th>').join('')+'</tr></thead><tbody>'+body+'</tbody><tfoot><tr><th colspan="2">'+t('합계','Total')+'</th><th>'+totals.qty+'</th><th>—</th><th>'+n(totals.boxes)+'</th><th>'+n(totals.purchaseQty)+'</th><th>'+extra(totals)+'</th><th>—</th><th>—</th><th>—</th><th>'+money(totals.amountCents/100)+'</th></tr></tfoot></table></div></section>';
  $('#product-order-sort').value=store.productOrderSort;
 }
-function productOrderDetail(id){const p=productOrderRows().find(row=>row.id===id);if(!p)return;modal((fr?p.fr:p.ko)||p.ko||p.fr||'상품 주문 상세','주문 당시 판매가격으로 계산된 누적 매출',p.orders.length?p.orders.map(o=>'<div class="modal-row"><span><b>'+esc(o.name)+'</b><div class="muted tiny">'+esc(o.ref)+'</div></span><span>'+o.qty+(fr?' unité(s) · ':'개 · ')+money(o.amountCents/100)+'</span></div>').join(''):'<p>주문이 없는 상품입니다.</p>','<button class="btn neutral" data-action="close">닫기</button>')}
+function productOrderDetail(id){
+ const p=productOrderRows().find(row=>row.id===id);if(!p)return;
+ const t=language,n=x=>x==null?'—':String(x);
+ const lines=p.orders.map(o=>{const order=store.orders.find(q=>q.id===o.id);return '<tr><td><button type="button" class="linkbtn" data-action="order-detail" data-id="'+esc(o.id)+'">'+esc(o.ref)+'</button><br>'+esc(o.name)+(order?'<small>'+esc(statuses[order.status]?.[0]||'')+'</small>':'')+'</td><td>'+o.qty+'</td><td>'+money(o.amountCents/100)+'</td></tr>';}).join('');
+ modal((fr?p.fr:p.ko)||p.ko||p.fr||t('상품 주문 상세','Détail du produit'),t('상품별 유효 주문 명세','Commandes actives par produit'),
+  '<div class="product-detail-summary">'+metrics([[t('유효 주문','Quantité active'),n(p.qty)],[t('발주 박스','Cartons'),n(p.boxes)],[t('예상 입고','Quantité prévue'),n(p.purchaseQty)],[t('남는 수량','Reliquat'),n(p.remainingQty)]])+'</div>'+
+  (lines?'<table class="order-detail-items"><thead><tr><th>'+t('주문번호 / 주문자','Référence / nom')+'</th><th>'+t('수량','Qté')+'</th><th>'+t('금액','Montant')+'</th></tr></thead><tbody>'+lines+'</tbody></table><div class="order-detail-total"><span>'+t('상품 주문 합계','Total du produit')+'</span><strong>'+money(p.amountCents/100)+'</strong></div>':'<p>'+t('주문이 없는 상품입니다.','Aucune commande pour ce produit.')+'</p>'),
+  '<button class="btn neutral" data-action="close">'+t('닫기','Fermer')+'</button>');
+}
 function orderWorkbook(name,headers,rows){
  const book=XLSX.utils.book_new(),sheet=XLSX.utils.aoa_to_sheet([headers,...rows]);
  sheet['!cols']=headers.map(label=>({wch:Math.max(17,Math.min(42,label.length*2+6))}));
@@ -656,7 +664,7 @@ function orderModal(id){
  const cancel=order.status!=='canceled'&&(order.bankConfirmedAt||canReconcile())?
   '<button class="btn neutral" data-action="'+(order.bankConfirmedAt?'order-payments':'cancel-order')+'" data-id="'+esc(id)+'">'+t('주문 취소','Annuler la commande')+'</button>':'';
  modal(t('주문 상세','Détail de la commande'),order.ref+' · '+order.name,
-  '<article class="order-print-body"><p class="order-detail-meta">'+esc(order.ref)+' · '+esc(order.name)+' · '+esc(dateLabel(order.createdAt))+'</p>'+
+  '<article class="order-print-body"><p class="order-detail-meta">'+esc(order.ref)+' · '+esc(order.name)+' · '+esc(dateLabel(order.createdAt))+'</p><p class="order-detail-contact">'+esc([order.phone,order.email].filter(Boolean).join(' · '))+'<br><b>'+esc(statuses[order.status]?.[0]||'')+'</b></p>'+
   '<h3>'+t('상품 주문내역','Articles de la commande')+'</h3>'+orderDetailLines(order)+
   '<div class="order-detail-total"><span>'+t('현재 주문 합계','Total actuel')+'</span><strong>'+money(total(order))+'</strong></div>'+
   (order.memo?'<p class="order-detail-memo"><b>'+t('수령 메모','Note de retrait')+'</b> · '+esc(order.memo)+'</p>':'')+
@@ -664,6 +672,43 @@ function orderModal(id){
   '</article>',
   orderTools(order)+'<button class="btn neutral" data-action="print-order">'+t('주문서 출력','Imprimer la commande')+'</button>'+
   cancel+'<button class="btn neutral" data-action="close">'+t('닫기','Fermer')+'</button>');
+}
+function openOrderDetail(id){
+ orderModal(id);
+ const mail=document.createElement('div');
+ mail.className='muted small';
+ mail.setAttribute('role','status');
+ mail.textContent=language('이메일 발송 상태 확인 중…','Vérification de l’envoi des e-mails…');
+ const mailDetails=document.createElement('details');
+ mailDetails.className='order-detail-extra';
+ const mailSummary=document.createElement('summary');
+ mailSummary.textContent=language('이메일 발송 정보','Historique des e-mails');
+ mailDetails.append(mailSummary,mail);
+ $('#modal-body').append(mailDetails);
+ const order=store.orders.find(order=>order.id===id);
+ if(order&&!order.bankConfirmedAt&&!canManageOrder()){
+  const review=document.createElement('button');
+  review.type='button';review.className='btn neutral';review.textContent='늦은 입금 검토 등록';
+  review.addEventListener('click',()=>void run(review,async()=>{
+   const {latePaymentDetails}=await request('mailStatus',{id:order.id});
+   if(!latePaymentDetails){depositModal(order.id,true);return;}
+   const t=language,title=t('늦은 입금 장부 반영','Comptabiliser le virement tardif');
+   modal(title,order.ref,
+    '<p>'+money(latePaymentDetails.amountCents/100)+' · '+esc(latePaymentDetails.actualDate||'—')+'</p>'+
+    '<p>'+esc([latePaymentDetails.payer,latePaymentDetails.operator,latePaymentDetails.reference,latePaymentDetails.note].filter(Boolean).join(' · '))+'</p>'+
+    '<p>'+t('기록된 입금만 장부에 반영합니다. 취소 상태와 재고는 유지됩니다.',
+     'Seul le virement vérifié est comptabilisé. L’annulation et le stock restent inchangés.')+'</p>',
+    '<button class="btn primary" id="late-post">'+title+'</button><button class="btn neutral" data-action="close">'+t('취소','Annuler')+'</button>');
+   const requestId=crypto.randomUUID().replaceAll('-','');
+   $('#late-post').addEventListener('click',ev=>void run(ev.currentTarget,async()=>{
+    await request('bankConfirm',{...latePaymentDetails,id:order.id,eventId:selectedEvent().id,requestId,applyReview:true});
+    closeModal();await load();
+   }));
+  }));
+  $('#modal-body').append(review);
+ }
+ const mailEventId=selectedEvent().id;
+ mailDetails.addEventListener('toggle',()=>{if(mailDetails.open&&!mailDetails.dataset.loaded){mailDetails.dataset.loaded='1';void showOrderMail(id,mail,mailEventId,request);}});
 }
 function orderTools(order){
  let buttons='';
@@ -1434,43 +1479,7 @@ if(a==='column-settings')columnSettings();if(a==='column-reset'){localStorage.re
  if(a==='refresh-products'&&(!productDirty||confirm(language('저장하지 않은 변경사항을 버리고 새로고침할까요?','Ignorer les modifications non enregistrées et actualiser ?')))){run(b,async()=>{productDirty=false;await load();});}
  if(a==='reorder-products'&&!current()){const ps=visibleProducts();modal('상품 진열 순서 변경','위아래로 이동하세요.','<div id="reorder-list">'+ps.map(p=>'<div class="modal-row" data-reorder-id="'+p.id+'"><span>'+esc(p.ko)+'</span><div class="actions"><button class="btn neutral" data-action="move-up">↑</button><button class="btn neutral" data-action="move-down">↓</button></div></div>').join('')+'</div>','<button class="btn neutral" data-action="close">취소</button><button class="btn primary" data-action="reorder-save">적용</button>');}
 if(a==='manual-order'&&canManageOrder())manualOrderModal();
-if(a==='order-filter'){store.orderFilter=b.dataset.value;persistOrdersView();rerender();}if(a==='order-detail'){
- orderModal(b.dataset.id);
- const mail=document.createElement('div');
- mail.className='muted small';
- mail.setAttribute('role','status');
- mail.textContent=language('이메일 발송 상태 확인 중…','Vérification de l’envoi des e-mails…');
- const mailDetails=document.createElement('details');
- mailDetails.className='order-detail-extra';
- const mailSummary=document.createElement('summary');
- mailSummary.textContent=language('이메일 발송 정보','Historique des e-mails');
- mailDetails.append(mailSummary,mail);
- $('#modal-body').append(mailDetails);
- const order=store.orders.find(order=>order.id===b.dataset.id);
- if(order&&!order.bankConfirmedAt&&!canManageOrder()){
-  const review=document.createElement('button');
-  review.type='button';review.className='btn neutral';review.textContent='늦은 입금 검토 등록';
-  review.addEventListener('click',()=>void run(review,async()=>{
-   const {latePaymentDetails}=await request('mailStatus',{id:order.id});
-   if(!latePaymentDetails){depositModal(order.id,true);return;}
-   const t=language,title=t('늦은 입금 장부 반영','Comptabiliser le virement tardif');
-   modal(title,order.ref,
-    '<p>'+money(latePaymentDetails.amountCents/100)+' · '+esc(latePaymentDetails.actualDate||'—')+'</p>'+
-    '<p>'+esc([latePaymentDetails.payer,latePaymentDetails.operator,latePaymentDetails.reference,latePaymentDetails.note].filter(Boolean).join(' · '))+'</p>'+
-    '<p>'+t('기록된 입금만 장부에 반영합니다. 취소 상태와 재고는 유지됩니다.',
-     'Seul le virement vérifié est comptabilisé. L’annulation et le stock restent inchangés.')+'</p>',
-    '<button class="btn primary" id="late-post">'+title+'</button><button class="btn neutral" data-action="close">'+t('취소','Annuler')+'</button>');
-   const requestId=crypto.randomUUID().replaceAll('-','');
-   $('#late-post').addEventListener('click',ev=>void run(ev.currentTarget,async()=>{
-    await request('bankConfirm',{...latePaymentDetails,id:order.id,eventId:selectedEvent().id,requestId,applyReview:true});
-    closeModal();await load();
-   }));
-  }));
-  $('#modal-body').append(review);
- }
- const mailEventId=selectedEvent().id;
- mailDetails.addEventListener('toggle',()=>{if(mailDetails.open&&!mailDetails.dataset.loaded){mailDetails.dataset.loaded='1';void showOrderMail(b.dataset.id,mail,mailEventId,request);}});
-}
+if(a==='order-filter'){store.orderFilter=b.dataset.value;persistOrdersView();rerender();}if(a==='order-detail'){openOrderDetail(b.dataset.id);return;}
 if(a==='confirm')void confirmOrder(b.dataset.id,b);
 if(a==='scope'){store.settleScope=b.dataset.value;rerender();}if(a==='vendor'){store.vendor=b.dataset.value;rerender();}if(a==='po-add')addPOModal();if(a==='po-del'){const ar=editablePO(store.vendor);if(confirm(language('발주서에서 해당 품목을 삭제할까요? 고객 주문 원본은 유지됩니다.','Retirer cet article du bon fournisseur ? Les commandes clients restent inchangées.'))){const x=ar.findIndex(p=>p.id===b.dataset.id);if(x>=0)ar.splice(x,1);rerender();}}
 if(a==='po-reset'){if(confirm(language('이 업체 발주서의 수동 변경을 초기화할까요?','Réinitialiser les modifications manuelles de ce bon fournisseur ?'))){delete store.poDrafts[store.vendor];editablePO(store.vendor);rerender();}}
@@ -1900,6 +1909,7 @@ async function confirmOrder(id){
 }
 function handleModalAction(action,button){
  const id=button.dataset.id;
+ if(action==='order-detail'){openOrderDetail(id);return true;}
  if(action==='expense-save'){void run(button,async()=>{const name=$('#expense-name').value.trim(),amount=Number($('#expense-amount').value);if(!name||name.length>120||!Number.isFinite(amount)||amount<=0||amount>1000000)throw new Error('항목명과 금액을 확인해 주세요.');const id=button.dataset.id||crypto.randomUUID();const expenses=[...(eventFinancialRecord.expenses||[])].filter(x=>x.id!==id);expenses.push({id,name,amountCents:Math.round(amount*100)});await persistExpenses(expenses);});return true;}
  if(action==='import-past-open'){run(button,()=>importPastModal());return true;}
  if(action==='import-back'){importModal();return true;}

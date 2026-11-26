@@ -13,3 +13,11 @@ test('order list remains flat; only the order modal renders a nested item table'
  assert.match(ctx.orderDetailLines(order),/<td>김치<\/td><td>2<\/td><td>10<\/td>/);
  assert.match(src,/article class="order-print-body"[\s\S]*?\+orderDetailLines\(order\)/);
 });
+
+test('product detail is opened only by product name, not the carton row or quantity',()=>{
+ const code=src.slice(src.indexOf('function renderProductOrders(){'),src.indexOf('function productOrderDetail(id)'));
+ assert.doesNotMatch(code,/<tr data-action="product-order-detail"/);
+ assert.match(code,/<button type="button" class="linkbtn product-order-name" data-action="product-order-detail"/);
+ assert.match(code,/data-action="carton-confirm"/);
+ assert.match(src,/if\(action==='order-detail'\)\{openOrderDetail\(id\);return true;/);
+});
