@@ -97,3 +97,5 @@ tr.row-drop-after td{box-shadow:inset 0 -3px #286197}
 .order-detail-extra summary{cursor:pointer;color:var(--muted);font-size:13px;font-weight:600;padding:5px 0}
 .order-detail-memo{padding:10px;background:var(--panel);line-height:1.5}
 @media print{.order-detail-extra{display:none}}
+
+.carton-remainder-zero{background:#e5f3e5;color:#38643c}

@@ -545,7 +545,7 @@ function productOrderTotals(rows){
 function renderProductOrders(){
  const rows=productOrderRows(),totals=productOrderTotals(rows),t=language;
  const n=value=>value==null?'—':String(value);
- const extra=p=>'<b class="carton-remainder '+(p.remainingQty>=6?'carton-remainder-high':p.remainingQty>0?'carton-remainder-low':'')+'">'+n(p.remainingQty)+'</b>';
+ const extra=p=>'<b class="carton-remainder '+(p.remainingQty>=6?'carton-remainder-high':p.remainingQty>0?'carton-remainder-low':p.remainingQty===0?'carton-remainder-zero':'')+'">'+n(p.remainingQty)+'</b>';
  const confirmation=p=>{
   const product=store.products.find(q=>q.id===p.id);
   if(!product?.saved||product.limitMode!=='auto'||selectedEvent()?.status!=='active')return '';
