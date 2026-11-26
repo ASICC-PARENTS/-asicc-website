@@ -23,3 +23,22 @@ test('product detail is opened only by product name, not the carton row or quant
  assert.doesNotMatch(src,/data-action="carton-confirm"/);
  assert.match(src,/if\(action==='order-detail'\)\{openOrderDetail\(id\);return true;/);
 });
+
+test('order list pins headers and body in the same order, using actual column width',()=>{
+ const code=src.slice(src.indexOf('function orderPinnedColumns('),src.indexOf('function applyColumns('));
+ vm.runInContext(code,ctx);
+ const cell=(name,width=100)=>({dataset:{columnId:name},style:{},hidden:false,
+  classList:{remove(){}},toggleAttribute(name,value){this[name]=value},getBoundingClientRect(){return {width}}});
+ const headers=[cell('ref',137),cell('name',91),cell('manage')];
+ const body=[cell(),cell(),cell()];
+ const table={tHead:{rows:[{cells:headers}]},rows:[{cells:headers,parentElement:{tagName:'THEAD'}},{cells:body,parentElement:{tagName:'TBODY'}}]};
+ ctx.orderPinnedColumns(table,null);
+ assert.equal(headers[0].style.left,'0px');
+ assert.equal(headers[0].style.zIndex,'5');
+ assert.equal(headers[1].style.left,'137px');
+ assert.equal(body[1].style.left,'137px');
+ ctx.orderPinnedColumns(table,{pinned:['name']});
+ assert.equal(headers[0].style.left,'');
+ assert.equal(headers[1].style.left,'0px');
+ assert.equal(body[1].style.left,'0px');
+});
