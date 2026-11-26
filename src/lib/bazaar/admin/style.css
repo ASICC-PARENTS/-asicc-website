@@ -81,3 +81,19 @@ tr.row-drop-after td{box-shadow:inset 0 -3px #286197}
 .carton-remainder{display:inline-block;min-width:2.3em;text-align:center;padding:3px 7px;border-radius:4px;color:var(--muted)}.carton-remainder-low{background:#fff3cd;color:#98701b}.carton-remainder-high{background:#fce4d6;color:#a34d25}.carton-confirm{padding:4px 6px;font-size:11px;white-space:nowrap}.carton-confirmed-label{color:var(--green);white-space:nowrap}
 
 .site > header .brand img{display:block;width:180px;max-width:42vw;height:auto;object-fit:contain}
+
+.order-print-body .order-detail-meta{color:var(--muted);font-size:13px;margin:0 0 22px}
+.order-print-body h3{margin:0 0 14px;font-size:17px}
+.order-detail-items{width:100%;table-layout:fixed;border-collapse:collapse}
+.order-detail-items th,.order-detail-items td{padding:15px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle;white-space:normal;overflow-wrap:anywhere}
+.order-detail-items th{font-size:12px;color:var(--muted);background:var(--panel)}
+.order-detail-items th:nth-child(2),.order-detail-items td:nth-child(2){width:58px;text-align:center}
+.order-detail-items th:last-child,.order-detail-items td:last-child{width:88px;text-align:right}
+.order-detail-items td:first-child{line-height:1.55;font-weight:600}
+.order-detail-items td small{display:block;font-weight:400;margin-top:5px}
+.order-detail-total{display:flex;justify-content:space-between;align-items:center;padding:17px 8px;font-size:16px}
+.order-detail-total strong{color:var(--wine);font-size:19px}
+.order-detail-extra{border-top:1px solid var(--line);margin-top:10px;padding:10px 0}
+.order-detail-extra summary{cursor:pointer;color:var(--muted);font-size:13px;font-weight:600;padding:5px 0}
+.order-detail-memo{padding:10px;background:var(--panel);line-height:1.5}
+@media print{.order-detail-extra{display:none}}

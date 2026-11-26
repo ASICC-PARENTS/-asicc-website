@@ -624,10 +624,12 @@ function refundAmountNotes(order){
 }
 function orderLines(order){
  const valid=order.status==='canceled'?[]:order.items;
- return valid.map(item=>'<div>'+esc(fr?(item[4]?.titleFr||item[0]):item[0])+' × '+item[1]+'</div>').join('')+
-  (order.canceledItems||[]).map(item=>'<div class="canceled-line"><del>'+esc(fr?item.titleFr:item.titleKo)+' × '+item.qty+
-   '</del>'+(order.payment?.reservedRefund>0?' · '+language('환불 대기','Remboursement en attente'):
-    order.payment?.refundDue>0?' · '+language('환불 필요','À rembourser'):order.payment?.refunded>0?' · '+language('환불 완료','Remboursé'):'')+'</div>').join('');
+ const row=(name,qty,price,canceled=false,note='')=>'<tr'+(canceled?' class="canceled-line"':'')+'><td>'+(canceled?'<del>':'')+esc(name)+(canceled?'</del>':'')+(note?'<small>'+note+'</small>':'')+'</td><td>'+esc(qty)+'</td><td>'+money(price*qty)+'</td></tr>';
+ const lines=valid.map(item=>row(fr?(item[4]?.titleFr||item[0]):item[0],item[1],item[2]));
+ for(const item of order.canceledItems||[])lines.push(row(fr?item.titleFr:item.titleKo,item.qty,item.priceCents/100,true,
+  order.payment?.reservedRefund>0?language('환불 대기','Remboursement en attente'):
+  order.payment?.refundDue>0?language('환불 필요','À rembourser'):order.payment?.refunded>0?language('환불 완료','Remboursé'):language('취소','Annulé')));
+ return '<table class="order-detail-items"><thead><tr><th>'+language('상품','Article')+'</th><th>'+language('수량','Qté')+'</th><th>'+language('금액','Montant')+'</th></tr></thead><tbody>'+lines.join('')+'</tbody></table>';
 }
 function orderAmounts(order){
  const payment=order.payment;
@@ -647,11 +649,12 @@ function orderModal(id){
  const cancel=order.status!=='canceled'&&(order.bankConfirmedAt||canReconcile())?
   '<button class="btn neutral" data-action="'+(order.bankConfirmedAt?'order-payments':'cancel-order')+'" data-id="'+esc(id)+'">'+t('주문 취소','Annuler la commande')+'</button>':'';
  modal(t('주문 상세','Détail de la commande'),order.ref+' · '+order.name,
-  '<article class="order-print-body"><p>ASICC · '+esc(selectedEvent()?.name)+'</p><h3>'+esc(order.ref)+'</h3>'+
-  '<p>'+esc(order.name)+' · '+esc(dateLabel(order.createdAt))+'</p><p>'+esc(orderSource(order))+'</p>'+
+  '<article class="order-print-body"><p class="order-detail-meta">'+esc(order.ref)+' · '+esc(order.name)+' · '+esc(dateLabel(order.createdAt))+'</p>'+
   '<h3>'+t('상품 주문내역','Articles de la commande')+'</h3>'+orderLines(order)+
-  '<h3>'+t('입금 및 환불 내역','Paiements et remboursements')+'</h3>'+rows+
-  '</article>'+(order.memo?'<p>'+esc(order.memo)+'</p>':''),
+  '<div class="order-detail-total"><span>'+t('현재 주문 합계','Total actuel')+'</span><strong>'+money(total(order))+'</strong></div>'+
+  (order.memo?'<p class="order-detail-memo"><b>'+t('수령 메모','Note de retrait')+'</b> · '+esc(order.memo)+'</p>':'')+
+  '<details class="order-detail-extra"><summary>'+t('입금 및 환불 상세','Détail des paiements et remboursements')+'</summary>'+rows+'</details>'+
+  '</article>',
   orderTools(order)+'<button class="btn neutral" data-action="print-order">'+t('주문서 출력','Imprimer la commande')+'</button>'+
   cancel+'<button class="btn neutral" data-action="close">'+t('닫기','Fermer')+'</button>');
 }
@@ -1430,8 +1433,13 @@ if(a==='order-filter'){store.orderFilter=b.dataset.value;persistOrdersView();rer
  const mail=document.createElement('div');
  mail.className='muted small';
  mail.setAttribute('role','status');
- mail.textContent='이메일 발송 상태 확인 중…';
- $('#modal-body').append(mail);
+ mail.textContent=language('이메일 발송 상태 확인 중…','Vérification de l’envoi des e-mails…');
+ const mailDetails=document.createElement('details');
+ mailDetails.className='order-detail-extra';
+ const mailSummary=document.createElement('summary');
+ mailSummary.textContent=language('이메일 발송 정보','Historique des e-mails');
+ mailDetails.append(mailSummary,mail);
+ $('#modal-body').append(mailDetails);
  const order=store.orders.find(order=>order.id===b.dataset.id);
  if(order&&!order.bankConfirmedAt&&!canManageOrder()){
   const review=document.createElement('button');
@@ -1454,7 +1462,8 @@ if(a==='order-filter'){store.orderFilter=b.dataset.value;persistOrdersView();rer
   }));
   $('#modal-body').append(review);
  }
- void showOrderMail(b.dataset.id,mail,selectedEvent().id,request);
+ const mailEventId=selectedEvent().id;
+ mailDetails.addEventListener('toggle',()=>{if(mailDetails.open&&!mailDetails.dataset.loaded){mailDetails.dataset.loaded='1';void showOrderMail(b.dataset.id,mail,mailEventId,request);}});
 }
 if(a==='confirm')void confirmOrder(b.dataset.id,b);
 if(a==='scope'){store.settleScope=b.dataset.value;rerender();}if(a==='vendor'){store.vendor=b.dataset.value;rerender();}if(a==='po-add')addPOModal();if(a==='po-del'){const ar=editablePO(store.vendor);if(confirm(language('발주서에서 해당 품목을 삭제할까요? 고객 주문 원본은 유지됩니다.','Retirer cet article du bon fournisseur ? Les commandes clients restent inchangées.'))){const x=ar.findIndex(p=>p.id===b.dataset.id);if(x>=0)ar.splice(x,1);rerender();}}
