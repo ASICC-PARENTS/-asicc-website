@@ -747,6 +747,32 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         tx.set(ref,result);return result;
       });
     }
+    // Event-only carton confirmation. Do not rewrite the product catalogue or orders.
+    if(op==='setCartonConfirmation'){
+      const id=s(data.id);
+      if(!productIdValid(id)||typeof data.confirmed!=='boolean'||!Number.isSafeInteger(data.revision))bad('발주 확정 정보를 확인해 주세요.');
+      const ref=products.doc(id);
+      return db.runTransaction(async tx=>{
+        const [eventDoc,doc]=await Promise.all([tx.get(eventRef),tx.get(ref)]);
+        const event=eventDoc.data(),p=doc.data();
+        requireCurrentEvent(event);
+        if(!p||p.archivedAt||event.scopedProducts&&p.bazaarEventId!==data.eventId)bad('행사 상품을 확인해 주세요.');
+        if((event.productRevision??0)!==data.revision)throw new HttpsError('failed-precondition','상품이 변경됐습니다. 다시 불러와 주세요.');
+        if(p.limitMode!=='box')bad('자동 수량 설정 상품만 발주를 확정할 수 있습니다.');
+        if(data.confirmed){
+          if(p.cartonConfirmed===true)bad('이미 확정된 상품입니다.');
+          const sold=p.soldQty??0,pack=p.packQty;
+          if(!Number.isSafeInteger(sold)||sold<0||!Number.isSafeInteger(pack)||pack<=0||sold!==data.expectedSoldQty)bad('주문 수량이 변경됐습니다. 다시 불러와 주세요.');
+          const boxes=Math.ceil(sold/pack);
+          if(boxes!==data.expectedBoxes||boxes>10000)bad('발주 수량이 변경됐습니다. 다시 불러와 주세요.');
+          tx.update(ref,{plannedBoxes:boxes,cartonConfirmed:true});
+        }else {
+          tx.update(ref,{cartonConfirmed:false});
+        }
+        tx.update(eventRef,{productRevision:(event.productRevision??0)+1});
+        return {ok:true};
+      });
+    }
     if(op==='saveEventProducts'){
       if(!Array.isArray(data.items)||data.items.length>70)bad('행사 상품 목록을 확인해 주세요.');
       const ids=data.items.map(p=>s(p.id));
@@ -769,6 +795,8 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
           const doc=previous.get(item.id);
           const old=doc?.data()||{soldQty:0};
           const p=validateProduct({...item,imageUrl:item.photoPath?'':item.imageUrl},old);
+          if(old.cartonConfirmed===true&&(p.plannedBoxes!==old.plannedBoxes||p.packQty!==old.packQty||p.limitMode!==old.limitMode||p.supplier!==old.supplier))
+            bad('발주 확정을 해제한 후 수량 설정을 변경해 주세요.');
           tx.set(products.doc(item.id),{...old,...p,...photos[index],displayOrder:index+1,
             bazaarEventId:data.eventId,archivedAt:null});
         });
@@ -1512,7 +1540,10 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         requireCurrentEvent((await tx.get(eventRef)).data()||initialEvent);
         const ref=products.doc(id),d=await tx.get(ref);
         if(!d.exists)throw new HttpsError('not-found','상품을 찾을 수 없습니다.');
-        tx.update(ref,{...validateProduct({...data.product,imageUrl:data.product?.photoPath?'':data.product?.imageUrl},d.data()),...photo,bazaarEventId:data.eventId});
+        const old=d.data(),p=validateProduct({...data.product,imageUrl:data.product?.photoPath?'':data.product?.imageUrl},old);
+        if(old.cartonConfirmed===true&&(p.plannedBoxes!==old.plannedBoxes||p.packQty!==old.packQty||p.limitMode!==old.limitMode||p.supplier!==old.supplier))
+          bad('발주 확정을 해제한 후 수량 설정을 변경해 주세요.');
+        tx.update(ref,{...p,...photo,bazaarEventId:data.eventId});
         tx.update(eventRef,{productRevision:FieldValue.increment(1)});
       });return{ok:true};
     }
