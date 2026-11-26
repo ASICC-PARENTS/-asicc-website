@@ -1,5 +1,5 @@
 import {defaultHomePopup,normalizeHomePopup,publicHomePopup} from '../firebase-functions-bazaar/bazaar/home-popup.mjs';
-import {eventFormFields,eventViewModel,productOrderSummary,validManualPhone} from '../src/lib/bazaar/admin/data.js';
+import {eventFormFields,eventViewModel,productOrderSummary,orderIntakeSummary,validManualPhone} from '../src/lib/bazaar/admin/data.js';
 import {validRefundIban} from '../firebase-functions-bazaar/bazaar/iban.mjs';
 import {orderPaymentSummary} from '../firebase-functions-bazaar/bazaar/order-payments.mjs';
 import test from 'node:test';
@@ -242,4 +242,19 @@ test('event list shows a persistent EV number and management actions without cha
  assert.ok(backend.includes("db.doc('bazaarMeta/eventManagementSequence')"));
  assert.ok(backend.includes("db.collection('bazaarEventNumbers')"));
  assert.ok(backend.includes("return 'BZ'+String(serial).padStart(2,'0')+String(next).padStart(4,'0')"));
+});
+
+test('order intake summary counts active orders, current amounts and snapshot unit costs',()=>{
+ const products=[{id:'rice',buy:50,pack:5},{id:'legacy',buy:12,pack:4}];
+ const orders=[
+  {status:'unpaid',payment:{due:2400},items:[['Rice',2,12,'rice',{packQty:2,boxPriceTtcCents:1600}]]},
+  {status:'partial',payment:{due:1700},items:[['Legacy',3,6,'legacy',{}]]},
+  {status:'canceled',payment:{due:0},items:[['Rice',99,12,'rice',{packQty:2,boxPriceTtcCents:1600}]]}
+ ];
+ assert.deepEqual(orderIntakeSummary(orders,products),{orderCount:2,canceledCount:1,salesCents:4100,estimatedCostCents:2500,estimatedGrossCents:1600,missingCosts:0});
+ assert.deepEqual(orderIntakeSummary([],products),{orderCount:0,canceledCount:0,salesCents:0,estimatedCostCents:0,estimatedGrossCents:0,missingCosts:0});
+ const unknown=orderIntakeSummary([{status:'reported',payment:{due:1000},items:[['Unknown',1,10,'unknown',{}]]}],products);
+ assert.equal(unknown.estimatedGrossCents,null);assert.equal(unknown.estimatedCostCents,null);assert.equal(unknown.missingCosts,1);
+ assert.match(app,/data-order-intake-summary/);
+ assert.ok(app.includes("page==='orders'&&!draft?orderIntakeOverview(e)"));
 });
