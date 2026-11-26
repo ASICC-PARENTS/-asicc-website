@@ -149,7 +149,7 @@
 .bz-wrap .bz-hero-status-slot #bz-status.is-open{display:inline-flex;align-items:center;justify-content:center;gap:5px;background:#eaf4ef;color:#28563f;border:1px solid #cddfd4;border-radius:999px}
 .bz-wrap .bz-hero-status-slot #bz-status.is-open::before{content:"";display:block;flex:0 0 7px;height:7px;border-radius:50%;background:#27834d}
 
-/* A calm, short pulse highlights live ordering; the text stays still and readable. */
+/* A calm, continuous pulse highlights live ordering; the text stays still and readable. */
 @keyframes bz-live-pulse{0%,100%{box-shadow:0 0 0 0 #27834d70;transform:scale(1)}50%{box-shadow:0 0 0 5px #27834d45;transform:scale(1.18)}}
-.bz-wrap .bz-hero-status-slot #bz-status.is-open::before{animation:bz-live-pulse 1.5s ease-in-out 3}
+.bz-wrap .bz-hero-status-slot #bz-status.is-open::before{animation:bz-live-pulse 1.5s ease-in-out infinite}
 @media(prefers-reduced-motion:reduce){.bz-wrap .bz-hero-status-slot #bz-status.is-open::before{animation:none}}
