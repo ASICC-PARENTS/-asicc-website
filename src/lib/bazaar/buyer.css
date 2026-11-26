@@ -143,3 +143,8 @@
   .buyer-wrap { margin: 0; padding: 0; }
   .buyer-section { break-inside: avoid; }
 }
+
+/* Status remains live and derives from the existing intake state. */
+.bz-wrap .bz-hero-status-slot #bz-status{margin:0;padding:6px 13px;font-size:13px;font-weight:600;line-height:1.5;max-width:100%;background:#fff4e4;color:#664823;text-align:center;border-radius:7px;word-break:keep-all;overflow-wrap:break-word}
+.bz-wrap .bz-hero-status-slot #bz-status.is-open{display:inline-flex;align-items:center;justify-content:center;gap:7px;background:#eaf4ef;color:#28563f;border:1px solid #cddfd4;border-radius:999px}
+.bz-wrap .bz-hero-status-slot #bz-status.is-open::before{content:"";display:block;flex:0 0 7px;height:7px;border-radius:50%;background:#43815e}

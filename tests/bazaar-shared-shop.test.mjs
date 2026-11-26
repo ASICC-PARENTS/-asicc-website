@@ -64,7 +64,7 @@ test('all displayed dates include full year and Paris-local weekday in both lang
 
 test('compact hero keeps all original event text in closed, accessible disclosures',()=>{
  const event={nameKo:'행사',nameFr:'Bazar',introKo:'원래 소개 <내용>',introFr:'Présentation complète',pickupKo:'상세 주차 안내',pickupFr:'Adresse complète',pickupPlace:'Courbevoie',pickupAt:'2026-12-02T15:00:00Z'};
- const ko=renderShopEvent(event,'ko',{logoUrl:'/bazaar-email-wordmark.png'}),fr=renderShopEvent(event,'fr');
+ const ko=renderShopEvent(event,'ko',{showStatus:true}),fr=renderShopEvent(event,'fr');
  for(const html of [ko,fr]){
    assert.match(html,/<details class="bz-disclosure" data-bz-disclosure="pickup">/);
    assert.match(html,/<details class="bz-disclosure" data-bz-disclosure="intro">/);
@@ -75,7 +75,9 @@ test('compact hero keeps all original event text in closed, accessible disclosur
  assert.ok(ko.includes('상세 주차 안내'));
  assert.ok(fr.includes('Présentation complète'));
  assert.ok(fr.includes('Adresse complète'));
- assert.ok(ko.includes('bazaar-email-wordmark.png'));
+ assert.doesNotMatch(ko,/bz-hero-logo|bz-hero-brand/);
+ assert.match(ko,/<\/h1><div class="bz-hero-status-slot"><\/div>/);
+ assert.match(ko,/bz-pickup-card[^]*M2 3h3l3 12h11l3-9H6/);
 });
 test('shared buying notice keeps payment deadline, stock and pickup instructions in both languages',()=>{
  for(const lang of ['ko','fr']){

@@ -60,8 +60,8 @@ const current = (p: string) => rest.startsWith(p);
   <header class="site-header">
     <div class="wrap hdr">
       <a class="brand" href={href(lang)}>
-        <span class="logo" aria-hidden="true">한</span>
-        <span class="brand-txt"><b>ASICC</b><small>{t(lang, 'site.short')}</small></span>
+        <img class="site-wordmark" src={`${BASE}bazaar-email-wordmark.png`} alt="ASICC" />
+        <span class="brand-txt"><small>{t(lang, 'site.short')}</small></span>
       </a>
       <nav class="nav" id="nav" aria-label={lang === 'ko' ? '주 메뉴' : 'Menu principal'}>
         {NAV.map((n) => n.children ? (

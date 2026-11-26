@@ -16,6 +16,7 @@ export function stockNotice(stock,lang) {
 const eventIcons={
   calendar:'M5 4h14a2 2 0 0 1 2 2v13H3V6a2 2 0 0 1 2-2Zm2-2v5m10-5v5M3 9h18m-13 4h2m4 0h2m-8 3h2',
   wallet:'M3 6h16a2 2 0 0 1 2 2v11H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Zm18 4h-6a2 2 0 0 0 0 5h6m-5-2h.01',
+  cart:'M2 3h3l3 12h11l3-9H6m3 12h.01m9 0h.01M9 19a1 1 0 1 0 0 2 1 1 0 0 0 0-2Zm9 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z',
   pin:'M20 10c0 5-8 11-8 11s-8-6-8-11a8 8 0 1 1 16 0Zm-5 0a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',
   heart:'M12 20 4 12a5 5 0 0 1 8-6 5 5 0 0 1 8 6l-8 8Z',
   info:'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 9v6m0-10h.01'
@@ -28,7 +29,7 @@ function eventTitleMarkup(name){
   if(!parts)return escape(name);
   return '<span class="bz-title-phrase">'+escape(parts[1])+'</span> <span class="bz-title-phrase">'+escape(parts[2])+'</span>';
 }
-export function renderShopEvent(event,lang,{logoUrl=''}={}) {
+export function renderShopEvent(event,lang,{showStatus=false}={}) {
   const t=(ko,fr)=>localize(lang,ko,fr);
   const date=value=>formatParisDateTime(value,lang);
   const name=t(event.nameKo,event.nameFr)||t('ASICC 온라인 바자회','Bazar en ligne ASICC');
@@ -39,12 +40,12 @@ export function renderShopEvent(event,lang,{logoUrl=''}={}) {
   const intro=t(event.introKo,event.introFr);
   const pickup=t(event.pickupKo,event.pickupFr);
   return '<div class="bz-shared-hero"><div class="bz-hero-banner">'+
-    (logoUrl?'<img class="bz-hero-logo" src="'+escape(logoUrl)+'" alt="ASICC" width="160" height="59">':'<span class="bz-hero-brand">ASICC</span>')+
-    '<span class="bz-hero-kicker">'+t('온라인 바자회','BAZAR SOLIDAIRE EN LIGNE')+'</span><h1>'+eventTitleMarkup(name)+'</h1></div>'+
+    '<span class="bz-hero-kicker">'+t('온라인 바자회','BAZAR SOLIDAIRE EN LIGNE')+'</span><h1>'+eventTitleMarkup(name)+'</h1>'+
+    (showStatus?'<div class="bz-hero-status-slot"></div>':'')+'</div>'+
     '<div class="bz-shared-info">'+
     info(t('주문 마감','Clôture des commandes'),date(event.orderCutoff),eventIcons.calendar)+
     info(t('송금 기한','Délai de virement'),paymentWindow,eventIcons.wallet,finalDeadline)+
-    '<div class="bz-pickup-card">'+info(t('상품 수령','Retrait des commandes'),formatParisPickupRange(event.pickupAt,event.pickupEndAt,lang),eventIcons.pin)+
+    '<div class="bz-pickup-card">'+info(t('상품 수령','Retrait des commandes'),formatParisPickupRange(event.pickupAt,event.pickupEndAt,lang),eventIcons.cart)+
     (event.pickupPlace?'<p class="bz-pickup-place">'+escape(event.pickupPlace)+'</p>':'')+
     (pickup?disclosure('pickup',t('상세 주소 및 주차 안내','Adresse et informations de retrait'),eventIcons.pin,'<p>'+escape(pickup)+'</p>'):'')+'</div></div>'+
     (intro?disclosure('intro',t('바자회 소개 및 수익금 사용 안내','Présentation du bazar et utilisation des bénéfices'),eventIcons.heart,'<p>'+escape(intro)+'</p>'):'')+'</div>';

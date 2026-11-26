@@ -110,9 +110,13 @@ function render(){
     :t('주문 접수 중 · 회원가입 없이 주문 가능','Commandes ouvertes · Sans inscription');
   $('#bz-status').classList.toggle('is-open',!closed);
   $('#bz-notice-summary').textContent=t('주문 후 '+hours+'시간 이내 송금 · 직접 수령','Paiement par virement sous '+hours+' heures · Retrait sur place');
-  const heroMarkup=renderShopEvent(event,lang,{logoUrl:import.meta.env.BASE_URL+'bazaar-email-wordmark.png'});
+  const statusNode=$('#bz-status');
+  const heroMarkup=renderShopEvent(event,lang,{showStatus:true});
   if(heroMarkup!==renderedHero){
-    preserveShopDisclosures($('#bz-hero'),()=>{$('#bz-hero').innerHTML=heroMarkup;});
+    preserveShopDisclosures($('#bz-hero'),()=>{
+      $('#bz-hero').innerHTML=heroMarkup;
+      $('#bz-hero .bz-hero-status-slot').append(statusNode);
+    });
     renderedHero=heroMarkup;
   }
   $('#bz-products').innerHTML=renderShopProducts(products,lang,{

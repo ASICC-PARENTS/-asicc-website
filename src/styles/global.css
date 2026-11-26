@@ -1060,3 +1060,10 @@ html[lang] main :is(.btn,.pill,.chip){white-space:normal;max-width:100%;overflow
 html[lang] main :is(a[href^="mailto:"],.raw-url){overflow-wrap:anywhere;}
 html[lang] main :is(.intro-school,.tile,.panel-head) > *{min-width:0;}
 html[lang] main :is(.intro h1,.panel-head h2){text-wrap:balance;}
+
+/* Design preview: reuse the approved wordmark as a single logo, with no duplicate initials. */
+.site-header .brand{gap:0;flex-direction:column;align-items:flex-start;justify-content:center;max-width:240px;min-width:0}
+.site-header .site-wordmark{display:block;width:112px;height:auto;max-height:40px;object-fit:contain;object-position:left center;flex:none}
+.site-header .brand-txt small{max-width:240px;font-size:10px;margin-top:2px}
+@media(max-width:1100px){.site-header .brand-txt small{display:none}}
+@media(max-width:600px){.site-header .site-wordmark{width:91px;max-height:34px}.site-header .brand{max-width:110px}}

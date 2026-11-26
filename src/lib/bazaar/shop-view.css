@@ -77,3 +77,13 @@
 .preview-shop-shell .buyer-terms-content a{color:#812e43}
 .preview-shop-shell .bz-basket .bz-consent{display:flex;align-items:flex-start;gap:8px;margin:18px 0;font-size:14px;font-weight:400;line-height:1.5}
 .preview-shop-shell .bz-basket .bz-consent input[type=checkbox]{display:inline-block;flex:none;width:auto;min-width:0;height:auto;min-height:0;padding:0;margin:.4em 0 0}
+
+/* Design review: compact heading, consistently aligned 22px information icons. */
+.bz-hero-banner{padding:clamp(18px,3vw,27px) 16px;gap:7px}
+.bz-hero-status-slot{display:flex;justify-content:center;width:100%;min-width:0;margin-top:6px}
+.bz-pickup-card .bz-disclosure>summary{padding-inline:0;gap:9px}
+.bz-pickup-card>.bz-deadline{padding-inline:0;gap:9px}
+.bz-pickup-card .bz-info-icon{width:22px;height:22px;margin-top:1px}
+.bz-pickup-card .bz-disclosure-body{padding-left:31px}
+.bz-shared-hero .bz-pickup-place{margin-left:31px}
+@media(max-width:480px){.bz-hero-banner{padding:18px 12px}.bz-deadline .bz-info-icon,.bz-disclosure>summary .bz-info-icon{width:20px;height:20px}.bz-pickup-card .bz-info-icon{width:20px;height:20px}.bz-pickup-card>.bz-deadline,.bz-pickup-card .bz-disclosure>summary{gap:8px}.bz-shared-hero .bz-pickup-place{margin-left:28px}.bz-pickup-card .bz-disclosure-body{padding-left:28px}}
