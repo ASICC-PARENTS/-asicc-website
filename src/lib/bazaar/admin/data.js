@@ -175,6 +175,31 @@ export function orderIntakeSummary(orders=[], products=[]){
   estimatedGrossCents:estimatedCostCents==null?null:salesCents-estimatedCostCents,missingCosts};
 }
 
+/** Procurement forecast: confirmed cartons are physical purchase plans, independent of payment scope.
+ * Existing unconfirmed historical supplier/pack/cost grouping remains unchanged. */
+export function purchaseDemandRows(products=[],orders=[]){
+ const byId=new Map(products.map(p=>[p.id,p])),records=new Map();
+ const key=(id,vendor,pack,buy)=>[id,vendor==='K커머셜'?'k':vendor==='누리커넥트'?'n':'u',pack,buy].join('-');
+ const confirmed=p=>p?.cartonConfirmed===true&&p.limitMode==='auto'&&Number.isSafeInteger(Number(p.boxes))&&Number(p.boxes)>=0&&Number.isSafeInteger(Number(p.pack))&&Number(p.pack)>0;
+ for(const p of products.filter(confirmed)){
+  const vendor=p.vendor||'공급업체 미지정',pack=Number(p.pack),buy=Math.round(Number(p.buy)*100);
+  const id=key(p.id,vendor,pack,buy);
+  records.set(id,{id,ko:p.ko,vendor,pack,buy:buy/100,ordered:0,revenue:0,minimum:Number(p.boxes),cartonConfirmed:true});
+ }
+ for(const order of orders)for(const item of order.items||[]){
+  const snapshot=item[4],p=byId.get(item[3]),fixed=confirmed(p);
+  const vendor=(fixed?p.vendor:snapshot?.supplier||p?.vendor)||'공급업체 미지정';
+  const pack=fixed?Number(p.pack):snapshot?.packQty??p?.pack??0;
+  const buy=fixed?Math.round(Number(p.buy)*100):snapshot?.boxPriceTtcCents??Math.round((p?.buy??0)*100);
+  const id=key(item[3],vendor,pack,buy);
+  const row=records.get(id)||{id,ko:item[0],vendor,pack,buy:buy/100,ordered:0,revenue:0};
+  row.ordered+=item[1];
+  row.revenue=Math.round((row.revenue+item[1]*item[2])*100)/100;
+  records.set(id,row);
+ }
+ return [...records.values()].map(p=>({...p,minimum:p.cartonConfirmed?p.minimum:p.pack>0?Math.ceil(p.ordered/p.pack):0}));
+}
+
 /** Product sales are independent of editable supplier purchase orders.
  * Split historical supplier/pack/cost versions rather than overwrite saved snapshots. */
 export function productSalesReport(products=[],orders=[],scope='all'){

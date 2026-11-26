@@ -623,6 +623,30 @@ test('concurrent checkouts preserve stock, receipts and administrator changes', 
   const finalProduct = (await edited.get()).data();
   assert.equal(finalProduct.manualLimit, saved.status === 200 ? 1 : 2);
   assert.equal(finalProduct.soldQty, bought.status === 200 ? 1 : 0);
+  // Real competing operations: confirm one carton or accept a 12-unit order, never both.
+  const carton = await createProduct(2);
+  await carton.update({limitMode:'box',plannedBoxes:2,manualLimit:null});
+  const firstCartonOrder=await submit(buyer(carton));
+  assert.equal(firstCartonOrder.status,200);
+  await checkReceipts([firstCartonOrder]);expectedOrders++;
+  const revision=(await eventRef.get()).data().productRevision??0;
+  const large=buyer(carton);large.items[0].qty=12;
+  const [fixed,largeOrder]=await Promise.all([
+    callTimed('bazaarAdmin',{op:'setCartonConfirmation',eventId:fixtureEvent,id:carton.id,revision,confirmed:true,expectedSoldQty:1,expectedBoxes:1},staff.idToken),
+    submit(large)
+  ]);
+  assert.ok(fixed.status===200||fixed.status===400,JSON.stringify(fixed.result));
+  assert.ok(largeOrder.status===200||largeOrder.status===412,JSON.stringify(largeOrder.result));
+  assert.notEqual(fixed.status===200,largeOrder.status===200,'Only one conflicting operation may succeed');
+  const fixedProduct=(await carton.get()).data();
+  assert.ok(fixedProduct.soldQty<=fixedProduct.packQty*fixedProduct.plannedBoxes);
+  if(largeOrder.status===200){await checkReceipts([largeOrder]);expectedOrders++;}
+  if(fixed.status===200){
+    assert.equal(fixedProduct.cartonConfirmed,true);
+    assert.equal(fixedProduct.plannedBoxes,1);
+    const forbidden=await callTimed('bazaarAdmin',{op:'saveProduct',eventId:fixtureEvent,id:carton.id,product:{...fixedProduct,plannedBoxes:2}},staff.idToken);
+    assert.equal(forbidden.status,400);
+  }
   const orders = await db.collection('bazaarOrders').where('eventId', '==', fixtureEvent).get();
   const queue = await db.collection('bazaarOutbox').where('eventId', '==', fixtureEvent).get();
   assert.equal(orders.size, expectedOrders);

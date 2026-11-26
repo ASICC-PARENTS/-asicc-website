@@ -1540,7 +1540,10 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         requireCurrentEvent((await tx.get(eventRef)).data()||initialEvent);
         const ref=products.doc(id),d=await tx.get(ref);
         if(!d.exists)throw new HttpsError('not-found','상품을 찾을 수 없습니다.');
-        tx.update(ref,{...validateProduct({...data.product,imageUrl:data.product?.photoPath?'':data.product?.imageUrl},d.data()),...photo,bazaarEventId:data.eventId});
+        const old=d.data(),p=validateProduct({...data.product,imageUrl:data.product?.photoPath?'':data.product?.imageUrl},old);
+        if(old.cartonConfirmed===true&&(p.plannedBoxes!==old.plannedBoxes||p.packQty!==old.packQty||p.limitMode!==old.limitMode||p.supplier!==old.supplier))
+          bad('발주 확정을 해제한 후 수량 설정을 변경해 주세요.');
+        tx.update(ref,{...p,...photo,bazaarEventId:data.eventId});
         tx.update(eventRef,{productRevision:FieldValue.increment(1)});
       });return{ok:true};
     }

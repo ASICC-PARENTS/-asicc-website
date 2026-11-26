@@ -3,7 +3,7 @@ import {renderPreviewTerms} from '../preview-terms';
 import {bindStorageLabels,changeCartQuantity,quantityCap,renderShopEvent,renderShopProducts,renderShopNotice,preserveShopDisclosures} from '../shop-view';
 import {onAuthStateChanged} from 'firebase/auth';
 import {adminAction,bazaarAuth,showBazaarTestLogin,pilotLink,pilotMode} from '../api';
-import {estimateEvent,eventFormFields,eventViewModel,parisToIso,productOrderSummary,orderIntakeSummary,productSalesReport,productPayload,productViewModel,validManualPhone} from './data';
+import {estimateEvent,eventFormFields,eventViewModel,parisToIso,productOrderSummary,orderIntakeSummary,purchaseDemandRows,productSalesReport,productPayload,productViewModel,validManualPhone} from './data';
 import {mountMailManager,showOrderMail} from './mail';
 import {observeAdminLocale,translateAdminText} from './i18n';
 import {formatParisDateTime,formatParisPaymentDeadline,formatParisPickupRange} from '../../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
@@ -1082,23 +1082,7 @@ async function showOrderHistory(id){
   '<p>'+esc(h.at)+' · '+esc(h.by)+'</p><p>'+esc(h.reason)+'</p><p>정정 전: '+describe(h.before)+'</p><p>정정 후: '+describe(h.after)+'</p></section>').join('')||'<p>정정 이력이 없습니다.</p>');
 }
 function accepted(){return store.orders.filter(o=>store.settleScope==='confirmed'?o.status==='confirmed':o.status!=='canceled')}
-function demands(){
- const records=new Map();
- for(const order of accepted())for(const item of order.items){
-  const snapshot=item[4];
-  const p=selectedEvent().products.find(product=>product.id===item[3]);
-  const vendor=snapshot?.supplier||p?.vendor||'공급업체 미지정';
-  const pack=snapshot?.packQty??p?.pack??0;
-  const buy=snapshot?.boxPriceTtcCents??Math.round((p?.buy??0)*100);
-  const supplierKey=vendor==='K커머셜'?'k':vendor==='누리커넥트'?'n':'u';
-  const id=[item[3],supplierKey,pack,buy].join('-');
-  const row=records.get(id)||{id,ko:item[0],vendor,pack,buy:buy/100,ordered:0,revenue:0};
-  row.ordered+=item[1];
-  row.revenue=finance(row.revenue+item[1]*item[2]);
-  records.set(id,row);
- }
- return [...records.values()].map(p=>({...p,minimum:p.pack>0?Math.ceil(p.ordered/p.pack):0}));
-}
+function demands(){return purchaseDemandRows(selectedEvent()?.products||[],accepted());}
 function vendors(){return [...new Set([...demands().map(p=>p.vendor),...Object.keys(store.poDrafts)])]}
 function makePO(v){const key=v;if(store.settleScope!=='confirmed'||!store.poDrafts[key])return demands().filter(p=>p.vendor===v).map(p=>({id:p.id,name:p.ko,ordered:p.ordered,per:p.pack,qty:p.minimum,unit:'박스',price:p.buy,amount:Math.round(p.minimum*p.buy*100)/100,manual:false}));return store.poDrafts[key]}
 function poTotal(v){return makePO(v).reduce((s,p)=>s+(Number(p.amount)||0),0)}
@@ -1491,7 +1475,7 @@ if(a==='new-product-save'){const ko=$('#new-ko').value.trim(),fr=$('#new-fr').va
  if(a==='save-product-detail')run(b,()=>saveProductDetail(b.dataset.id));
 if(a==='import-back'){importModal();return;}
 if(a==='import-apply'){let ids=[...document.querySelectorAll('[data-import]:checked')].map(x=>x.dataset.import);ids.forEach(id=>{let x=store.catalog.find(p=>p.id===id);if(x){const previous=store.products.find(p=>p.id===id);if(previous)previous.active=true;else store.products.push({...defaults(x),active:true});markProductDirty();}});closeModal();rerender();}
-if(a==='import-past-apply'){const ids=new Set([...document.querySelectorAll('[data-import]:checked')].map(x=>x.dataset.import));const existing=new Set(store.products.filter(p=>p.active).map(p=>(p.ko+'|'+p.fr).trim().normalize('NFC').toLocaleLowerCase()));for(const raw of importPastProducts.filter(p=>ids.has(p.id))){const p=productViewModel(raw),key=(p.ko+'|'+p.fr).trim().normalize('NFC').toLocaleLowerCase();if(existing.has(key))continue;const copy={...clone(p),id:newId(),active:true,saved:false};store.products.push(copy);existing.add(key);}if(ids.size)markProductDirty();closeModal();rerender();}
+if(a==='import-past-apply'){const ids=new Set([...document.querySelectorAll('[data-import]:checked')].map(x=>x.dataset.import));const existing=new Set(store.products.filter(p=>p.active).map(p=>(p.ko+'|'+p.fr).trim().normalize('NFC').toLocaleLowerCase()));for(const raw of importPastProducts.filter(p=>ids.has(p.id))){const p=productViewModel(raw),key=(p.ko+'|'+p.fr).trim().normalize('NFC').toLocaleLowerCase();if(existing.has(key))continue;const copy={...clone(p),id:newId(),active:true,saved:false,cartonConfirmed:false};store.products.push(copy);existing.add(key);}if(ids.size)markProductDirty();closeModal();rerender();}
 if(a==='po-add-save'){const name=$('#po-new-name').value.trim(),qty=Number($('#po-new-qty').value),price=Number($('#po-new-price').value);if(!name||!(qty>0)||!(price>=0)){alert(language('품목명·수량·단가를 확인해 주세요.','Vérifiez le nom, la quantité et le prix unitaire.'));return}editablePO(store.vendor).push({id:newId(),name,ordered:0,per:0,qty,unit:$('#po-new-unit').value,price,amount:Math.round(qty*price*100)/100,manual:true});closeModal();rerender();}
 if(a==='show-po'){store.vendor=b.dataset.value;previewPO(store.vendor);}
 });
