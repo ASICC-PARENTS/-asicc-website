@@ -3,7 +3,7 @@ import {renderPreviewTerms} from '../preview-terms';
 import {bindStorageLabels,changeCartQuantity,quantityCap,renderShopEvent,renderShopProducts,renderShopNotice,preserveShopDisclosures} from '../shop-view';
 import {onAuthStateChanged} from 'firebase/auth';
 import {adminAction,bazaarAuth,showBazaarTestLogin} from '../api';
-import {estimateEvent,eventFormFields,eventViewModel,parisToIso,productOrderSummary,orderIntakeSummary,productPayload,productViewModel,validManualPhone} from './data';
+import {estimateEvent,eventFormFields,eventViewModel,parisToIso,productOrderSummary,orderIntakeSummary,productSalesReport,productPayload,productViewModel,validManualPhone} from './data';
 import {mountMailManager,showOrderMail} from './mail';
 import {observeAdminLocale,translateAdminText} from './i18n';
 import {formatParisDateTime,formatParisPaymentDeadline,formatParisPickupRange} from '../../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
@@ -1261,9 +1261,41 @@ function poChange(el){
 }
 function previewPO(v){let ps=makePO(v),meta=poMeta(v);modal('구매발주서 / Bon de commande',v,'<div class="po-preview"><div class="toolbar"><div><div class="brand" style="font-size:17px;color:var(--wine)">ASICC</div><p class="tiny muted">Association de la Section Internationale Coréenne à Courbevoie</p><p class="tiny">contact@asicc-parents.fr</p></div><div class="small" style="text-align:right">발주처: ASICC<br>공급업체: <b>'+esc(v)+'</b><br>발주번호: '+esc(meta.number)+'<br>발주일: '+esc(meta.date||'')+'</div></div><h2 style="margin-top:26px">BON DE COMMANDE<br><small style="font-size:12px;letter-spacing:0;font-weight:500">구매발주서</small></h2><p>'+metadata.slice(2).filter(([key])=>meta[key]).map(([key,label])=>esc(label)+': '+esc(meta[key])).join('<br>')+'</p><table><thead><tr><th>품목</th><th>수량</th><th>단위</th><th>매입 단가 TTC</th><th>합계 TTC</th></tr></thead><tbody>'+ps.map(p=>'<tr><td>'+esc(p.name)+'</td><td>'+p.qty+'</td><td>'+esc(p.unit)+'</td><td>'+money(p.price)+'</td><td><b>'+money(p.amount)+'</b></td></tr>').join('')+'</tbody></table><div class="summary-bar"><b>총 매입액 TTC</b><strong>'+money(poTotal(v))+'</strong></div><div class="notice">납품 주소·예정일·담당자·SIRET는 확인된 공식 정보로 실제 생성할 때 입력합니다.<br>공급업체용 문서에 고객 판매가격·협회 수익률·고객 개인정보를 포함하지 않습니다.</div></div>','<button class="btn neutral" data-action="close">수정 화면으로</button><button class="btn neutral" data-action="one-pdf">PDF 다운로드</button><button class="btn neutral" data-action="one-excel">Excel 다운로드</button>')}
 function addPOModal(){modal('발주 품목 추가',store.vendor+' · 수동 추가','<div class="form-grid"><label class="field wide">품목명<input id="po-new-name" placeholder="예: 추가 구매 김치"></label><label class="field">발주수량<input id="po-new-qty" type="number" min="1" value="1"></label><label class="field">단위<select id="po-new-unit"><option>박스</option><option>개</option><option>봉</option><option>세트</option></select></label><label class="field">매입 단가 TTC (€)<input id="po-new-price" type="number" min="0" step="0.01" value="0"></label></div>','<button class="btn neutral" data-action="close">취소</button><button class="btn primary" data-action="po-add-save">발주서에 추가</button>')}
+
+let salesScope='all';
+function salesReport(){return productSalesReport(store.products,store.orders,salesScope);}
+function salesAmount(cents){return cents==null?'—':money(cents/100);}
+function salesMargin(row){return row.grossCents==null||!row.revenueCents?'—':(100*row.grossCents/row.revenueCents).toLocaleString(fr?'fr-FR':'ko-KR',{minimumFractionDigits:1,maximumFractionDigits:1})+' %';}
+function salesColumns(){
+ const t=language;
+ return [t('상품명','Produit'),t('판매수량','Qté vendue'),t('상품 매출액 TTC','Ventes TTC'),t('판매분 원가','Coût vendu'),t('예상 매출총이익','Marge brute estimée'),t('수익률','Taux de marge'),t('박스당 수량','Unités/carton'),t('필요 발주 박스','Cartons requis'),t('남는 수량','Unités restantes'),t('잔여 재고 원가','Coût du reliquat'),t('예상 전체 발주액','Achat total estimé')];
+}
+function productSalesBoard(){
+ const t=language,x=salesReport(),m=salesAmount;
+ const num=v=>v==null?'—':String(v);
+ const name=r=>esc((fr?r.fr:r.ko)||r.ko||r.fr||t('미지정 상품','Produit sans nom'));
+ const vendor=v=>esc(v||t('공급업체 미지정','Fournisseur non renseigné'));
+ const cells=(r,subtotal=false)=>'<td>'+num(r.qty)+'</td><td><b>'+m(r.revenueCents)+'</b></td><td>'+m(r.soldCostCents)+'</td><td class="'+(r.grossCents<0?'negative-margin':'')+'"><b>'+m(r.grossCents)+'</b></td><td>'+salesMargin(r)+'</td><td>'+(!subtotal?num(r.pack):'—')+'</td><td>'+num(r.boxes)+'</td><td><b>'+num(r.remaining)+'</b></td><td>'+m(r.remainingCostCents)+'</td><td>'+m(r.purchaseCents)+'</td>';
+ const groups=x.groups.map(g=>'<section class="panel pad"><div class="toolbar"><h3>'+vendor(g.vendor)+'</h3><span class="muted small">'+t('업체 소계','Sous-total fournisseur')+' · '+m(g.totals.revenueCents)+'</span></div><div class="sheet"><table style="min-width:1260px"><thead><tr>'+salesColumns().map(label=>'<th>'+esc(label)+'</th>').join('')+'</tr></thead><tbody>'+g.rows.slice().sort((a,b)=>((fr?a.fr:a.ko)||a.ko||a.fr).localeCompare((fr?b.fr:b.ko)||b.ko||b.fr,fr?'fr':'ko')).map(r=>'<tr><td><b>'+name(r)+'</b><div class="muted tiny">'+t('박스 매입가','Prix du carton')+' · '+m(r.boxCents)+'</div></td>'+cells(r)+'</tr>').join('')+'</tbody><tfoot><tr><th>'+t('업체 합계','Total fournisseur')+'</th>'+cells(g.totals,true)+'</tr></tfoot></table></div></section>').join('');
+ return '<section class="tabbody" data-product-sales-summary><div class="toolbar"><div><h2>'+t('상품별 판매 집계','Ventes par produit')+'</h2><p class="muted small">'+t('실제 주문 품목 기준 · 발주서와 독립된 내부용 집계','Articles des commandes · rapport interne indépendant des bons fournisseurs')+'</p></div><div class="actions"><button class="btn neutral" data-action="refresh-orders">'+t('새로고침','Actualiser')+'</button><button class="btn neutral" data-action="sales-excel">Excel</button></div></div>'+
+ '<div class="notice"><div class="toolbar"><b>'+t('집계 기준','Périmètre')+'</b><div class="actions">'+[['all',t('전체 유효 주문','Toutes les commandes valides')],['confirmed',t('입금 확인 주문','Commandes payées')]].map(([key,label])=>'<button class="filter '+(salesScope===key?'active':'')+'" aria-pressed="'+(salesScope===key)+'" data-action="sales-scope" data-value="'+key+'">'+label+'</button>').join('')+'</div></div><p class="muted tiny">'+(salesScope==='all'?t('취소 제외 · 미입금 포함. 실제 입금액과 다를 수 있습니다.','Hors annulations · inclut les commandes non payées. Distinct des encaissements.'):t('입금 확인 완료 주문만 집계합니다.','Uniquement les commandes dont le paiement est confirmé.'))+'</p></div>'+
+ metrics([[t('집계 주문','Commandes'),x.orderCount+(fr?'':'건')],[t('판매수량','Quantité vendue'),x.totals.qty+(fr?'':'개')],[t('상품 매출액 TTC','Ventes TTC'),m(x.totals.revenueCents)],[t('판매분 원가','Coût vendu'),m(x.totals.soldCostCents)],[t('예상 매출총이익','Marge brute estimée'),m(x.totals.grossCents)],[t('예상 전체 발주액','Achat total estimé'),m(x.totals.purchaseCents)],[t('남는 수량','Unités restantes'),num(x.totals.remaining)],[t('잔여 재고 원가','Coût du reliquat'),m(x.totals.remainingCostCents)]])+
+ '<p class="muted small">'+t('판매가격은 주문 당시 품목가, 원가는 주문 당시 박스 단가와 입수량으로 계산합니다. 매입 조건이 달라진 동일 상품은 별도 행으로 표시합니다. 발주 박스 수는 올림하며 남는 수량은 박스를 채우기 위해 추가 판매할 수 있는 수량입니다. 수익률 = 판매분 예상 매출총이익 ÷ 상품 매출액. 기타 비용 및 주문 단위 정정 차액 제외.','Prix des lignes de commande et coûts d’achat historiques. Les conditions d’achat différentes sont séparées. Cartons arrondis au supérieur ; le reliquat indique les unités à vendre pour compléter les cartons. Taux = marge brute / ventes. Hors autres frais et ajustements globaux.')+'</p>'+
+ (x.adjustmentCents?'<div class="notice">'+t('상품에 배분되지 않은 주문 정정 차액','Ajustements de commande non ventilés')+' : '+m(x.adjustmentCents)+' · '+t('정정 반영 주문금액','Montant des commandes après ajustements')+' : '+m(x.dueCents)+'</div>':'')+
+ (x.totals.soldCostCents==null?'<div class="notice">'+t('매입 단가 또는 박스 입수량이 없는 품목이 있어 관련 원가는 미확정입니다.','Des coûts ou conditionnements manquent ; les montants concernés restent indéterminés.')+'</div>':'')+
+ (groups||'<p>'+t('집계할 상품이 없습니다.','Aucun produit à afficher.')+'</p>')+'</section>';
+}
+function exportSalesReport(){
+ const t=language,x=salesReport(),v=c=>c==null?null:c/100;
+ const cells=r=>[r.qty,v(r.revenueCents),v(r.soldCostCents),v(r.grossCents),r.grossCents==null||!r.revenueCents?null:Math.round(1000*r.grossCents/r.revenueCents)/10,r.pack??null,r.boxes,r.remaining,v(r.remainingCostCents),v(r.purchaseCents)];
+ const rows=x.groups.flatMap(g=>[...g.rows.map(r=>[g.vendor,(fr?r.fr:r.ko)||r.ko||r.fr,...cells(r)]),[g.vendor,t('업체 합계','Total fournisseur'),...cells(g.totals)]]);
+ rows.push(['',t('전체 합계','Total général'),...cells(x.totals)],['',t('상품 미배분 주문 정정 차액','Ajustements non ventilés'),null,v(x.adjustmentCents)],['',t('정정 반영 주문금액','Commandes après ajustements'),null,v(x.dueCents)]);
+ orderWorkbook('ASICC-product-sales-'+salesScope,[t('공급업체','Fournisseur'),...salesColumns()],rows);
+}
+
 let settlementTab=params.get('settle')||'purchases';
 function settlementTabs(){
- const tabs=[['purchases',language('발주관리','Commandes fournisseurs')],['cash',language('입금·환불 현황','Paiements et remboursements')],
+ const tabs=[['purchases',language('발주관리','Commandes fournisseurs')],['sales',language('상품별 판매 집계','Ventes par produit')],['cash',language('입금·환불 현황','Paiements et remboursements')],
   ['profit',language('수익 결산','Résultat financier')]];
  return '<nav class="tabs">'+tabs.map(([key,text])=>'<button class="filter '+(settlementTab===key?'active':'')+'" data-action="settlement-tab" data-tab="'+key+'">'+text+'</button>').join('')+'</nav>';
 }
@@ -1303,7 +1335,9 @@ function rerender(){
  }
  if(page==='settlement'){
   if(selectedEvent()?.status==='draft'){renderEstimate();return;}
-  if(settlementTab==='cash'||settlementTab==='profit'){
+  if(settlementTab==='sales'){
+   app.innerHTML=eventHead()+tabs()+settlementTabs()+productSalesBoard();
+  }else if(settlementTab==='cash'||settlementTab==='profit'){
    const sales=accepted().reduce((n,o)=>n+total(o),0),buy=vendors().reduce((n,v)=>n+poTotal(v),0);
    app.innerHTML=eventHead()+tabs()+settlementTabs()+'<section class="tabbody">'+(settlementTab==='cash'?cashSettlement():financialBoard(sales,buy))+'</section>';
    if(settlementTab==='profit')app.querySelector('.tabbody')?.insertAdjacentHTML('beforeend',accountingEvidence().panel('expense'));
@@ -1695,6 +1729,8 @@ function handleScreenAction(action,button){
   const undo=order.status==='reported',reason=prompt(undo?language('정정 사유 (필수)','Motif obligatoire'):language('고객의 송금 통보 내용 (선택)','Note du client (facultatif)'));
   if(reason!==null&&(!undo||reason.trim()))run(button,async()=>{await request('adminTransferReport',{id:order.id,eventId:selectedEvent().id,undo,reason,confirm:true});await load();});return true;
  }
+ if(action==='sales-scope'){salesScope=button.dataset.value==='confirmed'?'confirmed':'all';rerender();return true;}
+ if(action==='sales-excel'){exportSalesReport();return true;}
  if(action==='settlement-tab'){settlementTab=button.dataset.tab;rerender();return true;}
  if(action==='refund-open'){run(button,()=>refundModal(button.dataset.id));return true;}
  if(['all-pdf','all-excel','one-pdf','one-excel'].includes(action)){run(button,async()=>{assertConfirmedScope();exportAction(action);});return true;}
