@@ -18,6 +18,8 @@ test('product detail is opened only by product name, not the carton row or quant
  const code=src.slice(src.indexOf('function renderProductOrders(){'),src.indexOf('function productOrderDetail(id)'));
  assert.doesNotMatch(code,/<tr data-action="product-order-detail"/);
  assert.match(code,/<button type="button" class="linkbtn product-order-name" data-action="product-order-detail"/);
- assert.match(code,/data-action="carton-confirm"/);
+ assert.match(code,/data-action="arrival-save"/);
+ assert.doesNotMatch(code,/data-action="carton-confirm"/);
+ assert.doesNotMatch(src,/data-action="carton-confirm"/);
  assert.match(src,/if\(action==='order-detail'\)\{openOrderDetail\(id\);return true;/);
 });

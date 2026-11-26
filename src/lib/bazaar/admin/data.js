@@ -37,7 +37,7 @@ export function eventFormFields(value){
 }
 export function productViewModel(p) {
   return {
-    id:p.id, saved:true, cartonConfirmed:p.cartonConfirmed===true, soldQty:Number.isSafeInteger(p.soldQty)?p.soldQty:null, hasOrderHistory:p.hasOrderHistory===true, ko:p.titleKo, fr:p.titleFr, koDesc:p.descriptionKo, frDesc:p.descriptionFr,
+    id:p.id, saved:true, cartonConfirmed:p.cartonConfirmed===true, proposedBoxes:Number.isSafeInteger(p.proposedBoxes)?p.proposedBoxes:null, soldQty:Number.isSafeInteger(p.soldQty)?p.soldQty:null, hasOrderHistory:p.hasOrderHistory===true, ko:p.titleKo, fr:p.titleFr, koDesc:p.descriptionKo, frDesc:p.descriptionFr,
     vendor:p.supplier, photo:p.imageUrl||'', photoPath:p.photoPath||'', emoji:'📦',
     buy:p.boxPriceTtcCents==null?'':p.boxPriceTtcCents/100, originalBuy:p.boxPriceTtcCents/100, boxHt:p.boxPriceHtCents??null,
     sale:p.retailCents==null?'':p.retailCents/100, pack:p.packQty??'',
@@ -97,7 +97,7 @@ function cartonPlan(product,groups,qty){
  return {packSizes,suppliers,boxes,purchaseQty,remainingQty:purchaseQty==null?null:purchaseQty-qty};
 }
 
-export function productOrderSummary(products=[], orders=[]) {
+export function productOrderSummary(products=[], orders=[], usePlanned=false) {
   const rows=new Map(),cartonGroups=new Map(),productById=new Map(products.map(p=>[p.id||'legacy:'+(p.ko||p.fr||''),p]));
   const validPack=value=>Number.isSafeInteger(Number(value))&&Number(value)>0?Number(value):null;
   for(const product of products){
@@ -134,11 +134,12 @@ export function productOrderSummary(products=[], orders=[]) {
   }
   return [...rows.values()].map(row=>{
     const product=productById.get(row.id),plan=cartonPlan(product,cartonGroups.get(row.id),row.qty);
-    if(product?.cartonConfirmed===true&&product.limitMode==='auto'){
+    const compatible=product&&plan.packSizes.length===1&&plan.packSizes[0]===Number(product.pack)&&plan.suppliers.length<=1&&(!plan.suppliers.length||plan.suppliers[0]===product.vendor);
+    if((usePlanned&&compatible&&product.boxes!==''&&product.boxes!=null)||(!usePlanned&&product?.cartonConfirmed===true&&product.limitMode==='auto')){
       const boxes=Number(product.boxes),pack=Number(product.pack);
       if(Number.isSafeInteger(boxes)&&boxes>=0&&Number.isSafeInteger(pack)&&pack>0){
         const purchaseQty=boxes*pack;
-        return {...row,...plan,boxes,purchaseQty,remainingQty:purchaseQty-row.qty,cartonConfirmed:true};
+        return {...row,...plan,boxes,purchaseQty,remainingQty:purchaseQty-row.qty,cartonConfirmed:!usePlanned&&product.cartonConfirmed===true};
       }
     }
     return {...row,...plan};

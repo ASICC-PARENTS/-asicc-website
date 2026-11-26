@@ -113,16 +113,16 @@ test('Worker API with Firebase emulators preserves checkout, admin, inventory, e
   const cartonId='carton-confirm-fixture', cartonRef=db.doc(`bazaarEventProjects/${eventId}/products/${cartonId}`);
   await cartonRef.set({titleKo:'확정 테스트',titleFr:'Cartons',supplier:'Test',imageUrl:'',storage:'ambient',
     visible:true,retailCents:100,packQty:12,boxPriceTtcCents:900,limitMode:'box',plannedBoxes:4,soldQty:13,displayOrder:2});
-  const fields={eventId,id:cartonId,revision:2,confirmed:true,expectedSoldQty:13,expectedBoxes:2};
-  await admin('setCartonConfirmation',{...fields,expectedSoldQty:12},400);
-  await admin('setCartonConfirmation',fields);
+  const arrival={eventId,id:cartonId,revision:2,boxes:3,expectedPack:12};
+  await admin('setPlannedCartons',{...arrival,boxes:1},400);
+  await admin('setPlannedCartons',{...arrival,expectedPack:6},400);
+  await admin('setPlannedCartons',arrival);
+  assert.equal((await cartonRef.get()).data().plannedBoxes,3);
+  assert.equal((await call('bazaarPublic',{eventId})).products.find(p=>p.id===cartonId).stockRemaining,23);
+  await admin('setPlannedCartons',{...arrival,boxes:2},412);
+  await admin('setPlannedCartons',{...arrival,revision:3,boxes:2});
   assert.equal((await cartonRef.get()).data().plannedBoxes,2);
-  assert.equal((await cartonRef.get()).data().cartonConfirmed,true);
   assert.equal((await call('bazaarPublic',{eventId})).products.find(p=>p.id===cartonId).stockRemaining,11);
-  await admin('setCartonConfirmation',{...fields,confirmed:false},412);
-  await admin('setCartonConfirmation',{...fields,revision:3,confirmed:false});
-  assert.equal((await cartonRef.get()).data().plannedBoxes,2);
-  assert.equal((await cartonRef.get()).data().cartonConfirmed,false);
   await cartonRef.delete();
   const buyer = { eventId, name: 'Test Buyer', phone: '0612345678', email: 'buyer@example.test',
     consent: true, lang: 'fr', items: [{ id: productId, qty: 1, priceCents: 450 }] };
@@ -632,7 +632,7 @@ test('concurrent checkouts preserve stock, receipts and administrator changes', 
   const revision=(await eventRef.get()).data().productRevision??0;
   const large=buyer(carton);large.items[0].qty=12;
   const [fixed,largeOrder]=await Promise.all([
-    callTimed('bazaarAdmin',{op:'setCartonConfirmation',eventId:fixtureEvent,id:carton.id,revision,confirmed:true,expectedSoldQty:1,expectedBoxes:1},staff.idToken),
+    callTimed('bazaarAdmin',{op:'setPlannedCartons',eventId:fixtureEvent,id:carton.id,revision,boxes:1,expectedPack:12},staff.idToken),
     submit(large)
   ]);
   assert.ok(fixed.status===200||fixed.status===400,JSON.stringify(fixed.result));
@@ -642,10 +642,7 @@ test('concurrent checkouts preserve stock, receipts and administrator changes', 
   assert.ok(fixedProduct.soldQty<=fixedProduct.packQty*fixedProduct.plannedBoxes);
   if(largeOrder.status===200){await checkReceipts([largeOrder]);expectedOrders++;}
   if(fixed.status===200){
-    assert.equal(fixedProduct.cartonConfirmed,true);
     assert.equal(fixedProduct.plannedBoxes,1);
-    const forbidden=await callTimed('bazaarAdmin',{op:'saveProduct',eventId:fixtureEvent,id:carton.id,product:{...fixedProduct,plannedBoxes:2}},staff.idToken);
-    assert.equal(forbidden.status,400);
   }
   const orders = await db.collection('bazaarOrders').where('eventId', '==', fixtureEvent).get();
   const queue = await db.collection('bazaarOutbox').where('eventId', '==', fixtureEvent).get();

@@ -67,3 +67,12 @@ test('confirmed procurement uses fixed cartons for paid or all-order scopes, inc
  assert.deepEqual(purchaseDemandRows(products,[]).map(r=>[r.minimum,r.ordered]),[[2,0]]);
  assert.equal(purchaseDemandRows([{...products[0],cartonConfirmed:false}],[paid])[0].minimum,1);
 });
+
+test('order overview reflects saved product carton quantity in both directions',()=>{
+ const product={id:'a',ko:'호떡',vendor:'K',pack:12,sale:13,boxes:4,limitMode:'auto'};
+ const orders=[{status:'confirmed',items:[['호떡',13,13,'a',{supplier:'K',packQty:12}]]}];
+ for(const [boxes,expected] of [[4,35],[3,23],[2,11]]) {
+  const [row]=productOrderSummary([{...product,boxes}],orders,true);
+  assert.deepEqual([row.boxes,row.purchaseQty,row.remainingQty],[boxes,boxes*12,expected]);
+ }
+});
