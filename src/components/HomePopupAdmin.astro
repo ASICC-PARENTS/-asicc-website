@@ -1,0 +1,118 @@
+---
+import {L,type Lang} from '../i18n/ui';
+const {lang}=Astro.props as {lang:Lang};
+---
+<section id="admin-home-popup" class="card auth-card stack gap-12" data-lang={lang}>
+  <h2 class="h3">{L(lang,{ko:'홈페이지 팝업 관리',fr:'Gestion de la fenêtre d’accueil'})}</h2>
+  <p class="small muted">{L(lang,{ko:'홈페이지에 표시할 팝업을 설정합니다. 현재 테스트 환경과 운영 환경은 분리됩니다.',fr:'Configurez la fenêtre affichée à l’accueil. Les environnements de test et de production restent séparés.'})}</p>
+  <form class="stack gap-12">
+    <label><input type="checkbox" name="enabled"/> {L(lang,{ko:'팝업 표시',fr:'Afficher la fenêtre'})}</label>
+    <label><input type="checkbox" name="bazaarOnly"/> {L(lang,{ko:'연결된 바자회 주문 접수 중에만 표시',fr:'Afficher uniquement pendant les commandes du bazar associé'})}</label>
+    <div class="popup-admin-grid">
+      {([['title','제목','Titre',120],['body','안내 문구','Description',400],['button','버튼 문구','Bouton',60],['caption1','이미지 설명 (대체 텍스트)','Image – texte alternatif',100]] as const).map(([field,ko,fr,max])=><>
+        <label class="stack gap-4"><span>{L(lang,{ko,fr})} · {L(lang,{ko:'한국어',fr:'Coréen'})}</span><input type="text" name={field+'Ko'} maxlength={max} required={field==='title'||field==='button'}/></label>
+        <label class="stack gap-4"><span>{L(lang,{ko,fr})} · Français</span><input type="text" name={field+'Fr'} maxlength={max} required={field==='title'||field==='button'}/></label>
+      </>)}
+      <label class="stack gap-4">{L(lang,{ko:'게시 시작 (파리 시간)',fr:'Début (heure de Paris)'})}<input type="datetime-local" name="startsAt"/></label>
+      <label class="stack gap-4">{L(lang,{ko:'게시 종료 (파리 시간)',fr:'Fin (heure de Paris)'})}<input type="datetime-local" name="endsAt"/></label>
+      <label class="stack gap-4">{L(lang,{ko:'포스터 이미지 주소 (HTTPS 또는 팝업 파일 경로)',fr:'Affiche (HTTPS ou fichier du site)'})}<input type="text" name="image1" maxlength="900"/></label>
+    </div>
+    <p class="small muted">{L(lang,{ko:'포스터 이미지는 한 장만 등록할 수 있습니다. 제목은 접근성용으로 유지되며 포스터에 중복 표시하지 않습니다.',fr:'Une seule affiche peut être enregistrée, sans titre visuel redondant.'})}</p>
+    <button type="button" class="btn btn-ghost" data-use-bazaar-poster>{L(lang,{ko:'제1회 바자회 포스터 적용',fr:'Utiliser l’affiche du premier bazar'})}</button>
+    <label class="stack gap-4">{L(lang,{ko:'바로가기 주소',fr:'Lien du bouton'})}<input name="link" maxlength="500" required placeholder="news/identifiant/"/></label>
+    <div class="popup-admin-preview" hidden><span class="preview-close" aria-hidden="true">×</span><span class="preview-brand">ASICC</span><strong data-title></strong><div data-images></div><p data-body></p><span data-cta></span><div class="preview-footer"><span>{L(lang,{ko:'오늘 하루 보지 않기',fr:'Ne plus afficher aujourd’hui'})}</span><span>{L(lang,{ko:'닫기',fr:'Fermer'})}</span></div></div>
+    <div class="row gap-12" style="flex-wrap:wrap;align-items:center">
+      <button type="button" class="btn btn-ghost" data-preview>{L(lang,{ko:'미리보기',fr:'Aperçu'})}</button>
+      <button type="button" class="btn btn-ghost" data-reload>{L(lang,{ko:'불러오기',fr:'Actualiser'})}</button>
+      <button type="submit" class="btn btn-dark" disabled>{L(lang,{ko:'저장',fr:'Enregistrer'})}</button>
+    </div>
+    <p class="small" role="status" data-feedback></p>
+  </form>
+</section>
+<script>
+  import {adminAction,bazaarAuth} from '../lib/bazaar/api';
+  import {onAuthStateChanged} from 'firebase/auth';
+  import {parisToIso} from '../lib/bazaar/admin/data.js';
+  const section=document.querySelector<HTMLElement>('#admin-home-popup');
+  if(section){
+    const form=section.querySelector('form')!,feedback=section.querySelector<HTMLElement>('[data-feedback]')!,save=form.querySelector<HTMLButtonElement>('[type=submit]')!;
+    const tr=(ko:string,fr:string)=>section.dataset.lang==='fr'?fr:ko;
+    let revision=0;
+    const date=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+    function fill(p:Record<string,any>){
+      revision=p.revision??0;
+      for(const el of Array.from(form.elements)){
+        if(!(el instanceof HTMLInputElement)||!el.name)continue;
+        const v=p[el.name];
+        if(el.type==='checkbox')el.checked=v===true;
+        else if(el.type==='datetime-local')el.value=v?date.format(new Date(v)).replace(' ','T'):'';
+        else el.value=String(v??'');
+      }
+    }
+    async function load(){
+      save.disabled=true;feedback.textContent=tr('불러오는 중…','Chargement…');
+      try{const {popup}=await adminAction({op:'getHomePopup'});fill(popup);save.disabled=false;feedback.textContent='';}
+      catch{feedback.textContent=tr('팝업 관리 서버 연결 또는 관리자 권한을 확인해 주세요.','Vérifiez la connexion au serveur et les droits administrateur.');}
+    }
+    section.querySelector('[data-reload]')?.addEventListener('click',()=>void load());
+    section.querySelector('[data-use-bazaar-poster]')?.addEventListener('click',()=>{
+      const values:Record<string,string>={image1:'/popup-assets/asicc-bazaar-2026.webp',bodyKo:'',bodyFr:'',caption1Ko:'ASICC 온라인 바자회 — 김치와 이천쌀 공동구매',caption1Fr:'Bazar ASICC — achat groupé de kimchi et de riz Rhee Chun'};
+      for(const [name,value] of Object.entries(values)){const el=form.elements.namedItem(name);if(el instanceof HTMLInputElement)el.value=value;}
+      (section.querySelector('[data-preview]') as HTMLButtonElement)?.click();
+      feedback.textContent=tr('포스터가 선택되었습니다. 저장을 눌러 적용하세요.','Affiche sélectionnée. Enregistrez pour l’appliquer.');
+    });
+    onAuthStateChanged(bazaarAuth,user=>{if(user)void load();});
+    form.addEventListener('submit',async e=>{
+      e.preventDefault();save.disabled=true;
+      try{
+        const popup:Record<string,unknown>={};
+        for(const el of Array.from(form.elements)){
+          if(!(el instanceof HTMLInputElement)||!el.name)continue;
+          popup[el.name]=el.type==='checkbox'?el.checked:el.type==='datetime-local'?parisToIso(el.value):el.value.trim();
+        }
+        const saved=await adminAction({op:'saveHomePopup',popup,revision});fill(saved.popup);
+        feedback.textContent=tr('팝업 설정을 저장했습니다.','Paramètres enregistrés.');
+      }catch(error){feedback.textContent=(error as Error).message;}finally{save.disabled=false;}
+    });
+    section.querySelector('[data-preview]')?.addEventListener('click',()=>{
+      const box=section.querySelector<HTMLElement>('.popup-admin-preview')!,fd=new FormData(form),lang=section.dataset.lang==='fr'?'Fr':'Ko';
+      box.hidden=false;box.querySelector('[data-title]')!.textContent=String(fd.get('title'+lang)||'');
+      box.querySelector('[data-body]')!.textContent=String(fd.get('body'+lang)||'');
+      box.querySelector('[data-cta]')!.textContent=String(fd.get('button'+lang)||'')+' →';
+      const images=box.querySelector('[data-images]')!;images.replaceChildren();
+      const v=String(fd.get('image1')||'');
+      const valid=v.startsWith('https://')||/^\/popup-assets\/[a-z0-9-]+\.(?:png|jpe?g|webp)$/i.test(v);
+      box.dataset.layout=valid?'poster':'text';
+      if(valid){
+        const img=document.createElement('img');
+        img.src=v;img.referrerPolicy='no-referrer';img.alt=String(fd.get('caption1'+lang)||fd.get('title'+lang)||'');
+        img.addEventListener('error',()=>{images.replaceChildren();box.dataset.layout='text';},{once:true});
+        images.append(img);
+      }
+    });
+  }
+</script>
+<style>
+  .popup-admin-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .popup-admin-grid input{min-width:0;width:100%}
+  .popup-admin-preview{position:relative;width:min(100%,340px);padding:20px;margin:auto;text-align:center;border:1px solid #f0ddbb;border-top:4px solid #dca900;border-radius:17px;background:#fffdf8;box-sizing:border-box}
+  .popup-admin-preview .preview-brand{display:block;font-weight:850;color:#08254d;letter-spacing:.12em;margin-bottom:8px}
+  .popup-admin-preview [data-title]{display:block;font-size:25px;line-height:1.3;color:#08254d;padding-bottom:9px;border-bottom:3px solid #e9b500}
+  .popup-admin-preview [data-images]{display:flex;justify-content:center;gap:0;margin:14px 0;background:linear-gradient(110deg,#ffeadf,#fff4dc,#f9efd0);border-radius:18px;padding:10px 5px}
+  .popup-admin-preview [data-images]:empty{display:none}
+  .popup-admin-preview :global(figure){flex:1;min-width:0;margin:0;padding:5px}
+  .popup-admin-preview :global(img){width:100%;height:125px;object-fit:contain;mix-blend-mode:multiply}
+  .popup-admin-preview :global(figcaption){font-size:12px;font-weight:800;color:#08254d;background:#fff4dc;padding:5px;border-radius:999px}
+  .popup-admin-preview [data-body]{font-size:14px;line-height:1.6;color:#344861}
+  .popup-admin-preview [data-cta]{display:block;background:#bf2928;color:white;padding:11px;border-radius:10px;font-weight:800}
+  .popup-admin-preview[data-layout="poster"]{padding:43px 18px 14px;overflow:hidden;border:1px solid #e8e8e8;background:#fff}
+  .popup-admin-preview[data-layout="poster"] .preview-brand,.popup-admin-preview[data-layout="poster"] [data-title],.popup-admin-preview[data-layout="poster"] :global(figcaption){display:none}
+  .popup-admin-preview[data-layout="poster"] [data-images]{margin:0;padding:0;background:#fff;border-radius:5px;box-shadow:0 1px 6px #0c1d3b16;overflow:hidden}
+  .popup-admin-preview[data-layout="poster"] :global(figure){margin:0;padding:0}
+  .popup-admin-preview[data-layout="poster"] :global(img){display:block;width:100%;height:auto;max-height:450px;object-fit:contain;mix-blend-mode:normal}
+  .popup-admin-preview[data-layout="poster"] [data-cta]{margin:16px 0 0;background:#c92325;font-size:14px}
+  .preview-close{position:absolute;top:9px;right:12px;border:1px solid #dce2e8;border-radius:50%;width:28px;height:28px;display:grid;place-items:center;font-size:20px;color:#526474}
+  .preview-footer{display:flex;justify-content:space-between;gap:8px;border-top:1px solid #dce2e8;margin-top:15px;padding-top:9px;font-size:12px;color:#526474}
+  .popup-admin-preview [data-body]:empty{display:none}
+  @media(max-width:650px){.popup-admin-grid{grid-template-columns:1fr}}
+</style>

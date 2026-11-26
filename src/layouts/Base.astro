@@ -54,13 +54,13 @@ const current = (p: string) => rest.startsWith(p);
   <slot name="head" />
 </head>
 <body>
+  {import.meta.env.PUBLIC_ASICC_INTEGRATION_TEST === 'true' && <aside style="padding:8px 14px;background:#fff1d6;color:#6b4216;text-align:center;font-size:13px;border-bottom:1px solid #e3cba1" role="note">{lang==='ko'?'ASICC 통합 테스트 · 테스트 계정만 사용 · 실제 송금 금지':'ASICC · Site de test intégré · Comptes de test uniquement · Aucun virement réel'} · <a href={href(lang,'bazaar/admin/')} style="color:inherit;text-decoration:underline">{lang==='ko'?'바자회 관리자':'Gestion du bazar'}</a></aside>}
   <a class="skip" href="#content">{t(lang, 'nav.skip')}</a>
   <slot name="top" />
   <header class="site-header">
     <div class="wrap hdr">
       <a class="brand" href={href(lang)}>
-        <span class="logo" aria-hidden="true">한</span>
-        <span class="brand-txt"><b>ASICC</b><small>{t(lang, 'site.short')}</small></span>
+        <img class="site-wordmark" src={`${BASE}bazaar-email-wordmark.png`} alt={lang==='fr'?'ASICC · Association de la Section Internationale Coréenne à Courbevoie':'ASICC · 쿠르브부아 한국어 국제섹션 학부모협회'} width="280" height="104" />
       </a>
       <nav class="nav" id="nav" aria-label={lang === 'ko' ? '주 메뉴' : 'Menu principal'}>
         {NAV.map((n) => n.children ? (

@@ -24,7 +24,7 @@ import {readFileSync} from 'node:fs';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 test('signup and server agree general aliases cannot receive messages',()=>{
  assert.match(read('src/pages/[lang]/membres/signup.astro'),/role:'general',canReceiveDM:false/);
- assert.match(read('firestore.rules.PROPOSED_ONLY'),/p\.role in \['member','special','admin'\]/);
+ assert.match(read('firestore.rules'),/p\.role in \['member','special','admin'\]/);
 });
 test('admin summary precedes settings and initialization is explicitly one-time',()=>{
  const a=read('src/pages/[lang]/membres/admin.astro');

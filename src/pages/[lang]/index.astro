@@ -9,6 +9,7 @@ import { CATS } from '../../data/news';
 import cmsCopy from '../../data/site-copy.json';
 import cmsTiles from '../../data/cms/home-tiles.json';
 import HomeCampaigns from '../../components/HomeCampaigns.astro';
+import HomePopup from '../../components/HomePopup.astro';
 
 export const getStaticPaths = langPaths;
 const lang = Astro.params.lang as Lang;
@@ -54,6 +55,7 @@ const pageText = (lang: 'ko' | 'fr', key: keyof typeof pageCopy) => pageCopy[key
   </section>
 
   <HomeCampaigns lang={lang} />
+  <HomePopup lang={lang} />
 
   <section class="wrap portal" aria-label={pageText(lang, 'item_002')}>
     <nav class="tiles" aria-label={pageText(lang, 'item_003')}>

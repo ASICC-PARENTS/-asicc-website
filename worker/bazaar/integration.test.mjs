@@ -3,19 +3,20 @@ import { test } from 'node:test';
 import { createHash, randomBytes } from 'node:crypto';
 import { createFirestore } from './firestore.mjs';
 import { createPhotos } from './photos.mjs';
+import { renderOrderEmail } from '../../firebase-functions-bazaar/bazaar/order-email.mjs';
 import { createMail, mailFields } from './mail.mjs';
 
 const project = 'demo-asicc-bazaar';
-const origin = 'http://127.0.0.1:8787';
-const firestore = 'http://127.0.0.1:8080';
-const authOrigin = 'http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1';
+const origin = (process.env.ASICC_TEST_WORKER_URL || 'http://127.0.0.1:8787');
+const firestore = (process.env.ASICC_TEST_FIRESTORE_URL || 'http://127.0.0.1:8080');
+const authOrigin = (process.env.ASICC_TEST_AUTH_URL || 'http://127.0.0.1:9099')+'/identitytoolkit.googleapis.com/v1';
 const db = createFirestore({ projectId: project, token: () => 'owner', emulator: firestore });
 const eventId = 'bazaar-worker-integration';
 const productId = 'test-product';
 const id = () => randomBytes(16).toString('hex');
 const when = offset => new Date(Date.now() + offset).toISOString();
-const productRef = db.doc(`bazaarProducts/${productId}`);
-const eventRef = db.doc('bazaarMeta/event');
+const productRef = db.doc(`bazaarEventProjects/${eventId}/products/${productId}`);
+const eventRef = db.doc('bazaarEventProjects/'+eventId);
 
 async function call(route, data, token, expected = 200) {
   const { status, result } = await callTimed(route, data, token);
@@ -99,6 +100,15 @@ test('Worker API with Firebase emulators preserves checkout, admin, inventory, e
   const shop = await call('bazaarPublic', { eventId });
   assert.equal(shop.products[0].stockRemaining, 1);
   assert.equal(shop.products[0].boxPriceTtcCents, undefined);
+  // Published product records are immutable with respect to deletion, even with zero orders.
+  await admin('saveEventProducts',{eventId,revision:0,items:[]},412);
+  await admin('archiveProduct',{eventId,id:productId,archive:true},412);
+  assert.equal((await productRef.get()).exists,true);
+  await admin('setProductSales',{eventId,id:productId,revision:0,visible:false});
+  assert.deepEqual((await call('bazaarPublic',{eventId})).products,[]);
+  assert.equal((await productRef.get()).data().visible,false);
+  await admin('setProductSales',{eventId,id:productId,revision:1,visible:true});
+  assert.equal((await call('bazaarPublic',{eventId})).products[0].stockRemaining,1);
   const buyer = { eventId, name: 'Test Buyer', phone: '0612345678', email: 'buyer@example.test',
     consent: true, lang: 'fr', items: [{ id: productId, qty: 1, priceCents: 450 }] };
   await call('bazaarCreateOrder', { ...buyer, requestId: id(), items: [{ ...buyer.items[0], priceCents: 1 }] }, undefined, 412);
@@ -109,6 +119,10 @@ test('Worker API with Firebase emulators preserves checkout, admin, inventory, e
   const first = winners[0];
   const { bid, ...receipt } = first;
   assert.notEqual(receipt.id,bid.requestId);
+  assert.equal(receipt.orderRef,'BZ010001');
+  assert.equal(receipt.receiptMailStatus,'capture');
+  assert.equal(receipt.pickupKo,event.pickupKo);
+  assert.equal(receipt.pickupFr,event.pickupFr);
   assert.equal(receipt.transferCutoff,event.transferCutoff);
   assert.deepEqual(await call('bazaarCreateOrder', bid), receipt);
   assert.equal((await productRef.get()).data().soldQty, 1);
@@ -118,13 +132,29 @@ test('Worker API with Firebase emulators preserves checkout, admin, inventory, e
   const viewed=(await buyerAction(first,'view')).order;
   assert.deepEqual(Object.keys(viewed.items[0]).sort(),['priceCents','qty','titleFr','titleKo']);
   assert.equal(viewed.iban,event.iban);
+  assert.equal(viewed.pickupKo,event.pickupKo);
+  assert.equal(viewed.pickupFr,event.pickupFr);
   assert.equal(viewed.transferCutoff,event.transferCutoff);
   assert.equal(viewed.email,undefined);
   assert.equal(viewed.eventSnapshot,undefined);
+  const legacyId=id(),legacyToken=randomBytes(32).toString('hex');
+  const legacyRef=db.doc('bazaarOrders/'+legacyId);
+  const legacyNumber='ASICC-26-LEGACY0001';
+  await legacyRef.create({...((await db.doc('bazaarOrders/'+first.id).get()).data()),
+    id:legacyId,buyerToken:legacyToken,orderRef:legacyNumber});
+  try{
+    const legacy=await buyerAction({id:legacyId,token:legacyToken},'view');
+    assert.equal(legacy.order.orderRef,legacyNumber);
+  }finally{
+    const cleanup=db.batch();
+    cleanup.delete(legacyRef);
+    await cleanup.commit();
+  }
   await buyerAction(first, 'cancel');
   await call('bazaarBuyerAction', { id: first.id, token: first.token, action: 'cancel', ackNoTransfer: true }, undefined, 412);
   assert.equal((await productRef.get()).data().soldQty, 0);
   const confirmed = await call('bazaarCreateOrder', { ...buyer, requestId: id() });
+  assert.equal(confirmed.orderRef,'BZ010002');
   await buyerAction(confirmed, 'report');
   await admin('bankConfirm', { id: confirmed.id, eventId, requestId:id(), amountCents:confirmed.totalCents });
   await until(async () => (await admin('mailStatus', { id: confirmed.id })).messages.some(mail => mail.status === 'sent' && mail.type === 'confirmed'));
@@ -250,8 +280,19 @@ test('Worker API with Firebase emulators preserves checkout, admin, inventory, e
   const overview=await admin('mailOverview',{eventId});
   assert.ok(overview.messages.some(row=>row.status==='manualSent'));
   assert.equal(overview.budget.acceptedToday,0);
+  const priorListing=await admin('listEvents');
   const draft = (await admin('createDraft')).draft;
+  assert.ok(Number.isSafeInteger(draft.managementNumber)&&draft.managementNumber>0);
+  const listingWithDraft=await admin('listEvents');
+  assert.equal(listingWithDraft.drafts.find(d=>d.id===draft.id).managementNumber,draft.managementNumber);
+  for(const previous of priorListing.events){
+    assert.equal(listingWithDraft.events.find(e=>e.id===previous.id).managementNumber,previous.managementNumber);
+  }
   await admin('deleteDraft', { id: draft.id, confirm: true });
+  const afterDelete=(await admin('createDraft')).draft;
+  assert.ok(afterDelete.managementNumber>draft.managementNumber);
+  assert.equal((await db.doc('bazaarEventNumbers/'+draft.id).get()).data().number,draft.managementNumber);
+  await admin('deleteDraft',{id:afterDelete.id,confirm:true});
 });
 
 test('B2 transport mock isolates object keys and exposes posted photos only', async () => {
@@ -355,8 +396,67 @@ test('Brevo retries quota-limited delivery with one idempotency key and a test-o
   assert.equal((await uncertain.get()).data().deliveryUncertain,true);
 });
 
+test('direct Brevo rehearsal delivers only new test orders to an approved entered address', async () => {
+  const eventId='test-mail-scope-'+id();
+  const since=when(-60000);
+  const sent=[];
+  const mail=createMail({
+    BAZAAR_MODE:'test',FIREBASE_PROJECT_ID:'asicc-bazaar-test',MAIL_MODE:'api',MAIL_PROVIDER:'brevo',
+    BAZAAR_MAIL_FROM:'sender@example.test',BAZAAR_MAIL_API_KEY:'mock',TEST_MAIL_TO:'override@example.test',
+    BAZAAR_TEST_MAIL_SINCE:since,BAZAAR_TEST_MAIL_RECIPIENTS:'new-buyer@example.test'
+  },db,async (url,options)=>{
+    assert.equal(url,'https://api.brevo.com/v3/smtp/email');
+    sent.push(JSON.parse(options.body));
+    return Response.json({messageId:'mock-test-delivery'},{status:201});
+  });
+  const orderId=id();
+  const order=db.doc('bazaarOrders/'+orderId);
+  const previous=db.doc('bazaarOutbox/'+orderId+'_old');
+  const fresh=db.doc('bazaarOutbox/'+orderId+'_new');
+  const job={...mailFields('receipt',when(-1000)),orderId,eventId,type:'receipt',createdAt:when(-120000)};
+  const template=(order,type,event,template,change,options)=>renderOrderEmail({order,type,event,template,change,...options,site:'https://example.test'});
+  await order.set({id:orderId,eventId,lang:'fr',orderRef:'BZ010001',buyerToken:id()+id(),totalCents:500,email:'new-buyer@example.test',createdAt:when(-120000)});
+  await previous.set(job);
+  await fresh.set({...job,createdAt:when(-1000)});
+  assert.equal(await mail.deliver(previous.id,template),false);
+  assert.equal(await mail.deliver(fresh.id,template),false);
+  assert.equal(sent.length,0);
+  await order.update({createdAt:when(-1000)});
+  await fresh.set({...job,createdAt:when(-1000)});
+  assert.equal(await mail.deliver(fresh.id,template),true);
+  assert.equal(await mail.deliver(fresh.id,template),false);
+  assert.equal(sent.length,1);
+  assert.equal(sent[0].subject,'[TEST] [ASICC] Commande reçue · BZ010001');
+  assert.equal(sent[0].messageVersions[0].to[0].email,'new-buyer@example.test');
+  assert.match(sent[0].textContent,/Aucun virement/);
+  assert.match(sent[0].htmlContent,/^<!doctype html>[\s\S]*<table/);
+  assert.doesNotMatch(sent[0].htmlContent,/<pre\b/i);
+  assert.match(sent[0].htmlContent,/https:\/\/example\.test\/bazaar-email-wordmark\.png/);
+  assert.match(sent[0].htmlContent,/width="160" height="59"/);
+  assert.match(sent[0].htmlContent,/-webkit-text-size-adjust:100%/);
+  assert.match(sent[0].htmlContent,/\.mail-copy\{font-size:12px!important\}/);
+  assert.match(sent[0].htmlContent,/\.mail-reference\{font-size:16px!important;white-space:nowrap!important/);
+  assert.match(sent[0].htmlContent,/<strong class="mail-reference" style="[^"]*white-space:nowrap;[^"]*">BZ010001<\/strong>/);
+  assert.match(sent[0].htmlContent,/class="mail-reference"[^>]*>BZ010001<\/td>/);
+  assert.match(sent[0].htmlContent,/class="mail-title" style="[^"]*font-size:17px/);
+
+  assert.doesNotMatch(sent[0].htmlContent,/bazaar-email-logo\.png|>ASICC<\/div>/);
+  assert.match(sent[0].htmlContent,/Association de la Section Internationale Coréenne à Courbevoie/);
+  const rejected=db.doc('bazaarOutbox/'+orderId+'_unapproved');
+  await order.update({email:'unapproved@example.test'});
+  await rejected.set({...job,createdAt:when(-1000)});
+  assert.equal(await mail.deliver(rejected.id,template),false);
+  assert.equal(sent.length,1);
+  assert.equal((await rejected.get()).data().lastError,'test-recipient-not-approved');
+  const disabled=createMail({BAZAAR_MODE:'test',FIREBASE_PROJECT_ID:'asicc-bazaar-test',MAIL_MODE:'api',
+    MAIL_PROVIDER:'brevo',BAZAAR_MAIL_FROM:'sender@example.test',BAZAAR_MAIL_API_KEY:'mock',
+    BAZAAR_TEST_MAIL_SINCE:since},db,async()=>{throw Error('Unexpected provider call');});
+  assert.equal(disabled.canSend(),false);
+});
+
 test('concurrent checkouts preserve stock, receipts and administrator changes', { timeout: 150000 }, async t => {
   const fixtureEvent = 'bazaar-stock-' + id();
+  const eventRef = db.doc('bazaarEventProjects/'+fixtureEvent);
   const staff = await identity('admin', true);
   const accessRef = db.doc('bazaarMeta/access');
   const [previousEvent, previousAccess] = await db.getAll(eventRef, accessRef);
@@ -369,6 +469,8 @@ test('concurrent checkouts preserve stock, receipts and administrator changes', 
     ]);
     const deleteRefs = new Map([...orders.docs, ...receipts.docs].map(snapshot => [snapshot.ref.name, snapshot.ref]));
     for (const ref of createdProducts) deleteRefs.set(ref.name, ref);
+    const counter = db.doc('bazaarOrderSequences/' + fixtureEvent);
+    deleteRefs.set(counter.name, counter);
     deleteRefs.set(db.doc('members/' + staff.localId).name, db.doc('members/' + staff.localId));
     const refs = [...deleteRefs.values()];
     const commitCleanup = async batch => {
@@ -400,7 +502,7 @@ test('concurrent checkouts preserve stock, receipts and administrator changes', 
   });
   await accessRef.set({ adminUids: [staff.localId] });
   await eventRef.set({
-    eventId: fixtureEvent, status: 'published', scopedProducts: true, orderCutoff: when(300000),
+    eventId: fixtureEvent, serial: 2, status: 'published', scopedProducts: true, orderCutoff: when(300000),
     transferCutoff: when(600000), beneficiary: 'Synthetic fixture', iban: 'FR7612345678901234567890123'
   });
   const preset = {
@@ -409,7 +511,7 @@ test('concurrent checkouts preserve stock, receipts and administrator changes', 
     soldQty: 0, displayOrder: 1, bazaarEventId: fixtureEvent
   };
   const createProduct = async limit => {
-    const ref = db.collection('bazaarProducts').doc('stock-' + id());
+    const ref = db.collection('bazaarEventProjects/'+fixtureEvent+'/products').doc('stock-' + id());
     await ref.create({ ...preset, manualLimit: limit });
     createdProducts.push(ref);
     return ref;
@@ -477,6 +579,7 @@ test('concurrent checkouts preserve stock, receipts and administrator changes', 
   record('discarded response and retry', [discarded, recovered], { 200: 2 });
   assert.equal(recovered.result.data.id, savedId);
   assert.equal(recovered.result.data.token, stored.buyerToken);
+  assert.equal(recovered.result.data.orderRef, stored.orderRef);
   await checkReceipts([recovered]);
   assert.equal((await lostProduct.get()).data().soldQty, 1);
   expectedOrders++;
@@ -508,7 +611,29 @@ test('concurrent checkouts preserve stock, receipts and administrator changes', 
   const orders = await db.collection('bazaarOrders').where('eventId', '==', fixtureEvent).get();
   const queue = await db.collection('bazaarOutbox').where('eventId', '==', fixtureEvent).get();
   assert.equal(orders.size, expectedOrders);
+  assert.deepEqual(orders.docs.map(doc => doc.data().orderRef).sort(),
+    Array.from({length:expectedOrders}, (_,i) => 'BZ02' + String(i + 1).padStart(4,'0')));
   assert.equal(queue.docs.filter(job => job.data().type === 'receipt').length, orders.size);
   assert.equal(queue.docs.filter(job => job.data().type === 'cancel').length, 1);
   assert.deepEqual(failures, []);
+});
+
+test('compact email keeps Korean and French quantity headers and values on one line',()=>{
+  for(const lang of ['ko','fr']){
+    const order={id:'fixture-order',lang,orderRef:'BZ010007',buyerToken:'fixture-token',name:'Test',
+      totalCents:6500,items:[{titleKo:'부뚜막 포기김치 8kg (4kg×2)',titleFr:'Kimchi de chou Bbutumak 8 kg',qty:1,priceCents:6500}]};
+    const rendered=renderOrderEmail({order,type:'receipt',event:{},site:'https://example.test',testMode:true,canCancel:true});
+    const header=rendered.html.match(/<th[^>]*class="mail-product-label mail-qty-label"[^>]*>[^<]*<\/th>/)?.[0];
+    assert.ok(header);
+    assert.match(header,/width="16%"/);
+    assert.match(header,/nowrap="nowrap"/);
+    assert.match(header,/white-space:nowrap/);
+    assert.ok(header.endsWith((lang==='ko'?'수량':'Qté')+'</th>'));
+    assert.match(rendered.html,/<td style="[^"]*white-space:nowrap;[^"]*" class="mail-product-qty" nowrap="nowrap">1<\/td>/);
+    assert.match(rendered.html,/<td style="[^"]*word-break:keep-all;[^"]*" class="mail-product-name">/);
+    assert.match(rendered.html,/width="160" height="59"/);
+    assert.match(rendered.html,/class="mail-reference"[^>]*>BZ010007<\/strong>/);
+    assert.match(rendered.html,/focus=report/);
+    assert.match(rendered.html,/focus=cancel/);
+  }
 });

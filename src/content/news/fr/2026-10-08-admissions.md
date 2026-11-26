@@ -1,28 +1,39 @@
 ---
-title: Admissions 2027–2028 en section internationale coréenne
-date: 2026-10-08
+title: Admissions 2027–2028 · Section internationale coréenne (maternelle et élémentaire)
+date: 2026-11-04
 category: notice
-summary: Les candidatures ont lieu en général de novembre à mi-décembre. Synthèse de la procédure d’après le calendrier de l’an dernier.
+summary: Ouverture des candidatures 2027–2028 pour la maternelle et l’école élémentaire. Calendrier et liens officiels.
+draft: false
 ---
 
-Les admissions en section internationale coréenne de Courbevoie relèvent de l’académie de Versailles. Le calendrier de cette année n’est pas encore publié ; voici une synthèse fondée sur la campagne 2026–2027 (mairie de Courbevoie et académie).
+# Candidatures 2027–2028 – Section internationale coréenne
 
-## Première vague (calendrier de l’an dernier)
+Les candidatures à la **section internationale coréenne de Courbevoie**, relevant de l’académie de Versailles, sont ouvertes pour l’année scolaire **2027–2028**.
 
-- Novembre à mi-décembre : dépôt des dossiers (clôture le 19 décembre à 17 h)
-- Janvier : étude des dossiers et convocations
-- Février à début avril : entretiens parents-enfant (motivation, niveau de langue)
-- Mi-avril : commission départementale
-- Début juin : communication des décisions
+## Établissements et niveaux concernés
 
-## Qui peut candidater
+- **Maternelle** : École maternelle Théophile Gautier, Courbevoie.
+- **Élémentaire** : École élémentaire Armand Silvestre, Courbevoie (jusqu’au CM2).
+- **Collège** : Collège Les Bruyères. Les modalités de candidature au collège sont distinctes et doivent être vérifiées auprès des organismes compétents.
 
-Familles étrangères, familles binationales (un parent de nationalité coréenne) et familles françaises de retour d’expatriation. Niveaux attendus : A2 oral en fin de GS ; B1 oral et A2 écrit en fin de CM2.
+## Calendrier de candidature maternelle et élémentaire
 
-## À préparer
+| Étape | Date |
+| --- | --- |
+| Candidatures des familles résidant en Île-de-France | Du 4 novembre au 18 décembre 2026 |
+| Étude des dossiers et convocations | Du 18 au 20 janvier 2027 |
+| Entretiens élèves / parents | Du 1er février au 2 avril 2027 |
+| Candidatures des résidents hors Île-de-France ou à l’étranger | Du 4 novembre 2026 au 30 avril 2027 |
+| Premières annonces des décisions définitives | À partir du 10 juin 2027 |
 
-- Dossiers sur le site de l’académie : ac-versailles.fr/si92
-- Hors Courbevoie : dérogation de la mairie de résidence
-- Renseignements (1er degré, par e-mail uniquement) : sidesecolesdu92@ac-versailles.fr
+Les documents et procédures peuvent varier selon le niveau scolaire et le lieu de résidence. Les informations publiées par l’académie et les établissements prévalent.
 
-La réunion d’information du Centre éducatif coréen a lieu en général fin novembre ou début décembre : pour toute question, écrivez à contact@asicc-parents.fr. Le formulaire d’alerte est en préparation.
+## Informations et candidature
+
+- [Académie de Versailles — Sections internationales des Hauts-de-Seine](https://www.ac-versailles.fr/si92)
+- [Notice officielle 2027–2028 (PDF)](https://www.ac-versailles.fr/media/62274/download)
+- [Annonce du Centre d’éducation coréen en France](https://educoree.fr/kr_annonce/?mod=document&uid=3310)
+
+L’ASICC facilite la diffusion de ces informations mais ne participe pas aux décisions d’admission. Consultez les annonces officielles pour vérifier les conditions et les dates en vigueur.
+
+*ASICC – Association de la Section Internationale Coréenne à Courbevoie*

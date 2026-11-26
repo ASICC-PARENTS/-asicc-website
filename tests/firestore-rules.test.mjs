@@ -68,7 +68,7 @@ before(async () => {
     projectId: 'demo-asicc-security',
     firestore: {
       rules: fs.readFileSync(
-        new URL('../firestore.rules.PROPOSED_ONLY', import.meta.url),
+        new URL('../firestore.rules', import.meta.url),
         'utf8'
       )
     }

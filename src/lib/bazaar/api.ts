@@ -1,3 +1,4 @@
+import {formatParisDateTime} from '../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
 import {getApps,initializeApp} from 'firebase/app';
 import {connectAuthEmulator,getAuth,signInWithEmailAndPassword} from 'firebase/auth';
 import {firebaseConfig} from '../../firebase-config';
@@ -40,18 +41,20 @@ if(emulator&&!existing){
 }
 
 export function showBazaarTestLogin(container: HTMLElement) {
+  const fr=document.documentElement.lang==='fr';
+  const t=(ko:string,french:string)=>fr?french:ko;
   if (!bazaarTestMode) {
     if (!local) return false;
     const warning=document.createElement('p');
     warning.setAttribute('role','alert');
-    warning.textContent='바자회 테스트 설정이 활성화되지 않았습니다. 일반 회원 계정을 사용하지 마세요. 명령창에서 npm run dev:bazaar로 실행해 주세요.';
+    warning.textContent=t('바자회 테스트 설정이 활성화되지 않았습니다. 일반 회원 계정을 사용하지 마세요. 명령창에서 npm run dev:bazaar로 실행해 주세요.','Le mode test du bazar est désactivé. N’utilisez pas de compte membre réel. Lancez npm run dev:bazaar.');
     container.replaceChildren(warning);
     return true;
   }
   const form = document.createElement('form');
-  form.innerHTML = '<label>테스트 관리자 이메일 <input name="email" type="email" autocomplete="username" required></label> '
-    + '<label>비밀번호 <input name="password" type="password" autocomplete="current-password" required></label> '
-    + '<button class="btn primary" type="submit">테스트 로그인</button><p role="status"></p>';
+  form.innerHTML = '<label>'+t('테스트 관리자 이메일','E-mail administrateur de test')+' <input name="email" type="email" autocomplete="username" required></label> '
+    + '<label>'+t('비밀번호','Mot de passe')+' <input name="password" type="password" autocomplete="current-password" required></label> '
+    + '<button class="btn primary" type="submit">'+t('테스트 로그인','Connexion de test')+'</button><p role="status"></p>';
   form.addEventListener('submit', async event => {
     event.preventDefault();
     const fields = new FormData(form);
@@ -62,7 +65,7 @@ export function showBazaarTestLogin(container: HTMLElement) {
     try {
       await signInWithEmailAndPassword(bazaarAuth, String(fields.get('email')).trim(), String(fields.get('password')));
     } catch {
-      feedback.textContent = '테스트 관리자 로그인 정보를 확인해 주세요.';
+      feedback.textContent = t('테스트 관리자 로그인 정보를 확인해 주세요.','Vérifiez les identifiants du compte administrateur de test.');
     } finally {
       submit.disabled = false;
     }
@@ -120,6 +123,8 @@ async function invoke(name:string,payload:any={}){
   return result.data;
 }
 export const getShop=(eventId:string)=>invoke('bazaarPublic',{eventId});
+export const getEventAvailability=(eventId:string)=>invoke('bazaarPublic',{op:'eventAvailability',eventId});
+export const getHomePopup=()=>invoke('bazaarPublic',{op:'homePopup'});
 export const createOrder=(buyer:any)=>invoke('bazaarCreateOrder',buyer);
 export const buyerAction=(p:any)=>invoke('bazaarBuyerAction',p);
 export async function adminAction(p:any) {
@@ -135,11 +140,7 @@ export async function adminAction(p:any) {
 }
 export const eFormat=(c:number)=>new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'}).format(c/100);
 export function parisDeadline(value: string | undefined, lang: string) {
-  const date = Date.parse(value ?? '');
-  if (!Number.isFinite(date)) return '—';
-  return new Intl.DateTimeFormat(lang === 'fr' ? 'fr-FR' : 'ko-KR', {
-    dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Paris',
-  }).format(date) + (lang === 'fr' ? ' (heure de Paris)' : ' (파리 시간)');
+  return formatParisDateTime(value,lang,{showZone:true});
 }
 
 export async function orderRequestId(eventId: string, payload: unknown) {

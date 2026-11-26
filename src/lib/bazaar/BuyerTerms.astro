@@ -1,0 +1,17 @@
+---
+import {orderTerms,pickupTerms,pickupContact,refundAccountNotice} from '../../../firebase-functions-bazaar/bazaar/order-terms.mjs';
+import {L,type Lang} from '../../i18n/ui';
+const {lang}=Astro.props as {lang:Lang};
+---
+<details class="buyer-terms">
+  <summary>{L(lang,{ko:'주문·송금·취소·환불·수령 상세 규정',fr:'Conditions de commande, de paiement, d’annulation, de remboursement et de retrait'})}</summary>
+  <div class="buyer-terms-content">
+    <slot />
+    <h3>{orderTerms[lang].title}</h3>
+    {orderTerms[lang].lines.map(line=><p>{line}</p>)}
+    <p>{refundAccountNotice[lang]}</p>
+    <h3>{pickupTerms[lang].title}</h3>
+    {pickupTerms[lang].lines.map(line=><p>{line}</p>)}
+    <p>{pickupTerms[lang].contact} · <a href={`mailto:${pickupContact}`}>{pickupContact}</a></p>
+  </div>
+</details>

@@ -1,0 +1,134 @@
+---
+import { L, href, type Lang } from '../i18n/ui';
+const {lang}=Astro.props as {lang:Lang};
+---
+<dialog id="home-popup" class="home-popup" data-lang={lang} data-home={href(lang,'')} aria-labelledby="home-popup-title">
+  <div class="popup-inner">
+    <button type="button" class="popup-close" aria-label={L(lang,{ko:'닫기',fr:'Fermer'})}>×</button>
+    <div class="popup-brand"><span class="popup-kicker">ASICC</span><span class="popup-brand-line" aria-hidden="true"></span></div>
+    <div class="popup-heading">
+      <svg class="popup-rays rays-left" viewBox="0 0 36 40" aria-hidden="true"><path d="M29 12 17 2M23 24 4 15M24 36 7 36" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></svg>
+      <h2 id="home-popup-title"></h2>
+      <svg class="popup-rays rays-right" viewBox="0 0 36 40" aria-hidden="true"><path d="M29 12 17 2M23 24 4 15M24 36 7 36" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></svg>
+    </div>
+    <div class="popup-products" hidden>
+      <figure hidden><img alt="" referrerpolicy="no-referrer"/></figure>
+    </div>
+    <div class="popup-actions">
+    <p class="popup-body"></p>
+    <p class="popup-test" hidden>{L(lang,{ko:'테스트 홈페이지 · 실제 송금 금지',fr:'Site de test · Aucun virement réel'})}</p>
+    <a class="popup-cta"></a>
+    <div class="popup-bottom"><button type="button" data-popup-today>{L(lang,{ko:'오늘 하루 보지 않기',fr:'Ne plus afficher aujourd’hui'})}</button><button type="button" data-popup-dismiss>{L(lang,{ko:'닫기',fr:'Fermer'})}</button></div>
+    </div>
+  </div>
+</dialog>
+<script>
+  import {getHomePopup,bazaarTestMode} from '../lib/bazaar/api';
+  const popup=document.querySelector<HTMLDialogElement>('#home-popup');
+  if(popup){
+    const day=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+    let key='';
+    const close=()=>popup.close();
+    popup.querySelector('.popup-close')?.addEventListener('click',close);
+    popup.querySelector('[data-popup-dismiss]')?.addEventListener('click',close);
+    popup.querySelector('[data-popup-today]')?.addEventListener('click',()=>{try{localStorage.setItem(key,day());}catch{}close();});
+    popup.addEventListener('click',e=>{if(e.target===popup)close();});
+    popup.addEventListener('close',()=>{document.body.classList.remove('asicc-popup-open');});
+    const start=async()=>{
+      try{
+        const {popup:p}=await getHomePopup();if(!p)return;
+        key='asicc-home-popup:'+p.identity+':'+p.revision;
+        try{if(localStorage.getItem(key)===day())return;}catch{}
+        const lang=popup.dataset.lang==='fr'?'Fr':'Ko';
+        const title=popup.querySelector('h2')!;
+        const titleText=p['title'+lang];
+        popup.dataset.campaign=p.bazaarOnly?'bazaar':'general';
+        // Accent the campaign title without replacing the administrator's wording.
+        const accent=p.bazaarOnly?(lang==='Ko'?'온라인':'bazar'):'';
+        const pos=accent?titleText.toLowerCase().indexOf(accent):-1;
+        if(pos>=0){
+          const strong=document.createElement('span');strong.className='popup-title-accent';strong.textContent=titleText.slice(pos,pos+accent.length);
+          title.replaceChildren(document.createTextNode(titleText.slice(0,pos)),strong,document.createTextNode(titleText.slice(pos+accent.length)));
+        }else title.textContent=titleText;
+        const body=popup.querySelector<HTMLElement>('.popup-body')!;
+        body.textContent=p['body'+lang];body.hidden=!body.textContent;
+        const link=popup.querySelector<HTMLAnchorElement>('.popup-cta')!;
+        const target=new URL(p.link,popup.dataset.home?new URL(popup.dataset.home,location.origin):location.href);
+        if(target.protocol!=='https:'&&target.origin!==location.origin)return;
+        // Prevent a test campaign from routing visitors to the live ordering site.
+        if(bazaarTestMode&&/^(www\.)?asicc-parents\.fr$/i.test(target.hostname))return;
+        link.href=target.href;link.textContent=p['button'+lang]+' →';
+        link.addEventListener('click',close);
+        popup.querySelector<HTMLElement>('.popup-test')!.hidden=!bazaarTestMode;
+        const panel=popup.querySelector<HTMLElement>('.popup-products')!;
+        const figure=panel.querySelector<HTMLElement>('figure')!;
+        const img=figure.querySelector('img')!;
+        popup.dataset.layout=p.image1?'poster':'text';
+        if(p.image1){
+          img.alt=p['caption1'+lang]||titleText;
+          img.addEventListener('error',()=>{figure.hidden=true;panel.hidden=true;popup.dataset.layout='text';},{once:true});
+          img.src=p.image1;figure.hidden=false;panel.hidden=false;
+        }
+        popup.showModal();document.body.classList.add('asicc-popup-open');
+      }catch{/* A failed popup request must never block the homepage. */}
+    };
+    void start();
+  }
+</script>
+<style>
+  .home-popup{border:0;padding:0;border-radius:23px;width:min(548px,calc(100% - 28px));max-height:calc(100dvh - 28px);overflow:auto;background:#fffdf8;color:#25364a;box-shadow:0 24px 80px #0c1d3b60;margin:auto;box-sizing:border-box;}
+  .home-popup::backdrop{background:rgba(12,24,40,.68)}
+  :global(body.asicc-popup-open){overflow:hidden}
+  .popup-inner{position:relative;isolation:isolate;padding:27px 30px 15px;text-align:center;background:#fffdf8;border-top:5px solid #dca900;overflow:hidden;}
+  .popup-inner::before,.popup-inner::after{content:"";position:absolute;z-index:-1;pointer-events:none;border-radius:50%;width:205px;height:205px;background:radial-gradient(circle,#f9d46b38,transparent 70%);top:-105px}
+  .popup-inner::before{left:-88px}.popup-inner::after{right:-88px}
+  .popup-close{position:absolute;top:13px;right:14px;z-index:2;background:#fff;border:1px solid #e9e1cf;border-radius:50%;font-size:24px;line-height:1;color:#526474;cursor:pointer;width:38px;height:38px;display:grid;place-items:center}
+  .popup-close:hover{background:#f2f5f7;color:#08254d}
+  .popup-brand{display:flex;flex-direction:column;align-items:center;gap:5px;margin-bottom:11px}
+  .popup-kicker{display:block;font-size:20px;font-weight:850;color:#08254d;letter-spacing:.105em;line-height:1.1}
+  .popup-brand-line{width:34px;height:2px;background:#dca900;border-radius:3px}
+  .popup-heading{position:relative;display:flex;justify-content:center;align-items:center;gap:6px;margin:0 auto 22px;padding:0 14px 12px;max-width:100%;}
+  .popup-heading::after{content:"";position:absolute;bottom:0;left:18%;width:64%;height:10px;border-top:4px solid #e9b500;border-radius:50%;transform:rotate(-1deg);pointer-events:none}
+  .home-popup h2{font-size:clamp(25px,5.6vw,37px);font-weight:850;line-height:1.25;letter-spacing:-.045em;margin:0;color:#08254d;max-width:100%;text-wrap:balance}
+  .home-popup :global(.popup-title-accent){color:#c72825}
+  .popup-rays{width:24px;flex:0 0 24px;height:32px;color:#e9b500;align-self:center}
+  .rays-right{transform:scaleX(-1)}
+  .home-popup[data-campaign="general"] .popup-rays{display:none}
+  .popup-products{display:flex;justify-content:center;align-items:stretch;gap:0;margin:0 auto 20px;min-width:0;padding:13px 8px 12px;background:linear-gradient(110deg,#ffeadf 0%,#fff4dc 49%,#f9efd0 100%);border-radius:28px 28px 19px 19px;border:1px solid #f0ddbb;overflow:hidden;}
+  .popup-products[hidden]{display:none}
+  .popup-products figure{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;flex:1 1 0;min-width:0;max-width:340px;margin:0;padding:8px 11px 5px;position:relative}
+  .popup-products figure[hidden]{display:none}
+  .popup-products img{display:block;width:100%;height:180px;object-fit:contain;mix-blend-mode:multiply;filter:drop-shadow(0 5px 4px #73501a16)}
+  .home-popup figcaption{font-size:14px;font-weight:800;line-height:1.45;margin-top:10px;color:var(--caption-color,#08254d);width:100%;background:var(--caption-bg,#fff4dc);border-radius:999px;padding:7px 8px;box-sizing:border-box;text-wrap:balance}
+  .home-popup figcaption:empty{display:none}
+  .home-popup .popup-body{font-size:15px;font-weight:600;line-height:1.75;margin:0 auto 16px;color:#344861;max-width:36ch;text-wrap:pretty}
+  .home-popup .popup-body[hidden]{display:none}
+  .home-popup .popup-test{color:#82521e;font-size:11px;line-height:1.5;margin:0 auto 12px;max-width:max-content;padding:4px 9px;background:#fff3db;border-radius:5px}
+  .home-popup .popup-test[hidden]{display:none}
+  .home-popup .popup-cta{display:block;border-radius:12px;background:linear-gradient(100deg,#bf2928,#a81f23);color:#fff!important;font-weight:800;font-size:16px;line-height:1.5;text-decoration:none;padding:14px 16px;box-shadow:0 5px 13px #a81f2326;white-space:normal;border:1px solid #a51e22}
+  .popup-cta:hover{background:#922024}
+  .popup-bottom{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px 12px;margin-top:14px;padding-top:9px;border-top:1px solid #efe6d4}
+  .home-popup .popup-bottom button{font-size:12px;line-height:1.5;color:#526474;background:transparent;border:0;padding:8px 2px;cursor:pointer;min-width:0;max-width:100%;white-space:normal}
+  .popup-bottom button:hover{text-decoration:underline;text-underline-offset:3px}
+  .home-popup :is(h2,p,figcaption,a,button){word-break:keep-all;overflow-wrap:break-word;hyphens:none;}
+  .home-popup :is(a,button):focus-visible{outline:3px solid #b38d35;outline-offset:3px}
+  @media(max-width:480px){.home-popup{width:calc(100% - 24px);max-height:calc(100dvh - 24px);border-radius:17px}.popup-inner{padding:23px 15px 11px}.popup-brand{margin-bottom:10px}.popup-kicker{font-size:18px}.popup-heading{margin-bottom:16px;padding-inline:3px;gap:4px}.popup-rays{width:17px;flex-basis:17px;height:24px}.popup-products{margin-bottom:15px;padding:9px 4px;border-radius:20px 20px 15px 15px}.popup-products figure{padding:6px 6px 4px}.popup-products img{height:135px}.home-popup figcaption{font-size:12px;padding:6px 4px}.home-popup .popup-body{font-size:14px;margin-bottom:13px}.home-popup .popup-cta{font-size:15px;padding:12px}.popup-close{width:34px;height:34px;right:10px;top:9px}}
+  @media(max-width:340px),(max-height:650px){.popup-inner{padding-block:18px 10px}.popup-products img{height:110px}.popup-heading{margin-bottom:12px}.popup-brand{margin-bottom:8px}.popup-products{margin-bottom:12px}.popup-bottom{margin-top:10px}.home-popup h2{font-size:25px}}
+  /* A single campaign poster is a complete visual: never crop it or repeat its heading. */
+  .home-popup[data-layout="poster"]{width:min(340px,calc(100% - 40px));max-height:calc(100dvh - 40px);background:#fff;border-radius:16px;}
+  .home-popup[data-layout="poster"] .popup-inner{padding:43px 18px 14px;background:#fff;border-top:0}
+  .home-popup[data-layout="poster"] .popup-inner::before,.home-popup[data-layout="poster"] .popup-inner::after,.home-popup[data-layout="poster"] .popup-brand,.home-popup[data-layout="poster"] .popup-rays,.home-popup[data-layout="poster"] .popup-heading::after{display:none}
+  .home-popup[data-layout="poster"] .popup-heading{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}
+  .home-popup[data-layout="poster"] .popup-products{margin:0;padding:0;border:0;border-radius:5px;background:#fff;box-shadow:0 1px 6px #0c1d3b16}
+  .home-popup[data-layout="poster"] .popup-products figure{padding:0;margin:0;max-width:none;border:0}
+  .home-popup[data-layout="poster"] .popup-products img{display:block;width:100%;height:auto;max-height:min(440px,calc(100dvh - 235px));object-fit:contain;mix-blend-mode:normal;filter:none}
+  .home-popup[data-layout="poster"] figcaption{display:none}
+  .home-popup[data-layout="poster"] .popup-actions{padding:16px 0 0;background:#fff;border-top:0}
+  .home-popup[data-layout="poster"] .popup-body{margin:0 auto 10px}
+  .home-popup[data-layout="poster"] .popup-test{margin:0 auto 8px}
+  .home-popup[data-layout="poster"] .popup-cta{background:#c92325;border-color:#c92325;font-size:14px;padding:12px 10px;box-shadow:none}
+  .home-popup[data-layout="poster"] .popup-cta:hover{background:#a31b20}
+  .home-popup[data-layout="poster"] .popup-bottom{margin-top:15px;padding-top:6px;border-top:1px solid #dce2e8}
+  .home-popup[data-layout="poster"] .popup-close{top:9px;right:12px;width:28px;height:28px;font-size:20px;background:#fff;border-color:#dce2e8;box-shadow:none}
+  @media(max-width:480px){.home-popup[data-layout="poster"] .popup-inner{padding:39px 16px 12px}.home-popup[data-layout="poster"] .popup-actions{padding:14px 0 0}.home-popup[data-layout="poster"] .popup-cta{font-size:13px;padding:11px}}
+</style>

@@ -1,0 +1,50 @@
+# ASICC — Firebase 배너 접근 규칙 확인용 (15차)
+# 아래 블록은 기존 14차 제안 Firestore 규칙에서 그대로 추출한 참고 자료입니다.
+# 이것만 Firebase 전체 규칙으로 덮어쓰면 기존 회원·게시판·갤러리 권한을 잃을 수 있습니다.
+# 반드시 현재 Firebase Console 규칙과 비교하여 match /databases/{database}/documents 내부에 병합하세요.
+# GitHub Actions 검사 통과는 Firebase Console의 실제 보안 규칙 배포를 의미하지 않습니다.
+
+    // Public homepage editorial banners. Only the two fixed documents are readable
+    // without login. No private member data or arbitrary content collections exposed.
+    function validBannerText(field, limit) {
+      return field is string && field.size() <= limit;
+    }
+    function validEditorialBanner() {
+      let v = request.resource.data;
+      return v.keys().hasOnly([
+        'enabled','link','eyebrow_ko','eyebrow_fr','title_ko','title_fr',
+        'body_ko','body_fr','status_ko','status_fr','button_ko','button_fr',
+        'updatedAt','updatedBy'
+      ]) && v.keys().hasAll([
+        'enabled','link','eyebrow_ko','eyebrow_fr','title_ko','title_fr',
+        'body_ko','body_fr','status_ko','status_fr','button_ko','button_fr',
+        'updatedAt','updatedBy'
+      ])
+        && v.enabled is bool
+        && validBannerText(v.link, 500)
+        && (v.link.matches('^news/[a-z0-9/_-]+/$') || v.link.matches('^https://[^\\s]+$'))
+        && validBannerText(v.eyebrow_ko,100) && validBannerText(v.eyebrow_fr,100)
+        && validBannerText(v.title_ko,120) && v.title_ko.size()>0
+        && validBannerText(v.title_fr,120) && v.title_fr.size()>0
+        && validBannerText(v.body_ko,600) && validBannerText(v.body_fr,600)
+        && validBannerText(v.status_ko,100) && validBannerText(v.status_fr,100)
+        && validBannerText(v.button_ko,60) && v.button_ko.size()>0
+        && validBannerText(v.button_fr,60) && v.button_fr.size()>0
+        && v.updatedAt == request.time
+        && v.updatedBy == request.auth.uid;
+    }
+    match /publicHomeBanners/{bannerId} {
+      allow get: if bannerId in ['bazaar','admissions'];
+      allow list: if false;
+      allow create, update: if bannerId in ['bazaar','admissions'] && isAdmin() && validEditorialBanner();
+      allow delete: if bannerId in ['bazaar','admissions'] && isAdmin();
+    }
+
+    // Staging homepage banner overrides stay separate from the production domain.
+    match /publicHomeBannersTest/{bannerId} {
+      allow get: if bannerId in ['bazaar','admissions'];
+      allow list: if false;
+      allow create, update: if bannerId in ['bazaar','admissions'] && isAdmin() && validEditorialBanner();
+      allow delete: if bannerId in ['bazaar','admissions'] && isAdmin();
+    }
+

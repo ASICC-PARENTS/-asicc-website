@@ -9,6 +9,10 @@ service firebase.storage {
     function admin() {
       return member() && firestore.get(/databases/(default)/documents/members/$(request.auth.uid)).data.role == 'admin';
     }
+    // Only the bazaar Functions write these objects. Public views use per-file download tokens.
+    match /bazaar-photos/{eventId}/{productId}/{image} {
+      allow read, write: if false;
+    }
     match /{col}/{docId}/{file} {
       allow read: if member() && col in ['minutes', 'gallery', 'notices', 'relations'];
       allow write: if admin() && request.resource.size < 20 * 1024 * 1024;

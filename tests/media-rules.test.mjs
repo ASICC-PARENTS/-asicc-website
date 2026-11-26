@@ -21,7 +21,7 @@ const album=uid=>({title:'2026 School Day',school:'elementary',year:2026,
 
 before(async()=>{
   env=await initializeTestEnvironment({projectId:'demo-asicc-media-rules',firestore:{
-    rules:fs.readFileSync(new URL('../firestore.rules.PROPOSED_ONLY',import.meta.url),'utf8')
+    rules:fs.readFileSync(new URL('../firestore.rules',import.meta.url),'utf8')
   }});
   await env.withSecurityRulesDisabled(async (context)=>{
     await Promise.all(['general','member','special','admin','suspended'].map(role=>setDoc(doc(context.firestore(),'members',role),mkProfile(role,role,role==='suspended'?'suspended':'approved'))));

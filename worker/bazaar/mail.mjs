@@ -1,4 +1,5 @@
 import {orderPaymentSummary} from '../../firebase-functions-bazaar/bazaar/order-payments.mjs';
+import {orderTransferCutoff} from '../../firebase-functions-bazaar/bazaar/order-intake.mjs';
 import {autoMailAllowed,mailKind} from './mail-policy.mjs';
 import { randomUUID } from 'node:crypto';
 
@@ -16,7 +17,7 @@ const reschedule = (type, dueAt) => ({ dueAt, urgentDueAt: urgentTypes.has(type)
 export const eligibleReminder = (order, event, policy, time) => order?.email && order.eventId === event?.eventId
   && policy?.reminderMode === 'auto' && !event.finalizedAt && !event.reconciliationStartedAt
   && !order.transferReportedAt && !order.bankConfirmedAt && !order.canceledAt
-  && time < Date.parse(event.transferCutoff);
+  && time < orderTransferCutoff(order,event);
 
 function mailMatchesOrder(job,order){
   if(job.type==='confirmed')return !!order.bankConfirmedAt&&!order.canceledAt&&orderPaymentSummary(order).additionalDue===0;
@@ -29,7 +30,7 @@ function manualStillEligible(job,order,event,time){
   if(job.type==='refundCompleted')return job.change?.amountCents>0&&!!job.change.at;
   if(job.type==='confirmed')return mailMatchesOrder(job,order);
   if(job.type==='bulkCancel')return order.cancelReason==='unpaidFinalization';
-  if(job.type==='reminderFinal')return order.eventId===event?.eventId&&!event.finalizedAt&&!event.reconciliationStartedAt&&time<Date.parse(event.transferCutoff)&&!order.canceledAt&&!order.bankConfirmedAt&&!order.transferReportedAt&&!order.reminderFinalAt;
+  if(job.type==='reminderFinal')return order.eventId===event?.eventId&&!event.finalizedAt&&!event.reconciliationStartedAt&&time<orderTransferCutoff(order,event)&&!order.canceledAt&&!order.bankConfirmedAt&&!order.transferReportedAt&&!order.reminderFinalAt;
   return job.type==='other'||!order.canceledAt;
 }
 
@@ -38,10 +39,18 @@ export function createMail(env, db, send = fetch) {
   const provider = env.MAIL_PROVIDER;
   const isCapture = env.MAIL_MODE === 'capture';
   const testRecipient = env.TEST_MAIL_TO;
+  const testMailSince = Date.parse(env.BAZAAR_TEST_MAIL_SINCE ?? '');
+  const directTestMail = env.BAZAAR_MODE === 'test' && env.FIREBASE_PROJECT_ID === 'asicc-bazaar-test'
+    && provider === 'brevo' && Number.isFinite(testMailSince);
+  // Never send direct rehearsal mail to an address supplied by an arbitrary visitor.
+  // Explicit, comma-separated recipients; empty/malformed configuration fails closed.
+  const approvedTestRecipients = new Set(String(env.BAZAAR_TEST_MAIL_RECIPIENTS ?? '')
+    .split(',').map(address=>address.trim().toLowerCase()).filter(isTestAddress));
+  const approvedRecipient = address => typeof address === 'string' && approvedTestRecipients.has(address.trim().toLowerCase());
   const key = env.BAZAAR_MAIL_API_KEY;
   const from = env.BAZAAR_MAIL_FROM;
   const canSend = () => isCapture || (env.MAIL_MODE === 'api' && ['resend', 'brevo'].includes(provider) && !!key && isTestAddress(from)
-    && (env.BAZAAR_MODE === 'production' || isTestAddress(testRecipient)));
+    && (env.BAZAAR_MODE === 'production' || (directTestMail ? approvedTestRecipients.size > 0 : isTestAddress(testRecipient))));
 
   const usage = db.collection('bazaarMailUsage');
   const budgetRef = usage.doc(`${provider || 'brevo'}-rolling`);
@@ -50,7 +59,8 @@ export function createMail(env, db, send = fetch) {
 
   async function providerSend(job, payload) {
     if (isCapture) return { ok: true, id: 'captured' };
-    const to = env.BAZAAR_MODE === 'production' ? payload.to : testRecipient;
+    const to = env.BAZAAR_MODE === 'production' || directTestMail ? payload.to : testRecipient;
+    if (directTestMail && !approvedRecipient(to)) return { skip:true, code:'test-recipient-not-approved' };
     // Workers supports manual redirects. Keep the credentials on the configured provider host.
     const common = { method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(8000) };
     const response = provider === 'resend'
@@ -61,7 +71,7 @@ export function createMail(env, db, send = fetch) {
       })
       : await send('https://api.brevo.com/v3/smtp/email', {
         ...common, headers: { 'api-key': key, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sender: { name: 'ASICC', email: from },
+        body: JSON.stringify({ sender: { name: directTestMail ? 'ASICC · TEST' : 'ASICC', email: from },
           headers: { idempotencyKey: job.providerKey }, subject: payload.subject,
           htmlContent: payload.html, textContent: payload.text, messageVersions: [{ to: [{ email: to }] }] })
       });
@@ -97,17 +107,26 @@ export function createMail(env, db, send = fetch) {
           payload: null, ...reschedule(job.type,null) });
         return null;
       }
-      const [orderSnap, active] = await Promise.all([tx.get(db.doc(`bazaarOrders/${job.orderId}`)),
-        job.type==='reminderFinal' ? tx.get(db.doc('bazaarMeta/event')) : null]);
-      const order = orderSnap.data();
+      const order = (await tx.get(db.doc(`bazaarOrders/${job.orderId}`))).data();
+      const active = order?.eventId && (!job.eventId || job.eventId===order.eventId) && ['receipt','reminderFinal','confirmed','pickup','other'].includes(job.type)
+        ? await tx.get(db.doc(`bazaarEventProjects/${order.eventId}`)) : null;
       const policy = order?.eventId
         ? (await tx.get(db.doc(`bazaarMailPolicies/${order.eventId}`))).data() : undefined;
+      if (directTestMail && (!Number.isFinite(Date.parse(order?.createdAt)) || Date.parse(order.createdAt) < testMailSince
+        || !Number.isFinite(Date.parse(job.createdAt)) || Date.parse(job.createdAt) < testMailSince)) {
+        tx.update(ref, {status:'skipped',lastError:'before-test-mail-activation',payload:null,...reschedule(job.type,null)});
+        return null;
+      }
+      if (directTestMail && !approvedRecipient(order?.email)) {
+        tx.update(ref,{status:'skipped',lastError:'test-recipient-not-approved',payload:null,...reschedule(job.type,null)});
+        return null;
+      }
       if (!order?.email || !autoMailAllowed(policy,job,order) || !mailMatchesOrder(job,order) || retiredTypes.has(job.type) || (job.mode==='manual'?!manualStillEligible(job,order,active?.data(),time):job.type==='bulkCancel'&&policy?.bulkCancel!=='auto')
-        || (active && job.mode!=='manual' && (!eligibleReminder(order,active.data(),policy,time) || order.reminderFinalAt))) {
+        || (job.type==='reminderFinal' && active && job.mode!=='manual' && (!eligibleReminder(order,active.data(),policy,time) || order.reminderFinalAt))) {
         tx.update(ref, { status: 'skipped', payload:null, ...reschedule(job.type,null) });
         return null;
       }
-      if (active && job.mode!=='manual' && Date.parse(policy.reminderAt)>time) {
+      if (job.type==='reminderFinal' && active && job.mode!=='manual' && Date.parse(policy.reminderAt)>time) {
         tx.update(ref,reschedule(job.type,policy.reminderAt));
         return null;
       }
@@ -117,7 +136,16 @@ export function createMail(env, db, send = fetch) {
         return null;
       }
       const kind=mailKind(job.type,order);
-      const payload = { ...message({...order,...job.change}, job.type, order.eventSnapshot,{...policy?.templates?.[kind],...job.template},job.change), to: order.email };
+      const checkout = active?.data();
+      const mailEvent = {...order.eventSnapshot};
+      if (checkout && checkout.eventId === order.eventId) {
+        for (const field of ['pickupAt','pickupEndAt','pickupPlace','pickupKo','pickupFr']) {
+          if (checkout[field]) mailEvent[field] = checkout[field];
+        }
+      }
+      const payload = { ...message({...order,...job.change}, job.type, mailEvent,
+        {...policy?.templates?.[kind],...job.template},job.change,
+        {testMode:env.BAZAAR_MODE==='test',liveEvent:checkout?.eventId===order.eventId?checkout:{status:'closed'}}), to: order.email };
       const providerKey = job.providerKey ?? randomUUID();
       if (!isCapture) {
         const monthly = provider==='resend' ? usage.doc(`resend-month-${quotaDate.format(time).slice(0,7)}`) : null;
@@ -125,7 +153,7 @@ export function createMail(env, db, send = fetch) {
         const budget = budgetSnap.data();
         const slots = freshSlots(budget,time);
         const urgent = urgentTypes.has(job.type);
-        const maximum = provider==='resend' ? 100 : urgent ? 300 : 250;
+        const maximum = directTestMail ? (urgent ? 30 : 25) : provider==='resend' ? 100 : urgent ? 300 : 250;
         const count = monthSnap?.data()?.count ?? 0;
         const pause = Number(budget?.pauseUntil) || 0;
         const observation=budget?.accountObservation;
@@ -148,13 +176,14 @@ export function createMail(env, db, send = fetch) {
     let result;
     try {
       if(job.eventId){
-        const [current,active,policy]=await db.getAll(db.doc(`bazaarOrders/${job.orderId}`),db.doc('bazaarMeta/event'),
+        const [current,active,policy]=await db.getAll(db.doc(`bazaarOrders/${job.orderId}`),db.doc(`bazaarEventProjects/${job.eventId}`),
           db.doc(`bazaarMailPolicies/${job.eventId}`));
         const order=current.data();
         const obsolete=!order||!autoMailAllowed(policy.data(),job,order)||!mailMatchesOrder(job,order)||(job.mode==='manual'?!manualStillEligible(job,order,active.data(),Date.now()):job.type==='reminderFinal'
           ? !eligibleReminder(current.data(),active.data(),policy.data(),Date.now())
           : job.type==='bulkCancel'&&(policy.data()?.bulkCancel!=='auto'||!order.canceledAt));
-        if(obsolete) result={skip:true};
+        if(directTestMail&&!approvedRecipient(order?.email)) result={skip:true,code:'test-recipient-not-approved'};
+        else if(obsolete) result={skip:true};
       }
       result ??= await providerSend(job, job.payload);
     }
@@ -185,7 +214,7 @@ export function createMail(env, db, send = fetch) {
       }
       tx.update(ref, { status: result.skip ? 'skipped' : result.retry ? 'delayed' : 'failed',
         ...reschedule(job.type,result.retry ? iso(Date.now()+result.retry) : null),
-        sendingUntil: null, lastError: result.skip ? null : result.code ?? 'provider-result-uncertain',
+        sendingUntil: null, lastError: result.skip ? result.code??null : result.code ?? 'provider-result-uncertain',
         deliveryUncertain: result.uncertain === true });
       return false;
     });
@@ -200,7 +229,7 @@ export function createMail(env, db, send = fetch) {
       const count=freshSlots(reserved.data(),time).length;
       const observed=reserved.data()?.accountObservation;
       return { acceptedToday:isCapture?0:today.data()?.count??0,capturedToday:isCapture?today.data()?.count??0:0,
-        reserved:count, normalRemaining:Math.max(0,250-count), totalRemaining:Math.max(0,300-count),
+        reserved:count, normalRemaining:Math.max(0,(directTestMail?25:250)-count), totalRemaining:Math.max(0,(directTestMail?30:300)-count),
         providerAccountRemaining:observed?.remaining??null, providerObservationAt:observed?.at??null };
     },
     recordAccountUsage(remaining) {

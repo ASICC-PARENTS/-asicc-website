@@ -22,8 +22,8 @@ jobs:
 
       - run: npm ci
 
-      - name: Check Astro build
+      - name: Build entire baseline test site against isolated services
         run: npm run build
         env:
-          SITE_URL: ${{ vars.ASICC_CUSTOM_DOMAIN != '' && format('https://{0}', vars.ASICC_CUSTOM_DOMAIN) || format('https://{0}.github.io', github.repository_owner) }}
-          BASE_PATH: ${{ vars.ASICC_CUSTOM_DOMAIN != '' && '/' || format('/{0}/', github.event.repository.name) }}
+          ASICC_BASELINE_TEST: 'true'
+          CF_PAGES_BRANCH: test-cms-fr

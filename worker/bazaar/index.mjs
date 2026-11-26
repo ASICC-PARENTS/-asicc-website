@@ -5,6 +5,7 @@ import { createMail, mailFields } from './mail.mjs';
 import { createMailAdmin } from './mail-admin.mjs';
 import { createPhotos } from './photos.mjs';
 import { timingSafeEqual } from 'node:crypto';
+import privateMedia from '../asicc-media-worker-extended.js';
 
 const codes = {
   'invalid-argument': 400, unauthenticated: 401, 'permission-denied': 403,
@@ -16,6 +17,9 @@ const maxPublicJson = 24_000;
 const maxPhoto = 4 * 1024 * 1024;
 const localUrl = /^http:\/\/(?:127\.0\.0\.1|localhost):\d+$/;
 const routeNames = new Set(['bazaarPublic', 'bazaarCreateOrder', 'bazaarBuyerAction', 'bazaarAdmin']);
+const designOrigin = 'https://design-asicc-ui.asicc-integration-test.pages.dev';
+const baselineOrigin = 'https://asicc-test.pages.dev';
+const memberMediaRoutes = new Set(['/api/upload','/api/photo','/api/resource-upload','/api/resource','/api/gallery-upload','/api/gallery']);
 const productionSite = 'https://asicc-parents.fr';
 const productionApi = 'https://asicc-bazaar-api.falling-hall-f390.workers.dev';
 const productionDraft = 'bazaar-production-first-v1';
@@ -52,7 +56,7 @@ function dependencies(env, origin, ctx, pilot = false) {
     collection: path => firestore.collection(path === 'members' ? path : pilotPrefix+path)
   } : firestore;
   const photos = createPhotos(env, db, origin, ctx);
-  const mail = createMail({...env, MAIL_MODE: 'capture'}, db);
+  const mail = createMail(env.BAZAAR_MODE === 'production' ? {...env, MAIL_MODE: 'capture'} : env, db);
   const mailManagement = createMailAdmin(db,mail);
   const service = createBazaar({
     db, FieldValue, eventPhoto: pilot ? async()=>({imageUrl:'',photoPath:''}) : photos.eventPhoto,
@@ -64,7 +68,8 @@ function dependencies(env, origin, ctx, pilot = false) {
       return Promise.resolve(false);
     },
     queueFields: mailFields, mailAdmin:mailManagement.admin,
-    batchFinalization: true, requireExplicitAdmin:env.BAZAAR_MODE==='production',pilot
+    batchFinalization: true, requireExplicitAdmin:env.BAZAAR_MODE==='production',pilot,
+    receiptCapture: env.MAIL_MODE === 'capture', emailPreviewTest: env.BAZAAR_MODE === 'test'
   });
   return { db, photos, mail, mailManagement, service, site };
 }
@@ -99,7 +104,7 @@ function allowsReadProbe(request, env) {
 }
 
 const shopKey=(origin,id)=>new Request(`${origin}/cached-bazaar-catalog/${id||'current'}`);
-const shopMutations=new Set(['endEvent','publishDraft','saveEvent','saveEventProducts','archiveProduct','setProductSales','saveProduct','addProduct','reorder','finalizeUnpaid','createRefund','voidRefund','correctOrder','cancelOrder']);
+const shopMutations=new Set(['endEvent','setOrderIntake','publishDraft','saveEvent','saveEventProducts','archiveProduct','setProductSales','saveProduct','addProduct','reorder','finalizeUnpaid','createRefund','voidRefund','correctOrder','cancelOrder']);
 
 function json(data, status, headers) {
   return Response.json(data, { status, headers: { ...headers, 'Cache-Control': 'no-store',
@@ -166,10 +171,13 @@ export default {
       }
       if (request.method === 'GET' && url.pathname.startsWith('/photo/'))
         return await dependencies(env,url.origin,ctx).photos.serve(url,publicOpen);
+      if (env.BAZAAR_MODE === 'test' && memberMediaRoutes.has(url.pathname)) {
+        return await privateMedia.fetch(request, {...env, ALLOWED_ORIGINS: [site.origin,designOrigin,baselineOrigin].join(',')});
+      }
       const name = url.pathname.slice('/api/'.length);
       if (!url.pathname.startsWith('/api/') || !routeNames.has(name)) return json({}, 404, cors);
       const origin = request.headers.get('Origin');
-      if (origin && origin !== site.origin && !(env.BAZAAR_MODE === 'test' && origin === 'http://127.0.0.1:4321')) return json({}, 403, cors);
+      if (origin && origin !== site.origin && !(env.BAZAAR_MODE === 'test' && [designOrigin,baselineOrigin,'http://127.0.0.1:4321'].includes(origin))) return json({}, 403, cors);
       if (origin) cors = { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Methods': 'POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-ASICC-Pilot', 'Access-Control-Max-Age': '600', Vary: 'Origin' };
       if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
@@ -187,7 +195,7 @@ export default {
         return json({error:{code:'failed-precondition',message:'운영 공개 설정을 확인해 주세요.'}},412,cors);
       const edge=env.BAZAAR_MODE==='local'?undefined:globalThis.caches?.default;
       const shopId=typeof data.eventId==='string'?data.eventId.trim():'';
-      const key=edge&&!pilot&&name==='bazaarPublic'&&(!shopId||/^[a-z0-9-]{12,60}$/.test(shopId))?shopKey(url.origin,shopId):null;
+      const key=edge&&!pilot&&name==='bazaarPublic'&&!data.op&&(!shopId||/^[a-z0-9-]{12,60}$/.test(shopId))?shopKey(url.origin,shopId):null;
       const cached=key?await edge.match(key).catch(()=>null):null;
       if(cached)return json({data:await cached.json()},200,cors);
       const result = await service[name]({ auth, data, rawRequest: { ip: request.headers.get('CF-Connecting-IP') } });

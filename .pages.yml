@@ -12,7 +12,7 @@ content:
   type: group
   items:
   - name: homepage
-    label: "🏠 메인 첫 화면 제목·소개 — 실제 위치: /ko/ · /fr/"
+    label: 첫 화면·협회 소개 문구 (한/불)
     type: file
     path: src/data/site-copy.json
     format: json
@@ -56,19 +56,204 @@ content:
     - name: show_extended_about
       label: 협회 소개 추가 섹션(운영진·기관·정관) 공개
       type: boolean
+  - name: home_banners
+    label: 첫 화면 배너 · 바자회·모집·후원 (한/불)
+    type: file
+    path: src/data/cms/home-campaigns.json
+    format: json
+    fields:
+    - name: bazaar
+      label: 온라인 바자회 배너
+      type: object
+      fields:
+      - name: enabled
+        label: 배너 노출 여부
+        type: boolean
+      - name: eyebrow
+        label: 상단 작은 제목
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: Français
+          type: string
+      - name: title
+        label: 큰 제목
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: Français
+          type: string
+      - name: body
+        label: 설명
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: text
+        - name: fr
+          label: Français
+          type: text
+      - name: status
+        label: 상태·안내
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: Français
+          type: string
+      - name: button
+        label: 바로가기 버튼 문구
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: Français
+          type: string
+      - name: link
+        label: 연결 주소 (news/글주소/ 또는 https://...)
+        type: string
+    - name: admissions
+      label: 신규 모집 배너
+      type: object
+      fields:
+      - name: enabled
+        label: 배너 노출 여부
+        type: boolean
+      - name: eyebrow
+        label: 상단 작은 제목
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: Français
+          type: string
+      - name: title
+        label: 큰 제목
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: Français
+          type: string
+      - name: body
+        label: 설명
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: text
+        - name: fr
+          label: Français
+          type: text
+      - name: status
+        label: 상태·안내
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: Français
+          type: string
+      - name: button
+        label: 바로가기 버튼 문구
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: Français
+          type: string
+      - name: link
+        label: 연결 주소 (news/글주소/ 또는 https://...)
+        type: string
+    - name: donation
+      label: 후원 배너 (HelloAsso)
+      type: object
+      fields:
+      - name: enabled
+        label: 배너 노출 여부
+        type: boolean
+      - name: eyebrow
+        label: 상단 작은 제목
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: Français
+          type: string
+      - name: title
+        label: 큰 제목
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: Français
+          type: string
+      - name: body
+        label: 설명
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: text
+        - name: fr
+          label: Français
+          type: text
+      - name: bankLabel
+        label: 계좌이체 제목
+        type: object
+        fields:
+        - name: ko
+          label: 한국어
+          type: string
+        - name: fr
+          label: Français
+          type: string
+      - name: membershipUrl
+        label: 연회비 납부 (HelloAsso) URL
+        type: string
+      - name: donationUrl
+        label: 자유 후원 (HelloAsso) URL
+        type: string
+      - name: bankName
+        label: 계좌 명의
+        type: string
+      - name: iban
+        label: 계좌 IBAN
+        type: string
   - name: homepage_tiles
-    label: "🏠 메인 바로가기 카드 6개 — 첫 화면 중단"
+    label: 첫 화면 바로가기 6개 (한/불)
     type: file
     path: src/data/cms/home-tiles.json
     format: json
     list: true
     fields:
     - name: k
-      label: "관리용 카드 ID (변경 불가)"
+      label: 아이콘 식별자
       type: string
       readonly: true
     - name: path
-      label: "버튼 이동 주소 (변경 불가)"
+      label: 링크 주소
       type: string
       readonly: true
     - name: title_ko
@@ -84,7 +269,7 @@ content:
       label: Description - français
       type: text
   - name: page_index
-    label: "🏠 첫 화면 상세 문구 — 최신 소식·학교 소개 영역"
+    label: 첫 화면 페이지 문구 (한/불)
     type: file
     path: src/data/cms/pages/index.json
     format: json
@@ -180,7 +365,7 @@ content:
         label: Français
         type: string
   - name: menu_texts
-    label: "🧭 모든 페이지 상단 메뉴 및 하단 푸터"
+    label: 메뉴·푸터 공통 문구 (한/불)
     type: file
     path: src/data/cms/navigation.json
     format: json

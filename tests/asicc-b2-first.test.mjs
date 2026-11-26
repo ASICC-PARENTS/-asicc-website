@@ -6,7 +6,7 @@ const worker = read('worker/asicc-media-worker-extended.js');
 const gallery = read('src/scripts/members/gallery.ts');
 const galleryPage = read('src/pages/[lang]/membres/gallery.astro');
 const adminPage = read('src/pages/[lang]/membres/admin.astro');
-const rules = read('firestore.rules.PROPOSED_ONLY');
+const rules = read('firestore.rules');
 test('resource and gallery media remain on B2; no Drive upload integration', () => {
   assert.match(worker, /async function b2Request\(/);
   assert.match(worker, /resource\?'learningResources':'galleryItems'/);

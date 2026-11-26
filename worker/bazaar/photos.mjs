@@ -172,7 +172,7 @@ export function createPhotos(env, db, origin, ctx, fetcher = fetch) {
       const cacheKey = new Request(`${origin}/cached-bazaar-photo/${digest}`);
       const edge = globalThis.caches?.default;
       if (!privateView) {
-        const [event, product] = await db.getAll(db.doc('bazaarMeta/event'), db.doc(`bazaarProducts/${productId}`));
+        const [event, product] = await db.getAll(db.doc(`bazaarEventProjects/${eventId}`), db.doc(`bazaarEventProjects/${eventId}/products/${productId}`));
         const active = event.data();
         const item = product.data();
         if (active?.eventId !== eventId || active.status !== 'published' || active.finalizedAt

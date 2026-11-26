@@ -145,12 +145,31 @@ function validSelfNicknameUpdate(uid) {
         && next.get('dmMode','auto') in ['auto','on','off']
         && next.dmUpdatedBy == request.auth.uid && next.dmUpdatedAt == request.time;
     }
+    // A nickname-only admin update is checked independently. It cannot alter
+    // roles, status, e-mail or any other profile fields and must be coordinated
+    // with the nickname reservation and the public alias in the same commit.
+    // This avoids evaluating the unrelated full profile editor rules for a
+    // nickname-only transaction (Firestore limits rule expression evaluations).
+    function validAdminNicknameOnlyUpdate(uid) {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return isAdmin() && uid != request.auth.uid
+        && changed.hasOnly(['nickname','nicknameKey'])
+        && changed.hasAll(['nickname','nicknameKey'])
+        && nicknameValid(request.resource.data.nickname,request.resource.data.nicknameKey)
+        && request.resource.data.nicknameKey != resource.data.get('nicknameKey','')
+        && getAfter(nicknamePath(request.resource.data.nicknameKey)).data.uid == uid
+        && getAfter(nicknamePath(request.resource.data.nicknameKey)).data.nickname == request.resource.data.nickname
+        && getAfter(publicNameDoc(uid)).data.nickname == request.resource.data.nickname
+        && (resource.data.get('nicknameKey','') == ''
+            || !existsAfter(nicknamePath(resource.data.nicknameKey)));
+    }
+
     match /members/{uid} {
       // Member profiles remain private; only admins can list members.
       allow get: if signedIn() && request.auth.uid == uid || isAdmin();
       allow list: if isAdmin();
       allow create: if validRegistration(uid);
-      allow update: if validAdminMessagingUpdate(uid) || validSelfNicknameUpdate(uid) || validAdminMemberUpdate(uid);
+      allow update: if validAdminMessagingUpdate(uid) || validSelfNicknameUpdate(uid) || validAdminNicknameOnlyUpdate(uid) || validAdminMemberUpdate(uid);
       allow delete: if false;
     }
 
@@ -984,7 +1003,64 @@ function validUpgrade(uid) {
           && resource.data.get('recipientDeletedAt',null) == null && request.resource.data.recipientDeletedAt == request.time));
       allow delete: if false;
     }
+    // Public homepage editorial banners. Only the two fixed documents are readable
+    // without login. No private member data or arbitrary content collections exposed.
+    function validBannerText(field, limit) {
+      return field is string && field.size() <= limit;
+    }
+    function validEditorialBanner() {
+      let v = request.resource.data;
+      return v.keys().hasOnly([
+        'enabled','link','eyebrow_ko','eyebrow_fr','title_ko','title_fr',
+        'body_ko','body_fr','status_ko','status_fr','button_ko','button_fr',
+        'updatedAt','updatedBy'
+      ]) && v.keys().hasAll([
+        'enabled','link','eyebrow_ko','eyebrow_fr','title_ko','title_fr',
+        'body_ko','body_fr','status_ko','status_fr','button_ko','button_fr',
+        'updatedAt','updatedBy'
+      ])
+        && v.enabled is bool
+        && validBannerText(v.link, 500)
+        && (v.link.matches('^news/[a-z0-9/_-]+/$')
+          || v.link.matches('^(https://(www[.])?asicc-parents[.]fr/(ko|fr)/)?bazaar/[?]event=[a-z0-9-]{12,60}$')
+          || (v.link.matches('^https://[^\\s]+$')
+            && !v.link.matches('(?i)^https://(www[.])?asicc-parents[.]fr/(ko|fr)/bazaar([/?#].*)?$')))
+        && validBannerText(v.eyebrow_ko,100) && validBannerText(v.eyebrow_fr,100)
+        && validBannerText(v.title_ko,120) && v.title_ko.size()>0
+        && validBannerText(v.title_fr,120) && v.title_fr.size()>0
+        && validBannerText(v.body_ko,600) && validBannerText(v.body_fr,600)
+        && validBannerText(v.status_ko,100) && validBannerText(v.status_fr,100)
+        && validBannerText(v.button_ko,60) && v.button_ko.size()>0
+        && validBannerText(v.button_fr,60) && v.button_fr.size()>0
+        && v.updatedAt == request.time
+        && v.updatedBy == request.auth.uid;
+    }
+    match /publicHomeBanners/{bannerId} {
+      allow get: if bannerId in ['bazaar','admissions'];
+      allow list: if false;
+      allow create, update: if bannerId in ['bazaar','admissions'] && isAdmin() && validEditorialBanner();
+      allow delete: if bannerId in ['bazaar','admissions'] && isAdmin();
+    }
+
+    // Staging homepage banner overrides stay separate from the production domain.
+    match /publicHomeBannersTest/{bannerId} {
+      allow get: if bannerId in ['bazaar','admissions'];
+      allow list: if false;
+      allow create, update: if bannerId in ['bazaar','admissions'] && isAdmin() && validEditorialBanner();
+      allow delete: if bannerId in ['bazaar','admissions'] && isAdmin();
+    }
+
     // Anything not explicitly approved above is denied.
+
+    // 바자회 데이터는 인증·권한을 확인하는 Cloud Functions를 통해서만 접근합니다.
+    match /bazaarProducts/{id} { allow read, write: if false; }
+    match /bazaarOrders/{id} { allow read, write: if false; }
+    match /bazaarMeta/{id} { allow read, write: if false; }
+    match /bazaarOutbox/{id} { allow read, write: if false; }
+    match /bazaarRateLimits/{id} { allow read, write: if false; }
+    match /bazaarEvents/{id} { allow read, write: if false; }
+    match /bazaarDrafts/{id} { allow read, write: if false; }
+
     match /{document=**} { allow read, write: if false; }
   }
 }
