@@ -31,7 +31,7 @@ const lang = Astro.params.lang as Lang;
         <label>{L(lang,{ko:'성함',fr:'Nom et prénom'})}<input name="name" autocomplete="name" maxlength="100" required/></label>
         <label>{L(lang,{ko:'휴대전화',fr:'Téléphone'})}<input name="phone" type="tel" autocomplete="tel" maxlength="40" required/></label>
         <label>{L(lang,{ko:'이메일',fr:'Adresse e-mail'})}<input name="email" type="email" autocomplete="email" maxlength="200" required/></label>
-        <label>{L(lang,{ko:'판매자에게 전달할 사항 (선택)',fr:'Informations complémentaires pour le retrait (facultatif)'})}<textarea name="pickupNote" maxlength="500" rows="4"></textarea></label>
+        <label>{L(lang,{ko:'판매자에게 전달할 사항 (선택)',fr:'Informations complémentaires pour le retrait (facultatif)'})}<textarea name="pickupNote" maxlength="500" rows="4" placeholder={L(lang,{ko:'예) 아이가 하굣길에 4시 30분쯤 찾으러 갈 거예요.',fr:'Ex. : Mon enfant viendra récupérer la commande vers 16 h 30 à la sortie de l’école.'})}></textarea></label>
         <p class="buyer-hint">{L(lang,{ko:'기한 안에 송금하고 송금 완료를 알려 주세요. 송금 신고 또는 입금 확인 후에는 온라인에서 직접 취소할 수 없습니다.',fr:'Effectuez et signalez votre virement avant la date limite. Après le signalement ou la confirmation du paiement, l’annulation en ligne n’est plus possible.'})}</p>
         <BuyerTerms lang={lang}><div id="bz-payment-rules"></div></BuyerTerms>
         <label class="bz-consent"><input type="checkbox" name="consent" required/> {L(lang,{ko:'주문 변경·취소·환불 및 상품 수령 안내를 확인했으며, 주문 처리와 연락을 위한 개인정보 이용에 동의합니다.',fr:'J’ai lu les conditions de modification, d’annulation, de remboursement et de retrait. J’accepte l’utilisation de mes données pour traiter ma commande et me contacter.'})}</label>
@@ -57,6 +57,7 @@ import {orderIntakeState} from '../../../../firebase-functions-bazaar/bazaar/ord
 import "../../../lib/bazaar/shop-view.css";
 import {bindStorageLabels,changeCartQuantity,quantityCap,renderShopEvent,renderShopProducts,preserveShopDisclosures} from "../../../lib/bazaar/shop-view";
 import {getShop,createOrder,eFormat,h,orderRequestId,parisDeadline} from '../../../lib/bazaar/api';
+import {renderPickupDetail} from '../../../lib/bazaar/pickup-view';
 const root=document.querySelector<HTMLElement>('#bz')!;
 const lang=root.dataset.lang==='fr'?'fr':'ko';
 const t=(ko:string,fr:string)=>lang==='fr'?fr:ko;
@@ -110,9 +111,13 @@ function render(){
     :t('주문 접수 중 · 회원가입 없이 주문 가능','Commandes ouvertes · Sans inscription');
   $('#bz-status').classList.toggle('is-open',!closed);
   $('#bz-notice-summary').textContent=t('주문 후 '+hours+'시간 이내 송금 · 직접 수령','Paiement par virement sous '+hours+' heures · Retrait sur place');
-  const heroMarkup=renderShopEvent(event,lang,{logoUrl:import.meta.env.BASE_URL+'bazaar-email-wordmark.png'});
+  const statusNode=$('#bz-status');
+  const heroMarkup=renderShopEvent(event,lang,{showStatus:true});
   if(heroMarkup!==renderedHero){
-    preserveShopDisclosures($('#bz-hero'),()=>{$('#bz-hero').innerHTML=heroMarkup;});
+    preserveShopDisclosures($('#bz-hero'),()=>{
+      $('#bz-hero').innerHTML=heroMarkup;
+      $('#bz-hero .bz-hero-status-slot').append(statusNode);
+    });
     renderedHero=heroMarkup;
   }
   $('#bz-products').innerHTML=renderShopProducts(products,lang,{
@@ -195,6 +200,8 @@ async function sendOrder(){
         name:fd.get('name'),phone:fd.get('phone'),email:fd.get('email'),pickupNote:fd.get('pickupNote'),items};
       pendingOrder={...request, requestId:await orderRequestId(request.eventId,request)};
     }
+    // Older test workers return pickupKo only. The already loaded matching event provides the other language until the API is updated.
+    const pickupSnapshot={pickupKo:event.pickupKo,pickupFr:event.pickupFr};
     const result=await createOrder(pendingOrder);
     if(!result?.id||!result?.token)throw new Error('Order result missing');
     pendingOrder=undefined;
@@ -222,6 +229,7 @@ async function sendOrder(){
       <div><dt>${t('송금 마감','Date limite de virement')}</dt><dd>${h(formatParisPaymentDeadline(result.transferCutoff,lang))}</dd></div>
       ${result.pickupAt?`<div><dt>${t('상품 수령','Retrait des commandes')}</dt><dd>${h(formatParisPickupRange(result.pickupAt,result.pickupEndAt,lang))}</dd></div>`:''}
       ${result.pickupPlace?`<div><dt>${t('수령 장소','Lieu du retrait')}</dt><dd>${h(result.pickupPlace)}</dd></div>`:''}</dl>
+      ${renderPickupDetail({...pickupSnapshot,...result},lang)}
       <div class="buyer-actions"><a class="buyer-link" href="${h(link)}" rel="noreferrer">${t('주문 조회 링크','Lien de suivi de la commande')}</a>
       <a class="buyer-btn" href="${h(paymentLink)}" rel="noreferrer">${t('송금 정보 보기','Voir les coordonnées bancaires')}</a></div>`;
     receipt.focus();
@@ -277,6 +285,6 @@ setInterval(()=>{
  if(event.status&&phase!==lastPhase){lastPhase=phase;render();}
 },1000);
 const refreshVisible=()=>{if(!document.hidden&&event.status!=='closed')void refresh();};
-setInterval(refreshVisible,60000);
+setInterval(refreshVisible,15000);
 document.addEventListener('visibilitychange',refreshVisible);
 </script>

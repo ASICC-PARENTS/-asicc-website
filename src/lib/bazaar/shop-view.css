@@ -54,9 +54,9 @@
 .bz-storage-icon span{display:none;position:absolute;z-index:2;left:0;bottom:100%;padding:4px 6px;background:#1f3145;color:white;border-radius:4px;white-space:nowrap;font-size:.78rem}
 .bz-storage-icon:hover span,.bz-storage-icon:focus-visible span,.bz-storage-icon[aria-expanded=true] span{display:block}
 .bz-shared-product .bz-desc h3{margin:0;font-size:1rem;overflow-wrap:break-word}
-.bz-shared-product .bz-desc p{margin:4px 0;font-size:.84rem;color:#546375}
+.bz-shared-product .bz-desc p{margin:6px 0 0;font-size:.84rem;line-height:1.75;color:#546375}
 .bz-shared-product .bz-shared-actions .bz-stock{margin:0;color:#a52630;font-size:.76rem;font-weight:700;line-height:1.35;text-align:center;justify-self:center;max-width:108px;overflow-wrap:break-word;word-break:keep-all}
-.bz-shared-product .bz-price{font-size:1rem;color:#253952;white-space:nowrap}
+.bz-shared-product .bz-price{display:block;margin-top:12px;font-size:1rem;color:#253952;white-space:nowrap}
 .bz-shared-actions{display:grid;justify-items:stretch;gap:4px}.bz-shared-actions .bz-qty{display:flex;align-items:center;justify-content:space-between;gap:4px;margin:0}
 .bz-shared-actions .bz-qty button{width:30px;height:32px;min-width:0;padding:0}.bz-shared-actions .bz-btn{font-size:.82rem;padding:6px 8px}
 .bz-shared-actions button:disabled{opacity:.45;cursor:not-allowed}
@@ -77,3 +77,33 @@
 .preview-shop-shell .buyer-terms-content a{color:#812e43}
 .preview-shop-shell .bz-basket .bz-consent{display:flex;align-items:flex-start;gap:8px;margin:18px 0;font-size:14px;font-weight:400;line-height:1.5}
 .preview-shop-shell .bz-basket .bz-consent input[type=checkbox]{display:inline-block;flex:none;width:auto;min-width:0;height:auto;min-height:0;padding:0;margin:.4em 0 0}
+
+/* Design review: compact heading, consistently aligned 22px information icons. */
+.bz-hero-banner{padding:clamp(18px,3vw,27px) 16px;gap:7px}
+.bz-hero-status-slot{display:flex;justify-content:center;width:100%;min-width:0;margin-top:6px}
+.bz-pickup-card .bz-disclosure>summary{padding-inline:0;gap:9px}
+.bz-pickup-card>.bz-deadline{padding-inline:0;gap:9px}
+.bz-pickup-card .bz-info-icon{width:22px;height:22px;margin-top:1px}
+.bz-pickup-card .bz-disclosure-body{padding-left:31px}
+.bz-shared-hero .bz-pickup-place{margin-left:31px}
+@media(max-width:480px){.bz-hero-banner{padding:18px 12px}.bz-deadline .bz-info-icon,.bz-disclosure>summary .bz-info-icon{width:20px;height:20px}.bz-pickup-card .bz-info-icon{width:20px;height:20px}.bz-pickup-card>.bz-deadline,.bz-pickup-card .bz-disclosure>summary{gap:8px}.bz-shared-hero .bz-pickup-place{margin-left:28px}.bz-pickup-card .bz-disclosure-body{padding-left:28px}}
+
+/* Pickup address is subordinate to the pickup information, not another top-level row. */
+.bz-pickup-card .bz-disclosure{margin-left:31px;margin-top:7px;border-top:1px solid #dce4eb}
+.bz-pickup-card .bz-disclosure>summary{padding:9px 0;gap:7px;font-size:.83rem;color:#52677b;font-weight:600}
+.bz-pickup-card .bz-disclosure>summary .bz-info-icon{width:17px;height:17px;color:#61788b;margin-top:0}
+.bz-pickup-card .bz-disclosure-body{padding:2px 8px 10px 24px}
+@media(max-width:480px){.bz-pickup-card .bz-disclosure{margin-left:28px}.bz-pickup-card .bz-disclosure>summary{font-size:.8rem}.bz-pickup-card .bz-disclosure>summary .bz-info-icon{width:16px;height:16px}.bz-pickup-card .bz-disclosure-body{padding-left:23px}}
+
+/* Make the nested pickup disclosure visibly interactive without duplicating the location pin. */
+.bz-pickup-card .bz-disclosure{border:1px solid #cddbe5;border-radius:8px;background:#fff;margin-top:9px;overflow:hidden}
+.bz-pickup-card .bz-disclosure>summary{padding:10px 11px;color:#34546f;min-height:44px;box-sizing:border-box;gap:8px}
+.bz-pickup-card .bz-disclosure>summary:hover{background:#f2f6f9}
+.bz-pickup-card .bz-disclosure>summary:focus-visible{outline-offset:-3px}
+.bz-pickup-card .bz-toggle-label{font-size:.73rem;font-weight:650;color:#456781;flex:none;white-space:nowrap}
+.bz-pickup-card .bz-collapse-label,.bz-pickup-card .bz-disclosure[open] .bz-expand-label{display:none}
+.bz-pickup-card .bz-disclosure[open] .bz-collapse-label{display:inline}
+.bz-pickup-card .bz-disclosure[open]>summary{border-bottom:1px solid #e2e9ef}
+.bz-pickup-card .bz-chevron{width:9px;height:9px;color:#34546f;border-color:currentColor}
+.bz-pickup-card .bz-disclosure-body{padding:10px 12px 12px 35px}
+@media(max-width:480px){.bz-pickup-card .bz-disclosure>summary{padding:9px 8px;gap:6px}.bz-pickup-card .bz-toggle-label{font-size:.69rem}.bz-pickup-card .bz-disclosure-body{padding-left:30px}}
