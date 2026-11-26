@@ -97,7 +97,7 @@ function mailLayout({lang,logoUrl,title,brand,body,footer,testNotice}){
     </body></html>`;
 }
 
-export function renderOrderEmail({order,type,event={},template={},change={},site,canCancel=false,testMode=false}){
+export function renderOrderEmail({order,type,event={},template={},change={},site,canCancel=false,testMode=false,pilot=false}){
   const lang=order.lang==='fr'?'fr':'ko',t=(ko,fr)=>lang==='fr'?fr:ko;
   const eventName=t(event.nameKo,event.nameFr)||event.nameKo||event.nameFr||'';
   const [defaultTitle,introDefault,tone]=({
@@ -122,6 +122,7 @@ export function renderOrderEmail({order,type,event={},template={},change={},site
     'TEST ASICC — Commande de test. Aucun virement n’est nécessaire.'):'';
   const url=new URL('/'+lang+'/bazaar/commande/',site);
   url.searchParams.set('id',order.id);
+  if(pilot)url.searchParams.set('pilot','1');
   url.hash='token='+encodeURIComponent(order.buyerToken);
   const anchor=focus=>url.href+'&focus='+focus;
   const viewLabels={
@@ -207,11 +208,6 @@ export function renderOrderEmail({order,type,event={},template={},change={},site
       [t('송금 메모','Libellé du virement'),order.orderRef,'background:#E7EEF4;'+referenceStyle],
       ...(!balance?[[deadlineTitle,deadline,'font-weight:700;color:'+palette.pending+';']]:[])];
     addFacts(paymentTitle,rows);
-    const paymentUrl=new URL(url);
-    paymentUrl.searchParams.set('payment','1');
-    const copyLabel=t('송금 정보 확인 및 복사하기','Consulter et copier les coordonnées du virement');
-    body.push(button(copyLabel,paymentUrl.href,'secondary'));
-    plain.push(copyLabel+' '+paymentUrl.href);
     const instruction=transferIdentification(lang);
     body.push(paragraph(instruction,muted+'margin-top:10px;'));
     plain.push(instruction);

@@ -56,16 +56,22 @@ import {formatParisPaymentDeadline,formatParisPickupRange,paymentGuidance,transf
 import {orderIntakeState} from '../../../../firebase-functions-bazaar/bazaar/order-intake.mjs';
 import "../../../lib/bazaar/shop-view.css";
 import {bindStorageLabels,changeCartQuantity,quantityCap,renderShopEvent,renderShopProducts,preserveShopDisclosures} from "../../../lib/bazaar/shop-view";
-import {getShop,createOrder,eFormat,h,orderRequestId,parisDeadline} from '../../../lib/bazaar/api';
+import {getShop,createOrder,eFormat,h,orderRequestId,parisDeadline,pilotLink,pilotMode} from '../../../lib/bazaar/api';
 import {renderPickupDetail} from '../../../lib/bazaar/pickup-view';
 const root=document.querySelector<HTMLElement>('#bz')!;
 const lang=root.dataset.lang==='fr'?'fr':'ko';
 const t=(ko:string,fr:string)=>lang==='fr'?fr:ko;
+if(pilotMode){
+  const notice=document.createElement('p');notice.className='buyer-hint';
+  notice.textContent=t('비공개 검수 · 가상 주문입니다. 실제 송금하지 마세요.','Répétition privée · Commande fictive. Ne faites aucun virement.');
+  root.prepend(notice);
+}
 bindStorageLabels(root);
 const requestedEvent=new URLSearchParams(location.search).get('event')||'';
-if(requestedEvent)document.querySelectorAll<HTMLAnchorElement>('[data-lang-switch]').forEach(link=>{
+if(requestedEvent||pilotMode)document.querySelectorAll<HTMLAnchorElement>('[data-lang-switch]').forEach(link=>{
  const url=new URL(link.href);
  if(requestedEvent)url.searchParams.set('event',requestedEvent);
+ if(pilotMode)url.searchParams.set('pilot','1');
  link.href=url.href;
 });
 type OrderRequest = {
@@ -207,12 +213,12 @@ async function sendOrder(){
     pendingOrder=undefined;
     submitted=true;$('#bz-checkout').hidden=true;$('#bz-toggle').hidden=true;
     $('#bz-order-feedback').hidden=true;
-    const link=`${root.dataset.orderUrl}?id=${encodeURIComponent(result.id)}#token=${encodeURIComponent(result.token)}`;
+    const link=pilotLink(`${root.dataset.orderUrl}?id=${encodeURIComponent(result.id)}#token=${encodeURIComponent(result.token)}`);
     $('#bz-shop').hidden=true;
     $('#bz-hero').hidden=true;
     const receipt=$('#bz-receipt');
     receipt.hidden=false;
-    const paymentLink=`${root.dataset.orderUrl}?id=${encodeURIComponent(result.id)}&payment=1#token=${encodeURIComponent(result.token)}`;
+    const paymentLink=pilotLink(`${root.dataset.orderUrl}?id=${encodeURIComponent(result.id)}&payment=1#token=${encodeURIComponent(result.token)}`);
     const mailMessage={
       sent:t('주문 내역과 주문 조회 링크를 이메일로 보내드렸습니다.','Le récapitulatif et le lien de suivi ont été envoyés par e-mail.'),
       capture:t('실제 이메일은 발송되지 않았습니다. 아래 주문 조회 링크를 저장해 주세요.','Aucun e-mail réel n’a été envoyé. Conservez le lien de suivi ci-dessous.'),

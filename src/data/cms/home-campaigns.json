@@ -2,26 +2,26 @@
   "bazaar": {
     "enabled": true,
     "eyebrow": {
-      "ko": "🎉 ASICC BAZAAR · COMING SOON!",
-      "fr": "🎉 BAZAR ASICC · BIENTÔT !"
+      "ko": "🎉 ASICC BAZAAR",
+      "fr": "🎉 BAZAR ASICC"
     },
     "title": {
-      "ko": "한국의 맛이 찾아옵니다! 🎁",
-      "fr": "Les saveurs de Corée arrivent ! 🎁"
+      "ko": "제1회 ASICC 온라인 바자회가 열렸습니다",
+      "fr": "Le premier bazar en ligne de l’ASICC est ouvert"
     },
     "body": {
-      "ko": "맛있는 한국 먹거리와 함께하는 제1회 ASICC 온라인 바자회! 기대해 주세요. 곧 만나요!",
-      "fr": "Le premier bazar solidaire en ligne de l’ASICC arrive, avec de délicieuses spécialités coréennes à partager !"
+      "ko": "상품과 수령 일정을 확인하고 온라인으로 주문해 주세요. 주문 후 계좌이체로 결제할 수 있습니다.",
+      "fr": "Découvrez les produits et les modalités de retrait, puis passez votre commande en ligne. Le règlement se fait par virement bancaire."
     },
     "status": {
-      "ko": "오픈 일정은 곧 공개할게요!",
-      "fr": "Ouverture annoncée prochainement !"
+      "ko": "온라인 주문 접수 중",
+      "fr": "Commandes ouvertes"
     },
     "button": {
-      "ko": "바자회 소식 보러가기",
-      "fr": "Découvrir le bazar"
+      "ko": "상품 보기 및 주문하기",
+      "fr": "Voir les produits et commander"
     },
-    "link": "news/2026-11-22-bazaar/"
+    "link": "bazaar/?event=bazaar-production-first-v1"
   },
   "donation": {
     "enabled": true,

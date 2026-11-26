@@ -45,14 +45,19 @@ const lang = Astro.params.lang as Lang;
 <script>
 import {formatParisDateTime,formatParisPaymentDeadline,formatParisPickupRange,paymentGuidance,transferIdentification} from '../../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
 import {compactIban,displayIban} from '../../../../firebase-functions-bazaar/bazaar/iban.mjs';
-import {buyerAction,eFormat,h} from '../../../lib/bazaar/api';
+import {buyerAction,eFormat,h,pilotLink,pilotMode} from '../../../lib/bazaar/api';
 import {renderPickupDetail} from '../../../lib/bazaar/pickup-view';
 
 const root=document.querySelector<HTMLElement>('#bo')!;
 const lang=root.dataset.lang==='fr'?'fr':'ko';
 const t=(ko:string,fr:string)=>lang==='fr'?fr:ko;
 const $=<T extends HTMLElement=HTMLElement>(selector:string)=>root.querySelector<T>(selector)!;
-$('#bo-back').setAttribute('href',root.dataset.shop!);
+$('#bo-back').setAttribute('href',pilotLink(root.dataset.shop!));
+if(pilotMode){
+  const notice=document.createElement('p');notice.className='buyer-hint';
+  notice.textContent=t('가상 주문 · 실제 송금하지 마세요.','Commande fictive · Aucun virement à effectuer.');
+  root.prepend(notice);
+}
 const params=new URLSearchParams(location.search),id=params.get('id');
 const fragment=new URLSearchParams(location.hash.slice(1));
 const linkToken=fragment.get('token')??params.get('token');
@@ -119,7 +124,7 @@ function paymentSection(){
   const guidance=paymentGuidance(lang,order.paymentHours??undefined);
   return `<section class="buyer-section"><h${stage==='payment'?'1':'2'}>${t('송금 정보','Coordonnées bancaires')}</h${stage==='payment'?'1':'2'}>
     <dl class="buyer-facts">
-      ${fact(t('송금 금액','Montant à virer'),'<strong>'+eFormat(amount)+'</strong>'+copy((amount/100).toFixed(2).replace('.',','),t('송금 금액 복사','Copier le montant')))}
+      ${fact(t('송금 금액','Montant à virer'),'<strong>'+eFormat(amount)+'</strong>')}
       ${fact(t('예금주','Bénéficiaire'),h(order.beneficiary)+copy(order.beneficiary,t('수취인 복사','Copier le bénéficiaire')))}
       ${fact('IBAN',h(displayIban(order.iban))+copy(compactIban(order.iban),t('IBAN 복사','Copier l’IBAN')))}
       ${fact(t('송금 메모','Libellé du virement'),h(order.orderRef)+copy(order.orderRef,t('송금 메모 복사','Copier le libellé du virement')))}
@@ -242,7 +247,7 @@ panel.addEventListener('click',async event=>{
   const target=(event.target as HTMLElement).closest<HTMLButtonElement>('button');
   if(!target||busy)return;
   const copyValue=target.dataset.action==='copy-link'
-    ?new URL(location.pathname+'?id='+encodeURIComponent(id!)+'#token='+encodeURIComponent(token!),location.origin).href
+    ?new URL(pilotLink(location.pathname+'?id='+encodeURIComponent(id!)+'#token='+encodeURIComponent(token!)),location.origin).href
     :target.dataset.copy;
   if(copyValue){
     try{

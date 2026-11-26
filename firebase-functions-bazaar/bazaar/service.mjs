@@ -5,7 +5,7 @@ import {orderTermsVersion} from './order-terms.mjs';
 import {randomBytes, timingSafeEqual, createHash} from 'node:crypto';
 import {catalogue, initialEvent} from './products.mjs';
 import {renderOrderEmail} from './order-email.mjs';
-import {defaultHomePopup,normalizeHomePopup,publicHomePopup} from './home-popup.mjs';
+import {defaultHomePopup,normalizeHomePopup,publicHomePopup,singleImageHomePopup} from './home-popup.mjs';
 import {hasCheckoutAccount,latestTransferCutoff,orderIntakeLocked,orderIntakeState} from './order-intake.mjs';
 
 export class BazaarError extends Error {
@@ -28,7 +28,7 @@ function depositDetails(data) {
 
 export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePhoto, eventPhoto, siteUrl,
   sendQueuedMail, canSendMail, queueFields = () => ({}), mailAdmin, evidence, batchFinalization = false,
-  receiptCapture = false, emailPreviewTest = false }) {
+  receiptCapture = false, emailPreviewTest = false, requireExplicitAdmin = false, pilot = false }) {
   const orders=db.collection('bazaarOrders');
   const outbox=db.collection('bazaarOutbox');
   const eventArchives=db.collection('bazaarEvents');
@@ -43,7 +43,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     const linked=saved.data()?.link?.match(/^bazaar\/\?event=([a-z0-9-]+)$/)?.[1];
     const event=linked ? (await projects.doc(linked).get()).data() :
       (await projects.get()).docs.map(doc=>doc.data()).filter(event=>orderIntakeState(event)==='open').sort((a,b)=>b.serial-a.serial)[0];
-    return {settings:saved.exists?saved.data():defaultHomePopup(event,emailPreviewTest),event};
+    return {settings:saved.exists?singleImageHomePopup(saved.data(),event,emailPreviewTest):defaultHomePopup(event,emailPreviewTest),event};
   }
   const purchaseOrders=db.collection('bazaarPurchaseOrders');
   const eventFinancials=db.collection('bazaarEventFinancials');
@@ -238,7 +238,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     const [member, access] = await db.getAll(db.collection('members').doc(req.auth.uid), db.doc('bazaarMeta/access'));
     const profile = member.data();
     const allowed = access.data()?.adminUids;
-    if(req.auth.token?.email_verified!==true||profile?.status!=='approved'||profile.role!=='admin'||(access.exists&&(!Array.isArray(allowed)||!allowed.includes(req.auth.uid)))) throw new HttpsError('permission-denied','바자회 관리자 권한이 없습니다.');
+    if(req.auth.token?.email_verified!==true||profile?.status!=='approved'||profile.role!=='admin'||((requireExplicitAdmin||access.exists)&&(!Array.isArray(allowed)||!allowed.includes(req.auth.uid)))) throw new HttpsError('permission-denied','바자회 관리자 권한이 없습니다.');
   }
   function checkBuyerOrder(x,{emailOptional=false}={}){
     if(!x||typeof x!=='object')bad('주문 정보를 확인해 주세요.');
@@ -267,7 +267,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
   }
   function message(order,type,event={},template={},change={},options={}){
     return renderOrderEmail({order,type,event,template,change,site:siteUrl(),
-      canCancel:buyerCanCancel(options.liveEvent??event,order),testMode:options.testMode??emailPreviewTest});
+      canCancel:buyerCanCancel(options.liveEvent??event,order),testMode:pilot||(options.testMode??emailPreviewTest),pilot});
   }
   const deliver = mailId => sendQueuedMail(mailId, message);
   async function bazaarPublic(req){
@@ -425,7 +425,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     const products=projectProducts(selectedEventId);
     if(op==='getHomePopup')return {popup:(await readHomePopup()).settings};
     if(op==='saveHomePopup'){
-      const clean=normalizeHomePopup(data.popup);
+      const clean=data.popup?.image2?null:normalizeHomePopup(data.popup);
       if(!clean)bad('팝업 설정을 확인해 주세요. / Vérifiez les paramètres de la fenêtre.');
       const result=await db.runTransaction(async tx=>{
         const snapshot=await tx.get(homePopupRef);

@@ -1,0 +1,23 @@
+name = "asicc-bazaar-api"
+main = "index.mjs"
+compatibility_date = "2026-11-20"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+preview_urls = false
+keep_vars = true
+
+[vars]
+BAZAAR_MODE = "production"
+FIREBASE_PROJECT_ID = "asicc-member-space"
+BAZAAR_SITE_URL = "https://asicc-parents.fr"
+BAZAAR_PUBLIC_OPEN = "false"
+BAZAAR_PRELAUNCH_READ_ONLY = "true"
+MAIL_MODE = "capture"
+MAIL_PROVIDER = "brevo"
+BAZAAR_MAIL_FROM = "contact@asicc-parents.fr"
+B2_BUCKET = "ASICCstorage"
+B2_S3_ENDPOINT = "https://s3.eu-central-003.backblazeb2.com"
+
+# Enable the scheduler only after an approved operational review.
+[triggers]
+crons = []

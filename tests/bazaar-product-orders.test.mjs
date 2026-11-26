@@ -27,3 +27,20 @@ test('product order summary retains snapshot items whose product row is absent',
   assert.equal(rows[0].fr,'Titre conservé');
   assert.equal(rows[0].amountCents,250);
 });
+
+test('product order overview calculates required cartons and remaining saleable stock',()=>{
+  const products=[{id:'tofu',ko:'두부',vendor:'K',pack:12,sale:2.2},{id:'snack',ko:'홈런볼',vendor:'K',pack:30,sale:2.05},{id:'zero',ko:'미주문',vendor:'N',pack:5,sale:7}];
+  const orders=[
+    {status:'confirmed',items:[['두부',10,2.2,'tofu',{supplier:'K',packQty:12,boxPriceTtcCents:2625}]]},
+    {status:'unpaid',items:[['두부',3,2.2,'tofu',{supplier:'K',packQty:12,boxPriceTtcCents:2600}],['홈런볼',17,2.05,'snack',{}]]},
+    {status:'canceled',items:[['두부',100,2.2,'tofu',{supplier:'K',packQty:12}]]}
+  ];
+  const rows=productOrderSummary(products,orders),tofu=rows.find(p=>p.id==='tofu'),snack=rows.find(p=>p.id==='snack'),zero=rows.find(p=>p.id==='zero');
+  assert.deepEqual([tofu.qty,tofu.packSizes,tofu.boxes,tofu.purchaseQty,tofu.remainingQty,tofu.amountCents],[13,[12],2,24,11,2860]);
+  assert.deepEqual([snack.qty,snack.boxes,snack.purchaseQty,snack.remainingQty],[17,1,30,13]);
+  assert.deepEqual([zero.qty,zero.boxes,zero.purchaseQty,zero.remainingQty],[0,0,0,0]);
+  const changed=productOrderSummary(products,[...orders,{status:'reported',items:[['두부',1,2.2,'tofu',{supplier:'K',packQty:6}]]}]).find(p=>p.id==='tofu');
+  assert.deepEqual([changed.packSizes,changed.boxes,changed.purchaseQty,changed.remainingQty],[[6,12],3,30,16]);
+  const unknown=productOrderSummary([],[{status:'confirmed',items:[['기타',2,5,'missing',{}]]}])[0];
+  assert.deepEqual([unknown.qty,unknown.boxes,unknown.purchaseQty,unknown.remainingQty],[2,null,null,null]);
+});

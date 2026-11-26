@@ -81,8 +81,25 @@ export function eventViewModel(event, items=[], orders=[], financialFinalizedAt=
   };
 }
 
+
+/** Estimate whole-carton procurement from active order quantities, without modifying orders.
+ * Different supplier/pack snapshots must be ordered separately; different prices alone do not split cartons. */
+function cartonPlan(product,groups,qty){
+ const packValue=value=>Number.isSafeInteger(Number(value))&&Number(value)>0?Number(value):null;
+ const groupList=[...(groups?.values()||[])];
+ const packSizes=[...new Set(groupList.map(g=>g.pack).filter(Boolean))].sort((a,b)=>a-b);
+ if(!groupList.length&&packValue(product?.pack))packSizes.push(packValue(product.pack));
+ const suppliers=[...new Set(groupList.map(g=>g.supplier).filter(Boolean))];
+ if(!suppliers.length&&product?.vendor)suppliers.push(product.vendor);
+ const known=groupList.every(g=>g.pack!=null);
+ const boxes=known?groupList.reduce((n,g)=>n+Math.ceil(g.qty/g.pack),0):null;
+ const purchaseQty=known?groupList.reduce((n,g)=>n+Math.ceil(g.qty/g.pack)*g.pack,0):null;
+ return {packSizes,suppliers,boxes,purchaseQty,remainingQty:purchaseQty==null?null:purchaseQty-qty};
+}
+
 export function productOrderSummary(products=[], orders=[]) {
-  const rows=new Map();
+  const rows=new Map(),cartonGroups=new Map(),productById=new Map(products.map(p=>[p.id||'legacy:'+(p.ko||p.fr||''),p]));
+  const validPack=value=>Number.isSafeInteger(Number(value))&&Number(value)>0?Number(value):null;
   for(const product of products){
     const key=product.id||`legacy:${product.ko||product.fr||''}`;
     rows.set(key,{id:key,ko:product.ko||'',fr:product.fr||'',photo:product.photo||'',price:product.sale===''?null:Number(product.sale)||0,qty:0,initialQty:0,canceledQty:0,amountCents:0,orders:[]});
@@ -103,13 +120,103 @@ export function productOrderSummary(products=[], orders=[]) {
       const row=rows.get(key)||{id:key,ko:item[0]||'',fr:item[4]?.titleFr||'',photo:item[4]?.imageUrl||'',price:null,qty:0,initialQty:0,canceledQty:0,amountCents:0,orders:[]};
       const qty=Math.max(0,Number(item[1])||0),priceCents=Math.max(0,Math.round((Number(item[2])||0)*100));
       row.qty+=qty;row.amountCents+=qty*priceCents;
+      if(qty>0){
+        const product=productById.get(key),snapshot=item[4];
+        const pack=validPack(snapshot?.packQty)??validPack(product?.pack);
+        const supplier=snapshot?.supplier||product?.vendor||'';
+        const groups=cartonGroups.get(key)||new Map(),groupKey=JSON.stringify([supplier,pack]);
+        const group=groups.get(groupKey)||{supplier,pack,qty:0};
+        group.qty+=qty;groups.set(groupKey,group);cartonGroups.set(key,groups);
+      }
       row.orders.push({id:order.id,ref:order.ref,name:order.name,email:order.email,qty,amountCents:qty*priceCents});
       rows.set(key,row);
     }
   }
-  return [...rows.values()];
+  return [...rows.values()].map(row=>({...row,...cartonPlan(productById.get(row.id),cartonGroups.get(row.id),row.qty)}));
 }
 
+/** Current accepted-order figures, using the saved order cost snapshot when present.
+ * Estimated gross margin is for sold units only, before other expenses. */
+export function orderIntakeSummary(orders=[], products=[]){
+ const byId=new Map(products.map(product=>[product.id,product]));
+ let orderCount=0,canceledCount=0,salesCents=0,costCents=0,missingCosts=0;
+ const validCost=(pack,box)=>Number.isSafeInteger(pack)&&pack>0&&Number.isSafeInteger(box)&&box>=0;
+ for(const order of orders){
+  if(order.status==='canceled'){canceledCount++;continue;}
+  orderCount++;
+  const items=order.items||[];
+  const due=order.payment?.due;
+  salesCents+=Number.isSafeInteger(due)&&due>=0?due:items.reduce((sum,item)=>sum+Math.round(Number(item[2])*100)*Number(item[1]),0);
+  for(const item of items){
+   const quantity=Number(item[1]);
+   if(!Number.isSafeInteger(quantity)||quantity<=0)continue;
+   const snapshot=item[4],product=byId.get(item[3]);
+   let pack=snapshot?.packQty,box=snapshot?.boxPriceTtcCents;
+   if(!validCost(pack,box)){
+    pack=Number(product?.pack);
+    box=product?.buy===''||product?.buy==null?null:Math.round(Number(product.buy)*100);
+   }
+   if(!validCost(pack,box)){missingCosts++;continue;}
+   costCents+=quantity*box/pack;
+  }
+ }
+ const estimatedCostCents=missingCosts?null:Math.round(costCents);
+ return {orderCount,canceledCount,salesCents,estimatedCostCents,
+  estimatedGrossCents:estimatedCostCents==null?null:salesCents-estimatedCostCents,missingCosts};
+}
+
+/** Product sales are independent of editable supplier purchase orders.
+ * Split historical supplier/pack/cost versions rather than overwrite saved snapshots. */
+export function productSalesReport(products=[],orders=[],scope='all'){
+ const byId=new Map(products.map(p=>[p.id,p])),rows=new Map(),soldIds=new Set();
+ const selected=orders.filter(o=>scope==='confirmed'?o.status==='confirmed':o.status!=='canceled');
+ const positiveInt=n=>Number.isSafeInteger(n)&&n>0;
+ const validPrice=n=>Number.isSafeInteger(n)&&n>=0;
+ const basis=(product,snapshot)=>{
+  const pack=snapshot?.packQty,box=snapshot?.boxPriceTtcCents;
+  const fallbackPack=Number(product?.pack);
+  const fallbackBox=product?.buy===''||product?.buy==null?null:Math.round(Number(product.buy)*100);
+  const useSnapshot=positiveInt(pack)&&validPrice(box);
+  return {vendor:snapshot?.supplier||product?.vendor||'',pack:useSnapshot?pack:positiveInt(fallbackPack)?fallbackPack:null,
+   boxCents:useSnapshot?box:validPrice(fallbackBox)?fallbackBox:null};
+ };
+ let dueCents=0;
+ for(const order of selected){
+  let subtotal=0;
+  for(const item of order.items||[]){
+   const qty=Number(item[1]),price=Math.round(Number(item[2])*100);
+   if(!positiveInt(qty)||!validPrice(price))continue;
+   const id=item[3]||'legacy:'+(item[0]||''),p=byId.get(id),snap=item[4],b=basis(p,snap);
+   const key=JSON.stringify([id,b.vendor,b.pack,b.boxCents]);
+   const r=rows.get(key)||{id,ko:item[0]||p?.ko||'',fr:snap?.titleFr||p?.fr||'',...b,qty:0,revenueCents:0};
+   r.qty+=qty;r.revenueCents+=qty*price;subtotal+=qty*price;
+   rows.set(key,r);soldIds.add(id);
+  }
+  dueCents+=validPrice(order.payment?.due)?order.payment.due:subtotal;
+ }
+ for(const p of products){
+  if(soldIds.has(p.id))continue;
+  const b=basis(p,null),id=p.id||'legacy:'+(p.ko||p.fr||'');
+  rows.set(JSON.stringify([id,b.vendor,b.pack,b.boxCents]),{id,ko:p.ko||'',fr:p.fr||'',...b,qty:0,revenueCents:0});
+ }
+ const result=[...rows.values()].map(r=>{
+  const known=positiveInt(r.pack)&&validPrice(r.boxCents);
+  const boxes=r.qty===0?0:positiveInt(r.pack)?Math.ceil(r.qty/r.pack):null;
+  const remaining=boxes==null?null:r.qty===0?0:boxes*r.pack-r.qty;
+  const soldCostCents=r.qty===0?0:known?Math.round(r.qty*r.boxCents/r.pack):null;
+  const purchaseCents=r.qty===0?0:known?boxes*r.boxCents:null;
+  const remainingCostCents=purchaseCents==null?null:purchaseCents-soldCostCents;
+  const grossCents=soldCostCents==null?null:r.revenueCents-soldCostCents;
+  return {...r,boxes,remaining,soldCostCents,purchaseCents,remainingCostCents,grossCents};
+ });
+ const sum=(list,field)=>list.some(r=>r[field]==null)?null:list.reduce((n,r)=>n+r[field],0);
+ const total=list=>Object.fromEntries(['qty','revenueCents','boxes','remaining','soldCostCents','purchaseCents','remainingCostCents','grossCents'].map(field=>[field,sum(list,field)]));
+ const totals=total(result);
+ const groups=[...new Set(result.map(r=>r.vendor))].map(vendor=>{
+  const items=result.filter(r=>r.vendor===vendor);return {vendor,rows:items,totals:total(items)};
+ });
+ return {rows:result,groups,totals,orderCount:selected.length,dueCents,adjustmentCents:dueCents-totals.revenueCents};
+}
 
 export function estimateEvent(products,expenses=[]){
  const amount=value=>value!==''&&value!=null&&Number.isFinite(Number(value))?Number(value):null;

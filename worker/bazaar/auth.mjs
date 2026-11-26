@@ -52,6 +52,9 @@ export async function authenticate(request, env) {
 export async function serverToken(env) {
   if (env.BAZAAR_MODE === 'local' && env.FIRESTORE_EMULATOR_URL) return 'owner';
   const email = env.FIRESTORE_CLIENT_EMAIL;
+  if (env.BAZAAR_MODE === 'production' && email !== 'asicc-bazaar-worker@asicc-member-space.iam.gserviceaccount.com') {
+    throw new Error('Unexpected production Firestore service account');
+  }
   if (!email?.endsWith(`@${env.FIREBASE_PROJECT_ID}.iam.gserviceaccount.com`) || !env.FIRESTORE_PRIVATE_KEY) {
     throw new Error('Firestore server identity unavailable');
   }

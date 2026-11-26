@@ -37,7 +37,7 @@ function manualStillEligible(job,order,event,time){
 export function createMail(env, db, send = fetch) {
   const outbox = db.collection('bazaarOutbox');
   const provider = env.MAIL_PROVIDER;
-  const isCapture = env.MAIL_MODE === 'capture' && env.BAZAAR_MODE !== 'production';
+  const isCapture = env.MAIL_MODE === 'capture';
   const testRecipient = env.TEST_MAIL_TO;
   const testMailSince = Date.parse(env.BAZAAR_TEST_MAIL_SINCE ?? '');
   const directTestMail = env.BAZAAR_MODE === 'test' && env.FIREBASE_PROJECT_ID === 'asicc-bazaar-test'

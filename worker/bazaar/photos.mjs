@@ -157,7 +157,7 @@ export function createPhotos(env, db, origin, ctx, fetcher = fetch) {
       }
       return { photoPath: product.photoPath, imageUrl: makeUrl(product.photoPath) };
     },
-    async serve(url) {
+    async serve(url, allowPublic = true) {
       const missing = () => new Response(null, { status: 404, headers: { 'Cache-Control': 'no-store' } });
       const path = url.pathname.slice('/photo/'.length);
       const key = pathPattern.exec(path);
@@ -168,6 +168,7 @@ export function createPhotos(env, db, origin, ctx, fetcher = fetch) {
       const privateView = !!env.BAZAAR_PHOTO_SIGNING_KEY && Number.isSafeInteger(expires)
         && expires > Date.now() / 1000 && /^[a-f0-9]{64}$/.test(signature)
         && timingSafeEqual(Buffer.from(signature), Buffer.from(previewSignature(path, expires)));
+      if (!privateView && !allowPublic) return missing();
       const cacheKey = new Request(`${origin}/cached-bazaar-photo/${digest}`);
       const edge = globalThis.caches?.default;
       if (!privateView) {

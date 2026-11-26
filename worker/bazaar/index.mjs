@@ -4,6 +4,7 @@ import { createFirestore, FieldValue } from './firestore.mjs';
 import { createMail, mailFields } from './mail.mjs';
 import { createMailAdmin } from './mail-admin.mjs';
 import { createPhotos } from './photos.mjs';
+import { timingSafeEqual } from 'node:crypto';
 import privateMedia from '../asicc-media-worker-extended.js';
 
 const codes = {
@@ -19,9 +20,20 @@ const routeNames = new Set(['bazaarPublic', 'bazaarCreateOrder', 'bazaarBuyerAct
 const designOrigin = 'https://design-asicc-ui.asicc-integration-test.pages.dev';
 const baselineOrigin = 'https://asicc-test.pages.dev';
 const memberMediaRoutes = new Set(['/api/upload','/api/photo','/api/resource-upload','/api/resource','/api/gallery-upload','/api/gallery']);
+const productionSite = 'https://asicc-parents.fr';
+const productionApi = 'https://asicc-bazaar-api.falling-hall-f390.workers.dev';
+const productionDraft = 'bazaar-production-first-v1';
+const pilotPrefix = 'bazaarPilot/rehearsal/';
+const productionReads = new Set(['listEvents','dashboard','getCatalog','getDraft','eventFinancials','getEventProducts']);
 
-function settings(env) {
-  if (env.BAZAAR_MODE === 'local') {
+function settings(env, origin) {
+  const production = env.BAZAAR_MODE === 'production';
+  if (production) {
+    if (env.FIREBASE_PROJECT_ID !== 'asicc-member-space' || env.FIRESTORE_EMULATOR_URL || env.AUTH_EMULATOR_URL
+      || env.BAZAAR_SITE_URL !== productionSite || origin && origin !== productionApi
+      || (!['capture','api'].includes(env.MAIL_MODE) || env.MAIL_MODE === 'api' && (env.MAIL_PROVIDER !== 'brevo' || !env.BAZAAR_MAIL_API_KEY || !env.BAZAAR_MAIL_FROM)) || env.TEST_MAIL_TO || env.BAZAAR_TEST_MAIL_RECIPIENTS || env.BAZAAR_TEST_MAIL_SINCE
+      || !['false','true'].includes(env.BAZAAR_PUBLIC_OPEN)) throw new Error('Invalid ASICC production configuration');
+  } else if (env.BAZAAR_MODE === 'local') {
     if (env.FIREBASE_PROJECT_ID !== 'demo-asicc-bazaar' || !localUrl.test(env.FIRESTORE_EMULATOR_URL)
       || !localUrl.test(env.AUTH_EMULATOR_URL)) throw new Error('Local Worker requires loopback emulators');
   } else if (env.BAZAAR_MODE !== 'test' || env.FIREBASE_PROJECT_ID !== 'asicc-bazaar-test'
@@ -31,28 +43,64 @@ function settings(env) {
   const site = new URL(env.BAZAAR_SITE_URL);
   if (site.username || site.password || site.search || site.hash
     || (site.protocol !== 'https:' && !localUrl.test(site.origin))
-    || ['asicc-parents.fr', 'www.asicc-parents.fr'].includes(site.hostname)) throw new Error('Invalid test site URL');
+    || !production && ['asicc-parents.fr', 'www.asicc-parents.fr'].includes(site.hostname)) throw new Error('Invalid Bazaar site URL');
   return site;
 }
 
-function dependencies(env, origin, ctx) {
-  const site = settings(env);
-  const db = createFirestore({ projectId: env.FIREBASE_PROJECT_ID, token: () => serverToken(env),
+function dependencies(env, origin, ctx, pilot = false) {
+  const site = settings(env, origin);
+  const firestore = createFirestore({ projectId: env.FIREBASE_PROJECT_ID, token: () => serverToken(env),
     emulator: env.FIRESTORE_EMULATOR_URL });
+  const db = pilot ? { ...firestore,
+    doc: path => firestore.doc(path === 'bazaarMeta/access' || path.startsWith('members/') ? path : pilotPrefix+path),
+    collection: path => firestore.collection(path === 'members' ? path : pilotPrefix+path)
+  } : firestore;
   const photos = createPhotos(env, db, origin, ctx);
   const mail = createMail(env, db);
   const mailManagement = createMailAdmin(db,mail);
   const service = createBazaar({
-    db, FieldValue, eventPhoto: photos.eventPhoto, storePhoto: photos.storePhoto, evidence:photos.evidence,
+    db, FieldValue, eventPhoto: pilot ? async()=>({imageUrl:'',photoPath:''}) : photos.eventPhoto,
+    storePhoto: pilot ? async()=>{throw new BazaarError('permission-denied','검수에서는 B2 쓰기가 차단됩니다.');} : photos.storePhoto,
+    evidence:pilot?undefined:photos.evidence,
     siteUrl: () => site.href.replace(/\/$/, ''), canSendMail: mail.canSend,
     sendQueuedMail: (id, message) => {
       ctx.waitUntil(mail.deliver(id, message).catch(() => {}));
       return Promise.resolve(false);
     },
     queueFields: mailFields, mailAdmin:mailManagement.admin,
-    batchFinalization: true, receiptCapture: env.MAIL_MODE === 'capture', emailPreviewTest: env.BAZAAR_MODE === 'test'
+    batchFinalization: true, requireExplicitAdmin:env.BAZAAR_MODE==='production',pilot,
+    receiptCapture: env.MAIL_MODE === 'capture', emailPreviewTest: env.BAZAAR_MODE === 'test'
   });
-  return { photos, mail, mailManagement, service, site };
+  return { db, photos, mail, mailManagement, service, site };
+}
+
+function pilotEnabled(env) {
+  return env.BAZAAR_MODE==='production'&&env.BAZAAR_PUBLIC_OPEN==='false'
+    && Date.now()<Date.parse(env.BAZAAR_PILOT_EXPIRES_AT)
+    && /^[a-f0-9]{64}$/.test(env.BAZAAR_PILOT_ACCESS_CODE??'');
+}
+
+function buyerCanPilot(env, header) {
+  return pilotEnabled(env)&&/^[a-f0-9]{64}$/.test(header??'')
+    &&timingSafeEqual(Buffer.from(env.BAZAAR_PILOT_ACCESS_CODE),Buffer.from(header));
+}
+
+function permitsDraftSetup(data) {
+  return productionReads.has(data.op)
+    || data.op==='saveDraft'&&data.id===productionDraft
+    || data.op==='saveProductDetail'&&data.scope==='draft'&&data.eventId===productionDraft
+    || data.op==='storePhoto'&&data.draft===true&&!data.catalog&&data.eventId===productionDraft;
+}
+
+function allowsReadProbe(request, env) {
+  if (env.BAZAAR_MODE !== 'production' || env.BAZAAR_PUBLIC_OPEN !== 'false'
+    || env.BAZAAR_PRELAUNCH_READ_ONLY !== 'true' || request.method !== 'HEAD'
+    || !/^\d{13}$/.test(env.BAZAAR_READ_PROBE_EXPIRES ?? '')
+    || Date.now() >= Number(env.BAZAAR_READ_PROBE_EXPIRES)) return false;
+  const secret = env.BAZAAR_READ_PROBE_TOKEN;
+  const supplied = request.headers.get('Authorization')?.match(/^Bearer ([a-f0-9]{64})$/)?.[1];
+  return /^[a-f0-9]{64}$/.test(secret ?? '') && !!supplied
+    && timingSafeEqual(Buffer.from(secret), Buffer.from(supplied));
 }
 
 const shopKey=(origin,id)=>new Request(`${origin}/cached-bazaar-catalog/${id||'current'}`);
@@ -112,31 +160,49 @@ export default {
     const url = new URL(request.url);
     let cors = {};
     try {
-      const { site, service, photos } = dependencies(env, url.origin, ctx);
+      const site=settings(env,url.origin);
+      const publicOpen=env.BAZAAR_MODE!=='production'||env.BAZAAR_PUBLIC_OPEN==='true';
+      const prelaunchReadOnly=env.BAZAAR_MODE==='production'&&env.BAZAAR_PRELAUNCH_READ_ONLY==='true';
+      if (url.pathname==='/_ops/firestore-readiness') {
+        if (!allowsReadProbe(request,env)) return new Response(null,{status:404,headers:{'Cache-Control':'no-store'}});
+        const {db}=dependencies(env,url.origin,ctx);
+        await db.doc('bazaarMeta/access').get();
+        return new Response(null,{status:204,headers:{'Cache-Control':'no-store'}});
+      }
+      if (request.method === 'GET' && url.pathname.startsWith('/photo/'))
+        return await dependencies(env,url.origin,ctx).photos.serve(url,publicOpen);
       if (env.BAZAAR_MODE === 'test' && memberMediaRoutes.has(url.pathname)) {
         return await privateMedia.fetch(request, {...env, ALLOWED_ORIGINS: [site.origin,designOrigin,baselineOrigin].join(',')});
       }
-      if (request.method === 'GET' && url.pathname.startsWith('/photo/')) return await photos.serve(url);
       const name = url.pathname.slice('/api/'.length);
       if (!url.pathname.startsWith('/api/') || !routeNames.has(name)) return json({}, 404, cors);
       const origin = request.headers.get('Origin');
       if (origin && origin !== site.origin && !(env.BAZAAR_MODE === 'test' && [designOrigin,baselineOrigin,'http://127.0.0.1:4321'].includes(origin))) return json({}, 403, cors);
       if (origin) cors = { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Max-Age': '600', Vary: 'Origin' };
+        'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-ASICC-Pilot', 'Access-Control-Max-Age': '600', Vary: 'Origin' };
       if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
       if (request.method !== 'POST') return json({}, 405, cors);
+      const pilotHeader=request.headers.get('X-ASICC-Pilot');
+      const pilot=name==='bazaarAdmin' ? pilotHeader==='admin'&&pilotEnabled(env) : buyerCanPilot(env,pilotHeader);
+      if (pilotHeader&&env.BAZAAR_MODE==='production'&&!pilot || !publicOpen&&name!=='bazaarAdmin'&&!pilot)
+        return json({},404,cors);
+      const {service,photos}=dependencies(env,url.origin,ctx,pilot);
       const auth = name === 'bazaarAdmin' ? await authenticate(request, env) : undefined;
       const data = await readData(request, name, url);
+      if(prelaunchReadOnly&&name==='bazaarAdmin'&&!pilot&&!permitsDraftSetup(data))
+        return json({error:{code:'failed-precondition',message:'운영 데이터는 현재 읽기 전용입니다.'}},412,cors);
+      if(env.BAZAAR_MODE==='production'&&name==='bazaarAdmin'&&(data.op==='seed'||!publicOpen&&!pilot&&data.op==='publishDraft'))
+        return json({error:{code:'failed-precondition',message:'운영 공개 설정을 확인해 주세요.'}},412,cors);
       const edge=env.BAZAAR_MODE==='local'?undefined:globalThis.caches?.default;
       const shopId=typeof data.eventId==='string'?data.eventId.trim():'';
-      const key=edge&&name==='bazaarPublic'&&!data.op&&(!shopId||/^[a-z0-9-]{12,60}$/.test(shopId))?shopKey(url.origin,shopId):null;
+      const key=edge&&!pilot&&name==='bazaarPublic'&&!data.op&&(!shopId||/^[a-z0-9-]{12,60}$/.test(shopId))?shopKey(url.origin,shopId):null;
       const cached=key?await edge.match(key).catch(()=>null):null;
       if(cached)return json({data:await cached.json()},200,cors);
       const result = await service[name]({ auth, data, rawRequest: { ip: request.headers.get('CF-Connecting-IP') } });
       if(name==='bazaarAdmin'&&data.op==='getEvidence'&&result instanceof Response)
         return new Response(result.body,{status:result.status,headers:{...cors,...Object.fromEntries(result.headers)}});
       if(key)ctx.waitUntil(edge.put(key,Response.json(result,{headers:{'Cache-Control':'public, max-age=10'}})).catch(()=>{}));
-      if(edge&&name==='bazaarAdmin'&&(shopMutations.has(data.op)||data.op==='saveProductDetail'&&data.scope==='event')){
+      if(edge&&!pilot&&name==='bazaarAdmin'&&(shopMutations.has(data.op)||data.op==='saveProductDetail'&&data.scope==='event')){
         const affected=data.eventId??result?.eventId??data.id;
         ctx.waitUntil(Promise.allSettled(['',affected].filter(id=>typeof id==='string'&&(!id||/^[a-z0-9-]{12,60}$/.test(id)))
           .map(id=>edge.delete(shopKey(url.origin,id)))));
@@ -152,6 +218,7 @@ export default {
     }
   },
   async scheduled(_event, env, ctx) {
+    if(env.BAZAAR_MODE==='production'&&env.BAZAAR_PRELAUNCH_READ_ONLY==='true')return;
     const { mail, service } = dependencies(env, '', ctx);
     await mail.run(service.message);
   }

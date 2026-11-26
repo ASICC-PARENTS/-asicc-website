@@ -1,7 +1,7 @@
 name: Bazaar test branch checks
 on:
   pull_request:
-    branches: [test-cms-fr]
+    branches: [test-cms-fr, main]
   push:
     branches: [feat/online-bazaar]
 permissions:
@@ -27,6 +27,9 @@ jobs:
           node --check worker/bazaar/index.mjs
       - name: Static catalog and navigation tests
         run: node --test tests/bazaar-catalog.test.mjs tests/bazaar-closure-and-navigation.test.mjs tests/bazaar-admin-workflows.test.mjs tests/bazaar-product-orders.test.mjs tests/bazaar-profit-and-locales.test.mjs tests/bazaar-shared-shop.test.mjs
+      - name: Verify closed production gates without external systems
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        run: node worker/bazaar/production-smoke.mjs
       - name: Build without deploying
         run: npm run build
         env:
