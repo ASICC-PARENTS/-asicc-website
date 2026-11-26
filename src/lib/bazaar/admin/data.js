@@ -37,7 +37,7 @@ export function eventFormFields(value){
 }
 export function productViewModel(p) {
   return {
-    id:p.id, saved:true, soldQty:Number.isSafeInteger(p.soldQty)?p.soldQty:null, hasOrderHistory:p.hasOrderHistory===true, ko:p.titleKo, fr:p.titleFr, koDesc:p.descriptionKo, frDesc:p.descriptionFr,
+    id:p.id, saved:true, cartonConfirmed:p.cartonConfirmed===true, soldQty:Number.isSafeInteger(p.soldQty)?p.soldQty:null, hasOrderHistory:p.hasOrderHistory===true, ko:p.titleKo, fr:p.titleFr, koDesc:p.descriptionKo, frDesc:p.descriptionFr,
     vendor:p.supplier, photo:p.imageUrl||'', photoPath:p.photoPath||'', emoji:'📦',
     buy:p.boxPriceTtcCents==null?'':p.boxPriceTtcCents/100, originalBuy:p.boxPriceTtcCents/100, boxHt:p.boxPriceHtCents??null,
     sale:p.retailCents==null?'':p.retailCents/100, pack:p.packQty??'',
@@ -132,7 +132,17 @@ export function productOrderSummary(products=[], orders=[]) {
       rows.set(key,row);
     }
   }
-  return [...rows.values()].map(row=>({...row,...cartonPlan(productById.get(row.id),cartonGroups.get(row.id),row.qty)}));
+  return [...rows.values()].map(row=>{
+    const product=productById.get(row.id),plan=cartonPlan(product,cartonGroups.get(row.id),row.qty);
+    if(product?.cartonConfirmed===true&&product.limitMode==='auto'){
+      const boxes=Number(product.boxes),pack=Number(product.pack);
+      if(Number.isSafeInteger(boxes)&&boxes>=0&&Number.isSafeInteger(pack)&&pack>0){
+        const purchaseQty=boxes*pack;
+        return {...row,...plan,boxes,purchaseQty,remainingQty:purchaseQty-row.qty,cartonConfirmed:true};
+      }
+    }
+    return {...row,...plan};
+  });
 }
 
 /** Current accepted-order figures, using the saved order cost snapshot when present.
