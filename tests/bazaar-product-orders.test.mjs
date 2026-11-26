@@ -44,3 +44,13 @@ test('product order overview calculates required cartons and remaining saleable 
   const unknown=productOrderSummary([],[{status:'confirmed',items:[['기타',2,5,'missing',{}]]}])[0];
   assert.deepEqual([unknown.qty,unknown.boxes,unknown.purchaseQty,unknown.remainingQty],[2,null,null,null]);
 });
+
+
+test('confirmed cartons remain fixed after order cancellation and unconfirmed products retain old calculation',()=>{
+ const product={id:'a',ko:'호떡',vendor:'K',pack:12,sale:13,boxes:2,limitMode:'auto',cartonConfirmed:true};
+ const orders=[{status:'confirmed',items:[['호떡',3,13,'a',{supplier:'K',packQty:12}]]}];
+ const [fixed]=productOrderSummary([product],orders);
+ assert.deepEqual([fixed.boxes,fixed.purchaseQty,fixed.remainingQty],[2,24,21]);
+ const [normal]=productOrderSummary([{...product,cartonConfirmed:false}],orders);
+ assert.deepEqual([normal.boxes,normal.purchaseQty,normal.remainingQty],[1,12,9]);
+});
