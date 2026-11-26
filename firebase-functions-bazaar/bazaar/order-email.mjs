@@ -1,4 +1,4 @@
-import {displayIban} from './iban.mjs';
+import {compactIban} from './iban.mjs';
 import {defaultPaymentHours,formatParisPickupTime,formatParisDateTime,formatParisPaymentDeadline,paymentGuidance,transferIdentification} from './payment-window.mjs';
 import {orderTerms,pickupContact,pickupTerms} from './order-terms.mjs';
 
@@ -203,15 +203,14 @@ export function renderOrderEmail({order,type,event={},template={},change={},site
   if(receipt||reminders||balance){
     const amount=balance?(change.amountCents??order.payment?.additionalDue??0):order.totalCents;
     const rows=[[balance?t('추가 송금액','Complément à verser'):t('송금 금액','Montant du virement'),eur(amount),emphasis],
-      [t('수취인','Bénéficiaire'),event.beneficiary],[ 'IBAN',displayIban(event.iban)],
+      [t('수취인','Bénéficiaire'),event.beneficiary],[ 'IBAN',compactIban(event.iban)],
       [t('송금 메모','Libellé du virement'),order.orderRef,'background:#E7EEF4;'+referenceStyle],
       ...(!balance?[[deadlineTitle,deadline,'font-weight:700;color:'+palette.pending+';']]:[])];
     addFacts(paymentTitle,rows);
-    const paymentUrl=new URL(url);
-    paymentUrl.searchParams.set('payment','1');
-    const copyLabel=t('송금 정보 확인 및 복사하기','Consulter et copier les coordonnées du virement');
-    body.push(button(copyLabel,paymentUrl.href,'secondary'));
-    plain.push(copyLabel+' '+paymentUrl.href);
+    const copyHint=t('수취인, IBAN, 송금 메모를 선택하여 복사한 후 은행 앱에 붙여넣어 주세요.',
+      'Sélectionnez et copiez le bénéficiaire, l’IBAN et le libellé du virement pour les coller dans votre application bancaire.');
+    body.push(paragraph(copyHint,muted+'margin-top:10px;'));
+    plain.push(copyHint);
     const instruction=transferIdentification(lang);
     body.push(paragraph(instruction,muted+'margin-top:10px;'));
     plain.push(instruction);
