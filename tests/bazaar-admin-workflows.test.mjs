@@ -197,7 +197,10 @@ test('first test bazaar uses the supplied one-image poster without changing futu
   const event={eventId:'bazaar-1795524749706-cf2ffb3aa60b',status:'published'};
   const p=defaultHomePopup(event,true);
   assert.equal(p.image1,'/popup-assets/asicc-bazaar-2026.webp');
-  assert.equal(p.image2,'');
+  assert.equal(p.image2,undefined);
+  assert.equal(defaultHomePopup({...event,eventId:'bazaar-1795637217624-e68e66bc8716'},true).image1,p.image1);
+  assert.equal(normalizeHomePopup({...p,image2:'https://example.test/old.png'}).image2,undefined);
+  assert.doesNotMatch(read('src/components/HomePopupAdmin.astro'),/name="image2"/);
   assert.equal(p.bodyKo,'');
   assert.equal(p.bodyFr,'');
   assert.ok(normalizeHomePopup(p));
@@ -208,6 +211,7 @@ test('first test bazaar uses the supplied one-image poster without changing futu
   assert.equal(normalizeHomePopup({...p,image1:'/popup-assets/../secret.png'}),null);
   assert.equal(normalizeHomePopup({...p,image1:'//example.test/a.png'}),null);
   const html=read('src/components/HomePopup.astro');
+  assert.equal((html.match(/<figure hidden>/g)||[]).length,1);
   assert.match(html,/data-layout="poster"/);
   assert.match(html,/object-fit:contain/);
 });

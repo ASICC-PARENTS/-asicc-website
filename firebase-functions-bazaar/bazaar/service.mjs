@@ -5,7 +5,7 @@ import {orderTermsVersion} from './order-terms.mjs';
 import {randomBytes, timingSafeEqual, createHash} from 'node:crypto';
 import {catalogue, initialEvent} from './products.mjs';
 import {renderOrderEmail} from './order-email.mjs';
-import {defaultHomePopup,normalizeHomePopup,publicHomePopup} from './home-popup.mjs';
+import {defaultHomePopup,normalizeHomePopup,publicHomePopup,singleImageHomePopup} from './home-popup.mjs';
 import {hasCheckoutAccount,latestTransferCutoff,orderIntakeLocked,orderIntakeState} from './order-intake.mjs';
 
 export class BazaarError extends Error {
@@ -43,7 +43,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     const linked=saved.data()?.link?.match(/^bazaar\/\?event=([a-z0-9-]+)$/)?.[1];
     const event=linked ? (await projects.doc(linked).get()).data() :
       (await projects.get()).docs.map(doc=>doc.data()).filter(event=>orderIntakeState(event)==='open').sort((a,b)=>b.serial-a.serial)[0];
-    return {settings:saved.exists?saved.data():defaultHomePopup(event,emailPreviewTest),event};
+    return {settings:saved.exists?singleImageHomePopup(saved.data(),event,emailPreviewTest):defaultHomePopup(event,emailPreviewTest),event};
   }
   const purchaseOrders=db.collection('bazaarPurchaseOrders');
   const eventFinancials=db.collection('bazaarEventFinancials');
@@ -425,7 +425,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     const products=projectProducts(selectedEventId);
     if(op==='getHomePopup')return {popup:(await readHomePopup()).settings};
     if(op==='saveHomePopup'){
-      const clean=normalizeHomePopup(data.popup);
+      const clean=data.popup?.image2?null:normalizeHomePopup(data.popup);
       if(!clean)bad('팝업 설정을 확인해 주세요. / Vérifiez les paramètres de la fenêtre.');
       const result=await db.runTransaction(async tx=>{
         const snapshot=await tx.get(homePopupRef);
