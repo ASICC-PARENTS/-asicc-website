@@ -3,7 +3,7 @@ import {renderPreviewTerms} from '../preview-terms';
 import {bindStorageLabels,changeCartQuantity,quantityCap,renderShopEvent,renderShopProducts,renderShopNotice,preserveShopDisclosures} from '../shop-view';
 import {onAuthStateChanged} from 'firebase/auth';
 import {adminAction,bazaarAuth,showBazaarTestLogin} from '../api';
-import {estimateEvent,eventFormFields,eventViewModel,parisToIso,productOrderSummary,productPayload,productViewModel,validManualPhone} from './data';
+import {estimateEvent,eventFormFields,eventViewModel,parisToIso,productOrderSummary,orderIntakeSummary,productPayload,productViewModel,validManualPhone} from './data';
 import {mountMailManager,showOrderMail} from './mail';
 import {observeAdminLocale,translateAdminText} from './i18n';
 import {formatParisDateTime,formatParisPaymentDeadline,formatParisPickupRange} from '../../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
@@ -118,6 +118,22 @@ const statuses={unpaid:[fr?'Non signalé':'송금 신고 없음','unpaid'],repor
 function total(o){return o.payment?o.payment.due/100:o.items.reduce((s,x)=>s+x[1]*x[2],0)}
 function stats(){let valid=store.orders.filter(x=>x.status!=='canceled'),confirmed=store.orders.filter(x=>x.status==='confirmed');return [['총 주문',valid.length+(fr?'':'건')],['총 주문금액',money(valid.reduce((s,x)=>s+total(x),0))],['입금 확인액',money(confirmed.reduce((s,x)=>s+total(x),0))],['입금 확인 대기',store.orders.filter(x=>['reported','unpaid'].includes(x.status)).length+(fr?'':'건')]];}
 function metrics(xs){return '<div class="metrics">'+xs.map(x=>'<div class="metric"><span>'+adminText(x[0])+'</span><strong>'+x[1]+'</strong>'+(x[2]?'<small>'+x[2]+'</small>':'')+'</div>').join('')+'</div>'}
+
+function orderIntakeOverview(e){
+ const x=orderIntakeSummary(e.orders,e.products);
+ const value=cents=>cents==null?language('미확정','À déterminer'):money(cents/100);
+ const title=language('현재 주문 현황','Situation des commandes');
+ const cards=[
+  [language('유효 주문 건수','Commandes actives'),x.orderCount+(fr?'':'건'),language('취소 '+x.canceledCount+'건 제외',x.canceledCount+' annulation(s) exclue(s)')],
+  [language('총 주문금액','Montant total des commandes'),value(x.salesCents)],
+  [language('예상 매입원가','Coût estimé des produits vendus'),value(x.estimatedCostCents)],
+  [language('예상 매출총이익','Marge brute prévisionnelle'),value(x.estimatedGrossCents),language('기타 비용 제외','Hors autres dépenses')]
+ ];
+ return '<section data-order-intake-summary aria-label="'+title+'" style="margin-top:20px"><div class="toolbar"><h3>'+title+'</h3>'+
+  '<button class="btn neutral" data-action="refresh-orders">'+language('주문 현황 새로고침','Actualiser les commandes')+'</button></div>'+
+  metrics(cards)+'<p class="muted small" style="margin-top:8px">'+language('현재 유효 주문 기준 · 주문 수량에 해당하는 매입원가 TTC · 실제 입금 및 정산 확정 금액과 다를 수 있습니다.','Commandes actives · coût TTC des quantités commandées · distinct des encaissements et du résultat définitif.')+
+  (x.missingCosts?' '+language('매입단가가 없는 주문 품목이 있어 예상 원가와 이익은 미확정입니다.','Des coûts d’achat manquent : coût et marge non déterminés.'):'')+'</p></section>';
+}
 const dateLabel=value=>formatParisDateTime(value,fr?'fr':'ko');
 const publicEventPath=id=>root.dataset.base.replace(/admin\/$/,'')+'?event='+encodeURIComponent(id);
 function eventHead(e=selectedEvent(),summary=false){
@@ -148,7 +164,7 @@ function eventHead(e=selectedEvent(),summary=false){
   '<div class="info-row"><span>'+(fr?'Clôture des commandes':'주문 마감')+' <b>'+esc(dateLabel(e.raw.orderCutoff))+'</b></span><span>'+
   (fr?'Date limite de virement':'송금 마감')+' <b>'+esc(dateLabel(e.raw.transferCutoff))+'</b></span>'+
   (e.raw.pickupAt?'<span>'+language('상품 수령','Retrait des commandes')+' <b>'+esc(formatParisPickupRange(e.raw.pickupAt,e.raw.pickupEndAt,fr?'fr':'ko'))+'</b></span>':'')+'</div>'+
-  (summary?metrics(stats()):'<div class="actions event-actions">'+actions+'</div><p role="status" data-copy-status></p>')+'</section>';
+  (summary?metrics(stats()):'<div class="actions event-actions">'+actions+'</div><p role="status" data-copy-status></p>')+(!summary&&page==='orders'&&!draft?orderIntakeOverview(e):'')+'</section>';
 }
 function refreshIntakeHeader(event=selectedEvent(),force=false){
  if(!event)return;
