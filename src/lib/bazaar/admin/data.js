@@ -110,6 +110,35 @@ export function productOrderSummary(products=[], orders=[]) {
   return [...rows.values()];
 }
 
+/** Current accepted-order figures, using the saved order cost snapshot when present.
+ * Estimated gross margin is for sold units only, before other expenses. */
+export function orderIntakeSummary(orders=[], products=[]){
+ const byId=new Map(products.map(product=>[product.id,product]));
+ let orderCount=0,canceledCount=0,salesCents=0,costCents=0,missingCosts=0;
+ const validCost=(pack,box)=>Number.isSafeInteger(pack)&&pack>0&&Number.isSafeInteger(box)&&box>=0;
+ for(const order of orders){
+  if(order.status==='canceled'){canceledCount++;continue;}
+  orderCount++;
+  const items=order.items||[];
+  const due=order.payment?.due;
+  salesCents+=Number.isSafeInteger(due)&&due>=0?due:items.reduce((sum,item)=>sum+Math.round(Number(item[2])*100)*Number(item[1]),0);
+  for(const item of items){
+   const quantity=Number(item[1]);
+   if(!Number.isSafeInteger(quantity)||quantity<=0)continue;
+   const snapshot=item[4],product=byId.get(item[3]);
+   let pack=snapshot?.packQty,box=snapshot?.boxPriceTtcCents;
+   if(!validCost(pack,box)){
+    pack=Number(product?.pack);
+    box=product?.buy===''||product?.buy==null?null:Math.round(Number(product.buy)*100);
+   }
+   if(!validCost(pack,box)){missingCosts++;continue;}
+   costCents+=quantity*box/pack;
+  }
+ }
+ const estimatedCostCents=missingCosts?null:Math.round(costCents);
+ return {orderCount,canceledCount,salesCents,estimatedCostCents,
+  estimatedGrossCents:estimatedCostCents==null?null:salesCents-estimatedCostCents,missingCosts};
+}
 
 export function estimateEvent(products,expenses=[]){
  const amount=value=>value!==''&&value!=null&&Number.isFinite(Number(value))?Number(value):null;
