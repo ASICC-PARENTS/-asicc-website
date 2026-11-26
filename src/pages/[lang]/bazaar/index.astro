@@ -58,6 +58,7 @@ import "../../../lib/bazaar/shop-view.css";
 import {bindStorageLabels,changeCartQuantity,quantityCap,renderShopEvent,renderShopProducts,preserveShopDisclosures} from "../../../lib/bazaar/shop-view";
 import {getShop,createOrder,eFormat,h,orderRequestId,parisDeadline,pilotLink,pilotMode} from '../../../lib/bazaar/api';
 import {renderPickupDetail} from '../../../lib/bazaar/pickup-view';
+import {SHOP_REFRESH_CHECK_MS,shouldRefreshShop} from '../../../lib/bazaar/shop-refresh.mjs';
 const root=document.querySelector<HTMLElement>('#bz')!;
 const lang=root.dataset.lang==='fr'?'fr':'ko';
 const t=(ko:string,fr:string)=>lang==='fr'?fr:ko;
@@ -253,10 +254,11 @@ eventPicker.className='buyer-section';
 eventPicker.hidden=true;
 eventPicker.setAttribute('aria-label',t('진행 중인 행사 선택','Choisir un bazar en cours'));
 $('#bz-hero').before(eventPicker);
-let reading=false;
+let reading=false,lastRefreshAttempt=0;
 async function refresh(){
- if(reading)return;
+ if(reading||submitted)return;
  reading=true;
+ lastRefreshAttempt=Date.now();
  try{
   const result=await getShop(requestedEvent);
   serverOffset=Date.parse(result.serverNow)-Date.now();
@@ -290,7 +292,12 @@ setInterval(()=>{
  const phase=intakeState();
  if(event.status&&phase!==lastPhase){lastPhase=phase;render();}
 },1000);
-const refreshVisible=()=>{if(!document.hidden&&event.status!=='closed')void refresh();};
-setInterval(refreshVisible,15000);
-document.addEventListener('visibilitychange',refreshVisible);
+const refreshVisible=(resumed=false)=>{
+ if(shouldRefreshShop({hidden:document.hidden,submitted,submitting,pending:!!pendingOrder,
+  closed:event.status==='closed',hasCart:Object.values(cart).some(qty=>qty>0),
+  lastAttempt:lastRefreshAttempt,now:Date.now(),resumed}))void refresh();
+};
+setInterval(()=>refreshVisible(),SHOP_REFRESH_CHECK_MS);
+document.addEventListener('visibilitychange',()=>refreshVisible(true));
+window.addEventListener('pageshow',()=>refreshVisible(true));
 </script>
