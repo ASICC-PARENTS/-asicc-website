@@ -2,13 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {shouldRefreshShop} from '../src/lib/bazaar/shop-refresh.mjs';
-const state={hidden:false,submitted:false,submitting:false,pending:false,closed:false,hasCart:false,lastAttempt:0};
+const state={hidden:false,submitted:false,submitting:false,pending:false,closed:false,lastAttempt:0};
 const due=(now,overrides={})=>shouldRefreshShop({...state,now,...overrides});
-test('empty cart refreshes every two minutes and nonempty cart every minute',()=>{
-  assert.equal(due(119999),false);
-  assert.equal(due(120000),true);
-  assert.equal(due(59999,{hasCart:true}),false);
-  assert.equal(due(60000,{hasCart:true}),true);
+test('catalog refreshes every minute regardless of cart contents',()=>{
+  assert.equal(due(59999),false);
+  assert.equal(due(60000),true);
+  assert.equal(due(119999,{lastAttempt:60000}),false);
+  assert.equal(due(120000,{lastAttempt:60000}),true);
 });
 test('returning to visible page refreshes stale data without rapid repeat reads',()=>{
   assert.equal(due(29999,{resumed:true}),false);

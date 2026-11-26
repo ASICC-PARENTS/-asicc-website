@@ -294,7 +294,7 @@ setInterval(()=>{
 },1000);
 const refreshVisible=(resumed=false)=>{
  if(shouldRefreshShop({hidden:document.hidden,submitted,submitting,pending:!!pendingOrder,
-  closed:event.status==='closed',hasCart:Object.values(cart).some(qty=>qty>0),
+  closed:event.status==='closed',
   lastAttempt:lastRefreshAttempt,now:Date.now(),resumed}))void refresh();
 };
 setInterval(()=>refreshVisible(),SHOP_REFRESH_CHECK_MS);
