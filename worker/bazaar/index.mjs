@@ -31,7 +31,7 @@ function settings(env, origin) {
   if (production) {
     if (env.FIREBASE_PROJECT_ID !== 'asicc-member-space' || env.FIRESTORE_EMULATOR_URL || env.AUTH_EMULATOR_URL
       || env.BAZAAR_SITE_URL !== productionSite || origin && origin !== productionApi
-      || env.MAIL_MODE !== 'capture' || env.TEST_MAIL_TO
+      || (!['capture','api'].includes(env.MAIL_MODE) || env.MAIL_MODE === 'api' && (env.MAIL_PROVIDER !== 'brevo' || !env.BAZAAR_MAIL_API_KEY || !env.BAZAAR_MAIL_FROM)) || env.TEST_MAIL_TO || env.BAZAAR_TEST_MAIL_RECIPIENTS || env.BAZAAR_TEST_MAIL_SINCE
       || !['false','true'].includes(env.BAZAAR_PUBLIC_OPEN)) throw new Error('Invalid ASICC production configuration');
   } else if (env.BAZAAR_MODE === 'local') {
     if (env.FIREBASE_PROJECT_ID !== 'demo-asicc-bazaar' || !localUrl.test(env.FIRESTORE_EMULATOR_URL)
@@ -56,7 +56,7 @@ function dependencies(env, origin, ctx, pilot = false) {
     collection: path => firestore.collection(path === 'members' ? path : pilotPrefix+path)
   } : firestore;
   const photos = createPhotos(env, db, origin, ctx);
-  const mail = createMail(env.BAZAAR_MODE === 'production' ? {...env, MAIL_MODE: 'capture'} : env, db);
+  const mail = createMail(env, db);
   const mailManagement = createMailAdmin(db,mail);
   const service = createBazaar({
     db, FieldValue, eventPhoto: pilot ? async()=>({imageUrl:'',photoPath:''}) : photos.eventPhoto,
