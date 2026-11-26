@@ -40,7 +40,7 @@ export function renderShopEvent(event,lang,{showStatus=false}={}) {
   const intro=t(event.introKo,event.introFr);
   const pickup=t(event.pickupKo,event.pickupFr);
   return '<div class="bz-shared-hero"><div class="bz-hero-banner">'+
-    '<span class="bz-hero-kicker">'+t('온라인 바자회','BAZAR SOLIDAIRE EN LIGNE')+'</span><h1>'+eventTitleMarkup(name)+'</h1>'+
+    '<h1>'+eventTitleMarkup(name)+'</h1>'+
     (showStatus?'<div class="bz-hero-status-slot"></div>':'')+'</div>'+
     '<div class="bz-shared-info">'+
     info(t('주문 마감','Clôture des commandes'),date(event.orderCutoff),eventIcons.calendar)+
