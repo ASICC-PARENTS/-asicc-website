@@ -1,5 +1,5 @@
 import {defaultHomePopup,normalizeHomePopup,publicHomePopup} from '../firebase-functions-bazaar/bazaar/home-popup.mjs';
-import {eventFormFields,eventViewModel,productOrderSummary,orderIntakeSummary,validManualPhone} from '../src/lib/bazaar/admin/data.js';
+import {eventFormFields,eventViewModel,productOrderSummary,orderIntakeSummary,productSalesReport,validManualPhone} from '../src/lib/bazaar/admin/data.js';
 import {validRefundIban} from '../firebase-functions-bazaar/bazaar/iban.mjs';
 import {orderPaymentSummary} from '../firebase-functions-bazaar/bazaar/order-payments.mjs';
 import test from 'node:test';
@@ -257,4 +257,29 @@ test('order intake summary counts active orders, current amounts and snapshot un
  assert.equal(unknown.estimatedGrossCents,null);assert.equal(unknown.estimatedCostCents,null);assert.equal(unknown.missingCosts,1);
  assert.match(app,/data-order-intake-summary/);
  assert.ok(app.includes("page==='orders'&&!draft?orderIntakeOverview(e)"));
+});
+
+
+test('product sales separates sold-unit cost from carton procurement and preserves order snapshots',()=>{
+ const products=[{id:'tofu',ko:'두부',fr:'Tofu',vendor:'K',pack:24,buy:99},{id:'snack',ko:'과자',vendor:'K',pack:30,buy:61.05},{id:'zero',ko:'미주문',vendor:'N',pack:1,buy:7}];
+ const snapshot={supplier:'K',packQty:12,boxPriceTtcCents:2625,titleFr:'Tofu'};
+ const orders=[
+  {status:'confirmed',payment:{due:2200},items:[['두부',10,2.2,'tofu',snapshot]]},
+  {status:'unpaid',payment:{due:4100},items:[['두부',3,2.2,'tofu',snapshot],['과자',17,2.05,'snack',{}]]},
+  {status:'canceled',payment:{due:0},items:[['두부',100,2.2,'tofu',snapshot]]}
+ ];
+ const x=productSalesReport(products,orders);
+ const tofu=x.rows.find(r=>r.id==='tofu'),snack=x.rows.find(r=>r.id==='snack'),zero=x.rows.find(r=>r.id==='zero');
+ assert.deepEqual([tofu.qty,tofu.revenueCents,tofu.soldCostCents,tofu.boxes,tofu.remaining,tofu.purchaseCents,tofu.remainingCostCents,tofu.grossCents],[13,2860,2844,2,11,5250,2406,16]);
+ assert.deepEqual([snack.qty,snack.boxes,snack.remaining,snack.soldCostCents,snack.remainingCostCents],[17,1,13,3460,2645]);
+ assert.deepEqual([zero.qty,zero.revenueCents,zero.soldCostCents,zero.boxes,zero.remaining],[0,0,0,0,0]);
+ assert.equal(x.orderCount,2);assert.equal(x.totals.revenueCents,6345);assert.equal(x.dueCents,6300);assert.equal(x.adjustmentCents,-45);
+ assert.equal(x.totals.purchaseCents,x.totals.soldCostCents+x.totals.remainingCostCents);
+ assert.equal(productSalesReport(products,orders,'confirmed').totals.qty,10);
+ const missing=productSalesReport([],[{status:'unpaid',items:[['Unknown',1,3,'missing',{}]]}]);
+ assert.equal(missing.totals.soldCostCents,null);assert.equal(missing.totals.purchaseCents,null);assert.equal(missing.totals.revenueCents,300);
+ const versions=productSalesReport(products,[...orders,{status:'confirmed',items:[['두부',1,2.2,'tofu',{...snapshot,boxPriceTtcCents:2400}]]}]);
+ assert.equal(versions.rows.filter(r=>r.id==='tofu').length,2);
+ assert.match(app,/data-product-sales-summary/);assert.match(app,/data-action="sales-scope"/);
+ assert.ok(app.includes("settlementTab==='sales'"));assert.ok(app.includes("action==='sales-excel'"));
 });

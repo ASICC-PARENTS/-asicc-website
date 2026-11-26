@@ -24,9 +24,10 @@ test('storefront and preview use one notice per stock level',()=>{
   });
   assert.match(html,/&lt;abc&gt;/);
   assert.match(html,/aria-label="냉장"/);
-  assert.match(html,/Sold/);
-  assert.equal((html.match(/매진/g)||[]).length,2); // existing photo stamp + one stock notice
-  assert.match(html,/<div class="bz-shared-actions">Sold<p class="bz-stock">매진<\/p>/);
+  assert.doesNotMatch(html,/Sold|bz-shared-actions/);
+  assert.equal((html.match(/매진/g)||[]).length,1);
+  assert.match(html,/<details class="bz-sold-details"[^>]*><summary>/);
+  assert.doesNotMatch(html,/<details[^>]*\bopen\b/);
 });
 
 test('selected quantity reduces only the displayed remaining stock, not actual availability',()=>{
@@ -158,10 +159,10 @@ test('preview shows the actual order terms and consent without a real checkout',
 test('limited stock appears once below quantity controls from the first unit in both languages',()=>{
  for(const lang of ['ko','fr'])for(const stock of [30,18,3,0,null]){
   const html=renderShopProducts([{id:'p',titleKo:'상품',titleFr:'Produit',priceCents:300,stockRemaining:stock}],lang,{quantity:()=>0,controls:()=>'<div class="bz-qty">0</div>',price:()=> '3 €'});
-  assert.equal((html.match(/class="bz-stock"/g)||[]).length,stock===null?0:1);
+  assert.equal((html.match(/class="bz-stock"/g)||[]).length,stock===null||stock===0?0:1);
   assert.doesNotMatch(html,/한정수량|Quantité limitée/);
-  if(stock!==null)assert.match(html,/<div class="bz-qty">0<\/div><p class="bz-stock">/);
-  if(stock===0)assert.match(html,/bz-sold-stamp/);
+  if(stock!==null&&stock!==0)assert.match(html,/<div class="bz-qty">0<\/div><p class="bz-stock">/);
+  if(stock===0){assert.match(html,/bz-sold-stamp/);assert.doesNotMatch(html,/bz-qty|bz-shared-actions/);assert.match(html,lang==='ko'?/매진/:/ÉPUISÉ/);}
  }
 });
 
