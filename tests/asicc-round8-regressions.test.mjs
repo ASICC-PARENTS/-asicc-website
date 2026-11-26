@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
-const gallery=read('src/scripts/members/gallery.ts'),page=read('src/pages/[lang]/membres/gallery.astro'),ops=read('src/scripts/members/admin-ops.ts'),admin=read('src/pages/[lang]/membres/admin.astro'),rules=read('firestore.rules.PROPOSED_ONLY'),messages=read('src/scripts/members/messages.ts'),access=read('src/scripts/members/member-access.ts');
+const gallery=read('src/scripts/members/gallery.ts'),page=read('src/pages/[lang]/membres/gallery.astro'),ops=read('src/scripts/members/admin-ops.ts'),admin=read('src/pages/[lang]/membres/admin.astro'),rules=read('firestore.rules'),messages=read('src/scripts/members/messages.ts'),access=read('src/scripts/members/member-access.ts');
 test('review queue has a dedicated link, query and refreshed status after approval',()=>{
   assert.match(ops,/href:'\.\.\/gallery\/\?view=review'/);
   assert.match(gallery,/if\(view==='review'\)return admin\(\)\?\(await getDocs\(query\(collection\(db,'galleryItems'\),where\('status','==','pending'\)\)\)\)\.docs/);

@@ -23,16 +23,17 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
     <div id="member-loading" hidden={!live} class="card" role="status">{L(lang,{ko:'회원정보를 불러오는 중…',fr:'Chargement du profil…'})}</div>
     <div id="member-error" class="card" role="alert" hidden></div>
     <div id="member-content" hidden class="stack gap-20">
+<nav id="member-space-switch" class="asicc-space-switch" aria-label={L(lang,{ko:'공간 선택',fr:'Choix de l’espace'})} hidden>
+  <a class="asicc-space-tab is-active" aria-current="page" href={href(lang,'membres/')}>{L(lang,{ko:'회원공간',fr:'Espace membres'})}</a>
+  <a class="asicc-space-tab" href={href(lang,'membres/admin/')}>{L(lang,{ko:'관리자 공간',fr:'Espace administrateur'})}</a>
+</nav>
       <div class="card member-topbar">
         <div class="member-leading">
           <div class="stack gap-8 member-identity">
             <div class="row gap-8" style="align-items:center;flex-wrap:wrap"><strong id="member-name"></strong><span id="member-role" class="m-badge"></span></div>
             <span class="small muted" id="member-email"></span>
           </div>
-          <div class="member-staff-links" id="member-staff-links" hidden>
-            <a class="btn btn-ghost" href={href(lang,'membres/admin/')} id="admin-shortcut" hidden>{L(lang,{ko:'회원관리',fr:'Administration'})}</a>
-            <a class="btn btn-ghost" href={href(lang,'membres/office/')} id="office-shortcut" hidden>{L(lang,{ko:'온라인 협회 사무실',fr:'Bureau privé'})}</a>
-          </div>
+          
         </div>
         <div class="member-top-actions">
           <a class="btn btn-ghost" href={href(lang,'membres/profile/')}>{L(lang,{ko:'내 정보 관리',fr:'Mon profil'})}</a>
@@ -68,6 +69,10 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
 </section>
 </Base>
 <style>
+.asicc-space-switch {display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px solid #dce5e3;padding:0 0 12px}
+.asicc-space-switch[hidden] {display:none}
+.asicc-space-tab {display:inline-flex;align-items:center;justify-content:center;padding:10px 16px;min-height:40px;text-decoration:none;border:1px solid #d6e1db;border-radius:9px;color:inherit;font-size:14px;font-weight:650}
+.asicc-space-tab.is-active {background:#e7f1ed;border-color:#9cbeb0;color:#245543;font-weight:750}
 .member-topbar {padding:20px 24px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;justify-content:space-between}
 .member-leading {display:flex;gap:18px;flex-wrap:wrap;align-items:center;min-width:0}
 .member-staff-links {display:flex;gap:8px;flex-wrap:wrap;align-items:center}
@@ -136,9 +141,10 @@ if(import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true')onAuthStateChanged(auth
    const messageLink=by('member-messages-shortcut');if(messageLink)messageLink.hidden=!dmAllowed(data)||messaging?.data()?.enabled!==true;
    if(role!=='general'&&(!dmAllowed(data)||messaging?.data()?.enabled!==true)){const status=by('member-dashboard-status');if(status)status.textContent=tr('현재 쪽지 기능을 이용할 수 없습니다. 이용을 원하시는 경우 운영진에게 문의해 주세요.','La messagerie est indisponible. Contactez l’administration.');}
    const upgrade=by('upgrade-shortcut');if(upgrade)upgrade.hidden=role!=='general';
-   const admin=by('admin-shortcut');if(admin)admin.hidden=role!=='admin';
-   const office=by('office-shortcut');if(office)office.hidden=role!=='admin';
-   const staffLinks=by('member-staff-links');if(staffLinks)staffLinks.hidden=role!=='admin';
+   const spaceSwitch=by('member-space-switch');if(spaceSwitch)spaceSwitch.hidden=role!=='admin';
+   
+   
+   
    note('board-privilege',full?tr('읽기·글쓰기·댓글 가능','Lecture, publication et commentaires'):tr('읽기 가능 · 글쓰기는 🔒 잠금','Lecture autorisée · publication verrouillée 🔒'));
    const loading=by('member-loading');if(loading)loading.hidden=true;
    const content=by('member-content');if(content)content.hidden=false;

@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import {strict as assert} from 'node:assert';
 import {readFileSync,existsSync} from 'node:fs';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
-const rules=read('firestore.rules.PROPOSED_ONLY');
+const rules=read('firestore.rules');
 const worker=read('worker/asicc-media-worker-extended.js');
 const gallery=read('src/scripts/members/gallery.ts');
 const admin=read('src/pages/[lang]/membres/admin.astro');

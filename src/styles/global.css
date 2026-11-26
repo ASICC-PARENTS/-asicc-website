@@ -824,9 +824,9 @@ svg { max-width: 100%; }
 
 
 /* ASICC v7 — typographie française et sécurité des grilles longues */
-html[lang="fr"] body { word-break: normal; hyphens: auto; }
+html[lang="fr"] body { word-break: normal; hyphens: none; }
 html[lang="fr"] :is(h1,h2,h3,h4,p,li,span,small,b,strong,dt,dd) {
-  overflow-wrap: break-word; word-break: normal; hyphens: auto;
+  overflow-wrap: break-word; word-break: normal; hyphens: none;
 }
 html[lang="fr"] :is(.nav a,.btn,.lang-link,.tile b,.school-card h3) {
   letter-spacing: 0; overflow-wrap: break-word;
@@ -1047,3 +1047,22 @@ html[lang="fr"] a[href^="http"] { overflow-wrap: anywhere; }
 .member-ui :is(#files-search, #board-search) {
   padding-left: 48px;
 }
+
+/* Public-site reading text: keep words together; only break an unusually long token
+   when it cannot fit the available width. Leave spreadsheet columns and raw identifiers intact. */
+html[lang="ko"] main :is(h1,h2,h3,h4,p,li,b,strong,small,span,a):not(:is(code,pre,code *,pre *)),
+html[lang="ko"] .site-footer :is(a,li,span),
+html[lang="ko"] .nav a {word-break:keep-all;overflow-wrap:break-word;hyphens:none;}
+html[lang="fr"] main :is(h1,h2,h3,h4,p,li,b,strong,small,span,a):not(:is(code,pre,code *,pre *)),
+html[lang="fr"] .site-footer :is(a,li,span),
+html[lang="fr"] .nav a {word-break:normal;overflow-wrap:break-word;hyphens:none;}
+html[lang] main :is(.btn,.pill,.chip){white-space:normal;max-width:100%;overflow-wrap:break-word;hyphens:none;}
+html[lang] main :is(a[href^="mailto:"],.raw-url){overflow-wrap:anywhere;}
+html[lang] main :is(.intro-school,.tile,.panel-head) > *{min-width:0;}
+html[lang] main :is(.intro h1,.panel-head h2){text-wrap:balance;}
+
+/* Official wordmark is indivisible: scale the complete image proportionally. */
+.site-header .brand{gap:0;align-items:center;justify-content:flex-start;flex:0 1 150px;max-width:150px;min-width:0}
+.site-header .site-wordmark{display:block;width:100%;max-width:150px;height:auto;object-fit:contain;object-position:left center;flex:none}
+@media(max-width:980px){.site-header .brand{flex:0 1 135px;max-width:135px}}
+@media(max-width:600px){.site-header .brand{max-width:120px;flex:0 1 120px}.site-header .tools{flex-shrink:0}}

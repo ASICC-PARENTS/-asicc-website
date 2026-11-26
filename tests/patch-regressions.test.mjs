@@ -7,7 +7,7 @@ const admin=read('src/pages/[lang]/membres/admin.astro');
 const member=read('src/pages/[lang]/membres/index.astro');
 const base=read('src/layouts/Base.astro');
 const css=read('src/styles/global.css');
-const rules=read('firestore.rules.PROPOSED_ONLY');
+const rules=read('firestore.rules');
 const activity=read('src/scripts/members/activity.ts');
 const deploy=read('.github/workflows/deploy.yml');
 
@@ -25,9 +25,15 @@ test('existing board rich editor, photo logic, moderation and hard-delete logs r
   for(const value of ['BOARD_PHOTO_API','serializeEditor','photo-adjust','hiddenComments','hiddenPosts','boardDeletionLogs','deleteComment'])assert.ok(board.includes(value),value);
 });
 
-test('member dashboard separates admin shortcuts and uses requested navigation labels',()=>{
-  for(const value of ['member-staff-links','admin-shortcut','office-shortcut',"ko:'학습자료실'","ko:'회원게시판'","ko:'갤러리'"])assert.ok(member.includes(value),value);
-  assert.match(member,/\.member-staff-links\[hidden\]\s*\{display:none\}/);
+test('member dashboard shows the current admin space switch only to admins',()=>{
+  for(const label of ["ko:'학습자료실'","ko:'회원게시판'","ko:'갤러리'"])assert.ok(member.includes(label),label);
+  assert.match(member,/<nav id="member-space-switch"[^\n]*hidden>/);
+  assert.match(member,/href=\{href\(lang,'membres\/admin\/'\)\}[^\n]*관리자 공간/);
+  assert.match(member,/spaceSwitch\.hidden=role!=='admin'/);
+  assert.match(admin,/me\.data\(\)\.status!=='approved' \|\| me\.data\(\)\.role!=='admin'/);
+  assert.match(admin,/href=\{href\(lang,'membres\/office\/'\)\}/);
+  assert.match(admin,/href="https:\/\/app\.pagescms\.org\//);
+  assert.match(admin,/href="#members-heading"/);
 });
 
 test('admin dashboard offers external analytics; no fake last-activity timestamp or obsolete filters',()=>{
@@ -44,6 +50,7 @@ test('visit tracking has no client Firestore writes and uses optional single Clo
   assert.doesNotMatch(base,/recordMemberActivity|lastSeenAt/);
   assert.doesNotMatch(activity,/updateDoc|serverTimestamp|setDoc/);
   assert.doesNotMatch(rules,/validSelfActivityUpdate/);
-  assert.match(rules,/allow update: if validAdminMessagingUpdate\(uid\) \|\| validSelfNicknameUpdate\(uid\) \|\| validAdminMemberUpdate\(uid\)/);
+  assert.match(rules,/function validAdminNicknameOnlyUpdate\(uid\)\s*\{/);
+  assert.match(rules,/allow update:\s*if\s+validAdminMessagingUpdate\(uid\)\s*\|\|\s*validSelfNicknameUpdate\(uid\)\s*\|\|\s*validSelfProfileUpdate\(uid\)\s*\|\|\s*validAdminNicknameOnlyUpdate\(uid\)\s*\|\|\s*validAdminMemberUpdate\(uid\)\s*;/);
   assert.match(rules,/changed\.hasOnly\(\['dmMode','dmUpdatedBy','dmUpdatedAt'\]\)/);
 });

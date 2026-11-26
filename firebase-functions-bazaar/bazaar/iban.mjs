@@ -6,6 +6,9 @@ const lengths={
  NO:15,PL:28,PT:25,RO:24,RS:22,SE:24,SI:19,SK:24,SM:27,TR:26,UA:29,VA:22,XK:20,
 };
 
+export const compactIban=value=>String(value??'').replace(/\s/g,'').toUpperCase();
+export const displayIban=value=>compactIban(value).match(/.{1,4}/g)?.join(' ')||'';
+
 export function validRefundIban(iban){
  if(!/^[A-Z]{2}\d{2}[A-Z0-9]+$/.test(iban)||lengths[iban.slice(0,2)]!==iban.length)return false;
  let remainder=0;

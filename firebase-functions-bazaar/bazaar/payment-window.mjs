@@ -1,12 +1,34 @@
 export const defaultPaymentHours=24;
+export const paymentHoursFor=event=>event?.paymentHours??defaultPaymentHours;
+
+// Display only: always derive the calendar day and weekday from the same Paris-local instant.
+export function formatParisDateTime(value,lang,{dateOnly=false,showZone=false}={}){
+ const at=Date.parse(value??'');
+ if(!Number.isFinite(at))return '—';
+ const french=lang==='fr';
+ const parts=Object.fromEntries(new Intl.DateTimeFormat(french?'fr-FR':'ko-KR',{
+  timeZone:'Europe/Paris',weekday:french?'long':'short',year:'numeric',month:french?'long':'numeric',day:'numeric',
+  hour:'2-digit',minute:'2-digit',hourCycle:'h23'
+ }).formatToParts(at).map(part=>[part.type,part.value]));
+ const weekday=parts.weekday;
+ const day=french
+  ? `${weekday.charAt(0).toUpperCase()+weekday.slice(1)} ${parts.day} ${parts.month} ${parts.year}`
+  : `${parts.year}년 ${parts.month}월 ${parts.day}일 (${weekday})`;
+ if(dateOnly)return day;
+ return day+(french?` à ${parts.hour}h${parts.minute}`:` ${parts.hour}:${parts.minute}`)
+  +(showZone?(french?' (heure de Paris)':' (파리 현지 시간)'):'');
+}
+export function formatParisPaymentDeadline(value,lang){
+ return formatParisDateTime(value,lang,{showZone:true});
+}
 
 export const transferIdentification=lang=>lang==='fr'
- ? 'Afin de faciliter l’identification de votre paiement, veuillez indiquer votre numéro de commande ou le nom du client dans le libellé du virement. Si le virement est effectué depuis le compte d’une autre personne, cette information doit impérativement figurer dans le libellé du virement.'
- : '입금 확인을 위해 송금 시 입금자명 또는 송금 메모에 주문번호 혹은 주문자 이름을 정확하게 기재해 주세요. 다른 사람의 명의로 송금하시는 경우 반드시 송금 메모에 주문번호 또는 주문자 이름을 입력해 주세요.';
+ ? 'Indiquez uniquement votre numéro de commande dans le libellé du virement, y compris si vous payez depuis le compte d’une autre personne.'
+ : '입금 확인을 위해 송금 메모에는 주문번호만 입력해 주세요. 다른 사람의 계좌에서 송금하는 경우에도 같은 주문번호를 사용해 주세요.';
 
 export function personalTransferDeadline(createdAt,event){
  const start=Date.parse(createdAt),overall=Date.parse(event.transferCutoff);
- const hours=event.paymentHours??defaultPaymentHours;
+ const hours=paymentHoursFor(event);
  if(!Number.isFinite(start))return event.transferCutoff||null;
  const personal=start+hours*3600000;
  return new Date(Number.isFinite(overall)?Math.min(personal,overall):personal).toISOString();
@@ -29,4 +51,21 @@ export function paymentGuidance(lang,hours=defaultPaymentHours){
   '일부 상품은 한정수량으로 판매되므로 다른 구매자의 구매 기회를 보장하기 위해 기한 내 송금 완료 신고가 이루어지지 않은 주문은 취소될 수 있습니다.',
   '여러분의 이해와 협조에 감사드립니다.',
  ];
+}
+
+// Optional end time is on the same Paris-local pickup date.
+export function validPickupEnd(start,end){
+ if(!end)return true;
+ const a=Date.parse(start??''),b=Date.parse(end);
+ return Number.isFinite(a)&&Number.isFinite(b)&&b>a&&formatParisDateTime(start,'ko',{dateOnly:true})===formatParisDateTime(end,'ko',{dateOnly:true});
+}
+export function formatParisPickupTime(start,end,lang){
+ if(!Number.isFinite(Date.parse(start??'')))return '';
+ const clock=value=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(value));
+ const first=clock(start),last=end&&validPickupEnd(start,end)?clock(end):'';
+ return lang==='fr'?(last?'de '+first.replace(':','h')+' à '+last.replace(':','h'):first.replace(':','h')):(last?first+'~'+last:first);
+}
+export function formatParisPickupRange(start,end,lang){
+ if(!end||!validPickupEnd(start,end))return formatParisDateTime(start,lang);
+ return formatParisDateTime(start,lang,{dateOnly:true})+' '+formatParisPickupTime(start,end,lang);
 }

@@ -12,7 +12,7 @@ if (!getApps().length) initializeApp();
 const db=getFirestore();
 const smtpPassword=defineSecret('BAZAAR_SMTP_PASSWORD');
 
-const eventRef = db.doc('bazaarMeta/event');
+const projects = db.collection('bazaarEventProjects');
 const orders = db.collection('bazaarOrders');
 const outbox = db.collection('bazaarOutbox');
 const now = () => new Date().toISOString();
@@ -43,7 +43,7 @@ async function deliver(mailId){
   });
   if(!ready)return false;
   try{
-    const [orderSnap,evSnap]=await Promise.all([orders.doc(ready.orderId).get(),eventRef.get()]);
+    const orderSnap=await orders.doc(ready.orderId).get();
     if(!orderSnap.exists)throw new Error('Order missing');
     const transporter=nodemailer.createTransport({
       host:process.env.BAZAAR_SMTP_HOST,
@@ -51,7 +51,7 @@ async function deliver(mailId){
       secure:Number(process.env.BAZAAR_SMTP_PORT||465)===465,
       auth:{user:process.env.BAZAAR_SMTP_USER,pass:smtpPassword.value()}
     });
-    const msg=message(orderSnap.data(),ready.type,orderSnap.data().eventSnapshot||evSnap.data());
+    const msg=message(orderSnap.data(),ready.type,orderSnap.data().eventSnapshot);
     await transporter.sendMail({from:`ASICC <${process.env.BAZAAR_SMTP_USER}>`,to:orderSnap.data().email,...msg});
     await ref.update({sentAt:now(),sendingUntil:null,lastError:null});
     return true;
@@ -62,7 +62,12 @@ const parisParts=d=>{
   return{day:parts.weekday,hour:Number(parts.hour),minute:Number(parts.minute)};
 };
 async function runLegacyReminders(){
-  const e=(await eventRef.get()).data();if(!e)return;
+  const events=await projects.where('status','==','published').get();
+  for(const event of events.docs)await runEventReminders(event.data());
+  const leftovers=await outbox.where('sentAt','==',null).limit(200).get();
+  for(const mail of leftovers.docs)await deliver(mail.id);
+}
+async function runEventReminders(e){
   const t=new Date(),{day,hour}=parisParts(t);
   const safeHours=hour>=9&&hour<20;
   const allCurrent=await orders.where('eventId','==',e.eventId||initialEvent.eventId).get();
@@ -94,7 +99,4 @@ async function runLegacyReminders(){
       if(queued)await deliver(`${o.id}_reminderFinal`);
     }
   }
-  // Retry email queue for confirmed/canceled orders too.
-  const leftovers=await outbox.where('sentAt','==',null).limit(200).get();
-  for(const m of leftovers.docs)await deliver(m.id);
 }

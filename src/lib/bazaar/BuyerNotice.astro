@@ -1,0 +1,6 @@
+---
+import { renderShopNotice } from './shop-view.js';
+import type { Lang } from '../../i18n/ui';
+const {lang} = Astro.props as {lang: Lang};
+---
+<Fragment set:html={renderShopNotice(lang)} />

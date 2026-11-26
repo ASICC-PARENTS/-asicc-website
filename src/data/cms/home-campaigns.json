@@ -2,42 +2,72 @@
   "bazaar": {
     "enabled": true,
     "eyebrow": {
-      "ko": "COMING SOON · ASICC BAZAAR",
-      "fr": "PROCHAINEMENT · BAZAR ASICC"
+      "ko": "🎉 ASICC BAZAAR",
+      "fr": "🎉 BAZAR ASICC"
     },
     "title": {
-      "ko": "🎁 ASICC 온라인 바자회 준비 중!",
-      "fr": "🎁 Bazar en ligne ASICC : bientôt !"
+      "ko": "제1회 ASICC 온라인 바자회가 열렸습니다",
+      "fr": "Le premier bazar en ligne de l’ASICC est ouvert"
     },
     "body": {
-      "ko": "한국의 맛과 즐거움을 나누는 온라인 바자회를 준비하고 있습니다. 상품과 주문 방법은 추후 안내할게요.",
-      "fr": "Nous préparons un bazar en ligne pour partager les saveurs et les plaisirs de la Corée. Les articles et modalités de commande seront annoncés prochainement."
+      "ko": "상품과 수령 일정을 확인하고 온라인으로 주문해 주세요. 주문 후 계좌이체로 결제할 수 있습니다.",
+      "fr": "Découvrez les produits et les modalités de retrait, puis passez votre commande en ligne. Le règlement se fait par virement bancaire."
     },
     "status": {
-      "ko": "오픈 일정 추후 공지",
-      "fr": "Date d’ouverture à annoncer"
-    }
+      "ko": "온라인 주문 접수 중",
+      "fr": "Commandes ouvertes"
+    },
+    "button": {
+      "ko": "상품 보기 및 주문하기",
+      "fr": "Voir les produits et commander"
+    },
+    "link": "bazaar/?event=bazaar-production-first-v1"
   },
   "donation": {
     "enabled": true,
-    "helloassoUrl": "",
     "eyebrow": {
-      "ko": "SOUTENEZ NOS ACTIVITÉS",
-      "fr": "SOUTENEZ NOS ACTIVITÉS"
+      "ko": "ENSEMBLE POUR LES ENFANTS",
+      "fr": "ENSEMBLE POUR LES ENFANTS"
     },
     "title": {
-      "ko": "아이들의 더 넓은 세상을 함께 열어 주세요",
-      "fr": "Ensemble, ouvrons de nouveaux horizons à nos enfants"
+      "ko": "💚 아이들의 배움을 함께 응원해 주세요!",
+      "fr": "💚 Soutenons ensemble l’apprentissage des enfants !"
     },
     "body": {
-      "ko": "여러분의 후원은 아이들이 다양한 언어와 문화를 경험하고, 서로 교류하며 성장할 수 있도록 ASICC의 교육·문화·교류 활동을 지원하는 데 소중하게 사용됩니다",
-      "fr": "Grâce à votre soutien, l’ASICC développe des projets éducatifs, culturels et interculturels qui permettent aux enfants de découvrir d’autres cultures, de s’ouvrir au monde et de grandir ensemble.."
+      "ko": "ASICC의 교육·문화 활동을 함께 만들어 갑니다.",
+      "fr": "Ensemble, soutenons les projets éducatifs et culturels de l’ASICC."
     },
     "bankLabel": {
       "ko": "계좌이체 후원",
       "fr": "Don par virement bancaire"
     },
     "bankName": "ASSOCIATION SICC",
-    "iban": "FR76 1027 8060 2200 0226 1190 128"
+    "iban": "FR76 1027 8060 2200 0226 1190 128",
+    "membershipUrl": "https://www.helloasso.com/associations/association-de-la-section-internationale-coreenne-a-courbevoie/adhesions/adhesion-asicc-2026-2027",
+    "donationUrl": "https://www.helloasso.com/associations/association-de-la-section-internationale-coreenne-a-courbevoie/formulaires/1"
+  },
+  "admissions": {
+    "enabled": true,
+    "eyebrow": {
+      "ko": "📣 2027–2028 · 유치원·초등 모집 중",
+      "fr": "📣 2027–2028 · MATERNELLE & ÉLÉMENTAIRE : OUVERT"
+    },
+    "title": {
+      "ko": "한국어 국제섹션, 새로운 친구들을 기다려요! 🎒",
+      "fr": "La section coréenne attend ses nouveaux élèves ! 🎒"
+    },
+    "body": {
+      "ko": "2027–2028학년도 유치원·초등학교 신입생 모집 중! 지원 일정과 방법을 확인해 보세요.",
+      "fr": "Les candidatures en maternelle et en élémentaire sont ouvertes pour 2027–2028. Découvrez les modalités et les dates !"
+    },
+    "status": {
+      "ko": "중학교는 2027년 초 모집 예정",
+      "fr": "Collège : ouverture des candidatures prévue début 2027"
+    },
+    "button": {
+      "ko": "모집 공고 바로가기",
+      "fr": "Voir l’annonce des admissions"
+    },
+    "link": "news/2026-10-08-admissions/"
   }
 }

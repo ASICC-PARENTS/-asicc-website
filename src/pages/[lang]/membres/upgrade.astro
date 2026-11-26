@@ -65,7 +65,7 @@ const live=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
   import { getAuth,onAuthStateChanged,getIdToken } from 'firebase/auth';
   import { getFirestore,doc,getDoc,setDoc,updateDoc,serverTimestamp } from 'firebase/firestore';
   import { firebaseConfig } from '../../../firebase-config';
-  import {BOARD_PHOTO_API} from '../../../config/board-photos';
+  import {MEMBER_NOTIFICATION_API} from '../../../config/board-photos';
   const root=document.querySelector<HTMLElement>('#upgrade-root');const fr=root?.dataset.lang==='fr';
   const tr=(ko:string,french:string)=>fr?french:ko;
   import {toastResult} from '../../../scripts/members/toast';
@@ -141,7 +141,7 @@ const say=(s:string,bad=false)=>{const p=document.querySelector<HTMLElement>('#u
       else if(snap.data().status==='rejected')await updateDoc(ref,entry);
       else throw Error('already submitted');
       form.hidden=true;say(tr('승급 신청을 접수했습니다.','Demande transmise.'));
-      void fetch(BOARD_PHOTO_API.trim().replace(/\/$/,'')+'/api/notify',{method:'POST',headers:{Authorization:'Bearer '+await getIdToken(auth.currentUser!),'Content-Type':'application/json'},body:JSON.stringify({kind:'upgrade',id:uid})}).catch(console.warn);
+      if(MEMBER_NOTIFICATION_API)void fetch(MEMBER_NOTIFICATION_API.trim().replace(/\/$/,'')+'/api/notify',{method:'POST',headers:{Authorization:'Bearer '+await getIdToken(auth.currentUser!),'Content-Type':'application/json'},body:JSON.stringify({kind:'upgrade',id:uid})}).catch(console.warn);
     }catch(err){console.error(err);say(tr('신청을 저장하지 못했습니다.','Impossible d’enregistrer la demande.'),true);}
     finally{if(btn)btn.disabled=false;}
   });

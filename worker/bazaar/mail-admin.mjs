@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { BazaarError } from '../../firebase-functions-bazaar/bazaar/service.mjs';
 import { eligibleReminder, mailFields } from './mail.mjs';
 import {orderPaymentSummary} from '../../firebase-functions-bazaar/bazaar/order-payments.mjs';
+import {latestTransferCutoff,orderTransferCutoff} from '../../firebase-functions-bazaar/bazaar/order-intake.mjs';
 
 const choices = ['manual','auto'];
 const manualTypes=Object.keys(mailKinds).filter(kind=>!['orderChanged','additionalPayment','refundCompleted'].includes(kind));
@@ -46,7 +47,7 @@ export function createMailAdmin(db,mail) {
   const orders=db.collection('bazaarOrders');
   const policies=db.collection('bazaarMailPolicies');
   const schedules=db.collection('bazaarMailSchedules');
-  const activeRef=db.doc('bazaarMeta/event');
+  const eventRef=id=>db.doc(`bazaarEventProjects/${id}`);
 
   function finishManual(tx,job,order,completed) {
     const record=job.data();
@@ -66,11 +67,11 @@ export function createMailAdmin(db,mail) {
     const planRef=ready.docs[0]?.ref;
     if(!planRef)return;
     await db.runTransaction(async tx=>{
-      const [planned,active,policy]=await Promise.all([tx.get(planRef),tx.get(activeRef),tx.get(policies.doc(planRef.id))]);
+      const [planned,active,policy]=await Promise.all([tx.get(planRef),tx.get(eventRef(planRef.id)),tx.get(policies.doc(planRef.id))]);
       const plan=planned.data(),event=active.data(),config=policy.data();
       if(!plan?.runAt||plan.runAt>check)return;
       if(event?.eventId!==planRef.id||config?.reminderMode!=='auto'||event.finalizedAt||event.reconciliationStartedAt
-        ||!(Date.now()<Date.parse(event.transferCutoff))){
+        ||!(Date.now()<latestTransferCutoff(event))){
         tx.update(planRef,{runAt:null});
         return;
       }
@@ -153,12 +154,12 @@ export function createMailAdmin(db,mail) {
       if(!choices.includes(reminderMode)||!choices.includes(bulkCancel))throw bad('발송 방식을 확인해 주세요.');
       const at=Date.parse(data.reminderAt);
       return db.runTransaction(async tx=>{
-        const [current,draft,previous]=await Promise.all([tx.get(activeRef),tx.get(db.doc(`bazaarDrafts/${eventId}`)),tx.get(policyRef)]);
+        const [current,draft,previous]=await Promise.all([tx.get(eventRef(eventId)),tx.get(db.doc(`bazaarDrafts/${eventId}`)),tx.get(policyRef)]);
         const isCurrent=current.data()?.eventId===eventId;
         const event=isCurrent?current.data():draft.data()?.event;
         if(!event||(isCurrent&&(event.finalizedAt||event.reconciliationStartedAt)))throw conflict('현재 행사 또는 임시저장의 정책만 변경할 수 있습니다.');
         if(reminderMode==='auto'&&!(Number.isFinite(at)&&at>Date.now()&&at>=Date.parse(event.orderCutoff)
-          &&at<Date.parse(event.transferCutoff))){
+          &&at<latestTransferCutoff(event))){
           throw bad('알림 시각은 주문 마감 이후, 송금 마감 이전이어야 합니다.');
         }
         const policy={reminderMode,bulkCancel,reminderAt:reminderMode==='auto'?new Date(at).toISOString():null};
@@ -219,13 +220,14 @@ export function createMailAdmin(db,mail) {
       const targets=ids.map(id=>({order:orders.doc(id),job:outbox.doc(`${id}_${key}`)}));
       return db.runTransaction(async tx=>{
         if(opening&&policyMode((await tx.get(policyRef)).data(),type)==='off')throw conflict('이 이메일은 발송이 꺼져 있습니다.');
-        const active=type==='reminderFinal'&&opening?(await tx.get(activeRef)).data():null;
+        const active=type==='reminderFinal'&&opening?(await tx.get(eventRef(eventId))).data():null;
         if(type==='reminderFinal'&&opening&&(active?.eventId!==eventId||active.finalizedAt
-          ||active.reconciliationStartedAt||!(Date.now()<Date.parse(active.transferCutoff))))throw conflict('송금 마감 이전의 현재 행사만 알림을 준비할 수 있습니다.');
+          ||active.reconciliationStartedAt||!(Date.now()<latestTransferCutoff(active))))throw conflict('송금 마감 이전의 현재 행사만 알림을 준비할 수 있습니다.');
         const rows=await Promise.all(targets.map(async target=>({order:(await tx.get(target.order)).data(),job:await tx.get(target.job)})));
         const recipients=[];
         for(const {order,job} of rows){
           if(order?.eventId!==eventId)continue;
+          if(opening&&type==='reminderFinal'&&!(Date.now()<orderTransferCutoff(order,active)))continue;
           const stored=job.data();
           if(op==='mailManualPrepare'){
             if(!matchesManual(order,eventId,type,audience,data.excludeReported!==false)

@@ -1,9 +1,50 @@
-.bz-shared-hero{padding:clamp(18px,4vw,36px);background:#edf3f8;color:#20354b;border-radius:12px;margin-bottom:22px}
-.bz-shared-hero>span{font-size:.78rem;font-weight:700;letter-spacing:.08em}
-.bz-shared-hero h1{color:#162b45;font-size:clamp(1.4rem,4vw,2.4rem);margin:.5em 0}
-.bz-shared-hero p,.bz-desc p{white-space:pre-line;overflow-wrap:anywhere}
-.bz-shared-info{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 22px;margin-top:20px}
-.bz-shared-info p{margin:4px 0 0}.bz-shared-info>div:last-child{grid-column:1/-1}
+.bz-shared-hero{color:#233d55;margin-bottom:14px}
+.bz-hero-banner{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;padding:clamp(20px,4vw,35px) 16px;background:linear-gradient(120deg,#1a3048,#28465f);color:#fff;border-radius:13px}
+.bz-hero-banner .bz-hero-logo{display:block;width:120px;height:auto;aspect-ratio:160/59;object-fit:contain;background:#fff;border-radius:5px;padding:5px 7px}
+.bz-hero-brand{font-weight:750;letter-spacing:.11em;font-size:1.3rem;color:white}
+.bz-hero-kicker{font-size:.73rem;font-weight:700;letter-spacing:.09em;color:#efd39a}
+.bz-shared-hero .bz-hero-banner h1{font-size:clamp(1.35rem,3vw,2.05rem);color:#fff;line-height:1.32;margin:0;font-weight:750;width:100%;text-wrap:balance}
+.bz-shared-hero .bz-title-phrase{display:block;text-wrap:balance}
+.bz-shared-info{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}
+.bz-deadline{display:flex;align-items:flex-start;gap:9px;min-width:0;background:#f0f4f7;border:1px solid #e3e9ee;border-radius:10px;padding:12px}
+.bz-deadline>div{min-width:0;display:grid;gap:4px}
+.bz-info-icon{flex:none;color:#36536e;margin-top:1px}
+.bz-info-label{font-size:.78rem;color:#52677b;font-weight:600;line-height:1.3}
+.bz-info-date{font-size:clamp(.89rem,1.7vw,1.04rem);line-height:1.4;color:#203a53;font-weight:750;word-break:keep-all;overflow-wrap:break-word}
+.bz-info-note{font-size:.75rem;line-height:1.45;color:#52677b;font-weight:500;word-break:keep-all;overflow-wrap:break-word}
+.bz-pickup-card{grid-column:1/-1;border:1px solid #e3e9ee;border-radius:10px;background:#f0f4f7;padding:0 12px 10px}
+.bz-pickup-card>.bz-deadline{border:0;background:none;padding:12px 0 4px}
+.bz-shared-hero .bz-pickup-place{margin:0 0 5px 31px;color:#52677b;font-size:.88rem;white-space:pre-line}
+.bz-disclosure{border:1px solid #dce4eb;border-radius:10px;background:#fff;color:#233d55}
+.bz-shared-hero>.bz-disclosure{margin-top:10px}
+.bz-pickup-card .bz-disclosure{border:0;border-top:1px solid #dce4eb;border-radius:0;background:none}
+.bz-disclosure>summary{list-style:none;display:flex;align-items:center;gap:9px;padding:12px;cursor:pointer;font-size:.9rem;font-weight:650;color:#233d55;line-height:1.35}
+.bz-disclosure>summary::-webkit-details-marker{display:none}
+.bz-disclosure>summary:focus-visible{outline:2px solid #315d82;outline-offset:2px;border-radius:8px}
+.bz-disclosure>summary>span:first-of-type{flex:1;min-width:0}
+.bz-disclosure>summary small{display:block;font-size:.75rem;font-weight:400;color:#52677b;margin-top:3px}
+.bz-chevron{width:8px;height:8px;flex:none;border-right:2px solid #52677b;border-bottom:2px solid #52677b;transform:rotate(45deg);margin:0 3px 4px}
+.bz-disclosure[open]>summary .bz-chevron{transform:rotate(225deg);margin-bottom:0}
+.bz-disclosure-body{padding:2px 14px 14px;color:#42546a;font-size:.88rem;line-height:1.65}
+.bz-disclosure-body p,.bz-shared-hero p,.bz-desc p{white-space:pre-line;overflow-wrap:break-word}
+.bz-disclosure-body p{margin:0}
+.bz-before{margin:0 0 16px}
+.bz-before ul{display:grid;gap:15px;list-style:none;padding:0;margin:0}
+.bz-before li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:8px}
+.bz-before h3{font-size:.9rem;color:#233d55;margin:0 0 5px}
+.bz-before p{font-size:.84rem;line-height:1.55;margin:0}
+.bz-before p+p{margin-top:6px}
+.bz-before .bz-purpose{border-top:1px solid #e2e8f0;padding-top:10px}
+@media(max-width:480px){.bz-hero-banner{padding:20px 12px}.bz-deadline{padding:10px 8px;gap:6px}.bz-deadline .bz-info-icon{width:18px;height:18px}.bz-info-date{font-size:.86rem}.bz-info-label{font-size:.73rem}.bz-disclosure>summary{padding:10px}.bz-shared-hero .bz-pickup-place{margin-left:24px}}
+.bz-shared-preview[data-device=mobile] .bz-hero-banner{padding:20px 12px}
+.bz-shared-preview[data-device=mobile] .bz-deadline{padding:10px 8px;gap:6px}
+.bz-shared-preview[data-device=mobile] .bz-info-date{font-size:.86rem}
+.bz-shared-preview[data-device=mobile] .bz-info-label{font-size:.73rem}
+.bz-shared-preview[data-device=mobile] .bz-deadline .bz-info-icon{width:18px;height:18px}
+.bz-shared-preview[data-device=mobile] .bz-hero-banner h1{font-size:1.2rem;line-height:1.45;text-wrap:balance;width:100%}
+@media(max-width:600px){
+ .bz-shared-hero .bz-hero-banner h1{font-size:clamp(1.12rem,4.5vw,1.35rem);line-height:1.45;text-wrap:balance;width:100%}
+}
 .bz-shared-product{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:clamp(8px,2vw,20px);align-items:center;padding:16px 0;border-bottom:1px solid #e1e5e9}
 .bz-shared-photo{position:relative;align-self:start}
 .bz-shared-product .bz-photo{width:clamp(52px,13vw,100px);height:auto;aspect-ratio:1;object-fit:contain;background:#f4f5f6;border-radius:6px}
@@ -12,10 +53,10 @@
 .bz-storage-icon.ambient{color:#B68B35}.bz-storage-icon.chilled{color:#168C9E}.bz-storage-icon.frozen{color:#3266B5}
 .bz-storage-icon span{display:none;position:absolute;z-index:2;left:0;bottom:100%;padding:4px 6px;background:#1f3145;color:white;border-radius:4px;white-space:nowrap;font-size:.78rem}
 .bz-storage-icon:hover span,.bz-storage-icon:focus-visible span,.bz-storage-icon[aria-expanded=true] span{display:block}
-.bz-shared-product .bz-desc h3{margin:0;font-size:1rem;overflow-wrap:anywhere}
-.bz-shared-product .bz-desc p{margin:4px 0;font-size:.84rem;color:#546375}
-.bz-shared-product .bz-stock.is-low{color:#a52630;font-weight:750}.bz-shared-product .bz-stock.is-sold{color:#60676c}
-.bz-shared-product .bz-price{font-size:1rem;color:#253952;white-space:nowrap}
+.bz-shared-product .bz-desc h3{margin:0;font-size:1rem;overflow-wrap:break-word}
+.bz-shared-product .bz-desc p{margin:6px 0 0;font-size:.84rem;line-height:1.75;color:#546375}
+.bz-shared-product .bz-shared-actions .bz-stock{margin:0;color:#a52630;font-size:.76rem;font-weight:700;line-height:1.35;text-align:center;justify-self:center;max-width:108px;overflow-wrap:break-word;word-break:keep-all}
+.bz-shared-product .bz-price{display:block;margin-top:12px;font-size:1rem;color:#253952;white-space:nowrap}
 .bz-shared-actions{display:grid;justify-items:stretch;gap:4px}.bz-shared-actions .bz-qty{display:flex;align-items:center;justify-content:space-between;gap:4px;margin:0}
 .bz-shared-actions .bz-qty button{width:30px;height:32px;min-width:0;padding:0}.bz-shared-actions .bz-btn{font-size:.82rem;padding:6px 8px}
 .bz-shared-actions button:disabled{opacity:.45;cursor:not-allowed}
@@ -23,3 +64,46 @@
 .negative-margin{color:#a52630!important}
 
 .bz-sold-stamp{position:absolute;left:50%;top:45%;transform:translate(-50%,-50%) rotate(-18deg);pointer-events:none;white-space:nowrap;font-weight:900;font-size:clamp(.65rem,2vw,.95rem);letter-spacing:.05em;color:#b31529;border:2px solid currentColor;border-radius:4px;padding:.12em .2em;background:#ffffffd9;line-height:1.05}
+
+.bz-shared-hero :is(h1,h2,p),.bz-shared-product .bz-desc :is(h3,p){word-break:keep-all;hyphens:none;overflow-wrap:break-word;}
+
+/* Checkout terms in the read-only admin storefront preview only. */
+.preview-shop-shell .buyer-hint,.preview-shop-shell .buyer-terms{font-size:14px;color:#675c57;line-height:1.55}
+.preview-shop-shell .buyer-terms{padding:12px 0;border-block:1px solid #e9ded9;overflow-wrap:anywhere}
+.preview-shop-shell .buyer-terms summary{font-weight:700;color:#812e43;cursor:pointer}
+.preview-shop-shell .buyer-terms-content{padding-top:12px}
+.preview-shop-shell .buyer-terms-content h3,.preview-shop-shell .buyer-terms-content h4{margin:16px 0 8px;font-size:15px}
+.preview-shop-shell .buyer-terms-content p{margin:6px 0 10px}
+.preview-shop-shell .buyer-terms-content a{color:#812e43}
+.preview-shop-shell .bz-basket .bz-consent{display:flex;align-items:flex-start;gap:8px;margin:18px 0;font-size:14px;font-weight:400;line-height:1.5}
+.preview-shop-shell .bz-basket .bz-consent input[type=checkbox]{display:inline-block;flex:none;width:auto;min-width:0;height:auto;min-height:0;padding:0;margin:.4em 0 0}
+
+/* Design review: compact heading, consistently aligned 22px information icons. */
+.bz-hero-banner{padding:clamp(18px,3vw,27px) 16px;gap:7px}
+.bz-hero-status-slot{display:flex;justify-content:center;width:100%;min-width:0;margin-top:6px}
+.bz-pickup-card .bz-disclosure>summary{padding-inline:0;gap:9px}
+.bz-pickup-card>.bz-deadline{padding-inline:0;gap:9px}
+.bz-pickup-card .bz-info-icon{width:22px;height:22px;margin-top:1px}
+.bz-pickup-card .bz-disclosure-body{padding-left:31px}
+.bz-shared-hero .bz-pickup-place{margin-left:31px}
+@media(max-width:480px){.bz-hero-banner{padding:18px 12px}.bz-deadline .bz-info-icon,.bz-disclosure>summary .bz-info-icon{width:20px;height:20px}.bz-pickup-card .bz-info-icon{width:20px;height:20px}.bz-pickup-card>.bz-deadline,.bz-pickup-card .bz-disclosure>summary{gap:8px}.bz-shared-hero .bz-pickup-place{margin-left:28px}.bz-pickup-card .bz-disclosure-body{padding-left:28px}}
+
+/* Pickup address is subordinate to the pickup information, not another top-level row. */
+.bz-pickup-card .bz-disclosure{margin-left:31px;margin-top:7px;border-top:1px solid #dce4eb}
+.bz-pickup-card .bz-disclosure>summary{padding:9px 0;gap:7px;font-size:.83rem;color:#52677b;font-weight:600}
+.bz-pickup-card .bz-disclosure>summary .bz-info-icon{width:17px;height:17px;color:#61788b;margin-top:0}
+.bz-pickup-card .bz-disclosure-body{padding:2px 8px 10px 24px}
+@media(max-width:480px){.bz-pickup-card .bz-disclosure{margin-left:28px}.bz-pickup-card .bz-disclosure>summary{font-size:.8rem}.bz-pickup-card .bz-disclosure>summary .bz-info-icon{width:16px;height:16px}.bz-pickup-card .bz-disclosure-body{padding-left:23px}}
+
+/* Make the nested pickup disclosure visibly interactive without duplicating the location pin. */
+.bz-pickup-card .bz-disclosure{border:1px solid #cddbe5;border-radius:8px;background:#fff;margin-top:9px;overflow:hidden}
+.bz-pickup-card .bz-disclosure>summary{padding:10px 11px;color:#34546f;min-height:44px;box-sizing:border-box;gap:8px}
+.bz-pickup-card .bz-disclosure>summary:hover{background:#f2f6f9}
+.bz-pickup-card .bz-disclosure>summary:focus-visible{outline-offset:-3px}
+.bz-pickup-card .bz-toggle-label{font-size:.73rem;font-weight:650;color:#456781;flex:none;white-space:nowrap}
+.bz-pickup-card .bz-collapse-label,.bz-pickup-card .bz-disclosure[open] .bz-expand-label{display:none}
+.bz-pickup-card .bz-disclosure[open] .bz-collapse-label{display:inline}
+.bz-pickup-card .bz-disclosure[open]>summary{border-bottom:1px solid #e2e9ef}
+.bz-pickup-card .bz-chevron{width:9px;height:9px;color:#34546f;border-color:currentColor}
+.bz-pickup-card .bz-disclosure-body{padding:10px 12px 12px 35px}
+@media(max-width:480px){.bz-pickup-card .bz-disclosure>summary{padding:9px 8px;gap:6px}.bz-pickup-card .bz-toggle-label{font-size:.69rem}.bz-pickup-card .bz-disclosure-body{padding-left:30px}}

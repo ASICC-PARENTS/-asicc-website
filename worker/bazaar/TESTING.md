@@ -14,7 +14,8 @@
 - Astro는 `PUBLIC_ASICC_BAZAAR_TEST=true`, Firebase 테스트 웹앱의 `PUBLIC_ASICC_BAZAAR_TEST_API_KEY`, `PUBLIC_ASICC_BAZAAR_TEST_APP_ID`, 테스트 Worker 원본 주소인 `PUBLIC_ASICC_BAZAAR_WORKER_URL`을 사용합니다. 기본 테스트 브라우저 주소는 `http://127.0.0.1:4321`입니다.
 - Worker Secrets에는 테스트 프로젝트 전용 `FIRESTORE_CLIENT_EMAIL`과 `FIRESTORE_PRIVATE_KEY`가 필요합니다. 서비스 계정의 Firestore 권한은 테스트 프로젝트에만 부여합니다. 주문, 원가, 발송 대기 데이터는 Worker를 통해 접근합니다.
 - 실제 B2 연결 전 계정의 무료 저장량 여유를 확인합니다. 기존 비공개 버킷과 `bazaar/test/photos/` 접두사로 제한된 Application Key에 `readFiles` 및 `writeFiles` 권한을 부여합니다. Worker 변수는 `B2_S3_ENDPOINT=https://s3.<region>.backblazeb2.com`과 `B2_BUCKET=<기존 버킷 이름>`입니다. `B2_KEY_ID`와 `B2_APPLICATION_KEY`는 Secrets입니다. 사진 미리보기에는 기존 Worker Secret `BAZAAR_PHOTO_SIGNING_KEY`가 필요합니다. 상품에서 사진을 교체하거나 제거해도 이전 행사 참조는 유지됩니다. 동일한 사진 파일은 해시로 재사용합니다.
-- `MAIL_MODE = "capture"`에서는 외부 발송 없이 테스트 Firestore에 처리 상태를 기록합니다. `MAIL_MODE = "api"`로 실제 전송을 검증할 때는 테스트 수신함인 `TEST_MAIL_TO`가 모든 수신자를 대체합니다. 바자회 전용 `BAZAAR_MAIL_API_KEY`, `BAZAAR_MAIL_FROM`, `MAIL_PROVIDER=brevo` 또는 `resend`를 설정합니다. 발신자 등록과 발신 도메인 인증에는 해당 메일 공급자가 제공한 DNS 레코드를 사용합니다.
+- 통합 테스트 Worker는 Brevo 실제 발송을 사용합니다. BAZAAR_TEST_MAIL_SINCE 이후 생성된 주문과 대기 메일만 주문자가 입력한 주소로 보냅니다. 제목에 [TEST]를 붙이고 최근 25시간 일반 25통, 전체 30통으로 제한합니다. 로컬 검수는 capture를 사용합니다.
+- 통합 사이트와 디자인 미리보기의 게시판·학습자료실·갤러리 파일 요청은 테스트 Firebase 권한으로 확인합니다. B2 파일은 기존 테스트 키 범위 안의 bazaar/test/photos/member-media/에 저장합니다.
 
 ## 테스트 후 운영 검토 항목
 
