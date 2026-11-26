@@ -38,6 +38,14 @@ test('selected quantity reduces only the displayed remaining stock, not actual a
   assert.equal(product.stockRemaining,3);
 });
 
+test('product descriptions preserve text and single line breaks but omit empty lines in both languages',()=>{
+  const product={id:'p',titleKo:'상품',titleFr:'Produit',descriptionKo:'첫 문장\n\n둘째 문장\n  \n<셋째>',descriptionFr:'Première ligne\r\n\r\nDeuxième ligne\n \n<Troisième>',priceCents:300};
+  const opts={quantity:()=>0,controls:()=>'',price:()=> '3 €'};
+  assert.ok(renderShopProducts([product],'ko',opts).includes('<p>첫 문장\n둘째 문장\n&lt;셋째&gt;</p>'));
+  assert.ok(renderShopProducts([product],'fr',opts).includes('<p>Première ligne\nDeuxième ligne\n&lt;Troisième&gt;</p>'));
+  assert.ok(product.descriptionKo.includes('\n\n'));
+});
+
 test('shared event header uses Paris time and escapes editor text',()=>{
   const html=renderShopEvent({nameFr:'<201>',orderCutoff:'2026-11-27T17:00:00Z'},'fr');
   assert.match(html,/&lt;201&gt;/);

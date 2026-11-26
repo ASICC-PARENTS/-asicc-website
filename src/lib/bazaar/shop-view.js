@@ -90,6 +90,8 @@ export function changeCartQuantity(cart,id,delta,stock){
  if(qty>0)cart[id]=qty;else delete cart[id];
  return qty;
 }
+// Normalize only the displayed description; stored bilingual product data stays intact.
+const displayDescription=value=>String(value??'').split(/\r\n|\r|\n/).filter(line=>line.trim()!=='').join('\n').trim();
 export function renderShopProducts(products,lang,{quantity,controls,price}) {
   const t=(ko,fr)=>localize(lang,ko,fr);
   return '<div class="bz-shared-products">'+products.map(product=>{
@@ -100,7 +102,7 @@ export function renderShopProducts(products,lang,{quantity,controls,price}) {
     const selected=quantity(product);
     const stamp=product.stockRemaining===0?'<span class="bz-sold-stamp">'+t('매진','ÉPUISÉ')+'</span>':'';
     return '<article class="bz-shared-product"><div class="bz-shared-photo">'+photo+stamp+icon+'</div>'+
-      '<div class="bz-desc"><h3>'+escape(name)+'</h3><p>'+escape(t(product.descriptionKo,product.descriptionFr))+'</p>'+
+      '<div class="bz-desc"><h3>'+escape(name)+'</h3><p>'+escape(displayDescription(t(product.descriptionKo,product.descriptionFr)))+'</p>'+
       '<strong class="bz-price">'+escape(price(product.priceCents))+'</strong></div>'+
       '<div class="bz-shared-actions">'+controls(product,selected,product.stockRemaining===0)+stockNotice(product.stockRemaining,lang,selected)+'</div></article>';
   }).join('')+'</div>';
