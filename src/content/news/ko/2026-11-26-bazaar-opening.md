@@ -1,7 +1,7 @@
 ---
 title: ASICC 설립·홈페이지 개설 기념 제1회 온라인 바자회 개최
 date: 2026-11-26
-category: notice
+category: event
 summary: 협회의 설립과 홈페이지 개설을 기념하고 학생들의 더 나은 교육환경을 지원하기 위해 제1회 온라인 바자회를 개최합니다. 
 draft: false
 ---

@@ -1,7 +1,7 @@
 ---
 title: Premier bazar en ligne de l’ASICC – Célébrons la création de l’association et le lancement de son site
 date: 2026-11-26
-category: notice
+category: event
 summary: Pour célébrer la création de l’ASICC et le lancement de son site internet, nous organisons notre premier bazar solidaire en ligne au bénéfice des élèves.
 draft: false
 ---
