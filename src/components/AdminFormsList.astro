@@ -1,0 +1,82 @@
+---
+import forms from '../data/admin-forms.json';
+import { href, L, type Lang } from '../i18n/ui';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const ko = lang === 'ko';
+const rows = [...forms].sort((a,b) => b.date.localeCompare(a.date));
+const preview = import.meta.env.PUBLIC_ASICC_INTEGRATION_TEST === 'true' || import.meta.env.PUBLIC_ASICC_ADMISSIONS_PREVIEW === 'true';
+---
+<section id="admin-forms" class="card auth-card stack gap-12" aria-labelledby="admin-forms-heading">
+  <div class="forms-heading">
+    <div class="stack gap-8">
+      <h2 id="admin-forms-heading" class="h3">{ko ? '설문·신청 관리' : 'Enquêtes et formulaires'}</h2>
+      <p class="small muted">{L(lang,{ko:'조사 및 신청폼을 한곳에서 관리합니다. 제목을 누르면 기존 응답 관리 화면으로 이동합니다.',fr:'Retrouvez les enquêtes et inscriptions au même endroit. Cliquez sur un titre pour accéder à la gestion des réponses.'})}</p>
+    </div>
+    <span class="m-badge">{ko ? '총 ' + rows.length + '건' : rows.length + ' formulaires'}</span>
+  </div>
+  <div class="forms-table-wrap">
+    <table class="forms-table">
+      <thead>
+        <tr>
+          <th scope="col">{ko ? '제목' : 'Titre'}</th>
+          <th scope="col">{ko ? '유형' : 'Type'}</th>
+          <th scope="col">{ko ? '공지일' : 'Publication'}</th>
+          <th scope="col">{ko ? '공개 신청 링크' : 'Formulaire public'}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map(item => {
+          const external = 'url' in item.admin && item.admin.url;
+          const adminHref = external || href(lang, item.admin.path!);
+          const koHref = 'path' in item.public ? href('ko', item.public.path!) : item.public.ko;
+          const frHref = 'path' in item.public ? href('fr', item.public.path!) : item.public.fr;
+          return (
+            <tr>
+              <td class="forms-title">
+                {preview && external ? <strong>{item.title[lang]}</strong> :
+                  <a href={adminHref} target={external ? '_blank' : undefined} rel={external ? 'noopener noreferrer' : undefined}><strong>{item.title[lang]}</strong> <span aria-hidden="true">{external ? '↗' : '›'}</span></a>}
+                <span class="small muted">{item.description[lang]}</span>
+                {preview && external && <span class="small muted">{ko ? '운영 조사 링크 · 테스트에서 비활성화' : 'Enquête en production · lien désactivé en test'}</span>}
+              </td>
+              <td class="forms-type"><span class="m-badge">{item.type[lang]}</span></td>
+              <td class="forms-date"><time datetime={item.date}>{item.date}</time></td>
+              <td class="forms-public">
+                {preview && external ? <span class="small muted">—</span> : <div class="forms-links">
+                  <a class="btn btn-ghost btn-sm" href={koHref} target="_blank" rel="noopener noreferrer" aria-label={item.title[lang] + ' · 한국어'}>한국어 ↗</a>
+                  <a class="btn btn-ghost btn-sm" href={frHref} target="_blank" rel="noopener noreferrer" aria-label={item.title[lang] + ' · Français'}>Français ↗</a>
+                </div>}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
+  <p class="small muted">{L(lang,{ko:'새로운 조사와 신청폼이 발행되면 이 목록에 추가합니다. 응답은 각 양식의 기존 관리자 화면 및 저장소에서 관리됩니다.',fr:'Les nouveaux formulaires seront ajoutés à cette liste. Les réponses restent gérées dans l’espace et le stockage propres à chaque formulaire.'})}</p>
+</section>
+<style>
+  #admin-forms{scroll-margin-top:100px;min-width:0}
+  .forms-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .forms-heading .m-badge{white-space:nowrap;flex-shrink:0}
+  .forms-table-wrap{border:1px solid #dce0e7;border-radius:10px;overflow:hidden;min-width:0}
+  .forms-table{border-collapse:collapse;width:100%;font-size:.9rem;table-layout:auto}
+  .forms-table th{background:#f1f5f2;text-align:left;font-weight:700;white-space:nowrap}
+  .forms-table th,.forms-table td{padding:12px 14px;border-bottom:1px solid #e2e6e3;vertical-align:middle}
+  .forms-table tr:last-child td{border-bottom:0}
+  .forms-title>a{display:block;color:#24523e;text-decoration:underline;text-underline-offset:3px;line-height:1.5;margin-bottom:4px;overflow-wrap:anywhere}
+  .forms-title>.small{display:block;line-height:1.5}
+  .forms-date{white-space:nowrap}
+  .forms-links{display:flex;flex-wrap:wrap;gap:6px}
+  .forms-links>a{white-space:nowrap}
+  @media(max-width:650px){
+    .forms-table,.forms-table tbody{display:block}
+    .forms-table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+    .forms-table tr{display:grid;grid-template-columns:auto 1fr;gap:0;padding:10px 12px;border-bottom:1px solid #e2e6e3}
+    .forms-table tr:last-child{border-bottom:0}
+    .forms-table td{display:block;padding:4px 0;border:0}
+    .forms-title,.forms-public{grid-column:1/-1}
+    .forms-date{text-align:right;color:#616b65;font-size:12px}
+    .forms-links{gap:8px;margin-top:3px}
+  }
+</style>

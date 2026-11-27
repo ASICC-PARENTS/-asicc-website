@@ -3,6 +3,7 @@ import Base from '../../../layouts/Base.astro';
 import { langPaths, href, L, type Lang } from '../../../i18n/ui';
 import homeCampaigns from '../../../data/cms/home-campaigns.json';
 import HomePopupAdmin from '../../../components/HomePopupAdmin.astro';
+import AdminFormsList from '../../../components/AdminFormsList.astro';
 export const getStaticPaths = langPaths;
 const lang = Astro.params.lang as Lang;
 const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
@@ -71,7 +72,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     <div class="asicc-admin-hub-grid">
       <a class="asicc-admin-hub-link" href="#admin-board-management-heading"><strong>{L(lang,{ko:'게시판 관리',fr:'Gestion du forum'})}</strong><span>{L(lang,{ko:'게시판 분류 관리',fr:'Catégories du forum'})}</span></a>
       <a class="asicc-admin-hub-link" href={href(lang,'bazaar/admin/')}><strong>{L(lang,{ko:'온라인 바자회 관리',fr:'Gestion du bazar en ligne'})}</strong><span>{L(lang,{ko:'행사 · 상품 · 주문 · 입금',fr:'Événements · produits · commandes · paiements'})}</span></a>
-      <a class="asicc-admin-hub-link" href={href(lang,'membres/admin/admissions-session/')}><strong>{L(lang,{ko:'입학설명회 신청 관리',fr:'Inscriptions à la réunion d’information'})}</strong><span>{L(lang,{ko:'신청자 · 학년별 집계 · Excel',fr:'Inscrits · statistiques · Excel'})}</span></a>
+      <a class="asicc-admin-hub-link" href="#admin-forms"><strong>{L(lang,{ko:'설문·신청 관리',fr:'Enquêtes et formulaires'})}</strong><span>{L(lang,{ko:'조사 · 신청폼 · 응답 목록',fr:'Enquêtes · inscriptions · réponses'})}</span></a>
       <a class="asicc-admin-hub-link" href="#admin-home-banners"><strong>{L(lang,{ko:'메인 배너 관리',fr:'Bannières d’accueil'})}</strong><span>{L(lang,{ko:'배너 1 · 배너 2',fr:'Bannière 1 · Bannière 2'})}</span></a>
       <a class="asicc-admin-hub-link" href="#admin-home-popup"><strong>{L(lang,{ko:'팝업 관리',fr:'Fenêtre d’accueil'})}</strong><span>{L(lang,{ko:'게시 기간 · 이미지 · 바로가기',fr:'Dates · images · lien'})}</span></a>
       <a class="asicc-admin-hub-link" href="#operations-heading"><strong>{L(lang,{ko:'홈페이지 운영 설정',fr:'Paramètres du site'})}</strong><span>{L(lang,{ko:'갤러리 · 쪽지 · 학습자료',fr:'Galerie · messages · ressources'})}</span></a>
@@ -80,6 +81,7 @@ const live = import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED === "true";
     </div>
   </div>
 </section>
+        <AdminFormsList lang={lang} />
         <div class="card auth-card stack gap-12">
           <div class="row gap-16" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
             <div class="stack gap-8">
