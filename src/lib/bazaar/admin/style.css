@@ -75,3 +75,6 @@ tr.row-drop-after td{box-shadow:inset 0 -3px #286197}
 .embedded-catalog .catalog-context{display:none}
 .embedded-catalog .catalog-only .sheet{max-height:calc(100dvh - 205px)}
 @media(max-width:780px){.catalog-dialog{width:100vw;height:100dvh;border:0;border-radius:0}.catalog-dialog-header{padding:12px 13px}.catalog-dialog-header h2{font-size:19px}.standalone-catalog main{padding:10px}.standalone-catalog .catalog-only .sheet{max-height:calc(100dvh - 290px)}}
+
+/* Keep only the product order overview visible as a scrollable table on mobile. */
+@media(max-width:760px){body[data-page=orders] [data-product-order-view] .sheet{display:block;overflow-x:auto}}

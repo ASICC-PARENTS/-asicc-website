@@ -291,6 +291,6 @@ setInterval(()=>{
  if(event.status&&phase!==lastPhase){lastPhase=phase;render();}
 },1000);
 const refreshVisible=()=>{if(!document.hidden&&event.status!=='closed')void refresh();};
-setInterval(refreshVisible,15000);
+setInterval(refreshVisible,45000);
 document.addEventListener('visibilitychange',refreshVisible);
 </script>
