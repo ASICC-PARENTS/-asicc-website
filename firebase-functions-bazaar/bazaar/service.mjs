@@ -866,8 +866,12 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         const totalCents=orderTotal(items)-(order.priceAdjustmentCents||0);
         if(totalCents<0)bad('현재 주문금액보다 가격 조정액이 클 수 없습니다.');
         if((order.reservedRefundCents||0)>orderPaymentSummary({...order,totalCents}).refundDue)throw new HttpsError('failed-precondition','환불 대기 금액이 변경되는 정정은 먼저 환불 대기를 처리해야 합니다.');
-        if(order.transferReportedAt&&!order.bankConfirmedAt&&totalCents!==order.totalCents)
-          throw new HttpsError('failed-precondition','송금 신고 주문은 은행 입금을 먼저 확인해 주세요.');
+        if(order.transferReportedAt&&!order.bankConfirmedAt&&totalCents!==order.totalCents){
+          // A reported transfer is not a confirmed deposit. Permit reductions only after acknowledgement.
+          const reductionOnly=totalCents<order.totalCents&&items.every(item=>item.qty<=(previous.get(item.id)?.qty??0));
+          if(!reductionOnly)throw new HttpsError('failed-precondition','송금 신고 주문의 상품 추가 또는 증액은 은행 입금을 먼저 확인해 주세요.');
+          if(data.ackReportedMismatch!==true)throw new HttpsError('failed-precondition','송금 신고액과 변경 주문액이 달라 추후 환불 등록이 필요할 수 있습니다. 확인 후 다시 저장해 주세요.');
+        }
         if(order.bankConfirmedAt&&data.restoreStock!==true&&data.restoreStock!==false)bad('회수한 상품을 재고로 복원할지 선택해 주세요.');
         for(const [product,delta] of stockChanges){
           if(delta>0||!order.bankConfirmedAt||data.restoreStock===true)tx.update(product,{soldQty:FieldValue.increment(delta)});

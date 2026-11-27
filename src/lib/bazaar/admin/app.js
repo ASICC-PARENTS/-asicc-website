@@ -1061,7 +1061,9 @@ async function saveCorrection(id){
  if(!reason)throw new Error('정정 사유를 입력해 주세요.');
  const items=[...root.querySelectorAll('[data-order-quantity]')].map(el=>({id:el.dataset.orderQuantity,qty:Number(el.value)})).filter(item=>item.qty!==0||order.items.some(row=>row[3]===item.id));
  if(!confirm(language('이 주문을 정정할까요? 원본과 정정 사유가 보관됩니다.','Corriger cette commande ? La version d’origine et le motif seront conservés.')))return;
- await request('correctOrder',{id,eventId:selectedEvent().id,revision:order.revision,reason,items,restoreStock:$('#correction-restore')?.checked??false,confirm:true});
+ const reportedReduction=order.status==='reported'&&items.some(item=>item.qty<(order.items.find(row=>row[3]===item.id)?.[1]??0))&&items.every(item=>item.qty<=(order.items.find(row=>row[3]===item.id)?.[1]??0));
+ if(reportedReduction&&!confirm(language('송금 신고액과 변경된 주문금액이 일치하지 않을 수 있습니다. 실제 입금 확인 후 차액에 대한 환불 등록이 필요할 수 있습니다. 입금 확인 상태는 변경되지 않습니다. 그래도 주문을 수정하시겠습니까?','Le montant du virement signalé peut différer du nouveau total. Un remboursement pourra être nécessaire après vérification du virement. Le statut du paiement restera inchangé. Modifier quand même la commande ?')))return;
+ await request('correctOrder',{id,eventId:selectedEvent().id,revision:order.revision,reason,items,restoreStock:$('#correction-restore')?.checked??false,confirm:true,ackReportedMismatch:reportedReduction});
  closeModal();await load();orderModal(id);
 }
 async function showOrderHistory(id){
