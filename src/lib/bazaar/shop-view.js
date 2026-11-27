@@ -100,8 +100,12 @@ export function renderShopProducts(products,lang,{quantity,controls,price}) {
     const icon=storage?'<button type="button" class="bz-storage-icon '+product.storage+'" title="'+escape(label)+'" aria-label="'+escape(label)+'" aria-expanded="false"><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7">'+icons[product.storage]+'</svg><span>'+escape(label)+'</span></button>':'';
     const photo=product.imageUrl?'<img class="bz-photo" src="'+escape(product.imageUrl)+'" alt="'+escape(name)+'" loading="lazy">':'<div class="bz-photo bz-placeholder" aria-hidden="true">📦</div>';
     const selected=quantity(product);
-    const stamp=product.stockRemaining===0?'<span class="bz-sold-stamp">'+t('매진','ÉPUISÉ')+'</span>':'';
-    return '<article class="bz-shared-product"><div class="bz-shared-photo">'+photo+stamp+icon+'</div>'+
+    if(product.stockRemaining===0){
+      return '<article class="bz-shared-product bz-sold-product"><div class="bz-shared-photo">'+photo+icon+'</div>'+
+        '<details class="bz-sold-details" data-bz-disclosure="sold-'+escape(product.id)+'"><summary><span class="bz-sold-summary-copy"><strong class="bz-sold-name">'+escape(name)+'</strong><strong class="bz-price">'+escape(price(product.priceCents))+'</strong></span><span class="bz-sold-stamp">'+t('매진','ÉPUISÉ')+'</span><span class="bz-chevron" aria-hidden="true"></span></summary>'+
+        '<div class="bz-desc"><p>'+escape(displayDescription(t(product.descriptionKo,product.descriptionFr)))+'</p></div></details></article>';
+    }
+    return '<article class="bz-shared-product"><div class="bz-shared-photo">'+photo+icon+'</div>'+
       '<div class="bz-desc"><h3>'+escape(name)+'</h3><p>'+escape(displayDescription(t(product.descriptionKo,product.descriptionFr)))+'</p>'+
       '<strong class="bz-price">'+escape(price(product.priceCents))+'</strong></div>'+
       '<div class="bz-shared-actions">'+controls(product,selected,product.stockRemaining===0)+stockNotice(product.stockRemaining,lang,selected)+'</div></article>';

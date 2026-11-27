@@ -81,8 +81,24 @@ export function eventViewModel(event, items=[], orders=[], financialFinalizedAt=
   };
 }
 
+/** Estimate whole-carton procurement from active order quantities, without modifying orders.
+ * Different supplier/pack snapshots must be ordered separately; different prices alone do not split cartons. */
+function cartonPlan(product,groups,qty){
+ const packValue=value=>Number.isSafeInteger(Number(value))&&Number(value)>0?Number(value):null;
+ const groupList=[...(groups?.values()||[])];
+ const packSizes=[...new Set(groupList.map(g=>g.pack).filter(Boolean))].sort((a,b)=>a-b);
+ if(!groupList.length&&packValue(product?.pack))packSizes.push(packValue(product.pack));
+ const suppliers=[...new Set(groupList.map(g=>g.supplier).filter(Boolean))];
+ if(!suppliers.length&&product?.vendor)suppliers.push(product.vendor);
+ const known=groupList.every(g=>g.pack!=null);
+ const boxes=known?groupList.reduce((n,g)=>n+Math.ceil(g.qty/g.pack),0):null;
+ const purchaseQty=known?groupList.reduce((n,g)=>n+Math.ceil(g.qty/g.pack)*g.pack,0):null;
+ return {packSizes,suppliers,boxes,purchaseQty,remainingQty:purchaseQty==null?null:purchaseQty-qty};
+}
+
 export function productOrderSummary(products=[], orders=[]) {
-  const rows=new Map();
+  const rows=new Map(),cartonGroups=new Map(),productById=new Map(products.map(p=>[p.id||'legacy:'+(p.ko||p.fr||''),p]));
+  const validPack=value=>Number.isSafeInteger(Number(value))&&Number(value)>0?Number(value):null;
   for(const product of products){
     const key=product.id||`legacy:${product.ko||product.fr||''}`;
     rows.set(key,{id:key,ko:product.ko||'',fr:product.fr||'',photo:product.photo||'',price:product.sale===''?null:Number(product.sale)||0,qty:0,initialQty:0,canceledQty:0,amountCents:0,orders:[]});
@@ -103,12 +119,21 @@ export function productOrderSummary(products=[], orders=[]) {
       const row=rows.get(key)||{id:key,ko:item[0]||'',fr:item[4]?.titleFr||'',photo:item[4]?.imageUrl||'',price:null,qty:0,initialQty:0,canceledQty:0,amountCents:0,orders:[]};
       const qty=Math.max(0,Number(item[1])||0),priceCents=Math.max(0,Math.round((Number(item[2])||0)*100));
       row.qty+=qty;row.amountCents+=qty*priceCents;
+      if(qty>0){
+        const product=productById.get(key),snapshot=item[4];
+        const pack=validPack(snapshot?.packQty)??validPack(product?.pack);
+        const supplier=snapshot?.supplier||product?.vendor||'';
+        const groups=cartonGroups.get(key)||new Map(),groupKey=JSON.stringify([supplier,pack]);
+        const group=groups.get(groupKey)||{supplier,pack,qty:0};
+        group.qty+=qty;groups.set(groupKey,group);cartonGroups.set(key,groups);
+      }
       row.orders.push({id:order.id,ref:order.ref,name:order.name,email:order.email,qty,amountCents:qty*priceCents});
       rows.set(key,row);
     }
   }
-  return [...rows.values()];
+  return [...rows.values()].map(row=>({...row,...cartonPlan(productById.get(row.id),cartonGroups.get(row.id),row.qty)}));
 }
+
 
 /** Current accepted-order figures, using the saved order cost snapshot when present.
  * Estimated gross margin is for sold units only, before other expenses. */

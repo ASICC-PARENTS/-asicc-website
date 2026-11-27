@@ -107,3 +107,16 @@
 .bz-pickup-card .bz-chevron{width:9px;height:9px;color:#34546f;border-color:currentColor}
 .bz-pickup-card .bz-disclosure-body{padding:10px 12px 12px 35px}
 @media(max-width:480px){.bz-pickup-card .bz-disclosure>summary{padding:9px 8px;gap:6px}.bz-pickup-card .bz-toggle-label{font-size:.69rem}.bz-pickup-card .bz-disclosure-body{padding-left:30px}}
+
+/* Compact sold-out rows; the native disclosure keeps the list layout. */
+.bz-shared-product.bz-sold-product{padding:8px 0;grid-template-columns:auto minmax(0,1fr);align-items:start}
+.bz-sold-product .bz-shared-photo{opacity:.65}
+.bz-sold-details{min-width:0;align-self:stretch}
+.bz-sold-details summary{position:relative;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:clamp(52px,13vw,100px);padding:0 4px;cursor:pointer;list-style:none;isolation:isolate}
+.bz-sold-details summary::-webkit-details-marker{display:none}
+.bz-sold-summary-copy{min-width:0;opacity:.48;overflow-wrap:anywhere}
+.bz-sold-summary-copy .bz-price{margin-top:4px}
+.bz-sold-details .bz-sold-stamp{top:50%;left:50%;max-width:90%;font-size:clamp(1.6rem,5vw,2.65rem);padding:.08em .3em;line-height:1.05;border-width:3px;background:#fff9;transform:translate(-50%,-50%) rotate(-12deg);z-index:1}
+.bz-sold-details .bz-chevron{flex-shrink:0;position:relative;z-index:2}
+.bz-sold-details[open] .bz-chevron{transform:rotate(225deg)}
+.bz-shared-preview[data-device=mobile] .bz-sold-details summary{min-height:54px}
