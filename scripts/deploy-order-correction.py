@@ -28,6 +28,7 @@ def unpack(headers,body):
     if not main or sum(n==main for n,t,b in parts)!=1:
         candidates=[n for n,t,b in parts if b"function createBazaar(" in b and b"correctOrder" in b and b"transferReportedAt" in b]
         if len(candidates)==1:main=candidates[0]
+        elif len([n for n,t,b in parts if t=="application/javascript+module"])==1:main=next(n for n,t,b in parts if t=="application/javascript+module")
         elif len(parts)==1:main=parts[0][0]  # exact parsed transaction check follows before any write
     if not main or sum(n==main for n,t,b in parts)!=1 or len({n for n,t,b in parts})!=len(parts):
         print("Worker module metadata:",repr(main),[(n,t,len(b)) for n,t,b in parts],flush=True)
