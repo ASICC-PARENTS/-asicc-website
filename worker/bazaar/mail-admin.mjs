@@ -16,13 +16,14 @@ const now = () => new Date().toISOString();
 const bad = message => new BazaarError('invalid-argument',message);
 const conflict = message => new BazaarError('failed-precondition',message);
 
-function formatJob(doc,order){
+function formatJob(doc,order,mail){
   const data=doc.data();
   const {orderId,type,status,sentAt,dueAt,lastError,deliveryUncertain,manualSentAt,notice,sentSnapshot}=data;
   const redact=text=>String(text??'').replace(/([#&?]token=)[^s&]+/g,'$1[redacted]');
   return {id:doc.id,orderId,type,status:status??(sentAt?'sent':'queued'),sentAt,dueAt,lastError,deliveryUncertain,manualSentAt,notice,
     createdAt:data.createdAt??null,requestedAt:data.requestedAt??null,mode:data.mode||((manualSentAt||data.manualBy)?'manual':'auto'),
     method:manualSentAt?'OVH':data.providerId==='captured'?'capture':data.providerId?'Brevo':null,
+    delivery:data.delivery??null,canCheckDelivery:mail.canCheckDelivery(data),
     actor:data.manualBy||data.retryBy||null,retries:data.retryHistory||[],
     orderRef:order?.orderRef??null,name:order?.name??null,email:order?.email??null,
     resendOf:data.resendOf??null,resendJobId:data.resendJobId??null,
@@ -40,6 +41,21 @@ function matchesManual(order,eventId,type,audience,excludeReported) {
   }
   if(audience==='canceled')return !!order.canceledAt;
   if(audience==='confirmed')return orderPaymentSummary(order).settled;
+  return !order.canceledAt;
+}
+
+const transactionKinds=['orderChanged','additionalPayment','refundCompleted'];
+const storedType=kind=>['buyerCancel','adminCancel'].includes(kind)?'cancel':kind;
+function directEligible(kind,order,event,policy,record){
+  if(!order?.email||!Object.hasOwn(mailKinds,kind)||policyMode(policy,kind)==='off')return false;
+  if(kind==='buyerCancel'||kind==='adminCancel')return !!order.canceledAt&&order.cancelReason===(kind==='buyerCancel'?'buyer':'admin');
+  if(kind==='bulkCancel')return !!order.canceledAt&&order.cancelReason==='unpaidFinalization';
+  if(kind==='confirmed')return !!order.bankConfirmedAt&&!order.canceledAt&&orderPaymentSummary(order).settled;
+  if(kind==='reminderFinal')return !order.canceledAt&&!order.bankConfirmedAt&&!order.transferReportedAt
+    &&event?.eventId===order.eventId&&!event.finalizedAt&&!event.reconciliationStartedAt&&Date.now()<orderTransferCutoff(order,event);
+  if(kind==='refundCompleted')return record?.change?.amountCents>0&&!!record.change.at;
+  if(kind==='additionalPayment')return !order.canceledAt&&record?.change?.amountCents>0&&orderPaymentSummary(order).additionalDue===record.change.amountCents;
+  if(kind==='orderChanged')return !!record?.change&&!order.canceledAt;
   return !order.canceledAt;
 }
 
@@ -95,13 +111,89 @@ export function createMailAdmin(db,mail) {
       if(!orderPattern.test(data.id??''))throw bad('주문 번호를 확인해 주세요.');
       const [messages,review]=await Promise.all([mail.status(data.id),db.doc(`bazaarLatePayments/${data.id}`).get()]);
       const entry=review.data();
-      return {messages,latePayment:entry?.status??null,
+      let manual=null;
+      if(data.includeManual===true&&idPattern.test(data.eventId??'')){
+        const [order,event,policy]=await db.getAll(orders.doc(data.id),eventRef(data.eventId),policies.doc(data.eventId));
+        const row=order.data(),config=policy.data();
+        if(row?.eventId===data.eventId&&row.email)manual={email:row.email,orderRef:row.orderRef??null,
+          options:Object.keys(mailKinds).filter(kind=>!transactionKinds.includes(kind)&&directEligible(kind,row,event.data(),config))
+            .map(kind=>({kind})).concat(messages.filter(m=>transactionKinds.includes(m.type)&&m.hasChange&&policyMode(config,m.type)!=='off')
+              .map(m=>({kind:m.type,jobId:m.id,at:m.sentAt||m.dueAt||null})))};
+      }
+      return {messages,manual,latePayment:entry?.status??null,
         latePaymentDetails:entry?.status==='pending'?Object.fromEntries(['amountCents','actualDate','payer','operator','reference','note']
           .map(key=>[key,entry[key]??null])):null};
     }
     const eventId=data.eventId;
     if(!idPattern.test(eventId??''))throw bad('바자회 행사를 확인해 주세요.');
     const policyRef=policies.doc(eventId);
+    if(op==='mailCheckDelivery'){
+      if(!mailPattern.test(data.id??''))throw bad('메일 기록을 확인해 주세요.');
+      const ref=outbox.doc(data.id),record=(await ref.get()).data();
+      if(!record||!orderPattern.test(record.orderId)||record.eventId&&record.eventId!==eventId)throw conflict('해당 행사의 메일 기록이 아닙니다.');
+      const order=(await orders.doc(record.orderId).get()).data();
+      if(order?.eventId!==eventId||!mail.canCheckDelivery(record))throw conflict('Brevo 전달 기록을 확인할 수 없는 이메일입니다.');
+      let delivery;
+      try{delivery=await mail.checkDelivery(record,order);}catch{throw conflict('Brevo 전달 내역 조회에 실패했습니다. 기존 발송 기록은 유지되었습니다.');}
+      if(!delivery)throw conflict('전달 내역을 확인할 수 없습니다.');
+      const saved=await db.runTransaction(async tx=>{
+        const latest=(await tx.get(ref)).data();
+        if(latest?.providerId!==record.providerId||latest?.status!=='sent')throw conflict('메일 기록이 변경되었습니다. 다시 조회해 주세요.');
+        if(latest.delivery?.eventAt&&(!delivery.eventAt||latest.delivery.eventAt>delivery.eventAt))return latest.delivery;
+        tx.update(ref,{delivery});return delivery;
+      });
+      return {jobId:data.id,delivery:saved,checkedDelivery:true};
+    }
+    if(op==='mailSingleSend'){
+      const {orderId,kind,requestId,expectedEmail,jobId:sourceId}=data;
+      if(!orderPattern.test(orderId??'')||!Object.hasOwn(mailKinds,kind)||!idPattern.test(requestId??'')||
+        typeof expectedEmail!=='string'||data.confirm!==true||
+        (transactionKinds.includes(kind)?!mailPattern.test(sourceId??''):!!sourceId))throw bad('주문, 수신자 및 메일 종류를 확인해 주세요.');
+      if(!mail.canSend()||typeof message!=='function')throw conflict('현재 이메일 발송 서버를 사용할 수 없습니다.');
+      const type=storedType(kind),baseId=sourceId||orderId+'_'+type;
+      const digest=createHash('sha256').update([eventId,orderId,kind,baseId,requestId].join('|')).digest('hex');
+      const ledger=db.doc('bazaarMailDispatchRequests/'+digest);
+      const selected=await db.runTransaction(async tx=>{
+        const [orderSnap,eventSnap,policySnap,baseSnap,replay]=await Promise.all([tx.get(orders.doc(orderId)),
+          tx.get(eventRef(eventId)),tx.get(policyRef),tx.get(outbox.doc(baseId)),tx.get(ledger)]);
+        const order=orderSnap.data(),record=baseSnap.data();
+        if(order?.eventId!==eventId||order.email!==expectedEmail)throw conflict('수신자 또는 행사 정보가 변경되었습니다. 다시 확인해 주세요.');
+        if(replay.exists)return replay.data().jobId;
+        if(record&&(record.orderId!==orderId||record.type!==type||record.eventId&&record.eventId!==eventId))
+          throw conflict('메일 기록과 주문 정보가 일치하지 않습니다.');
+        if(!directEligible(kind,order,eventSnap.data(),policySnap.data(),record))throw conflict('현재 주문 상태 또는 발송 설정에서 이 종류의 메일을 발송할 수 없습니다.');
+        if(record?.deliveryUncertain||record?.status==='sending'||record?.status==='manualReserved')
+          throw conflict('발송 여부가 확실하지 않거나 발송 중입니다. 기존 이력을 먼저 확인해 주세요.');
+        const requestedAt=now();
+        const status=record?.status??(record?.sentAt?'sent':'queued');
+        const alreadySent=record&&(record.sentAt||record.manualSentAt||['sent','manualSent'].includes(status));
+        const previousChild=record?.resendJobId?await tx.get(outbox.doc(record.resendJobId)):null;
+        const child=previousChild?.data();
+        if(child&&(child.deliveryUncertain||['queued','delayed','sending','manualReserved','failed'].includes(child.status)))
+          throw conflict('기존 재발송 건이 아직 처리되지 않았습니다. 해당 발송 이력을 먼저 확인해 주세요.');
+        const newId=alreadySent?orderId+'_direct_'+digest.slice(0,24):baseId;
+        const ref=outbox.doc(newId);
+        const fields={...mailFields(type,requestedAt),type,eventId,orderId,mode:'manual',requestedAt,manualBy:uid,
+          explicitDirect:true,expectedEmail,deliveryUncertain:false,lastError:null,sendingUntil:null};
+        if(alreadySent){
+          tx.create(ref,{...fields,createdAt:requestedAt,attempts:0,resendOf:baseId,
+            ...(record.change?{change:record.change}:{}),...(record.template?{template:record.template}:{})});
+          tx.update(baseSnap.ref,{resendJobId:newId});
+        }else if(record){
+          if(!['queued','delayed','failed','skipped','canceled'].includes(status))throw conflict('기존 발송 기록을 확인해 주세요.');
+          tx.update(ref,{...fields,providerKey:record.providerKey??fields.providerKey,firstAttemptAt:null,
+            ...(status==='failed'?{retryBy:uid,retryAt:requestedAt,retryHistory:[...(record.retryHistory||[]),{at:requestedAt,by:uid,reason:record.lastError||null}]}:{})});
+        }else{
+          tx.create(ref,{...fields,createdAt:requestedAt,attempts:0});
+        }
+        tx.create(ledger,{jobId:newId,eventId,orderId,kind,createdAt:requestedAt,actor:uid});
+        return newId;
+      });
+      await mail.deliver(selected,message);
+      const result=(await outbox.doc(selected).get()).data();
+      return {jobId:selected,status:result?.status??'queued',lastError:result?.lastError??null,
+        deliveryUncertain:result?.deliveryUncertain===true,method:result?.providerId==='captured'?'capture':result?.providerId?'Brevo':null};
+    }
     if(op==='mailOverview'){
       let query=mailOrder(outbox.where('eventId','==',eventId)).limit(51);
       if(data.cursor){
@@ -114,7 +206,7 @@ export function createMailAdmin(db,mail) {
       const orderSnaps=ids.length?await db.getAll(...ids.map(id=>orders.doc(id))):[];
       const byId=new Map(orderSnaps.map(doc=>[doc.id,doc.data()]));
       return { policy:{reminderMode:'manual',bulkCancel:'manual',reminderAt:null,...policy.data()},budget,
-        messages:documents.map(doc=>formatJob(doc,byId.get(doc.data().orderId))),cursor:page.docs.length>50?documents.at(-1).id:null,
+        messages:documents.map(doc=>formatJob(doc,byId.get(doc.data().orderId),mail)),cursor:page.docs.length>50?documents.at(-1).id:null,
         nextReminderAt:schedule.data()?.runAt??null };
     }
     if(op==='mailTransactionQueue'){

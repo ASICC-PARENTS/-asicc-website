@@ -30,7 +30,7 @@ function manualStillEligible(job,order,event,time){
   if(job.type==='refundCompleted')return job.change?.amountCents>0&&!!job.change.at;
   if(job.type==='confirmed')return mailMatchesOrder(job,order);
   if(job.type==='bulkCancel')return order.cancelReason==='unpaidFinalization';
-  if(job.type==='reminderFinal')return order.eventId===event?.eventId&&!event.finalizedAt&&!event.reconciliationStartedAt&&time<orderTransferCutoff(order,event)&&!order.canceledAt&&!order.bankConfirmedAt&&!order.transferReportedAt&&!order.reminderFinalAt;
+  if(job.type==='reminderFinal')return order.eventId===event?.eventId&&!event.finalizedAt&&!event.reconciliationStartedAt&&time<orderTransferCutoff(order,event)&&!order.canceledAt&&!order.bankConfirmedAt&&!order.transferReportedAt&&(job.explicitDirect||!order.reminderFinalAt);
   return job.type==='other'||!order.canceledAt;
 }
 
@@ -121,7 +121,7 @@ export function createMail(env, db, send = fetch) {
         tx.update(ref,{status:'skipped',lastError:'test-recipient-not-approved',payload:null,...reschedule(job.type,null)});
         return null;
       }
-      if (!order?.email || !autoMailAllowed(policy,job,order) || !mailMatchesOrder(job,order) || retiredTypes.has(job.type) || (job.mode==='manual'?!manualStillEligible(job,order,active?.data(),time):job.type==='bulkCancel'&&policy?.bulkCancel!=='auto')
+      if (!order?.email || (job.explicitDirect&&job.expectedEmail!==order.email) || !autoMailAllowed(policy,job,order) || !mailMatchesOrder(job,order) || retiredTypes.has(job.type) || (job.mode==='manual'?!manualStillEligible(job,order,active?.data(),time):job.type==='bulkCancel'&&policy?.bulkCancel!=='auto')
         || (job.type==='reminderFinal' && active && job.mode!=='manual' && (!eligibleReminder(order,active.data(),policy,time) || order.reminderFinalAt))) {
         tx.update(ref, { status: 'skipped', payload:null, ...reschedule(job.type,null) });
         return null;
@@ -179,7 +179,7 @@ export function createMail(env, db, send = fetch) {
         const [current,active,policy]=await db.getAll(db.doc(`bazaarOrders/${job.orderId}`),db.doc(`bazaarEventProjects/${job.eventId}`),
           db.doc(`bazaarMailPolicies/${job.eventId}`));
         const order=current.data();
-        const obsolete=!order||!autoMailAllowed(policy.data(),job,order)||!mailMatchesOrder(job,order)||(job.mode==='manual'?!manualStillEligible(job,order,active.data(),Date.now()):job.type==='reminderFinal'
+        const obsolete=!order||(job.explicitDirect&&job.expectedEmail!==order.email)||!autoMailAllowed(policy.data(),job,order)||!mailMatchesOrder(job,order)||(job.mode==='manual'?!manualStillEligible(job,order,active.data(),Date.now()):job.type==='reminderFinal'
           ? !eligibleReminder(current.data(),active.data(),policy.data(),Date.now())
           : job.type==='bulkCancel'&&(policy.data()?.bulkCancel!=='auto'||!order.canceledAt));
         if(directTestMail&&!approvedRecipient(order?.email)) result={skip:true,code:'test-recipient-not-approved'};
@@ -197,7 +197,7 @@ export function createMail(env, db, send = fetch) {
       if (current?.lease !== lease) return false;
       if (result.ok) {
         const sentAt = iso(Date.now());
-        const [order,accepted]=await Promise.all([job.type==='reminderFinal'?tx.get(db.doc(`bazaarOrders/${job.orderId}`)):null,
+        const [order,accepted]=await Promise.all([job.type==='reminderFinal'&&!job.explicitDirect?tx.get(db.doc(`bazaarOrders/${job.orderId}`)):null,
           tx.get(todayRef(Date.now()))]);
         if (order?.exists) {
           tx.update(order.ref, { reminderFinalAt: sentAt });
@@ -220,7 +220,36 @@ export function createMail(env, db, send = fetch) {
     });
   }
 
+  const canCheckDelivery = job => provider==='brevo'&&!isCapture&&!!key&&job?.status==='sent'
+    &&typeof job.providerId==='string'&&job.providerId.length>0&&job.providerId.length<=300
+    &&!['captured','accepted','deduplicated'].includes(job.providerId);
+  async function checkDelivery(job,order) {
+    if(!canCheckDelivery(job))return null;
+    const target=job.sentSnapshot?.to||order?.email;
+    const recipient=env.BAZAAR_MODE==='production'?target:directTestMail?(approvedRecipient(target)?target:null):testRecipient;
+    if(!isTestAddress(recipient))return null;
+    const params=new URLSearchParams({messageId:job.providerId,days:'90',limit:'100',sort:'desc'});
+    const response=await send('https://api.brevo.com/v3/smtp/statistics/events?'+params,{
+      method:'GET',redirect:'manual',signal:AbortSignal.timeout(8000),headers:{'api-key':key}});
+    if(!response.ok)throw new Error('delivery-lookup-failed');
+    const result=await response.json();
+    if(!Array.isArray(result.events))throw new Error('invalid-delivery-response');
+    const normalize=id=>String(id??'').trim().replace(/^<|>$/g,'');
+    const status={requests:'accepted',request:'accepted',sent:'accepted',delivered:'delivered',deferred:'delayed',softbounce:'delayed',
+      hardbounce:'failed',invalid:'failed',blocked:'failed',error:'failed'};
+    const events=result.events.filter(e=>normalize(e.messageId)===normalize(job.providerId)
+      &&String(e.email??'').trim().toLowerCase()===recipient.trim().toLowerCase()
+      &&Object.hasOwn(status,String(e.event).toLowerCase())&&Number.isFinite(Date.parse(e.date)))
+      .sort((a,b)=>Date.parse(b.date)-Date.parse(a.date));
+    const latest=events[0],checkedAt=iso(Date.now());
+    if(!latest)return {...(job.delivery||{state:'unknown'}),checkedAt};
+    const eventAt=iso(Date.parse(latest.date));
+    if(job.delivery?.eventAt&&job.delivery.eventAt>eventAt)return {...job.delivery,checkedAt};
+    return {state:status[String(latest.event).toLowerCase()],eventAt,checkedAt};
+  }
+
   return {
+    canCheckDelivery,checkDelivery,
     canSend,
     deliver,
     async budget() {
@@ -249,7 +278,8 @@ export function createMail(env, db, send = fetch) {
       return result.docs.map(doc => {
         const { type, status, sentAt, lastError, dueAt, deliveryUncertain, manualSentAt } = doc.data();
         return { id:doc.id, type, status: status ?? (sentAt ? 'sent' : 'queued'), sentAt,lastError,dueAt,
-          deliveryUncertain,manualSentAt,resendJobId:doc.data().resendJobId??null,resendOf:doc.data().resendOf??null };
+          deliveryUncertain,manualSentAt,delivery:doc.data().delivery??null,canCheckDelivery:canCheckDelivery(doc.data()),
+          hasChange:!!doc.data().change,resendJobId:doc.data().resendJobId??null,resendOf:doc.data().resendOf??null };
       });
     }
   };

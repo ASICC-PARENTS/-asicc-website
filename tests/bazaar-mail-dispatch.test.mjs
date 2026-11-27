@@ -12,7 +12,7 @@ function memoryDb(initial={}) {
   const snapshot=ref=>({id:ref.id,ref,exists:values.has(ref.path),data:()=>structuredClone(values.get(ref.path))});
   const doc=path=>({path,id:path.split('/').at(-1),get:async()=>snapshot(doc(path)),set:async(v,{merge=false}={})=>write(path,v,merge)});
   const write=(path,value,merge)=>values.set(path,structuredClone(merge?{...values.get(path),...value}:value));
-  return {doc,collection:path=>({doc:id=>doc(`${path}/${id}`)}),getAll:async(...refs)=>refs.map(snapshot),values,
+  return {doc,collection:path=>({doc:id=>doc(`${path}/${id}`),where:(field,operator,value)=>({limit:count=>({get:async()=>({docs:[...values.keys()].filter(key=>key.startsWith(path+'/')&&values.get(key)[field]===value).slice(0,count).map(key=>snapshot(doc(key)))})})})}),getAll:async(...refs)=>refs.map(snapshot),values,
     runTransaction(fn){
       const result=tail.then(async()=>{
         const writes=[];
@@ -37,8 +37,9 @@ function fixture(record={},responses=[]){
     [`bazaarOutbox/${anotherJob}`]:{...mailFields('receipt',when(-1000)),eventId,orderId:anotherOrder,type:'receipt'},
     [`bazaarEventProjects/${eventId}`]:{eventId,status:'published'},[`bazaarEventProjects/${eventId}/products/product`]:{soldQty:7},
     [`bazaarEventFinancials/${eventId}`]:{expenses:[]}});
-  const calls=[];
+  const calls=[],lookups=[];
   const mail=createMail({BAZAAR_MODE:'test',MAIL_MODE:'api',MAIL_PROVIDER:'brevo',BAZAAR_MAIL_FROM:'sender@example.test',BAZAAR_MAIL_API_KEY:'mock-only',TEST_MAIL_TO:'sink@example.test'},db,async(url,options)=>{
+    if(options.method==='GET'){lookups.push(new URL(url));return responses.shift()??Response.json({events:[]});}
     assert.equal(url,'https://api.brevo.com/v3/smtp/email');
     const body=JSON.parse(options.body);assert.deepEqual(body.messageVersions[0].to,[{email:'sink@example.test'}]);calls.push(body);
     return responses.shift()??Response.json({messageId:'mock-'+calls.length},{status:201});
@@ -53,7 +54,10 @@ function fixture(record={},responses=[]){
     assert.deepEqual(db.values.get(`bazaarEventProjects/${eventId}/products/product`),{soldQty:7});
     assert.deepEqual(db.values.get(`bazaarEventFinancials/${eventId}`),{expenses:[]});
   };
-  return {db,calls,mail,dispatch,get,untouched};
+  const single=(kind='receipt',extra={})=>manager.admin('mailSingleSend',{eventId,orderId,kind,expectedEmail:originalOrder.email,requestId:'request-000000000001',confirm:true,...extra},'test-admin',envelope);
+  const check=(extra={})=>manager.admin('mailCheckDelivery',{eventId,id:jobId,...extra},'test-admin',envelope);
+  const status=()=>manager.admin('mailStatus',{id:orderId,eventId,includeManual:true},'test-admin',envelope);
+  return {db,calls,lookups,mail,dispatch,single,check,status,get,untouched};
 }
 
 test('immediate dispatch sends only selected queued email, returns provider result and leaves actual order data untouched',async()=>{
@@ -114,4 +118,78 @@ test('canceled order is not re-mailed, and a reserved OVH message cannot be sent
   await assert.rejects(accepted.dispatch('resend'),{code:'failed-precondition'});assert.equal(accepted.calls.length,0);
   const ovh=fixture({status:'manualReserved',manualBy:'other-admin'});
   await assert.rejects(ovh.dispatch(),{code:'failed-precondition'});assert.equal(ovh.calls.length,0);
+});
+
+test('selected mail type can be created before any outbox record exists, without touching order and inventory',async()=>{
+  const f=fixture();
+  const r=await f.single('pickup');
+  assert.equal(r.status,'sent');assert.equal(r.jobId,orderId+'_pickup');assert.equal(f.calls.length,1);
+  assert.match(f.calls[0].subject,/^pickup /);
+  assert.equal((await f.single('pickup')).jobId,r.jobId);assert.equal(f.calls.length,1);
+  const repeat=await f.single('pickup',{requestId:'request-000000000002'});
+  assert.equal(repeat.status,'sent');assert.notEqual(repeat.jobId,r.jobId);assert.equal(f.calls.length,2);
+  assert.equal(f.get(r.jobId).providerId,'mock-1');assert.equal(f.get(repeat.jobId).resendOf,r.jobId);f.untouched();
+});
+test('explicit resend preserves original and refuses duplicate concurrent request, wrong address, wrong state and off policy',async()=>{
+  const f=fixture({status:'sent',sentAt:when(-2000),providerId:'original'});
+  const [a,b]=await Promise.all([f.single(),f.single()]);
+  assert.equal(a.jobId,b.jobId);assert.equal(f.calls.length,1);assert.equal(f.get(jobId).providerId,'original');
+  await assert.rejects(f.single('pickup',{expectedEmail:'other@example.test'}),{code:'failed-precondition'});
+  await assert.rejects(f.single('confirmed'),{code:'failed-precondition'});
+  await assert.rejects(f.single('adminCancel'),{code:'failed-precondition'});
+  await assert.rejects(f.single('refundCompleted',{jobId:jobId}),{code:'failed-precondition'});
+  await f.db.doc('bazaarMailPolicies/'+eventId).set({modes:{pickup:'off'}});
+  await assert.rejects(f.single('pickup'),{code:'failed-precondition'});
+  assert.equal(f.calls.length,1);f.untouched();
+});
+test('explicit reminder may be repeated without modifying the order or its reminder timestamp',async()=>{
+  const f=fixture();
+  await f.db.doc('bazaarEventProjects/'+eventId).set({eventId,status:'published',transferCutoff:when(3600000)});
+  const a=await f.single('reminderFinal');assert.equal(a.status,'sent');
+  const b=await f.single('reminderFinal',{requestId:'request-000000000002'});assert.equal(b.status,'sent');
+  assert.equal(f.calls.length,2);f.untouched();
+});
+test('direct queued record uses existing quota/lease and refuses an unverified prior delivery',async()=>{
+  const f=fixture({status:'failed',deliveryUncertain:true});
+  await assert.rejects(f.single(),{code:'failed-precondition'});assert.equal(f.calls.length,0);
+  const g=fixture();await g.db.doc('bazaarMailUsage/brevo-rolling').set({slots:[],pauseUntil:Date.now()+3600000});
+  assert.equal((await g.single()).status,'delayed');assert.equal(g.calls.length,0);g.untouched();
+});
+test('delivery lookup exact provider id and actual recipient, marks delivery separately, never sends',async()=>{
+  const id='<old@provider.example>',date=when(-1000);
+  const f=fixture({status:'sent',providerId:id,sentAt:when(-5000),sentSnapshot:{to:originalOrder.email}},[
+    Response.json({events:[{messageId:id,email:'sink@example.test',event:'delivered',date},
+      {messageId:'another',email:'sink@example.test',event:'hardBounce',date:when(0)},
+      {messageId:id,email:'someone@example.test',event:'hardBounce',date:when(0)}]}),
+    Response.json({events:[]}),new Response('{}',{status:403})]);
+  const r=await f.check();assert.equal(r.delivery.state,'delivered');assert.equal(f.get(jobId).status,'sent');
+  assert.equal(f.lookups[0].searchParams.get('messageId'),id);assert.equal(f.calls.length,0);
+  assert.equal((await f.check()).delivery.state,'delivered');
+  await assert.rejects(f.check(),{code:'failed-precondition'});assert.equal(f.get(jobId).delivery.state,'delivered');
+  await assert.rejects(f.check({eventId:'another-bazaar-event'}),{code:'failed-precondition'});f.untouched();
+});
+test('delivery failure and missing event are not misrepresented as delivered or as failed send',async()=>{
+  const id='<old@provider.example>';
+  const f=fixture({status:'sent',providerId:id,sentAt:when(-5000)},[
+    Response.json({events:[]}),Response.json({events:[{messageId:id,email:'sink@example.test',event:'hardBounce',date:when(-1000)}]})]);
+  assert.equal((await f.check()).delivery.state,'unknown');
+  assert.equal((await f.check()).delivery.state,'failed');assert.equal(f.get(jobId).status,'sent');assert.equal(f.calls.length,0);f.untouched();
+  const g=fixture({status:'sent',providerId:'captured',sentAt:when(-5000)});
+  await assert.rejects(g.check(),{code:'failed-precondition'});assert.equal(g.lookups.length,0);
+});
+test('individual send and delivery lookup are exposed in email-only UI',()=>{
+  const ui=readFileSync(new URL('../src/lib/bazaar/admin/mail.js',import.meta.url),'utf8');
+  assert.match(ui,/mailSingleSend/);assert.match(ui,/mailCheckDelivery/);assert.match(ui,/수신 서버 전달 완료/);
+  assert.match(ui,/data-mail-kind/);assert.match(ui,/expectedEmail:manual.email/);
+});
+
+test('order mail selector shows only eligible ordinary kinds, including mail kinds with no prior history',async()=>{
+  const f=fixture();let result=await f.status();
+  assert.equal(result.manual.email,originalOrder.email);
+  assert.deepEqual(result.manual.options.map(option=>option.kind).sort(),['other','pickup','receipt']);
+  await f.db.doc('bazaarMailPolicies/'+eventId).set({modes:{pickup:'off'}});
+  result=await f.status();assert.deepEqual(result.manual.options.map(option=>option.kind).sort(),['other','receipt']);
+  await f.db.doc('bazaarOrders/'+orderId).set({...originalOrder,canceledAt:when(-1000),cancelReason:'buyer'});
+  result=await f.status();assert.deepEqual(result.manual.options.map(option=>option.kind),['buyerCancel']);
+  assert.equal(f.calls.length,0);
 });
