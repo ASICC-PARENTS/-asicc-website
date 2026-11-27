@@ -1,0 +1,41 @@
+name: Guarded order correction update
+on:
+  push:
+    branches: [ops/reported-partial-cancel-20261127]
+permissions:
+  contents: read
+concurrency:
+  group: asicc-bazaar-order-update
+  cancel-in-progress: false
+jobs:
+  verified-update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run isolated tests and gate checks
+        run: |
+          node --test tests/bazaar-*.test.mjs
+          node worker/bazaar/production-smoke.mjs
+      - name: Build and verify exact guard patch
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/asicc-before" ac2954fd6dd14d30f8a3695c4ebf110a7e6fefae
+          ln -s "$GITHUB_WORKSPACE/node_modules" "$RUNNER_TEMP/asicc-before/node_modules"
+          node_modules/.bin/esbuild "$RUNNER_TEMP/asicc-before/worker/bazaar/index.mjs" --bundle --format=esm --platform=browser --external:node:* --outfile="$RUNNER_TEMP/baseline.mjs" --log-level=warning
+          node_modules/.bin/esbuild worker/bazaar/index.mjs --bundle --format=esm --platform=browser --external:node:* --outfile="$RUNNER_TEMP/release.mjs" --log-level=warning
+          cp "$RUNNER_TEMP/baseline.mjs" "$RUNNER_TEMP/check.mjs"
+          node scripts/patch-order-correction.mjs "$RUNNER_TEMP/check.mjs" "$RUNNER_TEMP/baseline.mjs" "$RUNNER_TEMP/release.mjs"
+          node --check "$RUNNER_TEMP/check.mjs"
+      - name: Apply only verified guard to existing live Worker
+        run: python3 scripts/deploy-order-correction.py
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_WORKERS_API_TOKEN }}
+          BASELINE_BUNDLE: ${{ runner.temp }}/baseline.mjs
+          RELEASE_BUNDLE: ${{ runner.temp }}/release.mjs
