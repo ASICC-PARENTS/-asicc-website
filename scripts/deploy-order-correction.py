@@ -25,10 +25,13 @@ def unpack(headers,body):
             main=main or json.loads(b).get("main_module");continue
         if not isinstance(n,str) or not isinstance(b,bytes) or not b:raise RuntimeError("Unknown module part")
         parts.append((n,part.get_content_type(),b))
-    if not main:
-        candidates=[n for n,t,b in parts if b"function createMailAdmin" in b and b"function createMail(" in b]
+    if not main or sum(n==main for n,t,b in parts)!=1:
+        candidates=[n for n,t,b in parts if b"function createBazaar(" in b and b"correctOrder" in b and b"transferReportedAt" in b]
         if len(candidates)==1:main=candidates[0]
-    if not main or sum(n==main for n,t,b in parts)!=1 or len({n for n,t,b in parts})!=len(parts):raise RuntimeError("Could not uniquely identify deployed main module")
+        elif len(parts)==1:main=parts[0][0]  # exact parsed transaction check follows before any write
+    if not main or sum(n==main for n,t,b in parts)!=1 or len({n for n,t,b in parts})!=len(parts):
+        print("Worker module metadata:",repr(main),[(n,t,len(b)) for n,t,b in parts],flush=True)
+        raise RuntimeError("Could not uniquely identify deployed main module")
     return main,parts
 
 def get_content():
