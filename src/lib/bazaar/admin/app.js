@@ -287,10 +287,11 @@ function eventList(filter='all'){
  const filters=controls.map(([key,ko,french])=>'<button class="filter '+(filter===key?'active':'')+'" data-action="event-filter" data-value="'+key+'">'+(fr?french:ko)+' ('+all.filter(e=>matches(e,key)).length+')</button>').join('');
  const rows=shown.map(e=>{
   const label=e.status==='draft'?(fr?'Brouillon':'임시저장'):e.status==='closed'?(fr?'Terminé':'종료'):(fr?'En cours':'진행 중');
-  const manage='<div class="event-row-actions"><a class="linkbtn" href="'+esc(url('products',e.id||e.eventId))+'">'+(fr?'Ouvrir':'바로가기')+'</a>'+
+  const manageHref=esc(url('products',e.id||e.eventId));
+  const manage='<div class="event-row-actions"><a class="linkbtn" href="'+manageHref+'">'+(fr?'Ouvrir':'바로가기')+'</a>'+
    ((e.status==='draft'&&model.drafts.some(d=>d.id===e.id))||e.status==='closed'?'<button type="button" class="linkbtn danger" data-action="list-event-delete" data-id="'+esc(e.id)+'">'+(fr?'Supprimer':'삭제')+'</button>':'')+
    (e.status==='closed'?'<button type="button" class="linkbtn" data-action="list-event-archive" data-id="'+esc(e.id)+'">'+(e.hiddenAt?(fr?'Restaurer':'복원'):(fr?'Archiver':'보관'))+'</button>':'')+'</div>';
-  return '<tr><td>'+esc(compactDate(e.createdAt))+'</td><td class="event-number">'+esc(eventManagementRef(e.managementNumber))+'</td><td>'+esc(eventName(e))+'</td><td><span class="event-state '+(e.status==='published'?'in-progress':'')+'">'+label+'</span></td>'+
+  return '<tr><td>'+esc(compactDate(e.createdAt))+'</td><td class="event-number"><a href="'+manageHref+'">'+esc(eventManagementRef(e.managementNumber))+'</a></td><td><a href="'+manageHref+'">'+esc(eventName(e))+'</a></td><td><span class="event-state '+(e.status==='published'?'in-progress':'')+'">'+label+'</span></td>'+
    ['orderStartsAt','orderCutoff','endedAt'].map(key=>'<td>'+esc(compactDate(e[key]))+'</td>').join('')+'<td>'+manage+'</td></tr>';
  }).join('');
  const headers=columns.map(([key,label])=>{
