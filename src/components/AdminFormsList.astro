@@ -20,6 +20,7 @@ const preview = import.meta.env.PUBLIC_ASICC_INTEGRATION_TEST === 'true' || impo
           <th scope="col">{ko ? '유형' : 'Type'}</th>
           <th scope="col">{ko ? '생성일' : 'Création'}</th>
           <th scope="col">{ko ? '자료 보관 기한' : 'Conservation des données'}</th>
+          <th scope="col">{ko?'접수 상태 · 종료 설정':'État · clôture'}</th>
           <th scope="col">{ko ? '공개 링크' : 'Liens publics'}</th>
         </tr>
       </thead>
@@ -45,6 +46,10 @@ const preview = import.meta.env.PUBLIC_ASICC_INTEGRATION_TEST === 'true' || impo
                 retentionPeriod ? <>{retentionPeriod}<span class="date-note"> ({item.retention.note?.[lang]})</span></> :
                 <span class="muted">{ko?'미확인':'Non confirmée'}</span>}
               </td>
+              <td class="forms-control" data-form-id={item.id} data-form-title={item.title[lang]}>
+                <span class="small" data-form-state role="status">{ko?'확인 중…':'Vérification…'}</span>
+                <button class="btn btn-ghost btn-sm" type="button" data-form-edit disabled>{ko?'종료 설정':'Clôture'}</button>
+              </td>
               <td class="forms-public">
                 {preview && external ? <span class="small muted">—</span> : <div class="forms-links">
                   <a href={koHref} target="_blank" rel="noopener noreferrer" aria-label={item.title[lang] + ' · 한국어'}>한국어</a>
@@ -58,6 +63,18 @@ const preview = import.meta.env.PUBLIC_ASICC_INTEGRATION_TEST === 'true' || impo
       </tbody>
     </table>
   </div>
+  <dialog id="form-control-dialog" class="form-control-dialog">
+    <form method="dialog" class="stack gap-12" id="form-control-editor">
+      <h2 class="h3" id="form-control-title"></h2>
+      <label class="field">{ko?'종료 방식':'Mode de clôture'}
+        <select name="mode"><option value="manual">{ko?'수동 종료 (접수 중)':'Manuelle (ouvert)'}</option><option value="scheduled">{ko?'자동 종료 예약':'Clôture programmée'}</option><option value="closed">{ko?'지금 종료':'Clôturer maintenant'}</option></select>
+      </label>
+      <label class="field" id="form-control-time" hidden>{ko?'자동 종료 날짜 및 시각 (파리 시간)':'Date et heure de clôture (heure de Paris)'}<input name="closeAt" type="datetime-local" step="60"/></label>
+      <p class="small muted">{ko?'종료해도 설문과 기존 응답은 보관 기한까지 관리자 화면에 유지됩니다.':'La clôture ne supprime ni le formulaire ni les réponses conservées jusqu’à leur échéance.'}</p>
+      <p role="status" id="form-control-message" class="small"></p>
+      <div class="row gap-8"><button type="button" class="btn btn-ghost" id="form-control-cancel">{ko?'취소':'Annuler'}</button><button type="submit" class="btn btn-dark">{ko?'저장':'Enregistrer'}</button></div>
+    </form>
+  </dialog>
   <p class="small muted">{L(lang,{ko:'기존 응답 데이터는 각 양식의 관리 화면에서 확인할 수 있습니다. 보관 기한은 각 양식의 기존 안내를 표시합니다.',fr:'Les réponses restent accessibles dans l’administration de chaque formulaire. La conservation reprend les durées indiquées dans chaque formulaire.'})}</p>
 </section>
 <style>
@@ -66,7 +83,7 @@ const preview = import.meta.env.PUBLIC_ASICC_INTEGRATION_TEST === 'true' || impo
   .forms-heading p{margin:0}
   .forms-count{white-space:nowrap;flex-shrink:0}
   .forms-table-wrap{border:1px solid #cbd5cf;border-radius:4px;overflow-x:auto;min-width:0;width:100%;max-width:100%;-webkit-overflow-scrolling:touch}
-  .forms-table{border-collapse:collapse;width:100%;min-width:780px;font-size:13px;table-layout:auto}
+  .forms-table{border-collapse:collapse;width:100%;min-width:990px;font-size:13px;table-layout:auto}
   .forms-table th{background:#e7ede9;text-align:left;font-weight:700;white-space:nowrap;color:#30483c}
   .forms-table th,.forms-table td{padding:10px 12px;border-right:1px solid #d4ddd7;border-bottom:1px solid #d4ddd7;vertical-align:middle;line-height:1.45}
   .forms-table th:last-child,.forms-table td:last-child{border-right:0}
@@ -81,6 +98,10 @@ const preview = import.meta.env.PUBLIC_ASICC_INTEGRATION_TEST === 'true' || impo
   .forms-links{display:flex;align-items:center;gap:7px;white-space:nowrap}
   .forms-links>a{font-weight:600;text-decoration:underline;text-underline-offset:3px;color:#24523e}
   .forms-links>span{color:#a2afa7}
+  .forms-control{min-width:160px}
+  .forms-control>span{display:block;white-space:pre-line;margin-bottom:4px}
+  .form-control-dialog{max-width:min(480px,calc(100vw - 30px));width:100%;border:1px solid #cbd5cf;border-radius:10px;padding:22px;color:inherit}
+  .form-control-dialog::backdrop{background:rgba(0,0,0,.42)}
   @media(max-width:650px){
     .forms-table th,.forms-table td{padding:9px 10px}
     .forms-table{font-size:12px}

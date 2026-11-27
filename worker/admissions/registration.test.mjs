@@ -50,3 +50,44 @@ test('public API stores each normalized email once, never exposes records to una
   assert.equal(denied.status,403);
   assert.equal((await worker.fetch(makeRequest('/api/register',valid,{Origin:'https://elsewhere.example','Content-Type':'application/json'}),serviceEnv,ctx)).status,403);
 });
+
+import {ADMISSION_FORM,MEMBER_FORM,statusFor,nextControl} from './form-control.mjs';
+import {CUTOFF,PURGE_AT} from './validation.mjs';
+test('schedule retains original deadline, exact expiry, reopen, and retention protection',()=>{
+  const production={ADMISSIONS_MODE:'production'};
+  assert.equal(statusFor(ADMISSION_FORM,production,null,CUTOFF-1).open,true);
+  assert.equal(statusFor(ADMISSION_FORM,production,null,CUTOFF).open,false);
+  const now=CUTOFF-1000;
+  const scheduled=nextControl(ADMISSION_FORM,production,null,{mode:'scheduled',closeAt:new Date(CUTOFF+1000).toISOString(),expectedRevision:0},now);
+  assert.equal(statusFor(ADMISSION_FORM,production,scheduled,CUTOFF+999).open,true);
+  assert.equal(statusFor(ADMISSION_FORM,production,scheduled,CUTOFF+1000).open,false);
+  const manual=nextControl(ADMISSION_FORM,production,scheduled,{mode:'manual',expectedRevision:1},now);
+  assert.equal(statusFor(ADMISSION_FORM,production,manual,CUTOFF+1001).open,true);
+  assert.equal(statusFor(ADMISSION_FORM,production,manual,PURGE_AT).open,false);
+  assert.deepEqual(nextControl(ADMISSION_FORM,production,manual,{mode:'manual',expectedRevision:2},PURGE_AT),{error:'expired'});
+  assert.deepEqual(nextControl(ADMISSION_FORM,production,manual,{mode:'closed',expectedRevision:0},now),{error:'conflict'});
+  assert.throws(()=>nextControl(ADMISSION_FORM,production,null,{mode:'scheduled',closeAt:new Date(now-1).toISOString(),expectedRevision:0},now),InputError);
+  assert.equal(statusFor(MEMBER_FORM,production,null,PURGE_AT).open,true);
+});
+test('closing does not remove existing submissions, independent form status, no unauthorized controls',async()=>{
+  const objects=new Map();
+  const serviceEnv={...env,REGISTRATIONS:{idFromName:v=>v,get:id=>{
+    if(!objects.has(id))objects.set(id,new Registrations({storage:fakeStorage()},env));
+    return {fetch:(url,init)=>objects.get(id).fetch(new Request(url,init))};
+  }}};
+  const ctx={waitUntil(){throw Error('no mail')}};
+  const control=async(id,body)=>worker.fetch(makeRequest('/api/admin/forms/'+id+'/settings',body),serviceEnv,ctx);
+  assert.equal((await worker.fetch(makeRequest('/api/register',valid),serviceEnv,ctx)).status,200);
+  assert.equal((await control(ADMISSION_FORM,{mode:'closed',expectedRevision:0})).status,403);
+  const obj=serviceEnv.REGISTRATIONS.get('2026-12-04-online');
+  const internal=async(mode,revision)=>obj.fetch('https://internal/control?form='+ADMISSION_FORM,{method:'POST',body:JSON.stringify({mode,expectedRevision:revision})});
+  assert.equal((await internal('closed',0)).status,200);
+  assert.equal((await worker.fetch(makeRequest('/api/register',{...valid,email:'second@example.invalid'}),serviceEnv,ctx)).status,410);
+  assert.equal((await (await obj.fetch('https://internal/list',{method:'POST'})).json()).registrations.length,1);
+  const member=await worker.fetch(new Request('https://worker.example/api/forms/'+MEMBER_FORM+'/status'),serviceEnv,ctx);
+  assert.equal((await member.json()).open,true);
+  assert.equal((await internal('manual',0)).status,409);
+  assert.equal((await internal('manual',1)).status,200);
+  assert.equal((await worker.fetch(makeRequest('/api/register',{...valid,email:'second@example.invalid'}),serviceEnv,ctx)).status,200);
+  assert.equal((await (await obj.fetch('https://internal/list',{method:'POST'})).json()).registrations.length,2);
+});

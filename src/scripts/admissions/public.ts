@@ -10,6 +10,31 @@ const add=document.querySelector<HTMLButtonElement>('#session-add-child')!;
 const submit=form.querySelector<HTMLButtonElement>('[type=submit]')!;
 const message=document.querySelector<HTMLElement>('#session-form-message')!;
 let sequence=0;
+let completed=false,submitting=false,checking=false;
+const availability=document.querySelector<HTMLElement>('#session-availability')!;
+function setAvailability(open:boolean,unavailable=false){
+  if(completed)return;
+  form.hidden=!open;
+  submit.disabled=!open||submitting;
+  availability.hidden=open;
+  availability.textContent=unavailable?text('접수 상태를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.','Impossible de vérifier les inscriptions. Réessayez dans quelques instants.'):text('종료된 행사입니다. 참가 신청이 마감되었습니다.','Cet événement est terminé. Les inscriptions sont closes.');
+}
+async function checkAvailability(){
+  if(completed||submitting||checking)return;
+  checking=true;
+  try{
+    const r=await fetch(ADMISSIONS_API+'/api/status',{cache:'no-store'});
+    if(!r.ok)throw Error();
+    const state=await r.json();
+    if(typeof state.open!=='boolean')throw Error();
+    if(!submitting)setAvailability(state.open);
+    if(state.open&&state.closeAt&&state.serverNow){
+      const delay=Date.parse(state.closeAt)-Date.parse(state.serverNow);
+      if(delay>0&&delay<=30000)setTimeout(checkAvailability,delay+50);
+    }
+  }catch{if(!submitting)setAvailability(false,true);}
+  finally{checking=false;}
+}
 const text=(a:string,b:string)=>ko?a:b;
 function updateCity(){
   const other=city.value==='other';
@@ -54,19 +79,19 @@ function updateInterest(){
 form.querySelectorAll('input[name="interest"]').forEach(el=>el.addEventListener('change',updateInterest));
 form.addEventListener('submit',async e=>{
   e.preventDefault();
-  if(!form.reportValidity())return;
+  if(form.hidden||submit.disabled||!form.reportValidity())return;
+  submitting=true;
   const data=new FormData(form);
   const children=[...list.querySelectorAll('.session-child')].map(row=>({school:row.querySelector<HTMLInputElement>('input:checked')?.value||'',grade:row.querySelector<HTMLSelectElement>('select')!.value}));
   submit.disabled=true;message.textContent=text('접수 중입니다…','Envoi en cours…');
   try {
     const response=await fetch(ADMISSIONS_API+'/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:data.get('name'),email:data.get('email'),city:data.get('city'),cityOther:data.get('cityOther'),interest:data.get('interest'),children,lang:form.dataset.lang,consent:data.get('consent')==='on',website:data.get('website')})});
-    if(!response.ok){if(response.status===410){message.textContent=text('참가 신청이 마감되었습니다.','Les inscriptions sont closes.');return;}throw new Error();}
+    if(!response.ok){if(response.status===410){setAvailability(false);return;}throw new Error();}
     const result=await response.json();if(result.ok!==true)throw new Error();
-    form.reset();form.hidden=true;const thanks=document.querySelector<HTMLElement>('#session-thanks')!;thanks.hidden=false;thanks.focus();
+    completed=true;availability.hidden=true;form.reset();form.hidden=true;const thanks=document.querySelector<HTMLElement>('#session-thanks')!;thanks.hidden=false;thanks.focus();
   }catch{message.textContent=text('접수하지 못했습니다. 잠시 뒤 다시 시도해 주세요.','Échec de l’inscription. Veuillez réessayer.');}
-  finally{if(!form.hidden)submit.disabled=false;}
+  finally{submitting=false;if(!form.hidden)submit.disabled=false;}
 });
-fetch(ADMISSIONS_API+'/api/status').then(async r=>{
-  if(!r.ok)throw new Error();const state=await r.json();
-  submit.disabled=!state.open;if(!state.open)message.textContent=text('참가 신청이 마감되었습니다.','Les inscriptions sont closes.');
-}).catch(()=>{message.textContent=text('접수 서비스를 불러오지 못했습니다. 페이지를 새로고침해 주세요.','Service indisponible. Actualisez cette page.');});
+void checkAvailability();
+setInterval(checkAvailability,30000);
+window.addEventListener('focus',checkAvailability);

@@ -1,6 +1,7 @@
 ---
 import Base from '../../../../layouts/Base.astro';
 import {langPaths,href,type Lang} from '../../../../i18n/ui';
+import {CITIES,GRADES} from '../../../../scripts/admissions/config';
 import {BASE} from '../../../../config';
 export const getStaticPaths = langPaths;
 
@@ -18,6 +19,20 @@ const preview=import.meta.env.PUBLIC_ASICC_ADMISSIONS_PREVIEW==='true';
     {preview&&<p class="notice notice-warn">{ko?'테스트 환경의 신청자만 표시됩니다.':'Uniquement les inscriptions de test.'}</p>}
     <p role="status" id="session-admin-status" class="notice">{ko?'관리자 권한 확인 중…':'Vérification des droits…'}</p>
     <div id="session-admin-body" hidden class="stack gap-16">
+      <details class="card card-pad">
+        <summary>{ko?'기존 설문지 보기 (읽기 전용)':'Voir le formulaire d’origine (lecture seule)'}</summary>
+        <ol>
+          <li>{ko?'신청자 성명 · 이메일 주소':'Nom et prénom · adresse e-mail'}</li>
+          <li>{ko?'거주 도시':'Commune de résidence'}: {CITIES.join(', ')} · {ko?'기타 (직접 입력)':'Autre (à préciser)'}</li>
+          <li>{ko?'참가 목적':'Motif de participation'}<ul>
+            <li>{ko?'2027–2028학년도 자녀 입학을 희망하거나 고려 중':'J’envisage une candidature pour mon enfant à la rentrée 2027–2028'}</li>
+            <li>{ko?'자녀가 아직 어리거나 향후 학년도 입학에 관심 있음':'Mon enfant est encore jeune ou je m’intéresse à une admission ultérieure'}</li>
+            <li>{ko?'자녀 입학과 관계없이 한국어 국제섹션에 관심 있음':'Je souhaite découvrir la section internationale coréenne, indépendamment d’une candidature de mon enfant'}</li>
+          </ul></li>
+          <li>{ko?'2027년 9월 입학 희망 학교 및 학년 (복수 자녀 추가 가능, 첫 번째 목적 선택 시)':'École et classe souhaitées en septembre 2027 (si candidature envisagée, ajout de plusieurs enfants)'}: {ko?'유치원':'Maternelle'} {GRADES.mat.join(', ')} · {ko?'초등학교':'Élémentaire'} {GRADES.elem.join(', ')}</li>
+          <li>{ko?'설명회 참가 신청 및 관련 안내를 위한 개인정보 수집·이용에 동의합니다.':'J’accepte la collecte et l’utilisation de mes données pour mon inscription et les informations relatives à cette réunion.'}</li>
+        </ol>
+      </details>
       <div class="session-stats" id="session-stats"></div>
       <div class="card card-pad stack gap-12">
         <h2 class="h3">{ko?'입학 희망 학년별 인원':'Effectifs par classe souhaitée'}</h2>

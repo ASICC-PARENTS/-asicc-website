@@ -19,7 +19,8 @@ const preview=import.meta.env.PUBLIC_ASICC_ADMISSIONS_PREVIEW==='true';
       <p class="small muted">{ko?'입학설명회 참가 신청이며, 학교 입학 지원서가 아닙니다.':'Ce formulaire concerne uniquement la participation à la réunion, pas la candidature scolaire.'}</p>
     </div>
     {preview&&<p class="notice notice-warn">{ko?'테스트 전용 · 실제 개인정보를 입력하지 마세요.':'Test uniquement · Ne saisissez pas de données personnelles réelles.'}</p>}
-    <form id="admission-session-form" class="card card-pad stack gap-16" data-lang={lang} data-preview={preview?'true':'false'}>
+    <p id="session-availability" class="notice" role="status" aria-live="polite">{ko?'접수 상태 확인 중…':'Vérification des inscriptions…'}</p>
+    <form hidden id="admission-session-form" class="card card-pad stack gap-16" data-lang={lang} data-preview={preview?'true':'false'}>
       <p class="small muted">* {ko?'필수 입력':'Champs obligatoires'}</p>
       <label class="field">{ko?'신청자 성명':'Nom et prénom'} *<input name="name" autocomplete="name" required maxlength="100" /></label>
       <label class="field">{ko?'이메일 주소':'Adresse e-mail'} *<input name="email" autocomplete="email" type="email" required maxlength="254" /></label>

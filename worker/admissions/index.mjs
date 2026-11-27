@@ -1,11 +1,16 @@
-import { CUTOFF, PURGE_AT, validateRegistration, InputError, SESSION } from './validation.mjs';
+import { PURGE_AT, validateRegistration, InputError, SESSION } from './validation.mjs';
 const json = (body,status=200,headers={})=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff',...headers}});
 const sha256=async text=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),v=>v.toString(16).padStart(2,'0')).join('');
 const origins=env=>env.ALLOWED_ORIGINS.split(',').map(v=>v.trim());
 const cors=origin=>({'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Methods':'POST, GET, OPTIONS','Access-Control-Allow-Headers':'Content-Type, Authorization','Vary':'Origin'});
 const withCors=(res,origin)=>new Response(res.body,{status:res.status,headers:{...Object.fromEntries(res.headers),...cors(origin)}});
-const cutoff=env=>env.ADMISSIONS_MODE==='test'?Number.POSITIVE_INFINITY:CUTOFF;
-const isClosed=env=>Date.now()>=cutoff(env);
+import {ADMISSION_FORM, FORMS, CONTROL_KEY, statusFor, nextControl} from './form-control.mjs';
+const formObject=(env,id)=>env.REGISTRATIONS.get(env.REGISTRATIONS.idFromName(FORMS.get(id)));
+const readControl=async(env,id)=>{
+  const r=await formObject(env,id).fetch('https://internal/status?form='+id);
+  if(!r.ok)throw Error('status');
+  return r.json();
+};
 async function readBody(req){
   if(!req.headers.get('Content-Type')?.startsWith('application/json')) throw new InputError();
   const body=await req.text(); if(body.length>10000) throw new InputError();
@@ -33,23 +38,36 @@ export async function authorizedAdmin(req,env,fetcher=fetch){
 export default {
   async fetch(req,env,ctx){
     const path=new URL(req.url).pathname;
-    if(path==='/health' && req.method==='GET')return json({ok:true,service:'admissions-registration',mode:env.ADMISSIONS_MODE,session:SESSION,open:!isClosed(env),confirmationEmail:Boolean(env.BREVO_API_KEY)});
     const origin=req.headers.get('Origin')||'';
+    const publicStatus=path.match(/^\/api\/forms\/([^/]+)\/status$/);
+    if(req.method==='GET' && (path==='/health'||(publicStatus && FORMS.has(publicStatus[1])))){
+      if(origin&&!origins(env).includes(origin))return json({error:'origin'},403);
+      let response;
+      try {
+        const control=await readControl(env,path==='/health'?ADMISSION_FORM:publicStatus[1]);
+        response=json(path==='/health'?{ok:true,service:'admissions-registration',mode:env.ADMISSIONS_MODE,session:SESSION,open:control.open,controlVersion:1,confirmationEmail:Boolean(env.BREVO_API_KEY)}:control);
+      }catch{response=json({error:'unavailable'},503);}
+      return origin?withCors(response,origin):response;
+    }
     if(!origins(env).includes(origin))return json({error:'origin'},403);
     if(req.method==='OPTIONS')return new Response(null,{status:204,headers:cors(origin)});
     let res;
     try {
-      const object=env.REGISTRATIONS.get(env.REGISTRATIONS.idFromName(SESSION));
-      if(path==='/api/status' && req.method==='GET')res=json({open:!isClosed(env),confirmationEmail:Boolean(env.BREVO_API_KEY)});
+      const object=formObject(env,ADMISSION_FORM);
+      const settings=path.match(/^\/api\/admin\/forms\/([^/]+)\/settings$/);
+      if(settings && req.method==='POST' && FORMS.has(settings[1])){
+        if(!await authorizedAdmin(req,env))res=json({error:'forbidden'},403);
+        else res=await formObject(env,settings[1]).fetch('https://internal/control?form='+settings[1],{method:'POST',body:JSON.stringify(await readBody(req))});
+      }else if(path==='/api/status' && req.method==='GET')res=json({...await readControl(env,ADMISSION_FORM),confirmationEmail:Boolean(env.BREVO_API_KEY)});
       else if(path==='/api/register' && req.method==='POST'){
-        if(isClosed(env))res=json({error:'closed'},410);
+        if(!(await readControl(env,ADMISSION_FORM)).open)res=json({error:'closed'},410);
         else{
           const registration=validateRegistration(await readBody(req));
           // The service intentionally does not expose whether an e-mail is already registered.
           const key=await sha256(registration.email);
           const rateKey=await sha256((req.headers.get('CF-Connecting-IP')||'unknown')+'|'+new Date().toISOString().slice(0,13));
           const result=await object.fetch('https://internal/register',{method:'POST',body:JSON.stringify({registration,key,rateKey})});
-          if(!result.ok)res=json({error:'rate'},result.status===429?429:503);
+          if(!result.ok)res=json({error:result.status===410?'closed':'rate'},result.status===410?410:result.status===429?429:503);
           else{
             const {created}=await result.json();
             // Persist before attempting email. Test never sends email; a retry of
@@ -74,17 +92,32 @@ async function sendConfirmation(registration,env){
   const textContent=ko?'안녕하세요. 12월 4일(금) 저녁 8시 온라인 입학설명회 참가 신청이 접수되었습니다. 접속 방법은 추후 이메일로 안내해 드리겠습니다. 문의: contact@asicc-parents.fr':'Bonjour, votre inscription à la réunion d’information en ligne du vendredi 4 décembre 2026 à 20 h est enregistrée. Les modalités de connexion vous seront communiquées par e-mail. Contact : contact@asicc-parents.fr';
   await fetch('https://api.brevo.com/v3/smtp/email',{method:'POST',headers:{'Content-Type':'application/json','api-key':env.BREVO_API_KEY},body:JSON.stringify({sender:{name:'ASICC',email:'contact@asicc-parents.fr'},to:[{email:registration.email}],subject,textContent})});
 }
-// Isolated SQLite-backed Durable Object. This binding is never shared with
-// member survey, Bazaar, Firebase, or the other environment.
+// SQLite-backed isolated objects. Admission records remain under SESSION;
+// the member survey uses a separate object only for its public closure status.
 export class Registrations {
   constructor(state,env){this.storage=state.storage;this.env=env;}
   async fetch(req){
-    const p=new URL(req.url).pathname;
+    const url=new URL(req.url),p=url.pathname;
+    const id=url.searchParams.get('form')||ADMISSION_FORM;
+    if(!FORMS.has(id))return json({error:'not_found'},404);
+    if(p==='/status')return json(statusFor(id,this.env,await this.storage.get(CONTROL_KEY)));
+    if(p==='/control' && req.method==='POST'){
+      try {
+        const body=await req.json();
+        const result=await this.storage.transaction(async tx=>{
+          const config=nextControl(id,this.env,await tx.get(CONTROL_KEY),body);
+          if(config.error)return config;
+          await tx.put(CONTROL_KEY,config);
+          return statusFor(id,this.env,config);
+        });
+        return json(result,result.error?409:200);
+      } catch(e){return json({error:e instanceof InputError?'invalid':'unavailable'},e instanceof InputError?400:503);}
+    }
     if(p==='/register'){
       const {registration,key,rateKey}=await req.json();
-      if(isClosed(this.env))return json({error:'closed'},410);
       const now=Date.now();
       const result=await this.storage.transaction(async tx=>{
+        if(!statusFor(ADMISSION_FORM,this.env,await tx.get(CONTROL_KEY)).open)return {error:'closed'};
         const rk='rate:'+rateKey;
         const rate=await tx.get(rk)||0;
         if(rate>=20)return {error:'rate'};
@@ -96,8 +129,8 @@ export class Registrations {
         await tx.put('count',count+1);
         return {created:true};
       });
-      if(this.env.ADMISSIONS_MODE==='production' && !await this.storage.getAlarm())await this.storage.setAlarm(PURGE_AT);
-      return result.error?json(result,429):json(result);
+      if(!result.error && this.env.ADMISSIONS_MODE==='production' && !await this.storage.getAlarm())await this.storage.setAlarm(PURGE_AT);
+      return result.error?json(result,result.error==='closed'?410:429):json(result);
     }
     if(p==='/list'){
       if(this.env.ADMISSIONS_MODE==='production' && Date.now()>=PURGE_AT)return json({registrations:[]});

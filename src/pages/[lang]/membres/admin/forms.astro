@@ -23,6 +23,7 @@ const enabled=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
     import {getApps,initializeApp} from 'firebase/app';
     import {getAuth,onAuthStateChanged,getIdToken} from 'firebase/auth';
     import {getFirestore,doc,getDocFromServer} from 'firebase/firestore';
+    import {setupFormControls} from '../../../../scripts/admissions/form-controls';
     import {firebaseConfig} from '../../../../firebase-config';
     const root=document.querySelector<HTMLElement>('#forms-admin')!;
     const content=document.querySelector<HTMLElement>('#forms-admin-content')!;
@@ -32,8 +33,10 @@ const enabled=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
       const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
       const auth=getAuth(app),db=getFirestore(app);
       let sequence=0;
+      let cleanup:(()=>void)|undefined;
       onAuthStateChanged(auth,async user=>{
         const seq=++sequence;
+        cleanup?.();cleanup=undefined;
         content.hidden=true;status.hidden=false;
         status.textContent=tr('관리자 권한 확인 중…','Vérification des droits…');
         if(!user){
@@ -53,6 +56,7 @@ const enabled=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
             status.textContent=tr('관리자만 접근할 수 있는 공간입니다.','Cet espace est réservé aux administrateurs.');return;
           }
           content.hidden=false;status.hidden=true;
+          cleanup=setupFormControls(content,user,root.dataset.lang==='ko');
         }catch{
           if(seq!==sequence)return;
           status.textContent=tr('관리자 권한을 확인하지 못했습니다. 페이지를 새로고침해 주세요.','Impossible de vérifier les droits. Actualisez la page.');
