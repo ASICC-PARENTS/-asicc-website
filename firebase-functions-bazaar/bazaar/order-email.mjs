@@ -97,10 +97,9 @@ function mailLayout({lang,logoUrl,title,brand,body,footer,testNotice}){
     </body></html>`;
 }
 
-export function renderOrderEmail({order,type,event={},template={},change={},site,canCancel=false,testMode=false,pilot=false}){
-  const lang=order.lang==='fr'?'fr':'ko',t=(ko,fr)=>lang==='fr'?fr:ko;
-  const eventName=t(event.nameKo,event.nameFr)||event.nameKo||event.nameFr||'';
-  const [defaultTitle,introDefault,tone]=({
+export function defaultMailCopy(type,lang){
+  const t=(ko,fr)=>lang==='fr'?fr:ko;
+  return ({
     receipt:[t('주문 접수 안내','Commande reçue'),t('바자회에 참여해 주셔서 감사합니다. 입금 확인 후 주문이 최종 확정됩니다.','Merci de participer au bazar. Votre commande sera confirmée après réception du virement.'),'pending'],
     reported:[t('송금 신고 접수','Virement signalé'),t('송금 신고가 접수되었습니다. 협회의 입금 확인을 기다려 주세요.','Votre signalement a été reçu. L’association doit encore confirmer la réception du paiement.'),'pending'],
     confirmed:[t('주문 확정 안내','Commande confirmée'),t('입금을 확인했습니다. 지정된 장소와 시간에 상품을 수령해 주세요.','Votre paiement a bien été reçu. Retrouvez ci-dessous les informations de retrait.'),'success'],
@@ -115,6 +114,12 @@ export function renderOrderEmail({order,type,event={},template={},change={},site
     pickup:[t('상품 수령 안내','Retrait de votre commande'),t('아래 수령 일정과 준비물을 확인해 주세요.','Vérifiez la date, le lieu et les consignes de retrait ci-dessous.'),'success'],
     pickupCompleted:[t('상품 수령 완료','Commande retirée'),t('상품 수령이 완료되었습니다. 참여해 주셔서 감사합니다.','Votre retrait est enregistré. Merci d’avoir participé au bazar.'),'success'],
   })[type]||[t('바자회 안내','Informations sur la vente solidaire'),t('주문 관련 안내를 확인해 주세요.','Retrouvez les informations relatives à votre commande.'),'navy'];
+}
+
+export function renderOrderEmail({order,type,event={},template={},change={},site,canCancel=false,testMode=false,pilot=false}){
+  const lang=order.lang==='fr'?'fr':'ko',t=(ko,fr)=>lang==='fr'?fr:ko;
+  const eventName=t(event.nameKo,event.nameFr)||event.nameKo||event.nameFr||'';
+  const [defaultTitle,introDefault,tone]=defaultMailCopy(type,lang);
   const title=t(template.subjectKo,template.subjectFr)||defaultTitle;
   const intro=t(template.introKo,template.introFr)||introDefault;
   const subject=(testMode?'[TEST] ':'')+'[ASICC] '+title+' · '+order.orderRef;
