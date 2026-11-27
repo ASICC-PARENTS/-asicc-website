@@ -1,3 +1,4 @@
+import {matchesMailAudience} from './mail-audience.mjs';
 import { parisDeadline } from '../api';
 import {mailKinds,policyMode} from '../../../../worker/bazaar/mail-policy.mjs';
 
@@ -206,7 +207,7 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
       <div class="actions">${cursor?button('more','이력 더 보기'):''}${button('refresh','새로고침')}</div></section><section data-mail-section="manual"><div data-transaction-manual></div><div data-mail-manual></div></section>`;
     if(previous)body.querySelector('[data-mail-manual]').replaceWith(previous);
     else initManual();
-    renderPrepared();chooseTab(tab);drawHistory();syncMailSwitches();renderTransactionManual(data.policy);
+    renderPrepared();syncManualSelection();chooseTab(tab);drawHistory();syncMailSwitches();renderTransactionManual(data.policy);
   }
 
   const parisDate=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris',dateStyle:'short'});
@@ -252,15 +253,40 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
       <label class="field">대상 ${select('audience',[['unpaid','미입금'],['valid','전체 유효 주문'],['confirmed','입금 확인'],['canceled','취소 주문']])}</label>
       <label><input name="excludeReported" type="checkbox" checked> 송금 신고 완료 제외</label>
       <label class="field">기타 안내 제목 <input name="notice" maxlength="80"></label>
-      <fieldset class="field wide"><legend>주문 선택</legend><label><input type="checkbox" data-order-select-all> 전체 선택</label><div class="manual-order-list"><div class="mail-order-head" aria-hidden="true"><span></span><span>${t('주문번호','Référence')}</span><span>${t('주문자','Client')}</span><span>${t('상태','État')}</span></div>${orders.filter(o=>o.email)
-        .map(o=>`<label class="modal-row"><input type="checkbox" name="ids" value="${esc(o.id)}" data-manual-order> <span class="mail-order-ref">${esc(o.ref)}</span><span class="mail-order-name">${esc(o.name)}</span><span class="mail-order-status" data-status="${esc(o.status)}">${esc(o.status)}</span></label>`).join('')}</div></fieldset>
-      <div class="actions">${button('prepare-selected','선택 주문 주소 준비')}${button('prepare-all','조건에 맞는 전체 주문 주소 준비')}<a class="btn neutral" href="https://webmail.ovh.net/" target="_blank" rel="noopener noreferrer">OVH 웹메일 열기</a></div>
+      <fieldset class="field wide"><legend>${t('발송 대상','Destinataires')} · <span data-mail-count aria-live="polite"></span></legend><label><input type="checkbox" data-order-select-all> ${t('전체 선택','Tout sélectionner')}</label><div class="manual-order-list"><div class="mail-order-head" aria-hidden="true"><span></span><span>${t('주문번호','Référence')}</span><span>${t('주문자','Client')}</span><span>${t('상태','État')}</span></div><div data-mail-order-rows></div></div></fieldset>
+      <div class="actions">${button('prepare-selected',t('발송 준비','Préparer l’envoi'))}<a class="btn neutral" href="https://webmail.ovh.net/" target="_blank" rel="noopener noreferrer">OVH 웹메일 열기</a></div>
       <div data-mail-prepared></div></form>`;
     const fields=body.querySelector('[data-manual-form]').elements;
     fields.type.addEventListener('change',()=>{
       fields.audience.value=fields.type.value==='reminderFinal'?'unpaid':['bulkCancel','buyerCancel','adminCancel'].includes(fields.type.value)?'canceled':fields.type.value==='confirmed'?'confirmed':'valid';
       fields.excludeReported.checked=fields.type.value==='reminderFinal';
+      renderManualAudience();
     });
+    fields.audience.addEventListener('change',renderManualAudience);
+    fields.excludeReported.addEventListener('change',renderManualAudience);
+    renderManualAudience();
+  }
+
+  function renderManualAudience(){
+    const form=body.querySelector('[data-manual-form]');
+    const fields=form.elements;
+    const eligible=orders.filter(order=>matchesMailAudience(order,fields.type.value,fields.audience.value,fields.excludeReported.checked));
+    form.querySelector('[data-mail-order-rows]').innerHTML=eligible.map(o=>`<label class="modal-row"><input type="checkbox" name="ids" value="${esc(o.id)}" data-manual-order checked> <span class="mail-order-ref">${esc(o.ref)}</span><span class="mail-order-name">${esc(o.name)}</span><span class="mail-order-status" data-status="${esc(o.status)}">${esc(o.status)}</span></label>`).join('')||'<p style="padding:10px">'+t('조건에 맞는 주문이 없습니다.','Aucune commande correspondante.')+'</p>';
+    syncManualSelection();
+  }
+
+  function syncManualSelection(){
+    const form=body.querySelector('[data-manual-form]');if(!form)return;
+    const boxes=[...form.querySelectorAll('[data-manual-order]')],count=boxes.filter(box=>box.checked).length;
+    const master=form.querySelector('[data-order-select-all]');
+    master.checked=boxes.length>0&&count===boxes.length;
+    master.indeterminate=count>0&&count<boxes.length;
+    master.disabled=!boxes.length||prepared.length>0;
+    form.querySelector('[data-mail-count]').textContent=t('선택 '+count+' / '+boxes.length+'건',count+' / '+boxes.length+' sélectionnées');
+    const prepare=form.querySelector('[data-mail=prepare-selected]');
+    prepare.textContent=t('선택한 '+count+'건 발송 준비','Préparer '+count+' commande(s)');
+    prepare.disabled=!count||prepared.length>0||pending;
+    for(const input of [...boxes,form.elements.type,form.elements.audience,form.elements.excludeReported,form.elements.notice])input.disabled=prepared.length>0;
   }
 
   function renderPrepared(){
@@ -279,13 +305,14 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
   panel.addEventListener('toggle',()=>{
     if(!panel.open||ready||pending)return;
     pending=true;
-    void load().then(()=>{ready=true;},error=>{feedback.textContent=error.message;}).finally(()=>{pending=false;});
+    void load().then(()=>{ready=true;},error=>{feedback.textContent=error.message;}).finally(()=>{pending=false;syncManualSelection();});
   });
   panel.addEventListener('submit',e=>e.preventDefault());
   panel.addEventListener('change',e=>{
     if(e.target.matches('[data-mail-master]'))form().querySelectorAll('input[role=switch]').forEach(input=>input.checked=e.target.checked);
     if(e.target.matches('[data-mail-master],input[role=switch]'))syncMailSwitches();
     if(e.target.matches('[data-order-select-all]'))panel.querySelectorAll('[data-manual-order]').forEach(box=>box.checked=e.target.checked);
+    if(e.target.matches('[data-order-select-all],[data-manual-order]'))syncManualSelection();
   });
   panel.addEventListener('click',async e=>{
     const control=e.target.closest('[data-mail],[data-mail-job],[data-mail-template],[data-mail-tab]');
@@ -337,11 +364,11 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
         const modes=Object.fromEntries(Object.keys(kinds).map(kind=>[kind,f['on-'+kind].checked?preferredModes[kind]:'off']));
         await action('mailPolicy',{modes,preferredModes,templates});await load();
       }
-      if(click==='prepare-selected'||click==='prepare-all'){
+      if(click==='prepare-selected'){
         if(prepared.length)throw new Error('기존 준비 건을 먼저 완료하거나 해제해 주세요.');
         const f=body.querySelector('[data-manual-form]').elements;
         preparedOptions={type:f.type.value,audience:f.audience.value,excludeReported:f.excludeReported.checked,notice:f.notice.value};
-        const ids=click==='prepare-all'?orders.filter(o=>o.email).map(o=>o.id):[...body.querySelectorAll('[data-manual-order]:checked')].map(x=>x.value);
+        const ids=[...body.querySelectorAll('[data-manual-order]:checked')].map(x=>x.value);
         if(!ids.length)throw new Error('선택 가능한 주문이 없습니다.');
         await chunks('mailManualPrepare',preparedOptions,ids,rows=>prepared.push(...rows));
         if(!prepared.length)feedback.textContent='조건에 맞는 발송 대상이 없습니다.';
@@ -390,6 +417,6 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
         await load();
       }
     }catch(error){feedback.textContent=error.message;}
-    finally{renderPrepared();pending=false;control.disabled=false;}
+    finally{renderPrepared();pending=false;control.disabled=false;syncManualSelection();}
   });
 }

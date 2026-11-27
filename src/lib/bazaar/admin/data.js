@@ -67,7 +67,7 @@ export function eventViewModel(event, items=[], orders=[], financialFinalizedAt=
     pickupKo:event.pickupKo, pickupFr:event.pickupFr,
     orders:orders.map(order=>({
       id:order.id, ref:order.orderRef, name:order.name, email:order.email, phone:order.phone,
-      lang:order.lang,payment:order.payment,transferReportSource:order.transferReportSource,originalItems:order.originalItems||order.items,
+      lang:order.lang,payment:order.payment,mailCancelReason:order.cancelReason,transferReportSource:order.transferReportSource,originalItems:order.originalItems||order.items,
       canceledItems:[...(order.canceledItems||[]),...(order.canceledAt?order.items:[])],
       priceAdjustmentCents:order.priceAdjustmentCents||0, bankConfirmedAt:order.bankConfirmedAt, hasRefundRecords:order.reservedRefundCents!==undefined,
       source:order.source||'web', parentOrderRef:order.parentOrderRef||'', revision:order.revision??0,
