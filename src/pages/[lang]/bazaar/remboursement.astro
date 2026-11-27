@@ -2,8 +2,9 @@
 import '../../../lib/bazaar/buyer.css';
 import Base from '../../../layouts/Base.astro';
 import {langPaths,L,type Lang} from '../../../i18n/ui';
-export const getStaticPaths=langPaths;
-const lang=Astro.params.lang as Lang;
+export const getStaticPaths = langPaths;
+
+const lang = Astro.params.lang as Lang;
 ---
 <Base lang={lang} rest="bazaar/remboursement/" title={L(lang,{ko:'환불 계좌정보 등록',fr:'Coordonnées de remboursement'})} noindex>
   <meta slot="head" name="referrer" content="no-referrer"/>
