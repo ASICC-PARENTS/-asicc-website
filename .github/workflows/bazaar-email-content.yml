@@ -1,0 +1,43 @@
+name: Apply verified email-only update to live Bazaar
+on:
+  push:
+    branches: [ops/bazaar-email-content-20261127]
+permissions:
+  contents: read
+concurrency:
+  group: asicc-bazaar-email-content
+  cancel-in-progress: false
+jobs:
+  email-only:
+    if: github.ref == 'refs/heads/ops/bazaar-email-content-20261127'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Verify mail and regression tests
+        run: |
+          node --test tests/bazaar-{admin-workflows,catalog,closure-and-navigation,product-orders,profit-and-locales,shared-shop,mail-dispatch}.test.mjs
+          node worker/bazaar/production-smoke.mjs
+      - name: Build known old and verified new Worker content
+        shell: bash
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/asicc-before" 3913ef7289be1a01e06ae007652c74a01d09faf2
+          ln -s "$GITHUB_WORKSPACE/node_modules" "$RUNNER_TEMP/asicc-before/node_modules"
+          node_modules/.bin/esbuild "$RUNNER_TEMP/asicc-before/worker/bazaar/index.mjs" --bundle --format=esm --platform=browser --external:node:* --outfile="$RUNNER_TEMP/baseline.mjs" --log-level=warning
+          node_modules/.bin/esbuild worker/bazaar/index.mjs --bundle --format=esm --platform=browser --external:node:* --outfile="$RUNNER_TEMP/release.mjs" --log-level=warning
+          cp "$RUNNER_TEMP/baseline.mjs" "$RUNNER_TEMP/check.mjs"
+          node scripts/patch-bazaar-mail.mjs "$RUNNER_TEMP/check.mjs" "$RUNNER_TEMP/baseline.mjs" "$RUNNER_TEMP/release.mjs"
+          node --check "$RUNNER_TEMP/check.mjs"
+      - name: Patch only exact live mail code with rollback
+        run: python3 scripts/deploy-bazaar-mail.py
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_WORKERS_API_TOKEN }}
+          BASELINE_BUNDLE: ${{ runner.temp }}/baseline.mjs
+          RELEASE_BUNDLE: ${{ runner.temp }}/release.mjs
