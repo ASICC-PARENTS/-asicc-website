@@ -32,11 +32,10 @@ def unpack(headers, body):
     if not main or sum(n==main for n,t,b in parts)!=1:raise SystemExit("Main module cannot be identified safely")
     return main,parts
 def public_check():
-    req=urllib.request.Request("https://asicc-bazaar-api.falling-hall-f390.workers.dev/api/bazaarPublic",data=b'{"data":{}}',headers={"Content-Type":"application/json","Origin":"https://asicc-parents.fr"})
-    with urllib.request.urlopen(req,timeout=30) as r:
-        data=json.load(r)["data"]
-        if not data["event"]["eventId"] or not isinstance(data["products"],list):raise SystemExit("Public bazaar is not healthy")
-        return len(data["products"])
+    payload=subprocess.check_output(["curl","--fail-with-body","--silent","--show-error","--max-time","30","-H","Content-Type: application/json","-H","Origin: https://asicc-parents.fr","--data",'{"data":{}}',"https://asicc-bazaar-api.falling-hall-f390.workers.dev/api/bazaarPublic"])
+    data=json.loads(payload)["data"]
+    if not data["event"]["eventId"] or not isinstance(data["products"],list):raise SystemExit("Public bazaar is not healthy")
+    return len(data["products"])
 print("Public bazaar product count before:",public_check())
 headers,body=call(base+"/v2")
 main,parts=unpack(headers,body)
