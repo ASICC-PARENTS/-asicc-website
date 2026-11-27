@@ -53,13 +53,11 @@ const lang = Astro.params.lang as Lang;
 
 <script>
 import {formatParisPaymentDeadline,formatParisPickupRange,paymentGuidance,transferIdentification} from '../../../../firebase-functions-bazaar/bazaar/payment-window.mjs';
-import {compactIban,displayIban} from '../../../../firebase-functions-bazaar/bazaar/iban.mjs';
 import {orderIntakeState} from '../../../../firebase-functions-bazaar/bazaar/order-intake.mjs';
 import "../../../lib/bazaar/shop-view.css";
 import {bindStorageLabels,changeCartQuantity,quantityCap,renderShopEvent,renderShopProducts,preserveShopDisclosures} from "../../../lib/bazaar/shop-view";
 import {getShop,createOrder,eFormat,h,orderRequestId,parisDeadline,pilotLink,pilotMode} from '../../../lib/bazaar/api';
 import {renderPickupDetail} from '../../../lib/bazaar/pickup-view';
-import {SHOP_REFRESH_CHECK_MS,shouldRefreshShop} from '../../../lib/bazaar/shop-refresh.mjs';
 const root=document.querySelector<HTMLElement>('#bz')!;
 const lang=root.dataset.lang==='fr'?'fr':'ko';
 const t=(ko:string,fr:string)=>lang==='fr'?fr:ko;
@@ -230,7 +228,6 @@ async function sendOrder(){
       unknown:t('주문 확인 이메일의 발송 상태를 확인할 수 없습니다.','L’état d’envoi de l’e-mail de confirmation est indisponible.'),
     };
     const status=result.receiptMailStatus as keyof typeof mailMessage;
-    const copy=(value:string,label:string)=>value?`<button type="button" class="buyer-copy" data-copy="${h(value)}" aria-label="${h(label)}">${t('복사','Copier')}</button>`:'';
     receipt.innerHTML=`<h1>${t('주문이 정상적으로 접수되었습니다.','Votre commande a bien été enregistrée.')}</h1>
       <p class="buyer-hint">${mailMessage[status]||mailMessage.unknown}</p>
       <dl class="buyer-facts"><div><dt>${t('주문번호','Référence')}</dt><dd>${h(result.orderRef)}</dd></div>
@@ -238,17 +235,9 @@ async function sendOrder(){
       <div><dt>${t('송금 마감','Date limite de virement')}</dt><dd>${h(formatParisPaymentDeadline(result.transferCutoff,lang))}</dd></div>
       ${result.pickupAt?`<div><dt>${t('상품 수령','Retrait des commandes')}</dt><dd>${h(formatParisPickupRange(result.pickupAt,result.pickupEndAt,lang))}</dd></div>`:''}
       ${result.pickupPlace?`<div><dt>${t('수령 장소','Lieu du retrait')}</dt><dd>${h(result.pickupPlace)}</dd></div>`:''}</dl>
-      ${result.iban?`<h2>${t('송금 정보','Coordonnées bancaires')}</h2><dl class="buyer-facts">
-      <div><dt>${t('예금주','Bénéficiaire')}</dt><dd>${h(result.beneficiary)}${copy(result.beneficiary,t('예금주 복사','Copier le bénéficiaire'))}</dd></div>
-      <div><dt>IBAN</dt><dd>${h(displayIban(result.iban))}${copy(compactIban(result.iban),t('IBAN 복사','Copier l’IBAN'))}</dd></div>
-      <div><dt>${t('송금 메모','Libellé du virement')}</dt><dd>${h(result.orderRef)}${copy(result.orderRef,t('송금 메모 복사','Copier le libellé'))}</dd></div></dl>`:''}
       ${renderPickupDetail({...pickupSnapshot,...result},lang)}
       <div class="buyer-actions"><a class="buyer-link" href="${h(link)}" rel="noreferrer">${t('주문 조회 링크','Lien de suivi de la commande')}</a>
-      <a class="buyer-btn" href="${h(paymentLink)}" rel="noreferrer">${t('송금 완료 알리기 / 주문 관리','Signaler mon virement / Gérer la commande')}</a></div>`;
-    receipt.querySelectorAll<HTMLButtonElement>('[data-copy]').forEach(btn=>btn.addEventListener('click',async()=>{
-      try{await navigator.clipboard.writeText(btn.dataset.copy||'');btn.textContent=t('복사 완료','Copié');}
-      catch{btn.textContent=t('직접 복사해 주세요','Copiez manuellement');}
-    }));
+      <a class="buyer-btn" href="${h(paymentLink)}" rel="noreferrer">${t('송금 정보 보기','Voir les coordonnées bancaires')}</a></div>`;
     receipt.focus();
     receipt.scrollIntoView({block:'start'});
   }catch(error){showOrderError(error);}
@@ -264,11 +253,10 @@ eventPicker.className='buyer-section';
 eventPicker.hidden=true;
 eventPicker.setAttribute('aria-label',t('진행 중인 행사 선택','Choisir un bazar en cours'));
 $('#bz-hero').before(eventPicker);
-let reading=false,lastRefreshAttempt=0;
+let reading=false;
 async function refresh(){
- if(reading||submitted)return;
+ if(reading)return;
  reading=true;
- lastRefreshAttempt=Date.now();
  try{
   const result=await getShop(requestedEvent);
   serverOffset=Date.parse(result.serverNow)-Date.now();
@@ -302,12 +290,7 @@ setInterval(()=>{
  const phase=intakeState();
  if(event.status&&phase!==lastPhase){lastPhase=phase;render();}
 },1000);
-const refreshVisible=(resumed=false)=>{
- if(shouldRefreshShop({hidden:document.hidden,submitted,submitting,pending:!!pendingOrder,
-  closed:event.status==='closed',
-  lastAttempt:lastRefreshAttempt,now:Date.now(),resumed}))void refresh();
-};
-setInterval(()=>refreshVisible(),SHOP_REFRESH_CHECK_MS);
-document.addEventListener('visibilitychange',()=>refreshVisible(true));
-window.addEventListener('pageshow',()=>refreshVisible(true));
+const refreshVisible=()=>{if(!document.hidden&&event.status!=='closed')void refresh();};
+setInterval(refreshVisible,45000);
+document.addEventListener('visibilitychange',refreshVisible);
 </script>
