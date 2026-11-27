@@ -1,0 +1,41 @@
+name: Carton confirmation isolated test Worker preview
+on:
+  pull_request:
+    branches: [feat/online-bazaar]
+permissions:
+  contents: read
+jobs:
+  test-worker-preview:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'test/bazaar-carton-worker-preview'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Verify only isolated test configuration
+        run: |
+          node --check firebase-functions-bazaar/bazaar/service.mjs
+          grep -Fx 'name = "asicc-bazaar-test-api"' worker/bazaar/wrangler.test.toml
+          grep -Fx 'FIREBASE_PROJECT_ID = "asicc-bazaar-test"' worker/bazaar/wrangler.test.toml
+          grep -Fx 'BAZAAR_MODE = "test"' worker/bazaar/wrangler.test.toml
+      - run: npm install --global firebase-tools@14 wrangler@4
+      - name: Test using loopback emulators and captured mail only
+        env:
+          CI: 'true'
+          WRANGLER_SEND_METRICS: 'false'
+          FIREBASE_CLI_DISABLE_USAGE_REPORTING: 'true'
+        run: firebase emulators:exec --only auth,firestore --project demo-asicc-bazaar --config firebase.bazaar.local.json "bash scripts/bazaar-ci-integration.sh"
+      - name: Deploy isolated test Worker only
+        run: wrangler deploy --config worker/bazaar/wrangler.test.toml
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_WORKERS_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: b941b206ccc2aad94ae9b83ada2bc889
+      - name: Read-only test API health check
+        run: |
+          curl --fail-with-body --silent --show-error -H 'Origin: https://asicc-integration-test.pages.dev' -H 'Content-Type: application/json' --data '{"data":{}}' https://asicc-bazaar-test-api.falling-hall-f390.workers.dev/api/bazaarPublic | jq -e '.data.event.eventId and (.data.products | type == "array")' >/dev/null
