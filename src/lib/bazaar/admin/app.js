@@ -26,7 +26,8 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const money=n=>(Number(n)||0).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
 const clone=x=>structuredClone(x);
 const model={catalog:[],active:null,draft:null,drafts:[],past:[],events:[],view:'empty',history:0};
-let catalogRevision=0,busy=false,authVersion=0;
+let catalogRevision=0,busy=false,authVersion=0,orderRefreshPending=false;
+const orderRefreshKey='asicc-bazaar-order-correction-v1';
 const params=new URLSearchParams(location.search);
 const standaloneCatalog=page==='products'&&params.has('catalog');
 const embeddedCatalog=standaloneCatalog&&params.has('popup')&&window.parent!==window;
@@ -56,8 +57,22 @@ async function run(button, work){
    issue.textContent=message;
   }else alert(message);
  }
- finally{busy=false;if(button)button.disabled=false;}
+ finally{busy=false;if(button)button.disabled=false;flushOrderRefresh();}
 }
+function notifyOrderCorrection(eventId){
+ try{localStorage.setItem(orderRefreshKey,JSON.stringify({eventId,nonce:crypto.randomUUID()}));}catch{}
+}
+function flushOrderRefresh(){
+ if(page!=='orders'||!orderRefreshPending||busy||!$('#modal').hidden||document.hidden||!selectedEvent()||!bazaarAuth.currentUser)return;
+ orderRefreshPending=false;
+ void run(null,load);
+}
+window.addEventListener('storage',event=>{
+ if(page!=='orders'||event.key!==orderRefreshKey||!event.newValue)return;
+ try{if(JSON.parse(event.newValue).eventId!==selectedEvent()?.id)return;}catch{return;}
+ orderRefreshPending=true;flushOrderRefresh();
+});
+document.addEventListener('visibilitychange',flushOrderRefresh);
 async function load(){
  const version=authVersion;
  if(standaloneCatalog){
@@ -204,7 +219,7 @@ modalWrap.addEventListener('wheel',event=>{
  window.scrollBy(0,event.deltaY);
  event.preventDefault();
 },{passive:false});
-function closeModal(){modalWrap.hidden=true;modalPanel.classList.remove('modal-moved');}
+function closeModal(){modalWrap.hidden=true;modalPanel.classList.remove('modal-moved');flushOrderRefresh();}
 $('#modal-close').onclick=closeModal;
 function pastModal(){
  if(!model.past.length){modal('지난 바자회 선택','','<p>저장된 지난 행사가 없습니다.</p>');return;}
@@ -1063,8 +1078,18 @@ async function saveCorrection(id){
  if(!confirm(language('이 주문을 정정할까요? 원본과 정정 사유가 보관됩니다.','Corriger cette commande ? La version d’origine et le motif seront conservés.')))return;
  const reportedReduction=order.status==='reported'&&items.some(item=>item.qty<(order.items.find(row=>row[3]===item.id)?.[1]??0))&&items.every(item=>item.qty<=(order.items.find(row=>row[3]===item.id)?.[1]??0));
  if(reportedReduction&&!confirm(language('송금 신고액과 변경된 주문금액이 일치하지 않을 수 있습니다. 실제 입금 확인 후 차액에 대한 환불 등록이 필요할 수 있습니다. 입금 확인 상태는 변경되지 않습니다. 그래도 주문을 수정하시겠습니까?','Le montant du virement signalé peut différer du nouveau total. Un remboursement pourra être nécessaire après vérification du virement. Le statut du paiement restera inchangé. Modifier quand même la commande ?')))return;
- await request('correctOrder',{id,eventId:selectedEvent().id,revision:order.revision,reason,items,restoreStock:$('#correction-restore')?.checked??false,confirm:true,ackReportedMismatch:reportedReduction});
- closeModal();await load();orderModal(id);
+ const eventId=selectedEvent().id;
+ const result=await request('correctOrder',{id,eventId,revision:order.revision,reason,items,restoreStock:$('#correction-restore')?.checked??false,confirm:true,ackReportedMismatch:reportedReduction});
+ notifyOrderCorrection(eventId);
+ closeModal();
+ try{
+  await load();
+  const updated=store.orders.find(o=>o.id===id);
+  if(!updated||updated.revision<result.revision)throw new Error('stale order');
+  orderModal(id);
+ }catch{
+  alert(language('주문 정정은 저장됐습니다. 주문 목록 새로고침 버튼으로 최신 내역을 다시 확인해 주세요.','La correction a été enregistrée. Actualisez la liste pour consulter les données à jour.'));
+ }
 }
 async function showOrderHistory(id){
  const order=store.orders.find(o=>o.id===id);
@@ -1324,6 +1349,7 @@ function rerender(){
  if(page==='orders'){
   if(store.orderView==='products')renderProductOrders();
   else {renderOrders();applyColumns();restoreSheet();app.querySelector('.tabbody')?.insertAdjacentHTML('afterbegin',orderViewTabs());}
+  app.querySelector('.tabbody')?.insertAdjacentHTML('afterbegin','<div class="actions" style="justify-content:flex-end;margin-bottom:8px"><button type="button" class="btn neutral" data-action="refresh-orders">'+language('주문 목록 새로고침','Actualiser la liste des commandes')+'</button></div>');
   const ev=selectedEvent();const bar=document.createElement('div');bar.className='footbar';bar.innerHTML='<div class="actions"><button class="btn neutral" data-action="refresh-orders">새로고침</button><button class="btn neutral" data-action="csv-orders">주문 CSV 다운로드</button><button class="btn neutral" data-action="order-list-excel">'+language('주문 목록 Excel','Commandes (Excel)')+'</button></div>'+(canReconcile()&&ev.status!=='draft'&&!ev.raw.reconciledAt?'<button class="btn danger" data-action="finalize-unpaid">최종 입금 대조 · 미입금 일괄 취소</button>':'');app.querySelector('.tabbody').append(bar);
  }
  if(page==='settlement'){
@@ -1983,7 +2009,7 @@ function handleModalAction(action,button){
 }
 
 onAuthStateChanged(bazaarAuth,async user=>{
- const version=++authVersion;
+ const version=++authVersion;orderRefreshPending=false;
  if(catalogDialog)void finishCatalogClose(false);
  closeModal();$('#admin-actions').hidden=true;app.replaceChildren();
  model.active=null;model.draft=null;model.past=[];model.drafts=[];model.catalog=[];
