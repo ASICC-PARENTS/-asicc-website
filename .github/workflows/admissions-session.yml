@@ -48,9 +48,13 @@ jobs:
           set -euo pipefail
           endpoint=https://asicc-admissions-registration-test.falling-hall-f390.workers.dev
           origin=https://asicc-admissions-preview.pages.dev
-          curl -fsS "$endpoint/health" | jq -e '.ok and .mode == "test"'
+          curl -fsS --retry 8 --retry-delay 5 --retry-all-errors --max-time 15 "$endpoint/health" | jq -e '.ok and .mode == "test"'
           data=$(jq -nc --arg email "test-${GITHUB_RUN_ID}@example.invalid" '{name:"TEST ONLY",email:$email,city:"Courbevoie",interest:"next_year",children:[{school:"mat",grade:"PS"},{school:"elem",grade:"CP"}],lang:"ko",consent:true}')
           curl -fsS "$endpoint/api/register" -H "Origin: $origin" -H 'Content-Type: application/json' -d "$data" | jq -e '.ok'
+          for interest in future general; do
+            data=$(jq -nc --arg email "test-${interest}-${GITHUB_RUN_ID}@example.invalid" --arg interest "$interest" '{name:"TEST ONLY",email:$email,city:"other",cityOther:"TEST CITY",interest:$interest,children:[],lang:"fr",consent:true}')
+            curl -fsS "$endpoint/api/register" -H "Origin: $origin" -H 'Content-Type: application/json' -d "$data" | jq -e '.ok'
+          done
           code=$(curl -sS -o /dev/null -w '%{http_code}' "$endpoint/api/admin/list" -H "Origin: $origin" -H 'Content-Type: application/json' -d '{}')
           test "$code" = 403
       - name: Create only the isolated preview Pages project if needed
@@ -107,6 +111,6 @@ jobs:
         run: |
           set -euo pipefail
           endpoint=https://asicc-admissions-registration.falling-hall-f390.workers.dev
-          curl -fsS "$endpoint/health" | jq -e '.ok and .mode == "production" and .open'
+          curl -fsS --retry 8 --retry-delay 5 --retry-all-errors --max-time 15 "$endpoint/health" | jq -e '.ok and .mode == "production" and .open'
           code=$(curl -sS -o /dev/null -w '%{http_code}' "$endpoint/api/admin/list" -H 'Origin: https://asicc-parents.fr' -H 'Content-Type: application/json' -d '{}')
           test "$code" = 403
