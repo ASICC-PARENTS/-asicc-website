@@ -1,3 +1,4 @@
+import {defaultMailCopy,renderOrderEmail} from '../../../../firebase-functions-bazaar/bazaar/order-email.mjs';
 import {matchesMailAudience} from './mail-audience.mjs';
 import { parisDeadline } from '../api';
 import {mailKinds,policyMode} from '../../../../worker/bazaar/mail-policy.mjs';
@@ -116,6 +117,32 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
     master.checked=count===switches.length;
     master.indeterminate=count>0&&count<switches.length;
   }
+  const renderKind=kind=>['buyerCancel','adminCancel'].includes(kind)?'cancel':kind;
+  function effectiveCopy(kind){
+    const [subjectKo,introKo]=defaultMailCopy(renderKind(kind),'ko');
+    const [subjectFr,introFr]=defaultMailCopy(renderKind(kind),'fr');
+    const defaults={subjectKo,introKo,subjectFr,introFr};
+    return Object.fromEntries(Object.entries(defaults).map(([key,value])=>[key,templates[kind]?.[key]?.trim()||value]));
+  }
+  function sampleMail(kind,lang,override={}){
+    return renderOrderEmail({type:renderKind(kind),order:{lang,id:'preview',buyerToken:'preview-only',orderRef:'ASICC-PREVIEW',name:lang==='fr'?'Client exemple':'예시 주문자',totalCents:2350,items:[{titleKo:'예시 상품 A',titleFr:'Produit exemple A',qty:2,priceCents:900},{titleKo:'예시 상품 B',titleFr:'Produit exemple B',qty:1,priceCents:550}],paymentDeadline:event.raw?.transferCutoff},event:event.raw||{},site:location.origin,template:{...templates[kind],...override},change:kind==='refundCompleted'?{amountCents:550}:kind==='additionalPayment'?{amountCents:550}:{}});
+  }
+  function samplePreview(kind,override={}){
+    return ['ko','fr'].map(lang=>{
+      const mail=sampleMail(kind,lang,override);
+      return '<section class="field"><strong>'+t(lang==='ko'?'한국어 미리보기':'프랑스어 미리보기',lang==='ko'?'Aperçu coréen':'Aperçu français')+'</strong><div>'+esc(mail.subject)+'</div><iframe title="'+(lang==='ko'?'한국어 이메일 예시':'Aperçu français')+'" sandbox="" srcdoc="'+esc(mail.html)+'" style="width:100%;height:440px;border:1px solid #e7e1df;border-radius:8px"></iframe></section>';
+    }).join('');
+  }
+  function displayManualCopy(){
+    const form=body.querySelector('[data-manual-form]');if(!form)return;
+    const kind=form.elements.type.value,copy=effectiveCopy(kind);
+    const noticeLabel=form.querySelector('[data-notice-label]');noticeLabel.hidden=kind!=='other';noticeLabel.style.display=kind==='other'?'':'none';
+    const target=form.querySelector('[data-manual-copy]');
+    target.innerHTML='<h4>'+t('기본 발송 문구','Texte utilisé par défaut')+'</h4>'+['ko','fr'].map(lang=>{
+      const suffix=lang==='ko'?'Ko':'Fr';
+      return '<div class="panel pad"><strong>'+ (lang==='ko'?'한국어':'Français')+' · '+esc(copy['subject'+suffix])+'</strong><p style="white-space:pre-wrap">'+esc(copy['intro'+suffix])+'</p></div>';
+    }).join('')+'<details><summary>'+t('전체 이메일 디자인 미리보기 (예시 주문)','Aperçu du message complet (commande fictive)')+'</summary>'+samplePreview(kind)+'</details>';
+  }
   function editTemplate(kind){
     const editor=body.querySelector('[data-template-editor]');
     if(!editor)return;
@@ -123,17 +150,18 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
     const fields={subjectKo:t('한국어 제목','Objet en coréen'),introKo:t('한국어 안내 문구','Texte en coréen'),
       subjectFr:t('프랑스어 제목','Objet en français'),introFr:t('프랑스어 안내 문구','Texte en français')};
     editor.innerHTML='<h4>'+esc(kinds[kind])+'</h4>'+Object.entries(fields).map(([key,label])=>'<label class="field">'+esc(label)+
-      '<textarea name="'+key+'" maxlength="'+(key.startsWith('subject')?150:2500)+'">'+esc(templates[kind]?.[key]||'')+'</textarea></label>').join('')+
+      '<textarea name="'+key+'" maxlength="'+(key.startsWith('subject')?150:2500)+'">'+esc(effectiveCopy(kind)[key])+'</textarea></label>').join('')+
       '<p>'+t('주문과 행사 정보는 이메일 종류에 맞게 자동 삽입됩니다.','Les informations de commande et du bazar sont ajoutées selon le type de message.')+'</p>'+
       (kind==='other'?'<fieldset><legend>'+t('자동 삽입 정보','Informations à inclure')+'</legend>'+[['event',t('행사명','Bazar')],['order',t('주문번호','Référence')],['items',t('상품','Produits')],['total',t('금액','Montant')],['pickup',t('수령','Retrait')],['deadline',t('송금 기한','Échéance')]].map(([key,label])=>'<label><input type="checkbox" data-notice-field value="'+key+'" '+(templates[kind]?.fields?.includes(key)?'checked':'')+'> '+label+'</label>').join('')+'</fieldset>':'')+
       '<label>'+t('미리보기 주문','Commande exemple')+'<select data-preview-order><option value="">'+t('예시 주문','Commande fictive')+'</option>'+orders.map(order=>'<option value="'+esc(order.id)+'">'+esc(order.ref)+'</option>').join('')+'</select></label>'+
       '<label>'+t('언어','Langue')+'<select data-preview-lang><option value="ko">한국어</option><option value="fr">Français</option></select></label>'+
-      button('template-reset',t('기본 양식 복원','Rétablir le modèle par défaut'))+button('template-preview',t('미리보기','Aperçu'))+'<pre data-template-preview hidden></pre>';
+      button('template-reset',t('기본 양식 복원','Rétablir le modèle par défaut'))+button('template-preview',t('미리보기','Aperçu'))+'<pre data-template-preview hidden></pre><div data-template-html-preview></div>';
   }
   function collectTemplate(){
     const editor=body.querySelector('[data-template-editor]');
     if(!editor?.dataset.kind)return;
-    templates[editor.dataset.kind]=Object.fromEntries([...editor.querySelectorAll('textarea')].map(el=>[el.name,el.value]));
+    const kind=editor.dataset.kind,previous=templates[kind]||{},defaults=effectiveCopy(kind);
+    templates[kind]=Object.fromEntries([...editor.querySelectorAll('textarea')].map(el=>[el.name,el.value===defaults[el.name]?(previous[el.name]||''):el.value]));
     if(editor.dataset.kind==='other')templates.other.fields=[...editor.querySelectorAll('[data-notice-field]:checked')].map(input=>input.value);
   }
   async function load(append=false) {
@@ -159,7 +187,7 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
       <div class="actions">${cursor?button('more','이력 더 보기'):''}${button('refresh','새로고침')}</div></section><section data-mail-section="manual"><div data-transaction-manual></div><div data-mail-manual></div></section>`;
     if(previous)body.querySelector('[data-mail-manual]').replaceWith(previous);
     else initManual();
-    renderPrepared();syncManualSelection();chooseTab(tab);drawHistory();syncMailSwitches();renderTransactionManual(data.policy);
+    renderPrepared();displayManualCopy();syncManualSelection();chooseTab(tab);drawHistory();syncMailSwitches();renderTransactionManual(data.policy);
   }
 
   const parisDate=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris',dateStyle:'short'});
@@ -204,7 +232,8 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
       <label class="field">안내 종류 ${select('type',['reminderFinal','bulkCancel','pickup','other','receipt','confirmed','buyerCancel','adminCancel'].map(kind=>[kind,kinds[kind]]))}</label>
       <label class="field">대상 ${select('audience',[['unpaid','미입금'],['valid','전체 유효 주문'],['confirmed','입금 확인'],['canceled','취소 주문']])}</label>
       <label><input name="excludeReported" type="checkbox" checked> 송금 신고 완료 제외</label>
-      <label class="field">기타 안내 제목 <input name="notice" maxlength="80"></label>
+      <label class="field" data-notice-label>기타 안내 제목 <input name="notice" maxlength="80"></label>
+      <div data-manual-copy class="field wide"></div>
       <fieldset class="field wide"><legend>${t('발송 대상','Destinataires')} · <span data-mail-count aria-live="polite"></span></legend><label><input type="checkbox" data-order-select-all> ${t('전체 선택','Tout sélectionner')}</label><div class="manual-order-list"><div class="mail-order-head" aria-hidden="true"><span></span><span>${t('주문번호','Référence')}</span><span>${t('주문자','Client')}</span><span>${t('상태','État')}</span></div><div data-mail-order-rows></div></div></fieldset>
       <div class="actions">${button('prepare-selected',t('발송 준비','Préparer l’envoi'))}<a class="btn neutral" href="https://webmail.ovh.net/" target="_blank" rel="noopener noreferrer">OVH 웹메일 열기</a></div>
       <div data-mail-prepared></div></form>`;
@@ -212,7 +241,7 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
     fields.type.addEventListener('change',()=>{
       fields.audience.value=fields.type.value==='reminderFinal'?'unpaid':['bulkCancel','buyerCancel','adminCancel'].includes(fields.type.value)?'canceled':fields.type.value==='confirmed'?'confirmed':'valid';
       fields.excludeReported.checked=fields.type.value==='reminderFinal';
-      renderManualAudience();
+      renderManualAudience();displayManualCopy();
     });
     fields.audience.addEventListener('change',renderManualAudience);
     fields.excludeReported.addEventListener('change',renderManualAudience);
@@ -241,17 +270,20 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
     for(const input of [...boxes,form.elements.type,form.elements.audience,form.elements.excludeReported,form.elements.notice])input.disabled=prepared.length>0;
   }
 
+  let showPreparedPreview=false;
   function renderPrepared(){
     const target=body.querySelector('[data-mail-prepared]');
     if(!target)return;
-    const ko=target.querySelector('[data-override-ko]')?.value||'',french=target.querySelector('[data-override-fr]')?.value||'';
+    const copy=effectiveCopy(preparedOptions?.type||'reminderFinal');
+    const ko=target.querySelector('[data-override-ko]')?.value??copy.introKo,french=target.querySelector('[data-override-fr]')?.value??copy.introFr;
+    if(!prepared.length)showPreparedPreview=false;
     target.innerHTML=prepared.length?`<p>Bcc 수신자 ${recipients().length}명 · 주문 ${prepared.length}건</p>
       <label class="field wide">OVH 메일의 숨은참조(Bcc)에 붙여넣을 주소 · 중복 제거 완료<textarea readonly aria-label="Bcc 주소">${esc(recipients().join('; '))}</textarea></label>
       <p>${t('Brevo 선택 주문','Commandes sélectionnées')} ${prepared.length} · ${t('일반 한도 예상 잔여','Solde interne estimé')} ${Math.max(0,(lastBudget?.normalRemaining??0)-prepared.length)}</p>
       <label>${t('이번 발송에만 적용할 한국어 안내','Texte coréen pour cet envoi uniquement')}<textarea data-override-ko maxlength="2500">${esc(ko)}</textarea></label>
       <label>${t('이번 발송에만 적용할 프랑스어 안내','Texte français pour cet envoi uniquement')}<textarea data-override-fr maxlength="2500">${esc(french)}</textarea></label>
       <div class="actions">${button('brevo-preview',t('발송 문구 미리보기','Aperçu du texte'))}${button('brevo-queue',t('Brevo 발송 대기 등록','Mettre en file Brevo'))}${button('copy','주소 복사')}${button('excel','Excel 다운로드')}
-      ${button('complete','OVH 발송 완료 기록')}${button('release','발송 준비 해제')}</div>`:'';
+      ${button('complete','OVH 발송 완료 기록')}${button('release','발송 준비 해제')}</div>${showPreparedPreview?'<p>'+t('예시 주문으로 미리보기','Aperçu avec une commande fictive')+'</p>'+samplePreview(preparedOptions.type,{...(ko.trim()&&ko!==copy.introKo?{introKo:ko}:{}),...(french.trim()&&french!==copy.introFr?{introFr:french}:{})}):''}`:'';
   }
 
   panel.addEventListener('toggle',()=>{
@@ -307,6 +339,7 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
         const rendered=await action('mailPreview',{type:editor.dataset.kind,id:editor.querySelector('[data-preview-order]').value,lang:editor.querySelector('[data-preview-lang]').value,template:templates[editor.dataset.kind]});
         preview.textContent=rendered.subject+'\n\n'+rendered.text;
         preview.hidden=false;
+        editor.querySelector('[data-template-html-preview]').innerHTML='<p>'+t('HTML 디자인 예시 (가상 주문)','Exemple HTML (commande fictive)')+'</p>'+samplePreview(editor.dataset.kind);
       }
       if(click==='policy'){
         collectTemplate();
@@ -326,9 +359,10 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
         await load();
       }
       if(click==='brevo-preview'||click==='brevo-queue'){
-        const override={introKo:body.querySelector('[data-override-ko]').value.trim(),introFr:body.querySelector('[data-override-fr]').value.trim()};
+        const copy=effectiveCopy(preparedOptions.type);
+        const override=Object.fromEntries([['introKo',body.querySelector('[data-override-ko]').value.trim()],['introFr',body.querySelector('[data-override-fr]').value.trim()]].filter(([key,value])=>value&&value!==copy[key]));
         if(click==='brevo-preview'){
-          alert([override.introKo,override.introFr].filter(Boolean).join('\n\n')||t('저장된 양식 또는 기본 문구를 사용합니다.','Le modèle enregistré ou le texte par défaut sera utilisé.'));
+          showPreparedPreview=true;
           return;
         }
         const available=Math.min(lastBudget?.normalRemaining??0,lastBudget?.providerAccountRemaining??Infinity);
