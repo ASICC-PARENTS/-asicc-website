@@ -32,13 +32,87 @@ function diffPath(a,b,path='$'){
   return path;
 }
 const edits=[];
+// Diagnostics contain identifiers/route names only, never deployed source or values.
+const summarize=tree=>{
+  const vars=body=>body.flatMap(x=>x.type==='VariableDeclaration'?x.declarations.map(d=>d.id?.name||d.id?.type):[]);
+  const body=fn(tree,'createMail').body.body;
+  const ma=fn(tree,'createMailAdmin');
+  const admin=ma.body.body.find(x=>x.type==='FunctionDeclaration'&&x.id?.name==='admin');
+  return {mailVars:vars(body),adminVars:vars(ma.body.body),
+    adminRoutes:admin?.body.body.filter(x=>x.type==='IfStatement').map(x=>x.test?.right?.value??x.test.type),
+    mailMethods:body.find(x=>x.type==='ReturnStatement')?.argument?.properties?.map(p=>p.key?.name)};
+};
+console.log('Live email structure:',JSON.stringify(summarize(l)));
 function replace(oldNode,newNode,liveNode,label){
   if(!eq(oldNode,liveNode))throw new Error('Live '+label+' differs from the tested baseline at '+diffPath(oldNode,liveNode)+'; stopped without deploying');
   edits.push({start:liveNode.start,end:liveNode.end,text:next.slice(newNode.start,newNode.end),label});
 }
-for(const name of ['manualStillEligible','formatJob','createMailAdmin']){
-  replace(fn(o,name),fn(n,name),fn(l,name),name);
+replace(fn(o,'manualStillEligible'),fn(n,'manualStillEligible'),fn(l,'manualStillEligible'),'manual eligibility');
+
+function byExact(scope,node,label){return one(find(scope,x=>eq(x,node)),label+' exact live anchor');}
+function appendArg(oldNode,newNode,liveNode,label){
+  if(!eq(oldNode,liveNode))throw new Error(label+' old arguments differ');
+  edits.push({start:liveNode.end-1,end:liveNode.end-1,text:', '+next.slice(newNode.arguments.at(-1).start,newNode.arguments.at(-1).end),label});
 }
+function appendParam(oldFn,newFn,liveFn,label){
+  assert.ok(eq(oldFn.params,liveFn.params),label+' old parameters differ');
+  assert.equal(newFn.params.length,oldFn.params.length+1);
+  const at=liveFn.params.at(-1).end;
+  edits.push({start:at,end:at,text:', '+next.slice(newFn.params.at(-1).start,newFn.params.at(-1).end),label});
+}
+function objReturn(scope,label){return one(scope.body.body.filter(x=>x.type==='ReturnStatement'&&x.argument?.type==='ObjectExpression'),label);}
+function addedProps(oldObj,newObj,liveObj,label){
+  const getKey=x=>x.key?.name??x.key?.value;
+  const previous=new Set(oldObj.properties.map(getKey));
+  const present=new Set(liveObj.properties.map(getKey));
+  const added=newObj.properties.filter(x=>!previous.has(getKey(x)));
+  assert.ok(added.length>0,label+' no new properties');
+  for(const x of added)assert.ok(!present.has(getKey(x)),label+' property already present: '+getKey(x));
+  edits.push({start:liveObj.start+1,end:liveObj.start+1,text:added.map(x=>next.slice(x.start,x.end)).join(',\n')+',\n',label});
+}
+const oldFormat=fn(o,'formatJob'),newFormat=fn(n,'formatJob'),liveFormat=fn(l,'formatJob');
+appendParam(oldFormat,newFormat,liveFormat,'mail overview projection parameter');
+assert.ok(eq(oldFormat.body.body[0],liveFormat.body.body[0]),'Mail overview record source differs');
+addedProps(objReturn(oldFormat,'old overview return').argument,objReturn(newFormat,'new overview return').argument,objReturn(liveFormat,'live overview return').argument,'mail overview projection fields');
+
+const oldFactory=fn(o,'createMailAdmin'),newFactory=fn(n,'createMailAdmin'),liveFactory=fn(l,'createMailAdmin');
+assert.ok(eq(oldFactory.params,liveFactory.params),'Live mail admin factory parameters differ');
+for(const statement of oldFactory.body.body.filter(x=>x.type==='VariableDeclaration'))byExact(liveFactory,statement,'mail admin factory prerequisites');
+const adminFn=f=>one(f.body.body.filter(x=>x.type==='FunctionDeclaration'&&x.id?.name==='admin'),'mail admin method');
+const oa=adminFn(oldFactory),na=adminFn(newFactory),la=adminFn(liveFactory);
+appendParam(oa,na,la,'mail admin immediate send parameter');
+function route(admin,name){
+  return one(admin.body.body.filter(x=>x.type==='IfStatement'&&x.test.type==='BinaryExpression'&&x.test.operator==='==='&&x.test.left.name==='op'&&x.test.right.value===name),name+' route');
+}
+const [oldStatus,newStatus,liveStatus]=[oa,na,la].map(a=>route(a,'mailStatus'));
+const ret=x=>one(x.consequent.body.filter(s=>s.type==='ReturnStatement'&&s.argument.type==='ObjectExpression'),'mail status return');
+const oldStatusReturn=ret(oldStatus),newStatusReturn=ret(newStatus),liveStatusReturn=ret(liveStatus);
+const oldStatusNames=['messages','review','entry'];
+// The status route's reads must still use the same data sources, prior to optional new lookup.
+for(const statement of oldStatus.consequent.body.filter(x=>x.type==='VariableDeclaration')){
+  byExact(liveStatus.consequent,statement,'mail status prerequisites');
+}
+const newStatusExtras=newStatus.consequent.body.filter(x=>x.type!=='ReturnStatement'&&!oldStatus.consequent.body.some(y=>eq(x,y)));
+assert.equal(newStatusExtras.length,2,'mail status extra statements');
+edits.push({start:liveStatusReturn.start,end:liveStatusReturn.start,text:newStatusExtras.map(x=>next.slice(x.start,x.end)).join('\n')+'\n',label:'optional manual send choices'});
+addedProps(oldStatusReturn.argument,newStatusReturn.argument,liveStatusReturn.argument,'manual send choices result field');
+
+const newCheck=route(na,'mailCheckDelivery'),newSingle=route(na,'mailSingleSend');
+const policyDecl=one(oa.body.body.filter(x=>x.type==='VariableDeclaration'&&x.declarations.some(d=>d.id?.name==='policyRef')),'policy declaration');
+const livePolicy=byExact(la,policyDecl,'event-scoped policy declaration');
+assert.ok(!la.body.body.some(x=>x.type==='IfStatement'&&['mailCheckDelivery','mailSingleSend'].includes(x.test?.right?.value)),'New email route already exists');
+edits.push({start:livePolicy.end,end:livePolicy.end,text:'\n'+[newCheck,newSingle].map(x=>next.slice(x.start,x.end)).join('\n'),label:'manual send and delivery lookup routes'});
+const formatCall=routeNode=>one(find(routeNode,x=>x.type==='CallExpression'&&x.callee.name==='formatJob'),'mail overview format call');
+appendArg(formatCall(route(oa,'mailOverview')),formatCall(route(na,'mailOverview')),formatCall(route(la,'mailOverview')),'mail overview includes delivery status');
+
+const oldAction=route(oa,'mailJobAction'),liveAction=route(la,'mailJobAction');
+assert.ok(eq(oldAction.test,liveAction.test),'Existing email action route differs');
+const immediate=one(na.body.body.filter(x=>x.type==='IfStatement'&&x.test.type==='LogicalExpression'&&x.test.left?.left?.name==='op'&&x.test.left?.right?.value==='mailJobAction'),'immediate action route');
+edits.push({start:liveAction.start,end:liveAction.start,text:next.slice(immediate.start,immediate.end)+'\n',label:'immediate dispatch route'});
+const queueBranch=a=>one(find(a,x=>x.type==='IfStatement'&&x.test.type==='LogicalExpression'&&find(x.test,y=>y.type==='Identifier'&&y.name==='queueManual').length>0&&find(x.test,y=>y.type==='Literal'&&y.value==='manualReserved').length>0&&find(x.test,y=>y.type==='UnaryExpression'&&y.argument?.name==='queueManual').length===0),'manual queue branch');
+const oldQueue=queueBranch(oa),newQueue=queueBranch(na),liveQueue=queueBranch(la);
+const pushCall=branch=>one(find(branch.consequent,x=>x.type==='CallExpression'&&x.callee.object?.name==='recipients'&&x.callee.property?.name==='push'),'prepared recipients output');
+replace(pushCall(oldQueue),pushCall(newQueue),pushCall(liveQueue),'return selected queue job id');
 // Production has independent operational mail changes. Patch only the exact
 // expression nodes changed by the verified feature, not the entire mail factory.
 const oldMail=fn(o,'createMail'),newMail=fn(n,'createMail'),liveMail=fn(l,'createMail');
@@ -62,7 +136,8 @@ replaceExpr('job.type === "reminderFinal" ? tx.get(db.doc(`bazaarOrders/${job.or
 const returnNode=mail=>one(mail.body.body.filter(x=>x.type==='ReturnStatement'&&x.argument?.type==='ObjectExpression'),'mail factory return');
 const prop=(ret,name)=>one(ret.argument.properties.filter(x=>x.type==='Property'&&x.key?.name===name),name+' return property');
 const oldReturn=returnNode(oldMail),newReturn=returnNode(newMail),liveReturn=returnNode(liveMail);
-replace(prop(oldReturn,'status'),prop(newReturn,'status'),prop(liveReturn,'status'),'mail status projection');
+const statusObject=method=>one(find(method,x=>x.type==='ReturnStatement'&&x.argument?.type==='ObjectExpression'&&x.argument.properties.some(p=>p.key?.name==='id')),'order status row').argument;
+addedProps(statusObject(prop(oldReturn,'status')),statusObject(prop(newReturn,'status')),statusObject(prop(liveReturn,'status')),'order mail status fields');
 const oldVars=new Map(oldMail.body.body.flatMap(x=>x.type==='VariableDeclaration'?x.declarations.map(d=>[d.id?.name,d]):[]));
 const liveVars=new Map(liveMail.body.body.flatMap(x=>x.type==='VariableDeclaration'?x.declarations.map(d=>[d.id?.name,d]):[]));
 const newVars=new Map(newMail.body.body.flatMap(x=>x.type==='VariableDeclaration'?x.declarations.map(d=>[d.id?.name,x]):[]));
@@ -83,8 +158,7 @@ for(const name of helperNames){
   assert.equal(hits.length,0,'helper name already in live bundle: '+name);
 }
 const newHelpers=[variable(n,'transactionKinds'),variable(n,'storedType'),fn(n,'directEligible')];
-const mainEdit=edits.find(e=>e.label==='createMailAdmin');
-mainEdit.text=newHelpers.map(x=>next.slice(x.start,x.end)).join('\n')+'\n'+mainEdit.text;
+edits.push({start:liveFactory.start,end:liveFactory.start,text:newHelpers.map(x=>next.slice(x.start,x.end)).join('\n')+'\n',label:'new email helper functions'});
 function mailCall(root){
   const svc=fn(root,'createBazaar');
   return one(find(svc,x=>x.type==='CallExpression'&&x.callee.type==='Identifier'&&x.callee.name==='mailAdmin'),'email admin dispatch');
@@ -102,8 +176,10 @@ let cursor=0,result='';
 for(const e of edits){assert.ok(e.start>=cursor,'overlapping edit');result+=live.slice(cursor,e.start)+e.text;cursor=e.end;}
 result+=live.slice(cursor);
 const out=parse(result,{ecmaVersion:'latest',sourceType:'module'});
-for(const name of ['manualStillEligible','formatJob','createMailAdmin','directEligible'])assert.ok(eq(fn(out,name),fn(n,name)),name+' result mismatch');
-for(const name of ['canCheckDelivery','checkDelivery','status'])assert.ok(eq(prop(returnNode(fn(out,'createMail')),name),prop(newReturn,name)),name+' result mismatch');
+for(const name of ['manualStillEligible','directEligible'])assert.ok(eq(fn(out,name),fn(n,name)),name+' result mismatch');
+const patchedAdmin=adminFn(fn(out,'createMailAdmin'));
+for(const name of ['mailCheckDelivery','mailSingleSend'])assert.ok(eq(route(patchedAdmin,name),route(na,name)),name+' result mismatch');
+for(const name of ['canCheckDelivery','checkDelivery'])assert.ok(eq(prop(returnNode(fn(out,'createMail')),name),prop(newReturn,name)),name+' result mismatch');
 for(const name of ['transactionKinds','storedType'])assert.ok(eq(variable(out,name),variable(n,name)),name+' result mismatch');
 assert.ok(eq(mailCall(out),newCall),'dispatch result mismatch');
 assert.notEqual(live,result);
