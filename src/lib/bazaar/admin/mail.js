@@ -204,8 +204,8 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
       <label class="field">대상 ${select('audience',[['unpaid','미입금'],['valid','전체 유효 주문'],['confirmed','입금 확인'],['canceled','취소 주문']])}</label>
       <label><input name="excludeReported" type="checkbox" checked> 송금 신고 완료 제외</label>
       <label class="field">기타 안내 제목 <input name="notice" maxlength="80"></label>
-      <fieldset class="field wide"><legend>주문 선택</legend><label><input type="checkbox" data-order-select-all> 전체 선택</label><div class="manual-order-list">${orders.filter(o=>o.email)
-        .map(o=>`<label class="modal-row"><input type="checkbox" name="ids" value="${esc(o.id)}" data-manual-order> <span>${esc(o.ref)} · ${esc(o.name)} · ${esc(o.status)}</span></label>`).join('')}</div></fieldset>
+      <fieldset class="field wide"><legend>주문 선택</legend><label><input type="checkbox" data-order-select-all> 전체 선택</label><div class="manual-order-list"><div class="mail-order-head" aria-hidden="true"><span></span><span>${t('주문번호','Référence')}</span><span>${t('주문자','Client')}</span><span>${t('상태','État')}</span></div>${orders.filter(o=>o.email)
+        .map(o=>`<label class="modal-row"><input type="checkbox" name="ids" value="${esc(o.id)}" data-manual-order> <span class="mail-order-ref">${esc(o.ref)}</span><span class="mail-order-name">${esc(o.name)}</span><span class="mail-order-status" data-status="${esc(o.status)}">${esc(o.status)}</span></label>`).join('')}</div></fieldset>
       <div class="actions">${button('prepare-selected','선택 주문 주소 준비')}${button('prepare-all','조건에 맞는 전체 주문 주소 준비')}<a class="btn neutral" href="https://webmail.ovh.net/" target="_blank" rel="noopener noreferrer">OVH 웹메일 열기</a></div>
       <div data-mail-prepared></div></form>`;
     const fields=body.querySelector('[data-manual-form]').elements;
