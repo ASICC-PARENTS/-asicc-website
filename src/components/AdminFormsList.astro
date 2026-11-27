@@ -4,25 +4,23 @@ import { href, L, type Lang } from '../i18n/ui';
 interface Props { lang: Lang }
 const { lang } = Astro.props;
 const ko = lang === 'ko';
-const rows = [...forms].sort((a,b) => b.date.localeCompare(a.date));
-const preview = import.meta.env.PUBLIC_ASICC_INTEGRATION_TEST === 'true' || import.meta.env.PUBLIC_ASICC_ADMISSIONS_PREVIEW === 'true';
+const rows = [...forms].sort((a,b) => b.createdAt.localeCompare(a.createdAt));
+const preview = import.meta.env.PUBLIC_ASICC_INTEGRATION_TEST === 'true' || import.meta.env.PUBLIC_ASICC_ADMISSIONS_PREVIEW === 'true' || import.meta.env.PUBLIC_ASICC_BAZAAR_TEST === 'true' || import.meta.env.PUBLIC_ASICC_BAZAAR_EMULATOR === 'true';
 ---
-<section id="admin-forms" class="card auth-card stack gap-12" aria-labelledby="admin-forms-heading">
+<section id="forms-list" class="stack gap-12" aria-label={ko?'설문·신청 목록':'Liste des enquêtes et formulaires'}>
   <div class="forms-heading">
-    <div class="stack gap-8">
-      <h2 id="admin-forms-heading" class="h3">{ko ? '설문·신청 관리' : 'Enquêtes et formulaires'}</h2>
-      <p class="small muted">{L(lang,{ko:'조사 및 신청폼을 한곳에서 관리합니다. 제목을 누르면 기존 응답 관리 화면으로 이동합니다.',fr:'Retrouvez les enquêtes et inscriptions au même endroit. Cliquez sur un titre pour accéder à la gestion des réponses.'})}</p>
-    </div>
-    <span class="m-badge">{ko ? '총 ' + rows.length + '건' : rows.length + ' formulaires'}</span>
+    <p class="small muted">{ko ? '제목을 선택하면 응답 관리 화면으로 이동합니다.' : 'Sélectionnez un titre pour gérer les réponses.'}</p>
+    <span class="small muted forms-count">{ko ? '총 ' + rows.length + '건' : rows.length + ' formulaires'}</span>
   </div>
-  <div class="forms-table-wrap">
+  <div class="forms-table-wrap" tabindex="0" role="region" aria-label={ko?'설문 목록 표':'Tableau des formulaires'}>
     <table class="forms-table">
       <thead>
         <tr>
           <th scope="col">{ko ? '제목' : 'Titre'}</th>
           <th scope="col">{ko ? '유형' : 'Type'}</th>
-          <th scope="col">{ko ? '공지일' : 'Publication'}</th>
-          <th scope="col">{ko ? '공개 신청 링크' : 'Formulaire public'}</th>
+          <th scope="col">{ko ? '생성일' : 'Création'}</th>
+          <th scope="col">{ko ? '자료 보관 기한' : 'Conservation des données'}</th>
+          <th scope="col">{ko ? '공개 링크' : 'Liens publics'}</th>
         </tr>
       </thead>
       <tbody>
@@ -31,20 +29,27 @@ const preview = import.meta.env.PUBLIC_ASICC_INTEGRATION_TEST === 'true' || impo
           const adminHref = external || href(lang, item.admin.path!);
           const koHref = 'path' in item.public ? href('ko', item.public.path!) : item.public.ko;
           const frHref = 'path' in item.public ? href('fr', item.public.path!) : item.public.fr;
+          const retainedUntil = 'until' in item.retention ? item.retention.until : undefined;
+          const retentionPeriod = 'period' in item.retention ? item.retention.period?.[lang] : undefined;
           return (
             <tr>
               <td class="forms-title">
-                {preview && external ? <strong>{item.title[lang]}</strong> :
-                  <a href={adminHref} target={external ? '_blank' : undefined} rel={external ? 'noopener noreferrer' : undefined}><strong>{item.title[lang]}</strong> <span aria-hidden="true">{external ? '↗' : '›'}</span></a>}
-                <span class="small muted">{item.description[lang]}</span>
-                {preview && external && <span class="small muted">{ko ? '운영 조사 링크 · 테스트에서 비활성화' : 'Enquête en production · lien désactivé en test'}</span>}
+                {preview && external ? <span title={ko?'운영 조사 링크 · 테스트에서 비활성화':'Lien de production désactivé en test'}>{item.title[lang]}</span> :
+                  <a href={adminHref} title={item.description[lang]} target={external ? '_blank' : undefined} rel={external ? 'noopener noreferrer' : undefined}>{item.title[lang]} <span aria-hidden="true">{external ? '↗' : '›'}</span></a>}
               </td>
-              <td class="forms-type"><span class="m-badge">{item.type[lang]}</span></td>
-              <td class="forms-date"><time datetime={item.date}>{item.date}</time></td>
+              <td class="forms-type">{item.type[lang]}</td>
+              <td class="forms-date"><time datetime={item.createdAt}>{item.createdAt}</time>
+                {item.createdAtBasis==='deployment-confirmed' && <span class="date-note">{ko?' (배포 확인일)':' (déploiement confirmé)'}</span>}
+              </td>
+              <td class="forms-retention">{retainedUntil ? <time datetime={retainedUntil}>{retainedUntil}</time> :
+                retentionPeriod ? <>{retentionPeriod}<span class="date-note"> ({item.retention.note?.[lang]})</span></> :
+                <span class="muted">{ko?'미확인':'Non confirmée'}</span>}
+              </td>
               <td class="forms-public">
                 {preview && external ? <span class="small muted">—</span> : <div class="forms-links">
-                  <a class="btn btn-ghost btn-sm" href={koHref} target="_blank" rel="noopener noreferrer" aria-label={item.title[lang] + ' · 한국어'}>한국어 ↗</a>
-                  <a class="btn btn-ghost btn-sm" href={frHref} target="_blank" rel="noopener noreferrer" aria-label={item.title[lang] + ' · Français'}>Français ↗</a>
+                  <a href={koHref} target="_blank" rel="noopener noreferrer" aria-label={item.title[lang] + ' · 한국어'}>한국어</a>
+                  <span aria-hidden="true">|</span>
+                  <a href={frHref} target="_blank" rel="noopener noreferrer" aria-label={item.title[lang] + ' · Français'}>FR</a>
                 </div>}
               </td>
             </tr>
@@ -53,30 +58,32 @@ const preview = import.meta.env.PUBLIC_ASICC_INTEGRATION_TEST === 'true' || impo
       </tbody>
     </table>
   </div>
-  <p class="small muted">{L(lang,{ko:'새로운 조사와 신청폼이 발행되면 이 목록에 추가합니다. 응답은 각 양식의 기존 관리자 화면 및 저장소에서 관리됩니다.',fr:'Les nouveaux formulaires seront ajoutés à cette liste. Les réponses restent gérées dans l’espace et le stockage propres à chaque formulaire.'})}</p>
+  <p class="small muted">{L(lang,{ko:'기존 응답 데이터는 각 양식의 관리 화면에서 확인할 수 있습니다. 보관 기한은 각 양식의 기존 안내를 표시합니다.',fr:'Les réponses restent accessibles dans l’administration de chaque formulaire. La conservation reprend les durées indiquées dans chaque formulaire.'})}</p>
 </section>
 <style>
-  #admin-forms{scroll-margin-top:100px;min-width:0}
-  .forms-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
-  .forms-heading .m-badge{white-space:nowrap;flex-shrink:0}
-  .forms-table-wrap{border:1px solid #dce0e7;border-radius:10px;overflow:hidden;min-width:0}
-  .forms-table{border-collapse:collapse;width:100%;font-size:.9rem;table-layout:auto}
-  .forms-table th{background:#f1f5f2;text-align:left;font-weight:700;white-space:nowrap}
-  .forms-table th,.forms-table td{padding:12px 14px;border-bottom:1px solid #e2e6e3;vertical-align:middle}
-  .forms-table tr:last-child td{border-bottom:0}
-  .forms-title>a{display:block;color:#24523e;text-decoration:underline;text-underline-offset:3px;line-height:1.5;margin-bottom:4px;overflow-wrap:anywhere}
-  .forms-title>.small{display:block;line-height:1.5}
-  .forms-date{white-space:nowrap}
-  .forms-links{display:flex;flex-wrap:wrap;gap:6px}
-  .forms-links>a{white-space:nowrap}
+  #forms-list{min-width:0}
+  .forms-heading{display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .forms-heading p{margin:0}
+  .forms-count{white-space:nowrap;flex-shrink:0}
+  .forms-table-wrap{border:1px solid #cbd5cf;border-radius:4px;overflow-x:auto;min-width:0;width:100%;max-width:100%;-webkit-overflow-scrolling:touch}
+  .forms-table{border-collapse:collapse;width:100%;min-width:780px;font-size:13px;table-layout:auto}
+  .forms-table th{background:#e7ede9;text-align:left;font-weight:700;white-space:nowrap;color:#30483c}
+  .forms-table th,.forms-table td{padding:10px 12px;border-right:1px solid #d4ddd7;border-bottom:1px solid #d4ddd7;vertical-align:middle;line-height:1.45}
+  .forms-table th:last-child,.forms-table td:last-child{border-right:0}
+  .forms-table tbody tr:last-child td{border-bottom:0}
+  .forms-table tbody tr:nth-child(even){background:#f8faf8}
+  .forms-table tbody tr:hover{background:#eef6ef}
+  .forms-title{min-width:225px;max-width:420px}
+  .forms-title>a{color:#24523e;font-weight:650;text-decoration:underline;text-underline-offset:3px}
+  .forms-title>a:hover{color:#102e1c}
+  .forms-date,.forms-type,.forms-public,.forms-retention{white-space:nowrap;font-variant-numeric:tabular-nums}
+  .date-note{font-size:11px;color:#69756e}
+  .forms-links{display:flex;align-items:center;gap:7px;white-space:nowrap}
+  .forms-links>a{font-weight:600;text-decoration:underline;text-underline-offset:3px;color:#24523e}
+  .forms-links>span{color:#a2afa7}
   @media(max-width:650px){
-    .forms-table,.forms-table tbody{display:block}
-    .forms-table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
-    .forms-table tr{display:grid;grid-template-columns:auto 1fr;gap:0;padding:10px 12px;border-bottom:1px solid #e2e6e3}
-    .forms-table tr:last-child{border-bottom:0}
-    .forms-table td{display:block;padding:4px 0;border:0}
-    .forms-title,.forms-public{grid-column:1/-1}
-    .forms-date{text-align:right;color:#616b65;font-size:12px}
-    .forms-links{gap:8px;margin-top:3px}
+    .forms-table th,.forms-table td{padding:9px 10px}
+    .forms-table{font-size:12px}
+    .forms-title{min-width:220px}
   }
 </style>

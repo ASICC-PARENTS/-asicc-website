@@ -1,32 +1,61 @@
 [
   {
     "id": "admissions-session-2026-12-04",
-    "date": "2026-11-27",
     "title": {
       "ko": "온라인 입학설명회 참가 신청",
       "fr": "Inscription à la réunion d’information en ligne"
     },
-    "type": {"ko": "참가 신청", "fr": "Inscription"},
+    "type": {
+      "ko": "참가 신청",
+      "fr": "Inscription"
+    },
     "description": {
       "ko": "신청자 명단 · 참가 목적·거주 도시·희망 학년별 통계 · Excel",
       "fr": "Liste des inscrits · statistiques par motif, commune et classe · Excel"
     },
-    "admin": {"path": "membres/admin/admissions-session/"},
-    "public": {"path": "admission/session/"}
+    "admin": {
+      "path": "membres/admin/admissions-session/"
+    },
+    "public": {
+      "path": "admission/session/"
+    },
+    "createdAt": "2026-11-27",
+    "retention": {
+      "until": "2027-03-04"
+    }
   },
   {
     "id": "member-survey-2026-11",
-    "date": "2026-11-27",
     "title": {
       "ko": "재외동포청 단체현황 조사 (ASICC 회원 명단)",
       "fr": "Recensement des membres de l’ASICC"
     },
-    "type": {"ko": "현황 조사", "fr": "Recensement"},
+    "type": {
+      "ko": "현황 조사",
+      "fr": "Recensement"
+    },
     "description": {
       "ko": "회원 조사 응답 · 개인별 서명 · 제출용 자료 (기존 조사 관리자 로그인)",
       "fr": "Réponses · signatures individuelles · documents à transmettre (connexion à l’administration du recensement)"
     },
-    "admin": {"url": "https://survey.asicc-parents.fr/admin"},
-    "public": {"ko": "https://survey.asicc-parents.fr/", "fr": "https://survey.asicc-parents.fr/fr"}
+    "admin": {
+      "url": "https://survey.asicc-parents.fr/admin"
+    },
+    "public": {
+      "ko": "https://survey.asicc-parents.fr/",
+      "fr": "https://survey.asicc-parents.fr/fr"
+    },
+    "createdAt": "2026-11-26",
+    "createdAtBasis": "deployment-confirmed",
+    "retention": {
+      "period": {
+        "ko": "2년",
+        "fr": "2 ans"
+      },
+      "note": {
+        "ko": "정확한 만료일 미확인",
+        "fr": "Date d’échéance non confirmée"
+      }
+    }
   }
 ]

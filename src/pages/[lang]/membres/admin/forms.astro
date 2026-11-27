@@ -1,0 +1,67 @@
+---
+import Base from '../../../../layouts/Base.astro';
+import AdminFormsList from '../../../../components/AdminFormsList.astro';
+import {langPaths,href,type Lang} from '../../../../i18n/ui';
+export const getStaticPaths = langPaths;
+
+const lang = Astro.params.lang as Lang;
+const ko=lang==='ko';
+const title=ko?'설문·신청 관리':'Enquêtes et formulaires';
+const enabled=import.meta.env.PUBLIC_ASICC_MEMBERS_ENABLED==='true';
+---
+<Base lang={lang} rest="membres/admin/forms/" title={title} noindex>
+  <section class="wrap sec stack gap-16" id="forms-admin" data-lang={lang} data-login={href(lang,'membres/login/')} data-enabled={enabled?'true':'false'}>
+    <a href={href(lang,'membres/admin/')} class="small">← {ko?'홈페이지 운영센터':'Centre de gestion du site'}</a>
+    <span class="eyebrow">ASICC · {ko?'관리자 전용':'Administration'}</span>
+    <h1 class="h2">{title}</h1>
+    <p id="forms-admin-status" class="notice" role="status" aria-live="polite">{enabled ? (ko?'관리자 권한 확인 중…':'Vérification des droits…') : (ko?'관리자 기능이 비활성화되어 있습니다.':'Administration désactivée.')}</p>
+    <div id="forms-admin-content" hidden>
+      <AdminFormsList lang={lang} />
+    </div>
+  </section>
+  <script>
+    import {getApps,initializeApp} from 'firebase/app';
+    import {getAuth,onAuthStateChanged,getIdToken} from 'firebase/auth';
+    import {getFirestore,doc,getDocFromServer} from 'firebase/firestore';
+    import {firebaseConfig} from '../../../../firebase-config';
+    const root=document.querySelector<HTMLElement>('#forms-admin')!;
+    const content=document.querySelector<HTMLElement>('#forms-admin-content')!;
+    const status=document.querySelector<HTMLElement>('#forms-admin-status')!;
+    const tr=(ko:string,fr:string)=>root.dataset.lang==='ko'?ko:fr;
+    if(root.dataset.enabled==='true'){
+      const app=getApps().find(a=>a.name==='asicc-website')??initializeApp(firebaseConfig,'asicc-website');
+      const auth=getAuth(app),db=getFirestore(app);
+      let sequence=0;
+      onAuthStateChanged(auth,async user=>{
+        const seq=++sequence;
+        content.hidden=true;status.hidden=false;
+        status.textContent=tr('관리자 권한 확인 중…','Vérification des droits…');
+        if(!user){
+          status.textContent='';
+          const link=document.createElement('a');
+          link.href=root.dataset.login+'?next='+encodeURIComponent(location.pathname);
+          link.textContent=tr('관리자 로그인','Connexion administrateur');
+          status.append(link);return;
+        }
+        try{
+          await user.reload();await getIdToken(user,true);
+          if(seq!==sequence || auth.currentUser?.uid!==user.uid)return;
+          if(!user.emailVerified){status.textContent=tr('이메일 인증 후 로그인해 주세요.','Vérifiez votre e-mail avant de vous connecter.');return;}
+          const me=await getDocFromServer(doc(db,'members',user.uid));
+          if(seq!==sequence || auth.currentUser?.uid!==user.uid)return;
+          if(!me.exists()||me.data().status!=='approved'||me.data().role!=='admin'){
+            status.textContent=tr('관리자만 접근할 수 있는 공간입니다.','Cet espace est réservé aux administrateurs.');return;
+          }
+          content.hidden=false;status.hidden=true;
+        }catch{
+          if(seq!==sequence)return;
+          status.textContent=tr('관리자 권한을 확인하지 못했습니다. 페이지를 새로고침해 주세요.','Impossible de vérifier les droits. Actualisez la page.');
+        }
+      });
+    }
+  </script>
+</Base>
+<style>
+  #forms-admin{max-width:1240px;min-width:0}
+  [hidden]{display:none!important}
+</style>

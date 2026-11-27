@@ -11,7 +11,7 @@ const preview=import.meta.env.PUBLIC_ASICC_ADMISSIONS_PREVIEW==='true';
 ---
 <Base lang={lang} rest="membres/admin/admissions-session/" title={title} noindex>
   <section class="wrap sec stack gap-16" id="session-admin" data-lang={lang} data-login={href(lang,'membres/login/')} data-back={href(lang,'membres/admin/')}>
-    <a href={href(lang,'membres/admin/')+'#admin-forms'} class="small">← {ko?'설문·신청 관리':'Enquêtes et formulaires'}</a>
+    <a href={href(lang,'membres/admin/forms/')} class="small">← {ko?'설문·신청 관리':'Enquêtes et formulaires'}</a>
     <span class="eyebrow">ASICC · {ko?'관리자 전용':'Administration'}</span>
     <h1 class="h2">{title}</h1>
     <p class="muted">{ko?'2026년 12월 4일(금), 저녁 8시 · 온라인':'Vendredi 4 décembre 2026 · 20 h · En ligne'}</p>
