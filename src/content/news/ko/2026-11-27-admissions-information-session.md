@@ -30,9 +30,11 @@ draft: false
 
 ## 참가 신청
 
-참가를 희망하시는 분은 아래 이메일로 신청해 주시기 바랍니다.
+참가를 희망하시는 분은 온라인 신청폼에서 신청해 주시기 바랍니다. 회원가입은 필요하지 않습니다.
 
-**[contact@asicc-parents.fr](mailto:contact@asicc-parents.fr)**
+**[온라인 입학설명회 참가 신청하기](../../admission/session/)**
+
+문의: [contact@asicc-parents.fr](mailto:contact@asicc-parents.fr)
 
 한국어 국제섹션에 대해 알아보고 평소 궁금하셨던 사항을 해소할 수 있는 자리가 되기를 바랍니다. 관심 있는 학부모님들의 많은 참여를 바랍니다.
 

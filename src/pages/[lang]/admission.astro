@@ -104,23 +104,8 @@ const pageText = (lang: 'ko' | 'fr', key: keyof typeof pageCopy) => pageCopy[key
 
       <section id="session" class="doc-section">
         <h2 class="h2">{L(lang, toc[7][1])}</h2>
-        <p>{pageText(lang, 'item_032')}</p>
-        <form class="card card-pad form" data-public-form="registrations" novalidate>
-          <label class="field">{pageText(lang, 'item_033')}<input name="name" autocomplete="name" required></label>
-          <label class="field">{pageText(lang, 'item_034')}<input name="email" type="email" autocomplete="email" required></label>
-          <fieldset class="field full" style="border:0;padding:0;margin:0">
-            <legend style="margin-bottom:8px">{pageText(lang, 'item_035')}</legend>
-            <div class="checks">
-              <label class="check"><input type="checkbox" name="levels" value="mat">{pageText(lang, 'item_036')}</label>
-              <label class="check"><input type="checkbox" name="levels" value="elem">{pageText(lang, 'item_037')}</label>
-              <label class="check"><input type="checkbox" name="levels" value="col">{pageText(lang, 'item_038')}</label>
-            </div>
-          </fieldset>
-          <label class="field full">{pageText(lang, 'item_039')}<textarea name="message" rows="3"></textarea></label>
-          <label class="check full"><input type="checkbox" name="consent" required>{pageText(lang, 'item_040')}</label>
-          <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
-          <div class="full row gap-16"><button class="btn btn-dark" type="submit">{pageText(lang, 'item_041')}</button><span class="err" data-form-msg role="status"></span></div>
-        </form>
+        <p>{L(lang,{ko:'2026년 12월 4일(금) 저녁 8시 온라인 입학설명회에 참가하실 수 있습니다.',fr:'Inscrivez-vous à la réunion d’information en ligne du vendredi 4 décembre 2026 à 20 h.'})}</p>
+        <a class="btn btn-dark" href={href(lang,'admission/session/')}>{L(lang,{ko:'온라인 입학설명회 참가 신청',fr:'S’inscrire à la réunion d’information'})} →</a>
       </section>
 
       <section id="faq" class="doc-section">

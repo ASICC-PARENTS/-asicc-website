@@ -1,0 +1,63 @@
+---
+import Base from '../../../../layouts/Base.astro';
+import {langPaths,href,type Lang} from '../../../../i18n/ui';
+import {BASE} from '../../../../config';
+export const getStaticPaths = langPaths;
+
+const lang = Astro.params.lang as Lang;
+const ko=lang==='ko';
+const title=ko?'온라인 입학설명회 신청자 관리':'Inscriptions à la réunion d’information';
+const preview=import.meta.env.PUBLIC_ASICC_ADMISSIONS_PREVIEW==='true';
+---
+<Base lang={lang} rest="membres/admin/admissions-session/" title={title} noindex>
+  <section class="wrap sec stack gap-16" id="session-admin" data-lang={lang} data-login={href(lang,'membres/login/')} data-back={href(lang,'membres/admin/')}>
+    <a href={href(lang,'membres/admin/')} class="small">← {ko?'홈페이지 운영센터':'Centre de gestion du site'}</a>
+    <span class="eyebrow">ASICC · {ko?'관리자 전용':'Administration'}</span>
+    <h1 class="h2">{title}</h1>
+    <p class="muted">{ko?'2026년 12월 4일(금), 저녁 8시 · 온라인':'Vendredi 4 décembre 2026 · 20 h · En ligne'}</p>
+    {preview&&<p class="notice notice-warn">{ko?'테스트 환경의 신청자만 표시됩니다.':'Uniquement les inscriptions de test.'}</p>}
+    <p role="status" id="session-admin-status" class="notice">{ko?'관리자 권한 확인 중…':'Vérification des droits…'}</p>
+    <div id="session-admin-body" hidden class="stack gap-16">
+      <div class="session-stats" id="session-stats"></div>
+      <div class="card card-pad stack gap-12">
+        <h2 class="h3">{ko?'입학 희망 학년별 인원':'Effectifs par classe souhaitée'}</h2>
+        <div id="session-grade-summary" class="summary-grid"></div>
+        <h2 class="h3">{ko?'거주 도시별 신청자':'Inscriptions par commune'}</h2>
+        <div id="session-city-summary" class="summary-grid"></div>
+      </div>
+      <div class="card card-pad stack gap-12">
+        <div class="row gap-12" style="justify-content:space-between;flex-wrap:wrap">
+          <h2 class="h3">{ko?'신청자 목록':'Liste des inscrits'}</h2>
+          <div class="row gap-8" style="flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" id="session-reload" type="button">{ko?'새로고침':'Actualiser'}</button>
+            <button class="btn btn-ghost btn-sm" id="session-copy" type="button">{ko?'이메일 목록 복사':'Copier les e-mails'}</button>
+            <button class="btn btn-dark btn-sm" id="session-export" type="button">{ko?'Excel 다운로드':'Exporter Excel'}</button>
+          </div>
+        </div>
+        <p class="small muted">{ko?'이메일 목록은 설명회 안내 발송 시 숨은참조(BCC)에 사용해 주세요.':'Utilisez les adresses en copie cachée (CCI) pour l’envoi des informations de connexion.'}</p>
+        <p class="small muted" id="session-mail-state"></p>
+        <label class="field session-search">{ko?'신청자 검색':'Rechercher'}<input type="search" id="session-search" placeholder={ko?'이름 · 이메일 · 도시':'Nom, e-mail, commune'}/></label>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>{ko?'신청일':'Inscription'}</th><th>{ko?'성명':'Nom'}</th><th>{ko?'이메일':'E-mail'}</th><th>{ko?'거주 도시':'Commune'}</th><th>{ko?'참가 목적':'Motif'}</th><th>{ko?'입학 희망 학년':'Classes'}</th><th>{ko?'언어':'Langue'}</th></tr></thead>
+            <tbody id="session-records"></tbody>
+          </table>
+        </div>
+        <p class="small muted" id="session-visible-count"></p>
+        <p id="session-admin-message" role="status" aria-live="polite"></p>
+      </div>
+    </div>
+  </section>
+  <script is:inline src={BASE+'bazaar-export/xlsx.js'}></script>
+  <script>import '../../../../scripts/admissions/admin';</script>
+</Base>
+<style>
+.session-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:10px}
+.summary-grid{display:flex;gap:8px;flex-wrap:wrap}
+:global(.session-stat){padding:14px;border:1px solid #e4e4e4;border-radius:10px;display:grid;gap:6px}
+:global(.session-stat b){font-size:25px;color:#286655}
+:global(.session-summary){border:1px solid #ddd;border-radius:7px;padding:6px 10px;font-size:14px}
+.session-search{max-width:360px}
+[id="session-records"] td{white-space:nowrap}
+[hidden]{display:none!important}
+</style>

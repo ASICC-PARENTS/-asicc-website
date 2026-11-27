@@ -1,0 +1,16 @@
+name = "asicc-admissions-registration-test"
+main = "index.mjs"
+compatibility_date = "2026-11-20"
+workers_dev = true
+preview_urls = false
+[vars]
+ADMISSIONS_MODE = "test"
+FIREBASE_PROJECT_ID = "asicc-bazaar-test"
+FIREBASE_API_KEY = "AIzaSyBKYgkMrEVeGwmFtgxgiQMzQCG8UWV5Ego"
+ALLOWED_ORIGINS = "https://asicc-admissions-preview.pages.dev"
+[[durable_objects.bindings]]
+name = "REGISTRATIONS"
+class_name = "Registrations"
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Registrations"]

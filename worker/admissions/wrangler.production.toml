@@ -1,0 +1,17 @@
+name = "asicc-admissions-registration"
+main = "index.mjs"
+compatibility_date = "2026-11-20"
+workers_dev = true
+preview_urls = false
+keep_vars = true
+[vars]
+ADMISSIONS_MODE = "production"
+FIREBASE_PROJECT_ID = "asicc-member-space"
+FIREBASE_API_KEY = "AIzaSyDnVW-BsIgcZ1SxRub5CEKnU99tHFUDbm4"
+ALLOWED_ORIGINS = "https://asicc-parents.fr,https://www.asicc-parents.fr"
+[[durable_objects.bindings]]
+name = "REGISTRATIONS"
+class_name = "Registrations"
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Registrations"]

@@ -1,0 +1,82 @@
+---
+import Base from '../../../layouts/Base.astro';
+import {langPaths, href, L, type Lang} from '../../../i18n/ui';
+import {CITIES} from '../../../scripts/admissions/config';
+export const getStaticPaths = langPaths;
+
+const lang = Astro.params.lang as Lang;
+const ko=lang==='ko';
+const title=L(lang,{ko:'온라인 입학설명회 참가 신청',fr:'Inscription à la réunion d’information en ligne'});
+const preview=import.meta.env.PUBLIC_ASICC_ADMISSIONS_PREVIEW==='true';
+---
+<Base lang={lang} rest="admission/session/" title={title} noindex>
+  <section class="wrap sec session-shell">
+    <a href={href(lang,'news/2026-11-27-admissions-information-session/')} class="small">← {ko?'설명회 안내':'Annonce de la réunion'}</a>
+    <div class="session-heading">
+      <span class="eyebrow">ASICC · 2027–2028</span>
+      <h1 class="h2">{title}</h1>
+      <p>{ko?'2026년 12월 4일(금) 저녁 8시 · 온라인':'Vendredi 4 décembre 2026 à 20 h · En ligne'}</p>
+      <p class="small muted">{ko?'입학설명회 참가 신청이며, 학교 입학 지원서가 아닙니다.':'Ce formulaire concerne uniquement la participation à la réunion, pas la candidature scolaire.'}</p>
+    </div>
+    {preview&&<p class="notice notice-warn">{ko?'테스트 전용 · 실제 개인정보를 입력하지 마세요.':'Test uniquement · Ne saisissez pas de données personnelles réelles.'}</p>}
+    <form id="admission-session-form" class="card card-pad stack gap-16" data-lang={lang} data-preview={preview?'true':'false'}>
+      <p class="small muted">* {ko?'필수 입력':'Champs obligatoires'}</p>
+      <label class="field">{ko?'신청자 성명':'Nom et prénom'} *<input name="name" autocomplete="name" required maxlength="100" /></label>
+      <label class="field">{ko?'이메일 주소':'Adresse e-mail'} *<input name="email" autocomplete="email" type="email" required maxlength="254" /></label>
+      <label class="field">{ko?'거주 도시':'Commune de résidence'} *
+        <select name="city" required>
+          <option value="">{ko?'도시 선택':'Sélectionner une commune'}</option>
+          {CITIES.map(city=><option value={city}>{city}</option>)}
+          <option value="other">{ko?'기타 (직접 입력)':'Autre (à préciser)'}</option>
+        </select>
+      </label>
+      <label class="field" id="session-city-other" hidden>{ko?'거주 도시 직접 입력':'Précisez votre commune'} *<input name="cityOther" maxlength="100" disabled /></label>
+      <div class="session-separator"></div>
+      <fieldset class="interest-options">
+        <legend>{ko?'참가 목적':'Motif de participation'} *</legend>
+        <label><input type="radio" name="interest" value="next_year" required/><span>{ko?'2027–2028학년도 자녀 입학을 희망하거나 고려 중':'J’envisage une candidature pour mon enfant à la rentrée 2027–2028'}</span></label>
+        <label><input type="radio" name="interest" value="future" required/><span>{ko?'자녀가 아직 어리거나 향후 학년도 입학에 관심 있음':'Mon enfant est encore jeune ou je m’intéresse à une admission ultérieure'}</span></label>
+        <label><input type="radio" name="interest" value="general" required/><span>{ko?'자녀 입학과 관계없이 한국어 국제섹션에 관심 있음':'Je souhaite découvrir la section internationale coréenne, indépendamment d’une candidature de mon enfant'}</span></label>
+      </fieldset>
+      <section id="session-children-section" class="stack gap-12" hidden>
+        <div class="stack gap-12" id="session-children"></div>
+        <button type="button" id="session-add-child" class="btn btn-ghost session-add">{ko?'+ 자녀 추가':'+ Ajouter un enfant'}</button>
+      </section>
+      <div class="session-separator"></div>
+      <label class="session-consent">
+        <input type="checkbox" name="consent" required />
+        <span>{ko?'설명회 참가 신청 및 관련 안내를 위한 개인정보 수집·이용에 동의합니다.':'J’accepte la collecte et l’utilisation de mes données pour mon inscription et les informations relatives à cette réunion.'}</span>
+      </label>
+      <p class="small muted">{ko?'정보는 ASICC 관리자만 열람하며 설명회 운영에만 사용합니다. 2027년 3월 4일까지 보관 후 삭제합니다. 열람·정정·삭제 요청:':'Les données sont accessibles uniquement aux administrateurs de l’ASICC, utilisées pour cette réunion puis supprimées au plus tard le 4 mars 2027. Accès, rectification ou suppression :'} <a href="mailto:contact@asicc-parents.fr">contact@asicc-parents.fr</a>.</p>
+      <div class="session-hp" aria-hidden="true"><label>Website<input name="website" tabindex="-1" autocomplete="off" /></label></div>
+      <button type="submit" class="btn btn-dark session-submit" disabled>{ko?'참가 신청하기':'Valider mon inscription'}</button>
+      <p id="session-form-message" role="status" aria-live="polite"></p>
+    </form>
+    <div id="session-thanks" class="card card-pad stack gap-16" hidden tabindex="-1">
+      <h2 class="h2">{ko?'참가 신청이 접수되었습니다.':'Votre inscription est enregistrée.'}</h2>
+      <p>{ko?'설명회 접속 방법은 추후 신청하신 이메일로 안내해 드리겠습니다.':'Les modalités de connexion vous seront communiquées par e-mail avant la réunion.'}</p>
+      <p>{ko?'내용을 수정해야 할 경우 협회 이메일로 문의해 주세요.':'Pour toute modification, contactez-nous par e-mail.'} <a href="mailto:contact@asicc-parents.fr">contact@asicc-parents.fr</a></p>
+      <a class="btn btn-ghost" href={href(lang,'news/2026-11-27-admissions-information-session/')}>{ko?'설명회 안내로 돌아가기':'Retour à l’annonce'}</a>
+    </div>
+    <noscript>{ko?'신청하려면 자바스크립트를 활성화해 주세요.':'Activez JavaScript pour vous inscrire.'}</noscript>
+  </section>
+  <script>import '../../../scripts/admissions/public';</script>
+</Base>
+<style>
+.session-shell{max-width:650px;display:flex;flex-direction:column;gap:20px}
+.session-heading{display:grid;gap:10px}
+.session-separator{height:1px;background:#e0e0df;margin:4px 0}
+.session-consent{display:flex;align-items:flex-start;gap:10px;line-height:1.6;cursor:pointer}
+.session-consent input{margin-top:4px;accent-color:#286655;flex-shrink:0;width:18px;height:18px}
+.session-consent span,.session-consent input:checked+span{text-decoration:none!important}
+.interest-options{border:0;padding:0;display:grid;gap:12px;margin:0;min-width:0}.interest-options legend{font-weight:700;margin-bottom:10px}.interest-options label{display:flex;align-items:flex-start;gap:8px;cursor:pointer;line-height:1.5}.interest-options input{accent-color:#286655;flex-shrink:0;margin-top:4px}.session-add,.session-submit{justify-content:center;width:100%}
+.session-hp{position:absolute;left:-10000px;overflow:hidden;height:1px;width:1px}
+:global(.session-child){border:1px solid #e2e4e2;border-radius:12px;padding:14px;display:grid;gap:12px;min-width:0}
+:global(.session-child legend){font-weight:700;padding:0 7px}
+:global(.session-child .child-header){display:flex;justify-content:space-between;align-items:center}
+:global(.session-child .child-remove){padding:5px 10px}
+:global(.session-child .child-options){display:flex;gap:12px;flex-wrap:wrap}
+:global(.session-child .child-options label){display:flex;gap:6px;align-items:center;cursor:pointer}
+:global(.session-child .child-options input){accent-color:#286655}
+[hidden]{display:none!important}
+</style>

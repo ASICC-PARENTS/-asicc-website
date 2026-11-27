@@ -28,9 +28,11 @@ Cette réunion a pour objectif de présenter le fonctionnement et les enseigneme
 
 ## Inscription
 
-Pour participer à cette réunion, merci de vous inscrire par e-mail à l’adresse suivante :
+Pour participer à la réunion, inscrivez-vous via le formulaire en ligne. Aucun compte n’est nécessaire.
 
-**[contact@asicc-parents.fr](mailto:contact@asicc-parents.fr)**
+**[S’inscrire à la réunion d’information](../../admission/session/)**
+
+Contact : [contact@asicc-parents.fr](mailto:contact@asicc-parents.fr)
 
 Nous espérons que cette rencontre vous permettra de mieux connaître la section internationale coréenne et d’obtenir des réponses à vos questions. Nous serons heureux de vous y retrouver nombreux.
 
