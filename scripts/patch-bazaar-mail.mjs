@@ -155,7 +155,9 @@ for(const name of ['provider','isCapture','key','directTestMail','approvedRecipi
 // their production-specific implementations, using the existing callable bindings.
 for(const name of ['isTestAddress','iso']){
   const declaration=variable(l,name).declarations[0];
-  assert.ok(['ArrowFunctionExpression','FunctionExpression'].includes(declaration.init?.type),'Live helper not callable: '+name);
+  const init=declaration.init;
+  const callable=x=>['ArrowFunctionExpression','FunctionExpression'].includes(x?.type);
+  assert.ok(callable(init)||(init?.type==='CallExpression'&&init.callee?.name==='__name'&&callable(init.arguments[0])&&init.arguments[1]?.value===name),'Live helper not callable: '+name+' ('+init?.type+', '+(init?.callee?.name||'no wrapper')+')');
   assert.ok(find(liveMail,x=>x.type==='CallExpression'&&x.callee?.name===name).length>0,'Live mail does not use helper: '+name);
 }
 const hashImport=one(l.body.filter(x=>x.type==='ImportDeclaration'&&x.source.value==='node:crypto'&&x.specifiers.some(s=>s.imported?.name==='createHash'&&s.local?.name==='createHash2')),'existing hash import');
