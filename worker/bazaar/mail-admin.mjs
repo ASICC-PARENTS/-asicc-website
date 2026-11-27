@@ -25,6 +25,7 @@ function formatJob(doc,order){
     method:manualSentAt?'OVH':data.providerId==='captured'?'capture':data.providerId?'Brevo':null,
     actor:data.manualBy||data.retryBy||null,retries:data.retryHistory||[],
     orderRef:order?.orderRef??null,name:order?.name??null,email:order?.email??null,
+    resendOf:data.resendOf??null,resendJobId:data.resendJobId??null,
     sentSnapshot:sentSnapshot?{...sentSnapshot,text:redact(sentSnapshot.text)}:null};
 }
 
@@ -89,7 +90,7 @@ export function createMailAdmin(db,mail) {
     });
   }
 
-  async function admin(op,data,uid) {
+  async function admin(op,data,uid,message) {
     if(op==='mailStatus'){
       if(!orderPattern.test(data.id??''))throw bad('주문 번호를 확인해 주세요.');
       const [messages,review]=await Promise.all([mail.status(data.id),db.doc(`bazaarLatePayments/${data.id}`).get()]);
@@ -179,6 +180,58 @@ export function createMailAdmin(db,mail) {
         return {policy};
       });
     }
+    // Dispatch only the explicitly selected outbox record; never drain unrelated orders.
+    if(op==='mailJobAction'&&['sendNow','resend'].includes(data.action)){
+      if(!mailPattern.test(data.id??'')||data.confirm!==true)throw bad('발송할 이메일을 확인해 주세요.');
+      if(!mail.canSend()||typeof message!=='function')throw conflict('현재 이메일 발송 서버를 사용할 수 없습니다.');
+      const jobId=await db.runTransaction(async tx=>{
+        const ref=outbox.doc(data.id);
+        const record=(await tx.get(ref)).data();
+        if(!record||!orderPattern.test(record.orderId)||record.eventId&&record.eventId!==eventId)
+          throw conflict('해당 행사의 이메일 기록을 찾을 수 없습니다.');
+        const [orderSnap,policySnap]=await Promise.all([tx.get(orders.doc(record.orderId)),tx.get(policyRef)]);
+        const order=orderSnap.data(),policy=policySnap.data();
+        if(order?.eventId!==eventId||!order.email)throw conflict('행사와 수신자를 확인해 주세요.');
+        const kind=record.type==='cancel'?(order.cancelReason==='buyer'?'buyerCancel':'adminCancel'):record.type;
+        if(!Object.hasOwn(mailKinds,kind)||policyMode(policy,kind)==='off')throw conflict('이 이메일 종류의 발송이 꺼져 있습니다.');
+        const requestedAt=now();
+        const status=record.status??(record.sentAt?'sent':'queued');
+        if(data.action==='resend'){
+          // Keep the original delivery record, and allow only one child per original.
+          // Another deliberate resend must select the new history row.
+          if(!['receipt','confirmed'].includes(record.type)||order.canceledAt||
+            !['sent','manualSent'].includes(status)||record.deliveryUncertain||
+            (record.type==='confirmed'&&(!order.bankConfirmedAt||!orderPaymentSummary(order).settled)))
+            throw conflict('유효한 주문의 접수 또는 입금 확인 메일만 다시 보낼 수 있습니다.');
+          const resendId=`${record.orderId}_resend_${createHash('sha256').update(data.id).digest('hex').slice(0,24)}`;
+          const resendRef=outbox.doc(resendId);
+          const existing=await tx.get(resendRef);
+          if(existing.exists)return resendId;
+          tx.create(resendRef,{...mailFields(record.type,requestedAt),type:record.type,eventId,orderId:record.orderId,
+            status:'queued',createdAt:requestedAt,attempts:0,mode:'manual',requestedAt,manualBy:uid,resendOf:data.id});
+          tx.update(ref,{resendJobId:resendId});
+          return resendId;
+        }
+        // A scheduler or another administrator may have already started/completed this job.
+        // Return its actual status without resetting the lease or making a second delivery.
+        if(['sent','sending','manualSent','skipped','canceled'].includes(status)||record.sentAt||record.manualSentAt)return data.id;
+        if(!['queued','delayed','failed'].includes(status)||record.sendingUntil>requestedAt||
+          record.deliveryUncertain&&(status!=='failed'||data.providerConfirmedUnsent!==true))
+          throw conflict('발송 대기 또는 미발송이 확인된 실패 이메일만 즉시 발송할 수 있습니다.');
+        if(status==='queued'&&record.dueAt>requestedAt)throw conflict('아직 발송 예정 시각이 되지 않았습니다.');
+        const fields=mailFields(record.type,requestedAt);
+        tx.update(ref,{...fields,providerKey:record.providerKey??fields.providerKey,mode:'manual',eventId,requestedAt,manualBy:uid,
+          deliveryUncertain:false,lastError:null,firstAttemptAt:null,sendingUntil:null,
+          ...(status==='failed'?{retryBy:uid,retryAt:requestedAt,retryHistory:[...(record.retryHistory||[]),
+            {at:requestedAt,by:uid,reason:record.lastError||null}]}:{})});
+        return data.id;
+      });
+      // Await the existing leased, quota-limited delivery path, not a queue-only acknowledgement.
+      await mail.deliver(jobId,message);
+      const result=(await outbox.doc(jobId).get()).data();
+      return {jobId,status:result?.status??(result?.sentAt?'sent':'queued'),lastError:result?.lastError??null,
+        deliveryUncertain:result?.deliveryUncertain===true,method:result?.providerId==='captured'?'capture':result?.providerId?'Brevo':null};
+    }
     if(op==='mailJobAction'){
       if(!mailPattern.test(data.id??'')||!['retry','cancel','completeManual','releaseManual'].includes(data.action))throw bad('메일 작업을 확인해 주세요.');
       return db.runTransaction(async tx=>{
@@ -245,7 +298,7 @@ export function createMailAdmin(db,mail) {
             const requestedAt=now();
             tx.update(job.ref,{...mailFields(jobType,requestedAt),status:'queued',mode:'manual',requestedAt,template,
               manualPreviousStatus:null,manualPreviousDueAt:null});
-            recipients.push({id:order.id});
+            recipients.push({id:order.id,jobId:job.id});
           }else if(!queueManual&&stored?.status==='manualReserved'&&stored.manualBy===uid){
             finishManual(tx,job,order,op==='mailManualComplete');
             recipients.push({id:order.id});

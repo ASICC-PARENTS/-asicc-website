@@ -26,7 +26,7 @@ jobs:
           node --check firebase-functions-bazaar/bazaar/service.mjs
           node --check worker/bazaar/index.mjs
       - name: Static catalog and navigation tests
-        run: node --test tests/bazaar-catalog.test.mjs tests/bazaar-closure-and-navigation.test.mjs tests/bazaar-admin-workflows.test.mjs tests/bazaar-product-orders.test.mjs tests/bazaar-profit-and-locales.test.mjs tests/bazaar-shared-shop.test.mjs
+        run: node --test tests/bazaar-catalog.test.mjs tests/bazaar-closure-and-navigation.test.mjs tests/bazaar-admin-workflows.test.mjs tests/bazaar-product-orders.test.mjs tests/bazaar-profit-and-locales.test.mjs tests/bazaar-shared-shop.test.mjs tests/bazaar-mail-dispatch.test.mjs
       - name: Build without deploying
         run: npm run build
         env:

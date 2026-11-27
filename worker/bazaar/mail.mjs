@@ -249,7 +249,7 @@ export function createMail(env, db, send = fetch) {
       return result.docs.map(doc => {
         const { type, status, sentAt, lastError, dueAt, deliveryUncertain, manualSentAt } = doc.data();
         return { id:doc.id, type, status: status ?? (sentAt ? 'sent' : 'queued'), sentAt,lastError,dueAt,
-          deliveryUncertain,manualSentAt };
+          deliveryUncertain,manualSentAt,resendJobId:doc.data().resendJobId??null,resendOf:doc.data().resendOf??null };
       });
     }
   };

@@ -464,7 +464,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         type==='refundCompleted'?{amountCents:100,at:now()}:type==='additionalPayment'?{amountCents:100}:{});
       return {subject:template.subject,text:template.text};
     }
-    if (typeof op==='string' && op.startsWith('mail') && mailAdmin) return mailAdmin(op,data,req.auth.uid);
+    if (typeof op==='string' && op.startsWith('mail') && mailAdmin) return mailAdmin(op,data,req.auth.uid,message);
     if(['storeEvidence','getEvidence','saveEvidence','confirmPurchaseCosts'].includes(op)){
       const eventId=s(data.eventId),id=s(data.id);
       if(!validEventId(eventId))bad('증빙을 연결할 행사를 확인해 주세요.');
