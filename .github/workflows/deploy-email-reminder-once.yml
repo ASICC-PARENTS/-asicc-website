@@ -1,0 +1,87 @@
+name: Guarded email-only worker update
+on:
+  push:
+    branches: [ops/manual-reminder-cutoff-20261127]
+permissions:
+  contents: read
+concurrency:
+  group: asicc-email-reminder-cutoff
+  cancel-in-progress: false
+jobs:
+  verify-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Isolated email and order regression checks
+        run: |
+          node --test tests/bazaar-mail-dispatch.test.mjs tests/bazaar-mail-audience.test.mjs tests/bazaar-email-template-display.test.mjs tests/bazaar-admin-workflows.test.mjs tests/bazaar-catalog.test.mjs tests/bazaar-closure-and-navigation.test.mjs tests/bazaar-product-orders.test.mjs tests/bazaar-profit-and-locales.test.mjs tests/bazaar-shared-shop.test.mjs
+          node --check worker/bazaar/mail.mjs
+          node --check worker/bazaar/mail-admin.mjs
+      - name: Guarded version deployment, test before production
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_WORKERS_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: b941b206ccc2aad94ae9b83ada2bc889
+          WRANGLER_SEND_METRICS: 'false'
+        run: |
+          set -euo pipefail
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || { echo 'Worker credential unavailable'; exit 1; }
+          umask 077
+          temp=$(mktemp -d)
+          trap 'rm -rf "$temp" worker/bazaar/wrangler.email-only.json' EXIT
+          api=https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts
+          get() { curl --fail --silent --show-error -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$1" > "$2"; jq -e '.success == true' "$2" >/dev/null; }
+          active() {
+            get "$api/$1/deployments" "$temp/deployments.json"
+            jq -er '.result.deployments[0].versions | select(length==1 and .[0].percentage==100) | .[0].version_id' "$temp/deployments.json"
+          }
+          smoke() {
+            local worker="$1" origin="$2" expected="$3"
+            curl --fail --silent --show-error --max-time 30 -H "Origin: $origin" -H 'Content-Type: application/json' --data '{"data":{}}' "https://$worker.falling-hall-f390.workers.dev/api/bazaarPublic" > "$temp/smoke.json"
+            jq -e --arg expected "$expected" '.data.event.eventId and (.data.products|type=="array") and ($expected=="" or .data.event.eventId == $expected)' "$temp/smoke.json" >/dev/null
+          }
+          deploy_one() {
+            local name="$1" origin="$2" expected="$3" mode="$4"
+            echo "Checking $mode service before update"
+            local previous
+            previous=$(active "$name")
+            smoke "$name" "$origin" "$expected"
+            get "$api/$name/versions/$previous" "$temp/old.json"
+            # No vars, routes, cron, or secrets in upload config; preserve deployed values.
+            jq -e '.result.resources.script_runtime.compatibility_date and .result.resources.bindings' "$temp/old.json" >/dev/null
+            jq --arg name "$name" '{name:$name,main:"index.mjs",compatibility_date:.result.resources.script_runtime.compatibility_date,compatibility_flags:(.result.resources.script_runtime.compatibility_flags//[]),keep_vars:true}' "$temp/old.json" > worker/bazaar/wrangler.email-only.json
+            export WRANGLER_OUTPUT_FILE_PATH="$temp/wrangler-output.jsonl"
+            rm -f "$WRANGLER_OUTPUT_FILE_PATH"
+            if ! npx --yes wrangler@4 versions upload --config worker/bazaar/wrangler.email-only.json --keep-vars --message "Manual reminder cutoff only" > "$temp/upload.log" 2>&1; then
+              echo 'Code-only version upload failed; active service unchanged'; exit 1
+            fi
+            local next
+            next=$(jq -sr '[.[]|select(.type=="version-upload")|.version_id] | last | strings' "$WRANGLER_OUTPUT_FILE_PATH")
+            [ -n "$next" ] && [ "$next" != null ] && [ "$next" != "$previous" ]
+            get "$api/$name/versions/$next" "$temp/new.json"
+            # Fail closed: compare all bindings and runtime metadata (without logging values).
+            jq -S '.result.resources | {bindings,script_runtime,handlers:.script.handlers,named_handlers:.script.named_handlers}' "$temp/old.json" > "$temp/old-settings.json"
+            jq -S '.result.resources | {bindings,script_runtime,handlers:.script.handlers,named_handlers:.script.named_handlers}' "$temp/new.json" > "$temp/new-settings.json"
+            if ! cmp -s "$temp/old-settings.json" "$temp/new-settings.json"; then
+              echo 'Version configuration mismatch; active service unchanged'; exit 1
+            fi
+            [ "$(active "$name")" = "$previous" ] || { echo 'Concurrent deployment detected; active service unchanged'; exit 1; }
+            echo "$mode bindings and runtime verified identical"
+            if ! npx --yes wrangler@4 versions deploy "$next@100%" --config worker/bazaar/wrangler.email-only.json --yes --message "Manual reminder cutoff only" > "$temp/deploy.log" 2>&1; then
+              echo 'Version deployment failed; check active version'; exit 1
+            fi
+            if ! smoke "$name" "$origin" "$expected"; then
+              if [ "$(active "$name")" = "$next" ]; then
+                npx --yes wrangler@4 versions deploy "$previous@100%" --config worker/bazaar/wrangler.email-only.json --yes --message "Rollback: public read check failed" > "$temp/rollback.log" 2>&1
+              fi
+              echo 'Read-only post-deployment smoke failed; rollback attempted'; exit 1
+            fi
+            [ "$(active "$name")" = "$next" ]
+            echo "$mode deployed: $next (previous: $previous); public read check passed"
+          }
+          deploy_one asicc-bazaar-test-api https://asicc-integration-test.pages.dev "" test
+          deploy_one asicc-bazaar-api https://asicc-parents.fr bazaar-production-first-v1 production
