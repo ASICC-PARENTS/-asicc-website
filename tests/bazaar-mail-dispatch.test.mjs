@@ -231,3 +231,33 @@ test('bulk reminder preparation and immediate delivery allow overdue unpaid orde
  await f.db.doc('bazaarEventProjects/'+eventId).set({...event,transferCutoff:when(-1000)});
  await assert.rejects(manager.admin('mailManualPrepare',params,'test-admin',envelope),{code:'failed-precondition'});
 });
+
+test('selected custom bilingual copy is persisted only on selected manual job; default ignores custom draft',async()=>{
+ const {selectedMailCopy}=await import('../src/lib/bazaar/admin/mail-copy.mjs');
+ const defaults={subjectKo:'기본 제목',introKo:'기본 안내',subjectFr:'Objet standard',introFr:'Texte standard'};
+ const custom={subjectKo:'개별 제목',introKo:'개별 안내',subjectFr:'Objet personnalisé',introFr:'Texte personnalisé'};
+ for(const mode of ['default','custom']){
+  const f=fixture(),manager=createMailAdmin(f.db,f.mail);
+  const policy={templates:{pickup:defaults}};
+  await f.db.doc('bazaarMailPolicies/'+eventId).set(policy);
+  const params={eventId,type:'pickup',audience:'valid',ids:[orderId]};
+  const preview=(order,type,event,template)=>({subject:template.subjectKo,text:template.introKo,html:'<p>'+template.introFr+'</p>'});
+  const prep=await manager.admin('mailManualPrepare',params,'test-admin',preview);
+  assert.deepEqual(prep.recipients.map(row=>row.id),[orderId]);assert.equal(f.calls.length,0);
+  const override=selectedMailCopy(mode,custom,defaults);
+  assert.deepEqual(override,mode==='custom'?custom:{});
+  const queued=await manager.admin('mailManualQueue',{...params,override},'test-admin',preview);
+  assert.equal(f.calls.length,0);assert.equal(queued.recipients.length,1);
+  const id=queued.recipients[0].jobId;
+  assert.deepEqual(f.get(id).template,override);
+  const result=await manager.admin('mailJobAction',{eventId,id,action:'sendNow',confirm:true},'test-admin',preview);
+  assert.equal(result.status,'sent');assert.equal(f.calls.length,1);
+  const expected=mode==='custom'?custom:defaults;
+  assert.equal(f.calls[0].subject,expected.subjectKo);
+  assert.equal(f.calls[0].textContent,expected.introKo);
+  assert.equal(f.calls[0].htmlContent,'<p>'+expected.introFr+'</p>');
+  assert.deepEqual(f.db.values.get('bazaarMailPolicies/'+eventId),policy);
+  assert.equal(f.db.values.has('bazaarOutbox/'+anotherOrder+'_pickup'),false);
+  f.untouched();
+ }
+});

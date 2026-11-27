@@ -1,4 +1,5 @@
 import {defaultMailCopy,renderOrderEmail} from '../../../../firebase-functions-bazaar/bazaar/order-email.mjs';
+import {selectedMailCopy} from './mail-copy.mjs';
 import {matchesMailAudience} from './mail-audience.mjs';
 import { parisDeadline } from '../api';
 import {mailKinds,policyMode} from '../../../../worker/bazaar/mail-policy.mjs';
@@ -181,15 +182,34 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
       return '<section class="field"><strong>'+t(lang==='ko'?'한국어 미리보기':'프랑스어 미리보기',lang==='ko'?'Aperçu coréen':'Aperçu français')+'</strong><div>'+esc(mail.subject)+'</div><iframe title="'+(lang==='ko'?'한국어 이메일 예시':'Aperçu français')+'" sandbox="" srcdoc="'+esc(mail.html)+'" style="width:100%;height:440px;border:1px solid #e7e1df;border-radius:8px"></iframe></section>';
     }).join('');
   }
+  let manualCopyMode='default',manualDrafts={};
+  function manualCopyOverride(kind,validate=false){
+    if(manualCopyMode==='default')return {};
+    const copy=effectiveCopy(kind),draft=manualDrafts[kind]||copy;
+    const override=selectedMailCopy(manualCopyMode,draft,copy);
+    if(validate&&Object.values(override).some(value=>!value))throw new Error(t('개별 발송의 한국어·프랑스어 제목과 안내 문구를 모두 입력해 주세요.','Renseignez les objets et textes coréens et français.'));
+    return override;
+  }
   function displayManualCopy(){
     const form=body.querySelector('[data-manual-form]');if(!form)return;
-    const kind=form.elements.type.value,copy=effectiveCopy(kind);
+    const kind=form.elements.type.value,copy=effectiveCopy(kind),custom=manualCopyMode==='custom';
+    const draft=manualDrafts[kind]||copy;
     const noticeLabel=form.querySelector('[data-notice-label]');noticeLabel.hidden=kind!=='other';noticeLabel.style.display=kind==='other'?'':'none';
     const target=form.querySelector('[data-manual-copy]');
-    target.innerHTML='<h4>'+t('기본 발송 문구','Texte utilisé par défaut')+'</h4>'+['ko','fr'].map(lang=>{
-      const suffix=lang==='ko'?'Ko':'Fr';
-      return '<div class="panel pad"><strong>'+ (lang==='ko'?'한국어':'Français')+' · '+esc(copy['subject'+suffix])+'</strong><p style="white-space:pre-wrap">'+esc(copy['intro'+suffix])+'</p></div>';
-    }).join('')+'<details><summary>'+t('전체 이메일 디자인 미리보기 (예시 주문)','Aperçu du message complet (commande fictive)')+'</summary>'+samplePreview(kind)+'</details>';
+    target.innerHTML='<fieldset class="field"><legend>'+t('발송 문구 선택','Choix du texte')+'</legend>'+
+      ['default','custom'].map(mode=>'<label><input type="radio" name="manual-copy-mode" value="'+mode+'" '+(manualCopyMode===mode?'checked':'')+'> '+(mode==='default'?t('기본 발송 문구','Texte par défaut'):t('개별 발송 문구 (이번 발송에만)','Texte personnalisé (cet envoi uniquement)'))+'</label>').join('')+'</fieldset>'+
+      '<p>'+ (custom?t('직접 수정한 문구가 선택한 주문자에게만 적용됩니다. 기본 양식은 변경되지 않습니다.','Le texte personnalisé ne s’applique qu’aux commandes sélectionnées. Le modèle reste inchangé.'):t('저장된 기본 양식으로 발송합니다.','Le modèle enregistré sera utilisé.'))+'</p>'+
+      ['ko','fr'].map(lang=>{
+        const suffix=lang==='ko'?'Ko':'Fr',subject='subject'+suffix,intro='intro'+suffix;
+        return '<div class="panel pad"><strong>'+ (lang==='ko'?'한국어':'Français')+'</strong>'+
+          (custom?'<label class="field">'+t('제목','Objet')+'<input data-manual-copy-field="'+subject+'" maxlength="150" value="'+esc(draft[subject])+'"></label><label class="field">'+t('안내 문구','Texte')+'<textarea data-manual-copy-field="'+intro+'" maxlength="2500" rows="7">'+esc(draft[intro])+'</textarea></label>':'<strong>'+esc(copy[subject])+'</strong><p style="white-space:pre-wrap">'+esc(copy[intro])+'</p>')+'</div>';
+      }).join('')+'<details data-manual-copy-preview><summary>'+t('전체 이메일 디자인 미리보기 (예시 주문)','Aperçu du message complet (commande fictive)')+'</summary><div data-manual-preview-content></div></details>';
+    const preview=target.querySelector('[data-manual-copy-preview]');
+    preview.addEventListener('toggle',()=>{if(preview.open)refreshManualPreview();});
+  }
+  function refreshManualPreview(){
+    const form=body.querySelector('[data-manual-form]'),preview=form?.querySelector('[data-manual-preview-content]');
+    if(preview&&preview.parentElement.open)preview.innerHTML=samplePreview(form.elements.type.value,manualCopyOverride(form.elements.type.value));
   }
   function editTemplate(kind){
     const editor=body.querySelector('[data-template-editor]');
@@ -289,7 +309,7 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
     fields.type.addEventListener('change',()=>{
       fields.audience.value=fields.type.value==='reminderFinal'?'unpaid':['bulkCancel','buyerCancel','adminCancel'].includes(fields.type.value)?'canceled':fields.type.value==='confirmed'?'confirmed':'valid';
       fields.excludeReported.checked=fields.type.value==='reminderFinal';
-      renderManualAudience();displayManualCopy();
+      manualCopyMode='default';renderManualAudience();displayManualCopy();
     });
     fields.audience.addEventListener('change',renderManualAudience);
     fields.excludeReported.addEventListener('change',renderManualAudience);
@@ -310,28 +330,26 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
     const master=form.querySelector('[data-order-select-all]');
     master.checked=boxes.length>0&&count===boxes.length;
     master.indeterminate=count>0&&count<boxes.length;
-    master.disabled=!boxes.length||prepared.length>0;
+    master.disabled=!boxes.length||prepared.length>0||pending;
     form.querySelector('[data-mail-count]').textContent=t('선택 '+count+' / '+boxes.length+'건',count+' / '+boxes.length+' sélectionnées');
     const prepare=form.querySelector('[data-mail=prepare-selected]');
     prepare.textContent=t('선택한 '+count+'건 발송 준비','Préparer '+count+' commande(s)');
     prepare.disabled=!count||prepared.length>0||pending;
-    for(const input of [...boxes,form.elements.type,form.elements.audience,form.elements.excludeReported,form.elements.notice])input.disabled=prepared.length>0;
+    for(const input of [...boxes,form.elements.type,form.elements.audience,form.elements.excludeReported,form.elements.notice])input.disabled=prepared.length>0||pending;
+    form.querySelectorAll('[name="manual-copy-mode"],[data-manual-copy-field]').forEach(input=>input.disabled=pending);
   }
 
   let showPreparedPreview=false;
   function renderPrepared(){
     const target=body.querySelector('[data-mail-prepared]');
     if(!target)return;
-    const copy=effectiveCopy(preparedOptions?.type||'reminderFinal');
-    const ko=target.querySelector('[data-override-ko]')?.value??copy.introKo,french=target.querySelector('[data-override-fr]')?.value??copy.introFr;
     if(!prepared.length)showPreparedPreview=false;
     target.innerHTML=prepared.length?`<p>Bcc 수신자 ${recipients().length}명 · 주문 ${prepared.length}건</p>
       <label class="field wide">OVH 메일의 숨은참조(Bcc)에 붙여넣을 주소 · 중복 제거 완료<textarea readonly aria-label="Bcc 주소">${esc(recipients().join('; '))}</textarea></label>
       <p>${t('Brevo 선택 주문','Commandes sélectionnées')} ${prepared.length} · ${t('일반 한도 예상 잔여','Solde interne estimé')} ${Math.max(0,(lastBudget?.normalRemaining??0)-prepared.length)}</p>
-      <label>${t('이번 발송에만 적용할 한국어 안내','Texte coréen pour cet envoi uniquement')}<textarea data-override-ko maxlength="2500">${esc(ko)}</textarea></label>
-      <label>${t('이번 발송에만 적용할 프랑스어 안내','Texte français pour cet envoi uniquement')}<textarea data-override-fr maxlength="2500">${esc(french)}</textarea></label>
+      <p>${t('선택한 발송 문구','Texte sélectionné')} · ${manualCopyMode==='custom'?t('개별 발송 문구','Texte personnalisé'):t('기본 발송 문구','Texte par défaut')}</p>
       <div class="actions">${button('brevo-preview',t('발송 문구 미리보기','Aperçu du texte'))}${button('brevo-queue',t('Brevo 발송 대기 등록','Mettre en file Brevo'))}${button('brevo-send-now',t('Brevo 즉시 발송','Envoyer maintenant via Brevo'))}${button('copy','주소 복사')}${button('excel','Excel 다운로드')}
-      ${button('complete','OVH 발송 완료 기록')}${button('release','발송 준비 해제')}</div>${showPreparedPreview?'<p>'+t('예시 주문으로 미리보기','Aperçu avec une commande fictive')+'</p>'+samplePreview(preparedOptions.type,{...(ko.trim()&&ko!==copy.introKo?{introKo:ko}:{}),...(french.trim()&&french!==copy.introFr?{introFr:french}:{})}):''}`:'';
+      ${button('complete','OVH 발송 완료 기록')}${button('release','발송 준비 해제')}</div>${showPreparedPreview?'<p>'+t('예시 주문으로 미리보기','Aperçu avec une commande fictive')+'</p>'+samplePreview(preparedOptions.type,manualCopyOverride(preparedOptions.type)):''}`:'';
   }
 
   panel.addEventListener('toggle',()=>{
@@ -340,7 +358,17 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
     void load().then(()=>{ready=true;},error=>{feedback.textContent=error.message;}).finally(()=>{pending=false;syncManualSelection();});
   });
   panel.addEventListener('submit',e=>e.preventDefault());
+  panel.addEventListener('input',e=>{
+    if(!e.target.matches('[data-manual-copy-field]'))return;
+    const kind=body.querySelector('[data-manual-form]').elements.type.value;
+    manualDrafts[kind]={...(manualDrafts[kind]||effectiveCopy(kind)),[e.target.dataset.manualCopyField]:e.target.value};
+    refreshManualPreview();
+    if(showPreparedPreview)renderPrepared();
+  });
   panel.addEventListener('change',e=>{
+    if(e.target.name==='manual-copy-mode'){
+      manualCopyMode=e.target.value;displayManualCopy();renderPrepared();
+    }
     if(e.target.matches('[data-mail-master]'))form().querySelectorAll('input[role=switch]').forEach(input=>input.checked=e.target.checked);
     if(e.target.matches('[data-mail-master],input[role=switch]'))syncMailSwitches();
     if(e.target.matches('[data-order-select-all]'))panel.querySelectorAll('[data-manual-order]').forEach(box=>box.checked=e.target.checked);
@@ -352,7 +380,7 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
     if(control.dataset.mailTab){chooseTab(control.dataset.mailTab);return;}
     if(control.dataset.mailTemplate){collectTemplate();editTemplate(control.dataset.mailTemplate);return;}
     const click=control.dataset.mail;
-    pending=true;control.disabled=true;feedback.textContent='';
+    pending=true;control.disabled=true;feedback.textContent='';syncManualSelection();
     try{
       if(control.dataset.mailJob){const result=await jobAction(control,request,eventId,fr);if(result){await load();feedback.textContent=dispatchFeedback(result,fr);}}
       if(click==='transaction-send'||click==='transaction-preview'){
@@ -400,6 +428,7 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
       if(click==='prepare-selected'){
         if(prepared.length)throw new Error('기존 준비 건을 먼저 완료하거나 해제해 주세요.');
         const f=body.querySelector('[data-manual-form]').elements;
+        manualCopyOverride(f.type.value,true);
         preparedOptions={type:f.type.value,audience:f.audience.value,excludeReported:f.excludeReported.checked,notice:f.notice.value};
         const ids=[...body.querySelectorAll('[data-manual-order]:checked')].map(x=>x.value);
         if(!ids.length)throw new Error('선택 가능한 주문이 없습니다.');
@@ -411,8 +440,7 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
         await load();
       }
       if(['brevo-preview','brevo-queue','brevo-send-now'].includes(click)){
-        const copy=effectiveCopy(preparedOptions.type);
-        const override=Object.fromEntries([['introKo',body.querySelector('[data-override-ko]').value.trim()],['introFr',body.querySelector('[data-override-fr]').value.trim()]].filter(([key,value])=>value&&value!==copy[key]));
+        const override=manualCopyOverride(preparedOptions.type,true);
         if(click==='brevo-preview'){
           showPreparedPreview=true;
           return;
@@ -420,13 +448,14 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
         const available=Math.min(lastBudget?.normalRemaining??0,lastBudget?.providerAccountRemaining??Infinity);
         if(prepared.length>available)throw new Error(t('확인된 발송 한도보다 선택 주문이 많습니다.','La sélection dépasse le quota disponible.'));
         const immediate=click==='brevo-send-now';
-        if(!confirm((immediate?t('선택한 주문에 즉시 발송할까요?','Envoyer maintenant aux commandes sélectionnées ?'):t('선택한 주문별로 Brevo 발송 대기에 등록할까요?','Ajouter un message Brevo par commande sélectionnée ?'))+' ('+prepared.length+')'))return;
+        if(!confirm((immediate?t('선택한 주문에 즉시 발송할까요?','Envoyer maintenant aux commandes sélectionnées ?'):t('선택한 주문별로 Brevo 발송 대기에 등록할까요?','Ajouter un message Brevo par commande sélectionnée ?'))+' ('+prepared.length+') · '+(manualCopyMode==='custom'?t('개별 발송 문구','Texte personnalisé'):t('기본 발송 문구','Texte par défaut'))))return;
         const queued=[];
         await chunks('mailManualQueue',{...preparedOptions,override},prepared.map(row=>row.id),rows=>{
           queued.push(...rows);
           const done=new Set(rows.map(row=>row.id));
           prepared=prepared.filter(row=>!done.has(row.id));
         });
+        if(!prepared.length&&queued.length){delete manualDrafts[preparedOptions.type];manualCopyMode='default';}
         if(immediate){
           const results=[];
           for(const [index,row] of queued.entries()){
