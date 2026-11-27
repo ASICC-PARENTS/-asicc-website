@@ -35,15 +35,25 @@ try {
   assert.equal(mail.canSend(),true);
   await assert.rejects(serverToken({...env,FIRESTORE_CLIENT_EMAIL:'another@asicc-member-space.iam.gserviceaccount.com'}),
     /Unexpected production Firestore service account/);
-  let allowed;
-  const db={doc:()=>({}),collection:()=>({doc:()=>({})}),
-    getAll:async()=>[{data:()=>({role:'admin',status:'approved'})},{exists:allowed!==undefined,data:()=>({adminUids:allowed})}]};
-  const svc=createBazaar({db,requireExplicitAdmin:true});
+  let profile={role:'admin',status:'approved'};
+  let requested;
+  const db={doc:path=>path,collection:collection=>({doc:id=>collection+'/'+id}),
+    getAll:async(...paths)=>{requested=paths;return [{data:()=>profile}];}};
+  const svc=createBazaar({db});
   const admin={auth:{uid:'fixture',token:{email_verified:true}},data:{op:'noSuchOperation'}};
-  await assert.rejects(svc.bazaarAdmin(admin),{code:'permission-denied'});
-  allowed=['another-fixture'];
-  await assert.rejects(svc.bazaarAdmin(admin),{code:'permission-denied'});
-  allowed=['fixture'];
   await assert.rejects(svc.bazaarAdmin(admin),{code:'invalid-argument'});
-  console.log('Production gate, approved-host boundary, explicit administrator list and capture configuration passed');
+  assert.deepEqual(requested,['members/fixture']);
+  await assert.rejects(svc.bazaarAdmin({...admin,auth:undefined}),{code:'unauthenticated'});
+  await assert.rejects(svc.bazaarAdmin({...admin,auth:{uid:'fixture',token:{email_verified:false}}}),{code:'permission-denied'});
+  for(const role of ['general','member','special','rep','operator',undefined]){
+    profile={role,status:'approved'};
+    await assert.rejects(svc.bazaarAdmin(admin),{code:'permission-denied'});
+  }
+  for(const status of ['pending','suspended','rejected',undefined]){
+    profile={role:'admin',status};
+    await assert.rejects(svc.bazaarAdmin(admin),{code:'permission-denied'});
+  }
+  profile=undefined;
+  await assert.rejects(svc.bazaarAdmin(admin),{code:'permission-denied'});
+  console.log('Production gate, approved-host boundary, approved administrator role and capture configuration passed');
 } finally{globalThis.fetch=realFetch;}

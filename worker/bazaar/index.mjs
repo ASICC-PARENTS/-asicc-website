@@ -68,7 +68,7 @@ function dependencies(env, origin, ctx, pilot = false) {
       return Promise.resolve(false);
     },
     queueFields: mailFields, mailAdmin:mailManagement.admin,
-    batchFinalization: true, requireExplicitAdmin:env.BAZAAR_MODE==='production',pilot,
+    batchFinalization: true, pilot,
     receiptCapture: env.MAIL_MODE === 'capture', emailPreviewTest: env.BAZAAR_MODE === 'test'
   });
   return { db, photos, mail, mailManagement, service, site };

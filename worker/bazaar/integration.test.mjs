@@ -73,10 +73,14 @@ test('Worker API with Firebase emulators preserves checkout, admin, inventory, e
   await call('bazaarAdmin', { op: 'listEvents' }, undefined, 401);
   await call('bazaarAdmin', { op: 'listEvents' }, unverified.idToken, 403);
   await call('bazaarAdmin', { op: 'listEvents' }, member.idToken, 403);
+  const otherAdmin = await identity('admin', true);
   await db.doc('bazaarMeta/access').set({ adminUids: [] });
-  await admin('listEvents', {}, 403);
-  await db.doc('bazaarMeta/access').set({ adminUids: [staff.localId] });
   await admin('listEvents');
+  await call('bazaarAdmin', { op: 'listEvents' }, otherAdmin.idToken);
+  await db.doc('bazaarMeta/access').set({ adminUids: [staff.localId, member.localId] });
+  await admin('listEvents');
+  await call('bazaarAdmin', { op: 'listEvents' }, otherAdmin.idToken);
+  await call('bazaarAdmin', { op: 'listEvents' }, member.idToken, 403);
   const event = {
     eventId, serial: 1, status: 'published', nameKo: '행사', nameFr: 'Bazar',
     createdAt: when(-7200000), publishedAt: when(-3600000), orderCutoff: when(7200000),

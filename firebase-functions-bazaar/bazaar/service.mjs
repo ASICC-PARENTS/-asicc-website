@@ -28,7 +28,7 @@ function depositDetails(data) {
 
 export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePhoto, eventPhoto, siteUrl,
   sendQueuedMail, canSendMail, queueFields = () => ({}), mailAdmin, evidence, batchFinalization = false,
-  receiptCapture = false, emailPreviewTest = false, requireExplicitAdmin = false, pilot = false }) {
+  receiptCapture = false, emailPreviewTest = false, pilot = false }) {
   const orders=db.collection('bazaarOrders');
   const outbox=db.collection('bazaarOutbox');
   const eventArchives=db.collection('bazaarEvents');
@@ -235,10 +235,9 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
   const pickPublic=p=>({id:p.id,titleKo:p.titleKo,titleFr:p.titleFr,descriptionKo:p.descriptionKo||'',descriptionFr:p.descriptionFr||'',priceCents:p.retailCents,storage:p.storage||'ambient',imageUrl:p.imageUrl||'',displayOrder:p.displayOrder,stockCap:stockCap(p),stockRemaining:stockCap(p)==null?null:Math.max(0,stockCap(p)-(p.soldQty||0))});
   async function requireAdmin(req){
     if(!req.auth?.uid) throw new HttpsError('unauthenticated','관리자 로그인이 필요합니다.');
-    const [member, access] = await db.getAll(db.collection('members').doc(req.auth.uid), db.doc('bazaarMeta/access'));
+    const [member] = await db.getAll(db.collection('members').doc(req.auth.uid));
     const profile = member.data();
-    const allowed = access.data()?.adminUids;
-    if(req.auth.token?.email_verified!==true||profile?.status!=='approved'||profile.role!=='admin'||((requireExplicitAdmin||access.exists)&&(!Array.isArray(allowed)||!allowed.includes(req.auth.uid)))) throw new HttpsError('permission-denied','바자회 관리자 권한이 없습니다.');
+    if(req.auth.token?.email_verified!==true||profile?.status!=='approved'||profile.role!=='admin') throw new HttpsError('permission-denied','바자회 관리자 권한이 없습니다.');
   }
   function checkBuyerOrder(x,{emailOptional=false}={}){
     if(!x||typeof x!=='object')bad('주문 정보를 확인해 주세요.');
