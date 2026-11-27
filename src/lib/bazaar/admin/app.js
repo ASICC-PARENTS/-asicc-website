@@ -509,10 +509,8 @@ function productChange(el){
  }
  const numeric=['buy','pack','boxes','manualLimit','roi','sale'].includes(k);
  if(numeric&&val!=='')val=Number(val);
- const candidate={...p,[k]:val};
- if(productView==='event'&&['pack','boxes','manualLimit','limitMode'].includes(k)&&lim(candidate)<allocated(p)){
-  $('#product-status').textContent='이미 접수한 주문 수량보다 판매한도를 낮출 수 없습니다.';el.value=k==='manualLimit'?lim(p):p[k];return;
- }
+ // Keep in-progress quantity edits local until saveProducts validates the completed values.
+ // Rejecting an intermediate value here prevents switching to a mode whose limit is not yet entered.
  if(k==='roi'){
   if(val!==''&&unit(p)>0)updateCalculatedPrice(p,val);
  }else{
@@ -539,6 +537,9 @@ function productChange(el){
   renderProducts();applyColumns();const nextSheet=app.querySelector('.sheet');if(nextSheet){nextSheet.scrollLeft=left;nextSheet.scrollTop=top;}
  }
  el.classList.remove('invalid');markProductDirty();
+ if(productView==='event'&&['pack','boxes','manualLimit','limitMode'].includes(k)&&lim(p)<allocated(p)){
+  $('#product-status').textContent=language('수정 중 · 기존 주문 수량 이상의 판매한도를 입력해야 저장할 수 있습니다.','Modifications non enregistrées · La limite doit couvrir les commandes déjà reçues.');
+ }
 }
 const orderSources={web:'웹 주문',phone:'전화 주문',additional:'추가 구매'};
 const canManageOrder=()=>selectedEvent()?.status!=='draft'&&canReconcile()&&!orderIntakeLocked(selectedEvent().raw);

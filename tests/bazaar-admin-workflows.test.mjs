@@ -1,10 +1,11 @@
 import {defaultHomePopup,normalizeHomePopup,publicHomePopup} from '../firebase-functions-bazaar/bazaar/home-popup.mjs';
-import {eventFormFields,eventViewModel,productOrderSummary,orderIntakeSummary,validManualPhone} from '../src/lib/bazaar/admin/data.js';
+import {eventFormFields,eventViewModel,productOrderSummary,orderIntakeSummary,validManualPhone,productPayload} from '../src/lib/bazaar/admin/data.js';
 import {validRefundIban} from '../firebase-functions-bazaar/bazaar/iban.mjs';
 import {orderPaymentSummary} from '../firebase-functions-bazaar/bazaar/order-payments.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {runInNewContext} from 'node:vm';
 
 const read=path=>readFileSync(new URL(`../${path}`,import.meta.url),'utf8');
 const screen=read('src/lib/bazaar/admin/Screen.astro');
@@ -44,6 +45,34 @@ test('planned purchase boxes stay editable independently of sales limit mode',()
   assert.ok(!app.includes("catalog&&p.limitMode!=='auto'"));
   assert.ok(!app.includes("row.querySelector('[data-key=boxes]').disabled"));
   assert.ok(app.includes("limit.disabled=p.limitMode!=='manual'"));
+});
+
+test('existing orders do not lock quantity mode selection or intermediate quantity edits; save still checks the limit',async()=>{
+ const product={id:'sample',ko:'상품',fr:'Produit',vendor:'Vendor',storage:'상온',buy:20,originalBuy:20,sale:3,pack:10,active:true,boxes:'',manualLimit:'',limitMode:'unlimited'};
+ const status={textContent:''},calls=[],dialogs=[];
+ const fields={roi:{value:'',classList:{toggle(){}}},sale:{value:3},manualLimit:{value:'',disabled:true},'expected-stock':{textContent:'-'}};
+ const row={querySelector(selector){return fields[selector.match(/=(.*?)\]/)?.[1]]??null;}};
+ const context={store:{products:[product],catalog:[]},productView:'event',fr:false,allocated:()=>24,finance:n=>n,money:String,language:ko=>ko,
+  $:()=>status,markProductDirty:()=>{status.textContent='dirty';},selectedEvent:()=>({id:'event',status:'active',raw:{productRevision:1}}),
+  productValidationIssues:[],getColumnPrefs:()=>null,modal:(...args)=>dialogs.push(args),banner:String,esc:String,productPayload,
+  request:async(op,data)=>{calls.push({op,data});},load:async()=>{},productDirty:false,productSelection:new Set(),rerender(){}};
+ const extract=(start,end)=>app.slice(app.indexOf(start),app.indexOf(end));
+ runInNewContext(extract('function unit(p)','function supplierOptions(p)')+extract('function productChange(el)','const orderSources=')+
+  extract('async function saveProducts(','let productValidationIssues=[];')+';this.change=productChange;this.save=saveProducts;',context);
+ function change(key,value){const el={dataset:{prod:'sample',key},value,closest:()=>row,classList:{remove(){}}};context.change(el);assert.equal(el.value,value);}
+ change('limitMode','manual');assert.equal(product.limitMode,'manual');assert.equal(fields.manualLimit.disabled,false);
+ await context.save();assert.equal(calls.length,0);assert.match(dialogs.at(-1)[2],/수동 판매한도/);
+ change('manualLimit','2');assert.equal(product.manualLimit,2);assert.match(status.textContent,/기존 주문 수량/);
+ await context.save();assert.equal(calls.length,0);assert.match(dialogs.at(-1)[2],/현재 주문 수량 이상/);
+ change('manualLimit','25');await context.save();assert.equal(calls[0].data.items[0].limitMode,'manual');assert.equal(calls[0].data.items[0].manualLimit,25);
+ change('limitMode','auto');assert.equal(product.limitMode,'auto');assert.equal(fields.manualLimit.disabled,true);
+ await context.save();assert.equal(calls.length,1);assert.match(dialogs.at(-1)[2],/예상 박스/);
+ change('boxes','1');await context.save();assert.equal(calls.length,1);
+ change('boxes','3');assert.equal(fields.manualLimit.value,30);assert.equal(fields['expected-stock'].textContent,'6');
+ await context.save();assert.equal(calls[1].data.items[0].limitMode,'box');assert.equal(calls[1].data.items[0].plannedBoxes,3);
+ change('limitMode','unlimited');assert.equal(product.limitMode,'unlimited');assert.equal(fields.manualLimit.disabled,true);assert.equal(fields['expected-stock'].textContent,'-');
+ await context.save();assert.equal(calls[2].data.items[0].limitMode,'unlimited');
+ assert.equal(product.sale,3);assert.equal(product.pack,10);
 });
 
 test('past-event product import copies product fields into isolated product snapshots',()=>{
