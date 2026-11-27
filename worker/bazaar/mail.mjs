@@ -14,6 +14,8 @@ export const mailFields = (type, dueAt = iso(Date.now())) => ({
   dueAt, urgentDueAt: urgentTypes.has(type) ? dueAt : null, status: 'queued', providerKey: randomUUID()
 });
 const reschedule = (type, dueAt) => ({ dueAt, urgentDueAt: urgentTypes.has(type) ? dueAt : null });
+// Manual reminders may follow an expired personal deadline, but not the event deadline.
+export const manualReminderWindow=(order,event,time)=>order?.eventId===event?.eventId&&!!event&&!event.finalizedAt&&!event.reconciliationStartedAt&&time<Date.parse(event.transferCutoff);
 export const eligibleReminder = (order, event, policy, time) => order?.email && order.eventId === event?.eventId
   && policy?.reminderMode === 'auto' && !event.finalizedAt && !event.reconciliationStartedAt
   && !order.transferReportedAt && !order.bankConfirmedAt && !order.canceledAt
@@ -30,7 +32,7 @@ function manualStillEligible(job,order,event,time){
   if(job.type==='refundCompleted')return job.change?.amountCents>0&&!!job.change.at;
   if(job.type==='confirmed')return mailMatchesOrder(job,order);
   if(job.type==='bulkCancel')return order.cancelReason==='unpaidFinalization';
-  if(job.type==='reminderFinal')return order.eventId===event?.eventId&&!event.finalizedAt&&!event.reconciliationStartedAt&&time<orderTransferCutoff(order,event)&&!order.canceledAt&&!order.bankConfirmedAt&&!order.transferReportedAt&&(job.explicitDirect||!order.reminderFinalAt);
+  if(job.type==='reminderFinal')return manualReminderWindow(order,event,time)&&!order.canceledAt&&!order.bankConfirmedAt&&!order.transferReportedAt&&(job.explicitDirect||!order.reminderFinalAt);
   return job.type==='other'||!order.canceledAt;
 }
 

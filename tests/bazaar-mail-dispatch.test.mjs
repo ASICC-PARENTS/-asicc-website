@@ -193,3 +193,41 @@ test('order mail selector shows only eligible ordinary kinds, including mail kin
   result=await f.status();assert.deepEqual(result.manual.options.map(option=>option.kind),['buyerCancel']);
   assert.equal(f.calls.length,0);
 });
+
+test('manual reminder after personal deadline is allowed until event cutoff; automatic eligibility is unchanged',async()=>{
+ const f=fixture();
+ const event={eventId,status:'published',transferCutoff:when(3600000)};
+ const expired={...originalOrder,paymentDeadline:when(-3600000)};
+ await f.db.doc('bazaarEventProjects/'+eventId).set(event);
+ await f.db.doc('bazaarOrders/'+orderId).set(expired);
+ const r=await f.single('reminderFinal');assert.equal(r.status,'sent');assert.equal(f.calls.length,1);
+ assert.deepEqual(f.db.values.get('bazaarOrders/'+orderId),expired);
+ const {eligibleReminder}=await import('../worker/bazaar/mail.mjs');
+ assert.equal(eligibleReminder(expired,event,{reminderMode:'auto'},Date.now()),false);
+ const g=fixture();await g.db.doc('bazaarEventProjects/'+eventId).set({...event,transferCutoff:when(-1000),priorTransferCutoff:when(3600000)});
+ await assert.rejects(g.single('reminderFinal'),{code:'failed-precondition'});assert.equal(g.calls.length,0);
+});
+test('bulk reminder preparation and immediate delivery allow overdue unpaid orders, but reject paid and event cutoff',async()=>{
+ const f=fixture();const event={eventId,status:'published',transferCutoff:when(3600000)};
+ const overdue={...originalOrder,paymentDeadline:when(-3600000)};
+ await f.db.doc('bazaarEventProjects/'+eventId).set(event);
+ await f.db.doc('bazaarOrders/'+orderId).set(overdue);
+ await f.db.doc('bazaarOrders/'+anotherOrder).set({...originalOrder,id:anotherOrder,bankConfirmedAt:when(-1000)});
+ const manager=createMailAdmin(f.db,f.mail);
+ const params={eventId,type:'reminderFinal',audience:'unpaid',excludeReported:true,ids:[orderId,anotherOrder]};
+ const prep=await manager.admin('mailManualPrepare',params,'test-admin',envelope);
+ assert.deepEqual(prep.recipients.map(x=>x.id),[orderId]);
+ assert.deepEqual(prep.skipped,[{id:anotherOrder,reason:'audience-mismatch'}]);
+ const queued=await manager.admin('mailManualQueue',params,'test-admin',envelope);
+ assert.equal(queued.recipients.length,1);
+ const sent=await manager.admin('mailJobAction',{eventId,id:queued.recipients[0].jobId,action:'sendNow',confirm:true},'test-admin',envelope);
+ assert.equal(sent.status,'sent');assert.equal(f.calls.length,1);
+ const {reminderFinalAt,...unchanged}=f.db.values.get('bazaarOrders/'+orderId);
+ assert.ok(reminderFinalAt);assert.deepEqual(unchanged,overdue);
+ assert.deepEqual(f.db.values.get('bazaarEventProjects/'+eventId+'/products/product'),{soldQty:7});
+ assert.deepEqual(f.db.values.get('bazaarEventFinancials/'+eventId),{expenses:[]});
+ const again=await manager.admin('mailManualPrepare',params,'test-admin',envelope);
+ assert.equal(again.recipients.length,0);assert.equal(again.skipped[0].reason,'already-sent');
+ await f.db.doc('bazaarEventProjects/'+eventId).set({...event,transferCutoff:when(-1000)});
+ await assert.rejects(manager.admin('mailManualPrepare',params,'test-admin',envelope),{code:'failed-precondition'});
+});

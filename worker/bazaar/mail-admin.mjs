@@ -1,9 +1,9 @@
 import {mailKinds,policyMode} from './mail-policy.mjs';
 import { createHash } from 'node:crypto';
 import { BazaarError } from '../../firebase-functions-bazaar/bazaar/service.mjs';
-import { eligibleReminder, mailFields } from './mail.mjs';
+import { eligibleReminder, mailFields, manualReminderWindow } from './mail.mjs';
 import {orderPaymentSummary} from '../../firebase-functions-bazaar/bazaar/order-payments.mjs';
-import {latestTransferCutoff,orderTransferCutoff} from '../../firebase-functions-bazaar/bazaar/order-intake.mjs';
+import {latestTransferCutoff} from '../../firebase-functions-bazaar/bazaar/order-intake.mjs';
 
 const choices = ['manual','auto'];
 const manualTypes=Object.keys(mailKinds).filter(kind=>!['orderChanged','additionalPayment','refundCompleted'].includes(kind));
@@ -52,7 +52,7 @@ function directEligible(kind,order,event,policy,record){
   if(kind==='bulkCancel')return !!order.canceledAt&&order.cancelReason==='unpaidFinalization';
   if(kind==='confirmed')return !!order.bankConfirmedAt&&!order.canceledAt&&orderPaymentSummary(order).settled;
   if(kind==='reminderFinal')return !order.canceledAt&&!order.bankConfirmedAt&&!order.transferReportedAt
-    &&event?.eventId===order.eventId&&!event.finalizedAt&&!event.reconciliationStartedAt&&Date.now()<orderTransferCutoff(order,event);
+    &&manualReminderWindow(order,event,Date.now());
   if(kind==='refundCompleted')return record?.change?.amountCents>0&&!!record.change.at;
   if(kind==='additionalPayment')return !order.canceledAt&&record?.change?.amountCents>0&&orderPaymentSummary(order).additionalDue===record.change.amountCents;
   if(kind==='orderChanged')return !!record?.change&&!order.canceledAt;
@@ -366,19 +366,20 @@ export function createMailAdmin(db,mail) {
       return db.runTransaction(async tx=>{
         if(opening&&policyMode((await tx.get(policyRef)).data(),type)==='off')throw conflict('이 이메일은 발송이 꺼져 있습니다.');
         const active=type==='reminderFinal'&&opening?(await tx.get(eventRef(eventId))).data():null;
-        if(type==='reminderFinal'&&opening&&(active?.eventId!==eventId||active.finalizedAt
-          ||active.reconciliationStartedAt||!(Date.now()<latestTransferCutoff(active))))throw conflict('송금 마감 이전의 현재 행사만 알림을 준비할 수 있습니다.');
+        if(type==='reminderFinal'&&opening&&!manualReminderWindow({eventId},active,Date.now()))throw conflict('행사 전체 송금 마감 이전의 현재 행사만 알림을 준비할 수 있습니다.');
         const rows=await Promise.all(targets.map(async target=>({order:(await tx.get(target.order)).data(),job:await tx.get(target.job)})));
-        const recipients=[];
+        const recipients=[],skipped=[];
         for(const {order,job} of rows){
           if(order?.eventId!==eventId)continue;
-          if(opening&&type==='reminderFinal'&&!(Date.now()<orderTransferCutoff(order,active)))continue;
+          if(opening&&type==='reminderFinal'&&!manualReminderWindow(order,active,Date.now()))continue;
           const stored=job.data();
           if(op==='mailManualPrepare'){
-            if(!matchesManual(order,eventId,type,audience,data.excludeReported!==false)
-              ||order.reminderFinalAt&&type==='reminderFinal'
-              ||['sending','manualSent','sent'].includes(stored?.status)||stored?.sentAt||stored?.deliveryUncertain
-              ||(stored?.status==='manualReserved'&&stored.manualBy!==uid))continue;
+            const reason=!matchesManual(order,eventId,type,audience,data.excludeReported!==false)?'audience-mismatch':
+              order.reminderFinalAt&&type==='reminderFinal'?'already-sent':
+              stored?.deliveryUncertain?'delivery-uncertain':
+              ['sending','manualSent','sent'].includes(stored?.status)||stored?.sentAt?'already-sent-or-sending':
+              stored?.status==='manualReserved'&&stored.manualBy!==uid?'reserved-by-other':null;
+            if(reason){skipped.push({id:order.id,reason});continue;}
             if(stored?.status!=='manualReserved')tx.set(job.ref,{
               orderId:order.id,eventId,type:jobType,notice,createdAt:stored?.createdAt??now(),
               status:'manualReserved',manualBy:uid,dueAt:null,urgentDueAt:null,
@@ -396,7 +397,7 @@ export function createMailAdmin(db,mail) {
             recipients.push({id:order.id});
           }
         }
-        return {recipients};
+        return {recipients,skipped};
       });
     }
     throw bad('알 수 없는 메일 관리 작업입니다.');

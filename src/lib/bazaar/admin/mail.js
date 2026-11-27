@@ -129,7 +129,7 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
   const chunks=async (name,options,ids,onResult)=>{
     for(let i=0;i<ids.length;i+=30){
       const result=await action(name,{...options,ids:ids.slice(i,i+30)});
-      onResult(result.recipients);
+      onResult(result.recipients,result.skipped||[]);
     }
   };
 
@@ -403,8 +403,11 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
         preparedOptions={type:f.type.value,audience:f.audience.value,excludeReported:f.excludeReported.checked,notice:f.notice.value};
         const ids=[...body.querySelectorAll('[data-manual-order]:checked')].map(x=>x.value);
         if(!ids.length)throw new Error('선택 가능한 주문이 없습니다.');
-        await chunks('mailManualPrepare',preparedOptions,ids,rows=>prepared.push(...rows));
-        if(!prepared.length)feedback.textContent='조건에 맞는 발송 대상이 없습니다.';
+        const skipped=[];
+        await chunks('mailManualPrepare',preparedOptions,ids,(rows,excluded)=>{prepared.push(...rows);skipped.push(...excluded);});
+        const reasons={'audience-mismatch':t('입금·취소 또는 대상 조건 변경','État ou critères modifiés'),'already-sent':t('이미 독촉 발송됨','Rappel déjà envoyé'),'already-sent-or-sending':t('이미 발송됐거나 발송 중','Déjà envoyé ou en cours'),'delivery-uncertain':t('이전 발송 결과 미확인','Envoi précédent incertain'),'reserved-by-other':t('다른 운영진이 준비 중','Préparé par un autre administrateur')};
+        if(skipped.length)feedback.textContent=t('발송 준비 제외: ','Exclusions : ')+skipped.map(row=>(orders.find(o=>o.id===row.id)?.ref||'—')+' · '+(reasons[row.reason]||row.reason)).join(' / ');
+        else if(!prepared.length)feedback.textContent=t('조건에 맞는 발송 대상이 없습니다.','Aucun destinataire éligible.');
         await load();
       }
       if(['brevo-preview','brevo-queue','brevo-send-now'].includes(click)){
