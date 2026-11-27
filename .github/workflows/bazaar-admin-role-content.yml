@@ -1,0 +1,25 @@
+name: Apply administrator role to live Bazaar
+on:
+  push:
+    branches: [ops/bazaar-admin-role-content-20261127]
+permissions:
+  contents: read
+concurrency:
+  group: asicc-bazaar-admin-role-content
+  cancel-in-progress: false
+jobs:
+  role-only:
+    if: github.ref == 'refs/heads/ops/bazaar-admin-role-content-20261127'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply only known authorization function via content-only API
+        run: python3 scripts/deploy-bazaar-admin-role.py
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_WORKERS_API_TOKEN }}
