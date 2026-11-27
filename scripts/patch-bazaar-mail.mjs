@@ -77,7 +77,13 @@ addedProps(objReturn(oldFormat,'old overview return').argument,objReturn(newForm
 
 const oldFactory=fn(o,'createMailAdmin'),newFactory=fn(n,'createMailAdmin'),liveFactory=fn(l,'createMailAdmin');
 assert.ok(eq(oldFactory.params,liveFactory.params),'Live mail admin factory parameters differ');
-for(const statement of oldFactory.body.body.filter(x=>x.type==='VariableDeclaration'))byExact(liveFactory,statement,'mail admin factory prerequisites');
+const factoryVariable=(f,name)=>one(f.body.body.flatMap(x=>x.type==='VariableDeclaration'?x.declarations:[]).filter(d=>d.id?.name===name),'factory binding '+name);
+for(const [name,path] of Object.entries({outbox:'bazaarOutbox',orders:'bazaarOrders',policies:'bazaarMailPolicies'})){
+  const binding=factoryVariable(liveFactory,name);
+  assert.ok(binding.init?.type==='CallExpression'&&binding.init.callee?.object?.name==='db'&&binding.init.callee?.property?.name==='collection'&&binding.init.arguments[0]?.value===path,'Live collection binding differs: '+name);
+}
+const eventBinding=factoryVariable(liveFactory,'eventRef');
+assert.ok(find(eventBinding,x=>x.type==='TemplateElement'&&x.value?.cooked?.startsWith('bazaarEventProjects/')||x.type==='Literal'&&String(x.value).startsWith('bazaarEventProjects/')).length===1,'Live event binding differs');
 const adminFn=f=>one(f.body.body.filter(x=>x.type==='FunctionDeclaration'&&x.id?.name==='admin'),'mail admin method');
 const oa=adminFn(oldFactory),na=adminFn(newFactory),la=adminFn(liveFactory);
 appendParam(oa,na,la,'mail admin immediate send parameter');
