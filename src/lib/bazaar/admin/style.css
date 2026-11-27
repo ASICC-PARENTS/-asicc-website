@@ -82,3 +82,6 @@ tr.row-drop-after td{box-shadow:inset 0 -3px #286197}
 
 /* The product overview has no mobile cards; keep its own scrollable table visible. */
 @media(max-width:760px){body[data-page=orders] [data-product-order-view] .sheet{display:block;overflow-x:auto}}
+
+/* Read-only expected stock in the event product table. */
+[data-derived=expected-stock]{color:#b42318;font-weight:700;text-align:center;font-variant-numeric:tabular-nums}
