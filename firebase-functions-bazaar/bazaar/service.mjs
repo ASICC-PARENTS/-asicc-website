@@ -1,3 +1,4 @@
+import {partialRefundRequest,partialRefundRef,normalizeRefundAccount,publicRefundRequest,reservePartialRefund,reserveRegisteredPartialRefunds} from './partial-refunds.mjs';
 import {orderPaymentSummary} from './order-payments.mjs';
 import {validRefundIban} from './iban.mjs';
 import {defaultPaymentHours,personalTransferDeadline,validPickupEnd} from './payment-window.mjs';
@@ -358,7 +359,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
   async function bazaarBuyerAction(req){
     const {id,token,action,ackNoTransfer}=req.data||{};
     if(!/^[a-zA-Z0-9]{15,40}$/.test(s(id))||!/^[a-f0-9]{64}$/.test(s(token)))bad('주문 확인 링크가 올바르지 않습니다.');
-    if(!['view','report','cancel'].includes(action))bad('요청을 확인해 주세요.');
+    if(!['view','report','cancel','refundAccountView','refundAccountSubmit'].includes(action))bad('요청을 확인해 주세요.');
     let mailId=null;
     const result=await db.runTransaction(async tx=>{
       const ref=orders.doc(id), snap=await tx.get(ref);
@@ -368,6 +369,25 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
       if(a.length!==b.length||!timingSafeEqual(a,b))throw new HttpsError('permission-denied','주문 확인 권한이 없습니다.');
       const currentEvent=(await tx.get(projects.doc(o.eventId))).data();
       if(action==='view')return{order:buyerOrder(o,currentEvent),changed:false};
+      if(action==='refundAccountView'||action==='refundAccountSubmit'){
+        const key=s(req.data.requestId);
+        if(!/^[a-f0-9]{32}$/.test(key)||!o.partialRefundIds?.includes(key))throw new HttpsError('permission-denied','환불 요청을 찾을 수 없습니다.');
+        const accountRef=partialRefundRef(ref,key),refundRef=ref.collection('refunds').doc(key);
+        const [requestSnap,refundSnap]=await Promise.all([tx.get(accountRef),tx.get(refundRef)]);
+        const request=requestSnap.data(),refund=refundSnap.data();
+        if(!request||request.eventId!==o.eventId)throw new HttpsError('permission-denied','환불 요청을 찾을 수 없습니다.');
+        if(action==='refundAccountView')return {request:publicRefundRequest(o,request,refund)};
+        if(request.status==='reserved'||refund||o.canceledAt)throw new HttpsError('failed-precondition','이미 처리 중인 환불입니다. 협회에 문의해 주세요.');
+        const account=normalizeRefundAccount(req.data);
+        if(!account)bad('예금주, IBAN, BIC 및 확인 여부를 확인해 주세요.');
+        await requireOpenAccounting(tx,o.eventId);
+        const at=now(),updated={...request,account,status:'registered',accountUpdatedAt:at};
+        const reserved=reservePartialRefund(tx,ref,o,updated,refund,at,o.reservedRefundCents||0);
+        const amount=reserved-(o.reservedRefundCents||0);
+        if(amount>0)tx.update(ref,{reservedRefundCents:reserved});
+        else tx.update(accountRef,{account,status:'registered',accountUpdatedAt:at});
+        return {request:publicRefundRequest(o,amount?{...updated,status:'reserved'}:updated,amount?{status:'pending',amountCents:amount}:null)};
+      }
       assertOrderEvent(currentEvent,o.eventId);
       if(o.canceledAt)throw new HttpsError('failed-precondition','이미 취소된 주문입니다.');
       if(action==='report'){
@@ -437,7 +457,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
     }
     if(op==='mailPreview'){
       const eventId=s(data.eventId),type=s(data.type);
-      if(!validEventId(eventId)||!['receipt','confirmed','buyerCancel','adminCancel','reminderFinal','bulkCancel','pickup','other','orderChanged','additionalPayment','refundCompleted'].includes(type))bad('이메일 미리보기 종류와 행사를 확인해 주세요.');
+      if(!validEventId(eventId)||!['receipt','confirmed','buyerCancel','adminCancel','reminderFinal','bulkCancel','pickup','other','orderChanged','additionalPayment','refundCompleted','partialRefund'].includes(type))bad('이메일 미리보기 종류와 행사를 확인해 주세요.');
       const [active,draft,archive]=await db.getAll(eventRef,eventDrafts.doc(eventId),eventArchives.doc(eventId));
       const event=active.data()?.eventId===eventId?active.data():draft.data()?.event||archive.data()?.event;
       if(!event)throw new HttpsError('not-found','해당 행사를 찾을 수 없습니다.');
@@ -456,11 +476,11 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         const job=(await outbox.doc(jobId).get()).data();
         if(!selected||job?.eventId!==eventId||job.orderId!==id||job.type!==type||!job.change)bad('선택한 주문의 거래 이메일이 아닙니다.');
         const policy=(await db.doc('bazaarMailPolicies/'+eventId).get()).data();
-        const {subject,text}=message({...order,...job.change},type,selected.eventSnapshot||event,{...policy?.templates?.[type],...job.template},job.change);
+        const {subject,text}=message({...order,...job.change},type,selected.eventSnapshot||event,{...policy?.templates?.[type],...job.template,...Object.fromEntries(Object.entries(tpl).filter(([,value])=>value))},job.change);
         return {subject,text};
       }
       const template=message(order,['buyerCancel','adminCancel'].includes(type)?'cancel':type,selected?.eventSnapshot||event,tpl,
-        type==='refundCompleted'?{amountCents:100,at:now()}:type==='additionalPayment'?{amountCents:100}:{});
+        type==='refundCompleted'?{amountCents:100,at:now()}:type==='additionalPayment'?{amountCents:100}:type==='partialRefund'?{requestId:'preview-only',estimatedCents:500,previousTotalCents:1150,canceledItems:[{titleKo:'예시 취소 상품',titleFr:'Article annulé exemple',qty:1,priceCents:500}],bankConfirmed:false}:{});
       return {subject:template.subject,text:template.text};
     }
     if (typeof op==='string' && op.startsWith('mail') && mailAdmin) return mailAdmin(op,data,req.auth.uid,message);
@@ -881,10 +901,14 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         tx.create(ref.collection('corrections').doc(String(changed.revision)),changed);
         const payment=orderPaymentSummary(order);
         const removed=order.items.map(item=>({...item,qty:item.qty-quantities.get(item.id)})).filter(item=>item.qty>0);
-        tx.update(ref,{items,totalCents,modifiedAt:changed.at,originalItems:order.originalItems||order.items,canceledItems:[...(order.canceledItems||[]),...removed],originalTotalCents:payment.original,depositedCents:payment.deposited,refundedCents:payment.refunded,revision:changed.revision,productHistoryIds:[...new Set([...(order.productHistoryIds||[]),...order.items.map(item=>item.id),...items.map(item=>item.id)])]});
+        const partial=partialRefundRequest(order,{revision:changed.revision,at:changed.at,items,totalCents,removed});
+        if(partial)tx.create(partialRefundRef(ref,partial.id),partial);
+        tx.update(ref,{...(partial?{partialRefundIds:[...(order.partialRefundIds||[]),partial.id]}:{}),items,totalCents,modifiedAt:changed.at,originalItems:order.originalItems||order.items,canceledItems:[...(order.canceledItems||[]),...removed],originalTotalCents:payment.original,depositedCents:payment.deposited,refundedCents:payment.refunded,revision:changed.revision,productHistoryIds:[...new Set([...(order.productHistoryIds||[]),...order.items.map(item=>item.id),...items.map(item=>item.id)])]});
         if(order.email){
           const fields={eventId,change:{items,totalCents,previousTotalCents:order.totalCents}};
-          await queue(tx,id,'orderChanged',{...fields,jobKey:'orderChanged-'+changed.revision});
+          if(partial)await queue(tx,id,'partialRefund',{...fields,jobKey:'partialRefund-'+changed.revision,change:{...fields.change,
+            requestId:partial.id,canceledItems:partial.items,estimatedCents:partial.estimatedCents,bankConfirmed:!!order.bankConfirmedAt}});
+          else await queue(tx,id,'orderChanged',{...fields,jobKey:'orderChanged-'+changed.revision});
           const due=orderPaymentSummary({...order,totalCents}).additionalDue;
           if(order.bankConfirmedAt&&due>0)await queue(tx,id,'additionalPayment',{...fields,jobKey:'additionalPayment-'+changed.revision,change:{items,totalCents,amountCents:due}});
         }
@@ -963,6 +987,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         const record={...details,id:key,type,amountCents:amount,reason,reference,by:req.auth.uid,at:now()};
         const patch={originalTotalCents:current.original,depositedCents:current.deposited+(type==='deposit'?amount:0),
           refundedCents:current.refunded+(type==='refund'?amount:0)};
+        if(type==='deposit'&&order.partialRefundIds?.length)patch.reservedRefundCents=await reserveRegisteredPartialRefunds(tx,ref,{...order,...patch},record.at);
         tx.create(ledger,record);
         tx.update(ref,patch);
         if(type==='refund'&&order.email)await queue(tx,id,'refundCompleted',{eventId:order.eventId,jobKey:'refundCompleted-'+key,change:{amountCents:amount,at:record.at,items:order.items,totalCents:order.totalCents}});
@@ -974,6 +999,21 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         }
         return {payment};
       });
+    }
+    if(op==='eventPartialRefunds'){
+      const ids=data.ids;
+      if(!Array.isArray(ids)||ids.length>12||ids.some(id=>!/^[A-Za-z0-9]{15,40}$/.test(id)))bad('조회할 주문을 확인해 주세요.');
+      if(!ids.length)return {requests:[]};
+      const docs=await db.getAll(...ids.map(id=>orders.doc(id)));
+      const result=await Promise.all(docs.filter(doc=>doc.data()?.eventId===data.eventId).map(async doc=>{
+        const order=doc.data(),ref=orders.doc(doc.id);
+        return Promise.all((order.partialRefundIds||[]).map(async key=>{
+          const [a,b]=await db.getAll(partialRefundRef(ref,key),ref.collection('refunds').doc(key));
+          const request=a.data(),refund=b.data();if(!request)return null;
+          return {...publicRefundRequest(order,request,refund),orderId:order.id,name:order.name,createdAt:request.createdAt};
+        }));
+      }));
+      return {requests:result.flat().filter(Boolean)};
     }
     if(op==='eventRefunds'){
       const eventId=s(data.eventId),ids=data.ids;
@@ -1581,6 +1621,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
             throw new HttpsError('failed-precondition','이미 처리되었거나 검토할 수 없는 입금입니다.');
           await requireOpenAccounting(tx,o.eventId);
           const at=now(),patch={bankConfirmedAt:at,originalTotalCents:o.originalTotalCents??o.totalCents,depositedCents:amount,refundedCents:0};
+          if(o.partialRefundIds?.length)patch.reservedRefundCents=await reserveRegisteredPartialRefunds(tx,ref,{...o,...patch},at);
           tx.create(ledger,{...details,id:key,initial:true,type:'deposit',amountCents:amount,by:req.auth.uid,at,lateReview:true});
           tx.update(ref,patch);
           tx.update(reviewRef,{status:'posted',postedAt:at,postedBy:req.auth.uid,paymentId:key});
@@ -1599,6 +1640,7 @@ export function createBazaar({ db, FieldValue, HttpsError = BazaarError, storePh
         await requireOpenAccounting(tx,o.eventId);
         const at=now();
         const patch={bankConfirmedAt:at,originalTotalCents:o.originalTotalCents??o.totalCents,depositedCents:amount,refundedCents:0};
+          if(o.partialRefundIds?.length)patch.reservedRefundCents=await reserveRegisteredPartialRefunds(tx,ref,{...o,...patch},at);
         tx.create(ledger,{...details,id:key,initial:true,type:'deposit',amountCents:amount,by:req.auth.uid,at});
         tx.update(ref,patch);
         const payment=orderPaymentSummary({...o,...patch});

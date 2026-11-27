@@ -9,12 +9,12 @@ keep_vars = true
 [vars]
 BAZAAR_MODE = "test"
 FIREBASE_PROJECT_ID = "asicc-bazaar-test"
-BAZAAR_SITE_URL = "https://asicc-integration-test.pages.dev"
-MAIL_MODE = "api"
+BAZAAR_SITE_URL = "https://test-partial-refund-rib.asicc-integration-test.pages.dev"
+MAIL_MODE = "capture"
 MAIL_PROVIDER = "brevo"
-BAZAAR_TEST_MAIL_SINCE = "2026-11-25T15:00:00Z"
+BAZAAR_TEST_MAIL_SINCE = ""
 # Previously used association test mailbox; add other recipients only after approval.
-BAZAAR_TEST_MAIL_RECIPIENTS = "contact@asicc-parents.fr"
+BAZAAR_TEST_MAIL_RECIPIENTS = ""
 
 [triggers]
 crons = ["*/5 * * * *"]

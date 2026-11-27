@@ -18,6 +18,7 @@ const maxPhoto = 4 * 1024 * 1024;
 const localUrl = /^http:\/\/(?:127\.0\.0\.1|localhost):\d+$/;
 const routeNames = new Set(['bazaarPublic', 'bazaarCreateOrder', 'bazaarBuyerAction', 'bazaarAdmin']);
 const designOrigin = 'https://design-asicc-ui.asicc-integration-test.pages.dev';
+const integrationOrigin = 'https://asicc-integration-test.pages.dev';
 const baselineOrigin = 'https://asicc-test.pages.dev';
 const memberMediaRoutes = new Set(['/api/upload','/api/photo','/api/resource-upload','/api/resource','/api/gallery-upload','/api/gallery']);
 const productionSite = 'https://asicc-parents.fr';
@@ -172,12 +173,12 @@ export default {
       if (request.method === 'GET' && url.pathname.startsWith('/photo/'))
         return await dependencies(env,url.origin,ctx).photos.serve(url,publicOpen);
       if (env.BAZAAR_MODE === 'test' && memberMediaRoutes.has(url.pathname)) {
-        return await privateMedia.fetch(request, {...env, ALLOWED_ORIGINS: [site.origin,designOrigin,baselineOrigin].join(',')});
+        return await privateMedia.fetch(request, {...env, ALLOWED_ORIGINS: [site.origin,designOrigin,baselineOrigin,integrationOrigin].join(',')});
       }
       const name = url.pathname.slice('/api/'.length);
       if (!url.pathname.startsWith('/api/') || !routeNames.has(name)) return json({}, 404, cors);
       const origin = request.headers.get('Origin');
-      if (origin && origin !== site.origin && !(env.BAZAAR_MODE === 'test' && [designOrigin,baselineOrigin,'http://127.0.0.1:4321'].includes(origin))) return json({}, 403, cors);
+      if (origin && origin !== site.origin && !(env.BAZAAR_MODE === 'test' && [designOrigin,baselineOrigin,integrationOrigin,'http://127.0.0.1:4321'].includes(origin))) return json({}, 403, cors);
       if (origin) cors = { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Methods': 'POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-ASICC-Pilot', 'Access-Control-Max-Age': '600', Vary: 'Origin' };
       if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });

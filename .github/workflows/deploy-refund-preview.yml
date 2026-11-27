@@ -1,0 +1,51 @@
+name: Deploy partial refund RIB test preview
+on:
+  push:
+    branches: [test-partial-refund-rib]
+permissions:
+  contents: read
+concurrency:
+  group: asicc-refund-preview
+  cancel-in-progress: true
+jobs:
+  test-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run isolated refund and regression tests
+        run: |
+          node --test tests/bazaar-*.test.mjs
+          node worker/bazaar/production-smoke.mjs
+      - name: Build isolated preview
+        run: npm run build:integration
+        env:
+          ASICC_REFUND_PREVIEW: 'true'
+          PUBLIC_ASICC_BAZAAR_TEST_API_KEY: AIzaSyBKYgkMrEVeGwmFtgxgiQMzQCG8UWV5Ego
+          PUBLIC_ASICC_BAZAAR_TEST_APP_ID: 1:678821978206:web:a5d3bc7303fafe253dd4cf
+      - name: Verify test-only targets and disable external mail
+        run: |
+          grep -Fx 'name = "asicc-bazaar-test-api"' worker/bazaar/wrangler.test.toml
+          grep -Fx 'FIREBASE_PROJECT_ID = "asicc-bazaar-test"' worker/bazaar/wrangler.test.toml
+          grep -Fx 'MAIL_MODE = "capture"' worker/bazaar/wrangler.test.toml
+          grep -Fx 'BAZAAR_TEST_MAIL_RECIPIENTS = ""' worker/bazaar/wrangler.test.toml
+      - name: Deploy test Worker only
+        run: npx wrangler@4 deploy --config worker/bazaar/wrangler.test.toml
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_WORKERS_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: b941b206ccc2aad94ae9b83ada2bc889
+      - name: Verify test API
+        run: |
+          curl --fail-with-body --silent --show-error \
+            -H 'Origin: https://test-partial-refund-rib.asicc-integration-test.pages.dev' \
+            -H 'Content-Type: application/json' --data '{"data":{}}' \
+            https://asicc-bazaar-test-api.falling-hall-f390.workers.dev/api/bazaarPublic | jq -e '.data.event.eventId and (.data.products | type == "array")'
+      - name: Deploy branch preview only
+        run: npx wrangler@4 pages deploy dist --project-name=asicc-integration-test --branch=test-partial-refund-rib
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: b941b206ccc2aad94ae9b83ada2bc889

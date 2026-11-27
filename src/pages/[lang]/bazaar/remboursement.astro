@@ -1,0 +1,77 @@
+---
+import '../../../lib/bazaar/buyer.css';
+import Base from '../../../layouts/Base.astro';
+import {langPaths,L,type Lang} from '../../../i18n/ui';
+export const getStaticPaths=langPaths;
+const lang=Astro.params.lang as Lang;
+---
+<Base lang={lang} rest="bazaar/remboursement/" title={L(lang,{ko:'환불 계좌정보 등록',fr:'Coordonnées de remboursement'})} noindex>
+  <meta slot="head" name="referrer" content="no-referrer"/>
+  <main id="rib" class="buyer-wrap" data-lang={lang} style="max-width:640px">
+    <div class="buyer-section">
+      <nav class="buyer-actions" style="margin:0 0 16px"><button id="rib-language" type="button" class="buyer-btn buyer-secondary">{lang==='fr'?'한국어':'FR'}</button></nav>
+      <h1>{L(lang,{ko:'환불 계좌정보 등록',fr:'Coordonnées bancaires pour le remboursement'})}</h1>
+      <p id="rib-test" class="buyer-hint" hidden>{L(lang,{ko:'테스트 전용 · 실제 은행정보를 입력하지 마세요.',fr:'Test uniquement · N’entrez pas de vraies coordonnées bancaires.'})}</p>
+      <div id="rib-summary" aria-live="polite">{L(lang,{ko:'환불 요청을 확인 중입니다…',fr:'Chargement de la demande…'})}</div>
+      <form id="rib-form" hidden autocomplete="off" style="display:grid;gap:15px;margin-top:24px">
+        <label>{L(lang,{ko:'예금주명 *',fr:'Titulaire du compte *'})}<input name="beneficiary" required maxlength="120" style="display:block;width:100%;padding:12px;border:1px solid #b8aca5;border-radius:8px"/></label>
+        <label>IBAN *<input name="iban" required maxlength="50" spellcheck="false" placeholder="FR76 …" style="display:block;width:100%;padding:12px;border:1px solid #b8aca5;border-radius:8px"/></label>
+        <label>{L(lang,{ko:'BIC (선택)',fr:'BIC (facultatif)'})}<input name="bic" maxlength="11" spellcheck="false" style="display:block;width:100%;padding:12px;border:1px solid #b8aca5;border-radius:8px"/></label>
+        <p class="buyer-guidance">{L(lang,{ko:'입력하신 계좌정보는 이 주문의 환불 처리에만 사용되며 권한 있는 관리자만 열람합니다.',fr:'Vos coordonnées bancaires sont utilisées uniquement pour le remboursement de cette commande et accessibles aux administrateurs autorisés.'})}</p>
+        <label><input name="confirm" required type="checkbox"/> {L(lang,{ko:'입력한 계좌정보가 정확함을 확인합니다.',fr:'Je confirme l’exactitude de mes coordonnées bancaires.'})}</label>
+        <button class="buyer-btn" type="submit">{L(lang,{ko:'환불 계좌정보 제출',fr:'Enregistrer mes coordonnées'})}</button>
+      </form>
+      <p id="rib-feedback" role="status" class="buyer-hint"></p>
+    </div>
+  </main>
+</Base>
+<script>
+import {buyerAction,bazaarTestMode,eFormat,h} from '../../../lib/bazaar/api';
+import {compactIban,validRefundIban} from '../../../../firebase-functions-bazaar/bazaar/iban.mjs';
+const root=document.querySelector<HTMLElement>('#rib')!,fr=root.dataset.lang==='fr';
+const t=(ko:string,frText:string)=>fr?frText:ko;
+const params=new URLSearchParams(location.search),id=params.get('id'),requestId=params.get('request');
+const fragment=new URLSearchParams(location.hash.slice(1));
+const tokenKey='asicc-rib-token:'+id+':'+requestId;
+let token=fragment.get('token');
+try{if(token&&/^[a-f0-9]{64}$/.test(token))sessionStorage.setItem(tokenKey,token);else token=sessionStorage.getItem(tokenKey);}catch{}
+if(fragment.has('token')){fragment.delete('token');history.replaceState(null,'',location.pathname+location.search+(fragment.size?'#'+fragment:''));}
+const summary=root.querySelector<HTMLElement>('#rib-summary')!,feedback=root.querySelector<HTMLElement>('#rib-feedback')!,form=root.querySelector<HTMLFormElement>('#rib-form')!;
+root.querySelector<HTMLElement>('#rib-test')!.hidden=!bazaarTestMode;
+root.querySelector<HTMLButtonElement>('#rib-language')!.onclick=()=>{
+ const target=new URL(location.href);target.pathname=target.pathname.replace(/^\/(ko|fr)\//,fr?'/ko/':'/fr/');if(token)target.hash='token='+encodeURIComponent(token);location.href=target.href;
+};
+const payload={id,token,requestId};
+const demo=bazaarTestMode&&params.get('demo')==='1'&&!id&&!requestId&&!token;
+const demoRequest={orderRef:'TEST-001',items:[{titleKo:'핫도그',titleFr:'Hot-dogs',qty:2,priceCents:500}],currentItems:[{titleKo:'떡볶이',titleFr:'Tteokbokki',qty:2,priceCents:500}],currentTotalCents:1000,estimatedCents:1000,amountCents:null,status:'awaitingAccount',editable:true,accountRegistered:false,ibanLast4:''};
+if(demo){root.querySelector<HTMLElement>('#rib-test')!.textContent=t('화면 시연 · 아래 예시 계좌정보는 서버에 저장되지 않습니다.','Démonstration · Les coordonnées ne sont pas enregistrées sur le serveur.');}
+const status=(value:string)=>({awaitingAccount:t('계좌정보 등록 대기','Coordonnées à enregistrer'),awaitingPayment:t('등록 완료 · 은행 입금 확인 대기','Coordonnées enregistrées · virement à vérifier'),awaitingBalance:t('계좌정보 등록 완료 · 추가 확인 대기','Coordonnées enregistrées · vérification du solde'),pending:t('환불 대기','Remboursement en attente'),completed:t('환불 완료','Remboursement effectué'),void:t('환불 요청 종료','Demande clôturée'),review:t('협회 확인 필요','Vérification nécessaire')}[value]||value);
+function draw(r:any){
+ const lines=(items:any[])=>items.map(i=>'<div class="buyer-line"><span>'+h(fr?i.titleFr:i.titleKo)+' × '+i.qty+'</span><strong>'+eFormat(i.qty*i.priceCents)+'</strong></div>').join('');
+ summary.innerHTML='<p class="buyer-hint">'+t('주문번호','Référence')+' · <strong>'+h(r.orderRef)+'</strong></p>'+
+ '<p class="buyer-status">'+h(status(r.status))+'</p>'+
+ '<h2>'+t('취소 상품','Articles annulés')+'</h2>'+lines(r.items)+
+ '<h2 style="margin-top:22px">'+t('변경된 주문내역','Commande mise à jour')+'</h2>'+lines(r.currentItems)+
+ '<div class="buyer-total"><span>'+t('현재 주문금액','Total actuel')+'</span><strong>'+eFormat(r.currentTotalCents)+'</strong></div>'+
+ '<div class="buyer-guidance" style="margin-top:18px"><strong>'+t(r.amountCents===null?'예상 환불액':'확정 환불액',r.amountCents===null?'Remboursement estimé':'Remboursement confirmé')+' · '+eFormat(r.amountCents??r.estimatedCents)+'</strong><p>'+t('실제 입금 및 차액 확인 후 환불을 진행합니다.','Le remboursement intervient après vérification du virement et du solde.')+'</p></div>'+
+ (r.accountRegistered?'<p class="buyer-hint">'+t('등록된 IBAN 끝 4자리','IBAN enregistré, 4 derniers caractères')+' · '+h(r.ibanLast4)+'</p>':'');
+ form.hidden=!r.editable;
+ if(r.accountRegistered&&r.editable)feedback.textContent=t('계좌정보가 접수되었습니다. 환불 처리 전까지 다시 등록할 수 있습니다.','Vos coordonnées ont été enregistrées. Vous pouvez les modifier avant le traitement.');
+}
+async function load(){
+ if(demo){draw(demoRequest);return;}
+ try{const {request}=await buyerAction({...payload,action:'refundAccountView'});draw(request);}
+ catch{summary.textContent=t('올바르지 않거나 만료된 환불 링크입니다. 협회에 문의해 주세요.','Ce lien est invalide ou expiré. Contactez l’association.');form.hidden=true;}
+}
+form.addEventListener('submit',async event=>{
+ event.preventDefault();const fields=new FormData(form);const iban=compactIban(fields.get('iban'));
+ if(!validRefundIban(iban)){feedback.textContent=t('IBAN 형식 및 검증번호를 확인해 주세요.','Vérifiez le format et la clé de l’IBAN.');return;}
+ const submit=form.querySelector<HTMLButtonElement>('button[type=submit]')!;submit.disabled=true;
+ if(demo){form.reset();draw({...demoRequest,status:'pending',amountCents:1000,accountRegistered:true,ibanLast4:iban.slice(-4),editable:false});feedback.textContent=t('시연 완료 · 실제 등록 및 송금 없음','Démonstration terminée · Aucun enregistrement ni virement réel');submit.disabled=false;return;}
+ try{const {request}=await buyerAction({...payload,action:'refundAccountSubmit',beneficiary:String(fields.get('beneficiary')),iban,bic:String(fields.get('bic')||''),confirm:fields.get('confirm')==='on'});
+ form.reset();draw(request);feedback.textContent=t('환불 계좌정보가 등록되었습니다. 실제 환불은 입금 확인 및 관리자 처리 후 완료됩니다.','Coordonnées enregistrées. Le remboursement sera effectué après vérification et traitement par l’association.');
+ }catch(error){feedback.textContent=t('등록하지 못했습니다. 계좌정보를 확인하거나 협회에 문의해 주세요.','Enregistrement impossible. Vérifiez vos coordonnées ou contactez l’association.');}
+ finally{submit.disabled=false;}
+});
+void load();
+</script>

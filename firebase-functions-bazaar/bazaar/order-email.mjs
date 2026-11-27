@@ -106,6 +106,7 @@ export function defaultMailCopy(type,lang){
     reminder3:[t('송금 기한 안내','Rappel de paiement'),t('아직 송금 신고가 접수되지 않았습니다.','Votre virement n’a pas encore été signalé.'),'pending'],
     reminderFinal:[t('송금 기한 안내','Rappel de paiement'),t('송금 기한이 다가오고 있습니다. 송금 후 주문 페이지에서 알려 주세요.','La date limite approche. Une fois le virement effectué, signalez-le depuis votre commande.'),'pending'],
     additionalPayment:[t('추가 입금 안내','Complément de paiement'),t('변경된 주문의 추가 송금 금액을 확인해 주세요.','Veuillez vérifier le complément à verser pour votre commande.'),'pending'],
+    partialRefund:[t('주문 부분 취소 및 환불 안내','Annulation partielle et remboursement'),t('주문하신 상품 중 일부가 취소되었습니다. 이용에 불편을 드려 죄송합니다. 아래 변경된 주문내역을 확인해 주세요.','Une partie de votre commande a été annulée. Nous vous prions de nous excuser pour la gêne occasionnée. Veuillez vérifier la commande mise à jour.'),'pending'],
     orderChanged:[t('주문 변경 안내','Commande modifiée'),t('변경이 반영된 주문과 금액을 확인해 주세요.','Consultez les articles et le montant de votre commande mise à jour.'),'navy'],
     cancel:[t('주문 취소 안내','Commande annulée'),t('주문이 취소되었습니다. 문의가 있으면 협회에 연락해 주세요.','Votre commande a été annulée. Contactez l’association si vous avez une question.'),'canceled'],
     bulkCancel:[t('주문 취소 안내','Commande annulée faute de paiement'),t('기한 내 입금이 확인되지 않았습니다. 이미 송금했다면 협회에 주문번호와 송금일을 알려 주세요.','Le paiement n’a pas été confirmé à temps. Si vous avez déjà payé, communiquez à l’association la référence et la date du virement.'),'canceled'],
@@ -136,6 +137,7 @@ export function renderOrderEmail({order,type,event={},template={},change={},site
     reminder3:[t('주문내역 확인하기','Voir ma commande')],
     reminderFinal:[t('주문내역 확인하기','Voir ma commande')],
     additionalPayment:[t('추가 입금 내역 확인하기','Voir le complément à verser')],
+    partialRefund:[t('변경된 주문내역 확인하기','Voir la commande mise à jour')],
     orderChanged:[t('변경내역 확인하기','Voir les modifications')],
     cancel:[t('취소내역 확인하기','Voir les détails de l’annulation')],
     buyerCancel:[t('취소내역 확인하기','Voir les détails de l’annulation')],
@@ -194,8 +196,14 @@ export function renderOrderEmail({order,type,event={},template={},change={},site
       (state?`<p class="mail-copy" style="margin:8px 0 0;color:${palette[tone]};font-size:12px;font-weight:700;">${html(state)}</p>`:''))));
     plain.push('',labels[0]+': '+order.orderRef,labels[1]+': '+order.name,...(state?[state]:[]));
   }
+  if(type==='partialRefund'&&change.canceledItems?.length){
+    const canceled=change.canceledItems;
+    const label=t('취소된 상품','Articles annulés');
+    body.push(section(label,productTable(canceled,{name:t('상품명','Article'),qty:t('수량','Qté'),amount:t('금액','Montant')},productName)));
+    plain.push('',label,...canceled.map(i=>'• '+productName(i)+' × '+i.qty+' = '+eur(i.priceCents*i.qty)));
+  }
   if(choice('items')||choice('total')){
-    const label=type==='cancel'||type==='bulkCancel'?t('취소된 주문 내역','Articles annulés'):t('주문 내역','Votre commande');
+    const label=type==='partialRefund'?t('변경된 주문내역','Commande mise à jour'):type==='cancel'||type==='bulkCancel'?t('취소된 주문 내역','Articles annulés'):t('주문 내역','Votre commande');
     const list=choice('items')&&items.length?productTable(items,{name:t('상품명','Article'),qty:t('수량','Qté'),amount:t('금액','Montant')},productName):'';
     const total=choice('total')?panel(`<p class="mail-copy" style="margin:0;text-align:right;font-size:12px;line-height:1.45;">${html(amountTitle)}<br><strong class="mail-amount" style="${emphasis}">${html(eur(order.totalCents))}</strong></p>`):'';
     body.push(section(label,list+total));
@@ -203,7 +211,7 @@ export function renderOrderEmail({order,type,event={},template={},change={},site
       ...(choice('total')?[amountTitle+': '+eur(order.totalCents)]:[]));
   }
   if(receipt&&order.pickupNote)addNotes(t('판매자에게 전달할 사항','Informations complémentaires pour le retrait'),[order.pickupNote],true);
-  if(type==='orderChanged'&&Number.isFinite(change.previousTotalCents)&&change.previousTotalCents!==order.totalCents)
+  if(['orderChanged','partialRefund'].includes(type)&&Number.isFinite(change.previousTotalCents)&&change.previousTotalCents!==order.totalCents)
     addFacts(t('주문 금액 변경','Écart de montant'),[[t('이전 금액','Ancien total'),eur(change.previousTotalCents)],
       [t('차액','Différence'),eur(order.totalCents-change.previousTotalCents)]]);
   if(receipt||reminders||balance){
@@ -224,6 +232,18 @@ export function renderOrderEmail({order,type,event={},template={},change={},site
       [t('환불액','Montant remboursé'),Number.isFinite(change.amountCents)?eur(change.amountCents):''],
       [t('처리 상태','État'),state],
       [t('처리 일시','Date de traitement'),change.at?formatParisPaymentDeadline(change.at,lang):'']]);
+  }
+  if(type==='partialRefund'&&change.requestId){
+    const ribUrl=new URL('/'+lang+'/bazaar/remboursement/',site);
+    ribUrl.searchParams.set('id',order.id);ribUrl.searchParams.set('request',change.requestId);
+    if(pilot)ribUrl.searchParams.set('pilot','1');
+    ribUrl.hash='token='+encodeURIComponent(order.buyerToken);
+    addFacts(t('환불 안내','Remboursement'),[[t('예상 환불액','Remboursement estimé'),eur(change.estimatedCents||0)],
+      [t('상태','État'),order.bankConfirmedAt||change.bankConfirmed?t('계좌정보 등록 대기','Coordonnées bancaires en attente'):t('은행 입금 확인 대기','Virement à vérifier')]]);
+    const instruction=t('실제 입금액을 확인한 후 환불이 필요한 차액을 확정합니다. 환불을 위해 아래 버튼에서 예금주명과 IBAN을 등록해 주세요.','Le remboursement sera déterminé après vérification du montant effectivement reçu. Veuillez enregistrer le titulaire du compte et votre IBAN via le bouton ci-dessous.');
+    const label=t('환불 계좌정보 등록하기 (RIB)','Enregistrer mes coordonnées bancaires (RIB)');
+    body.push(paragraph(instruction),section('',button(label,ribUrl.href)));
+    plain.push('',instruction,label+': '+ribUrl.href);
   }
   const actions=actionTable({view,report,cancel});
   if(actions)body.push(section('',actions));

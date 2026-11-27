@@ -664,9 +664,10 @@ function orderModal(id){
 function orderTools(order){
  let buttons='';
  if(canManageOrder()&&order.status!=='canceled'){
-  buttons+='<button class="btn primary" data-action="order-correct" data-id="'+esc(order.id)+'">'+language('주문 수정','Modifier')+'</button>';
+  buttons+='<button class="btn primary" data-action="order-correct" data-id="'+esc(order.id)+'">'+language('주문 수정 / 부분 취소','Modifier / annuler partiellement')+'</button>';
   buttons+='<button class="btn neutral" data-action="manual-order" data-id="'+esc(order.id)+'">'+language('추가 주문','Commande complémentaire')+'</button>';
  }
+ if(order.hasPartialRefundRequests)buttons+='<button class="btn neutral" data-action="partial-refund-requests" data-id="'+esc(order.id)+'">'+language('RIB 접수 / 환불 요청','Demandes de remboursement / RIB')+'</button>';
  if(order.bankConfirmedAt)buttons+='<button class="btn neutral" data-action="refund-open" data-id="'+esc(order.id)+'">'+language('환불 등록','Remboursement')+'</button>';
  if(order.bankConfirmedAt)buttons+='<button class="btn neutral" data-action="order-payments" data-id="'+esc(order.id)+'">'+(fr?'Paiements et remboursements':'입금·환불 기록')+'</button>';
  if(order.bankConfirmedAt)buttons+='<button class="btn primary" data-action="deposit-add" data-id="'+esc(order.id)+'">'+language('추가 입금 등록','Enregistrer un virement supplémentaire')+'</button>';
@@ -864,10 +865,31 @@ function completeRefundForm(id,key){
 const refundStatus=state=>({
  pending:language('환불 대기','En attente'),completed:language('환불 완료','Remboursé'),void:language('등록 취소','Annulé'),
 })[state]||state;
+const partialStatus=state=>({awaitingAccount:language('RIB 미등록','RIB manquant'),awaitingPayment:language('입금 확인 대기','Virement à vérifier'),awaitingBalance:language('차액 확인 대기','Solde à vérifier'),pending:language('환불 대기','En attente'),completed:language('환불 완료','Remboursé'),void:language('등록 취소','Annulé'),review:language('검토 필요','À vérifier')})[state]||state;
+async function partialRefundRequests(ids){
+ const rows=[];
+ for(let start=0;start<ids.length;start+=12){
+  const result=await request('eventPartialRefunds',{eventId:selectedEvent().id,ids:ids.slice(start,start+12)});
+  rows.push(...result.requests);
+ }
+ return rows;
+}
+function partialRefundRequestTable(rows){
+ const t=language;
+ if(!rows.length)return '<p class="muted small">'+t('부분 취소 RIB 요청이 없습니다.','Aucune demande de RIB.')+'</p>';
+ return '<div class="sheet"><table><thead><tr>'+[t('주문번호','Commande'),t('취소 상품','Articles annulés'),t('예상 / 확정 환불액','Montant estimé / confirmé'),t('RIB','RIB'),t('상태','État'),t('관리','Gestion')].map(x=>'<th>'+esc(x)+'</th>').join('')+'</tr></thead><tbody>'+
+ rows.map(r=>'<tr><td>'+esc(r.orderRef)+'</td><td>'+esc(r.items.map(i=>(fr?i.titleFr:i.titleKo)+' × '+i.qty).join(', '))+'</td><td>'+money((r.amountCents??r.estimatedCents)/100)+'</td><td>'+esc(r.accountRegistered?t('접수 완료 · 끝 ','Reçu · fin ')+r.ibanLast4:t('미등록','Manquant'))+'</td><td>'+esc(partialStatus(r.status))+'</td><td>'+
+ (['pending','completed','void'].includes(r.status)?'<button class="linkbtn" data-action="refund-detail" data-id="'+esc(r.orderId)+'" data-refund="'+esc(r.id)+'">'+t('환불 상세','Détails')+'</button>':'—')+'</td></tr>').join('')+'</tbody></table></div>';
+}
+async function openPartialRefundRequests(id){
+ const rows=await partialRefundRequests([id]);
+ modal(language('부분 취소 RIB 요청','Demandes RIB'),store.orders.find(o=>o.id===id)?.ref||'',partialRefundRequestTable(rows));
+}
 async function refundTable(){
  const t=language,eventId=selectedEvent().id;
  const ids=store.orders.filter(order=>order.hasRefundRecords).map(order=>order.id);
  const records=[];
+ const ribRows=await partialRefundRequests(store.orders.filter(o=>o.hasPartialRefundRequests).map(o=>o.id));
  for(let start=0;start<ids.length;start+=12){
   const page=await request('eventRefunds',{eventId,ids:ids.slice(start,start+12)});
   records.push(...page.refunds);
@@ -883,7 +905,7 @@ async function refundTable(){
  const filters='<div class="actions"><input type="search" id="refund-filter" placeholder="'+t('주문번호, 주문자, 담당자','Commande, client, responsable')+
   '"><select id="refund-status"><option value="">'+t('모든 상태','Tous les états')+'</option>'+['pending','completed','void'].map(value=>
    '<option value="'+value+'">'+refundStatus(value)+'</option>').join('')+'</select><input type="date" id="refund-date" aria-label="'+t('등록일','Date de création')+'"></div>';
- modal(t('행사 환불 관리','Remboursements du bazar'),selectedEvent().name,filters+'<div class="sheet" id="refund-sheet"></div>',
+ modal(t('행사 환불 관리','Remboursements du bazar'),selectedEvent().name,'<h3>'+t('부분 취소 RIB 접수 현황','Demandes RIB pour annulations partielles')+'</h3>'+partialRefundRequestTable(ribRows)+'<h3 style="margin-top:24px">'+t('환불 장부','Registre des remboursements')+'</h3>'+filters+'<div class="sheet" id="refund-sheet"></div>',
   '<button class="btn primary" id="refund-export">Excel</button><button class="btn neutral" data-action="close">'+t('닫기','Fermer')+'</button>');
  let key=8,asc=false;
  const parisDate=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris'});
@@ -918,7 +940,7 @@ async function refundDetail(id,key){
  const action=(name,label,style='neutral')=>'<button class="btn '+style+'" data-action="'+name+'" data-id="'+esc(id)+'" data-refund="'+esc(key)+'">'+label+'</button>';
  modal(t('환불 상세','Détail du remboursement'),row.id,
   '<p>'+esc(refundStatus(row.status))+' · '+money(row.amountCents/100)+'</p><p>'+esc(row.reason)+'</p><p>'+esc(row.method)+' · '+esc(row.operator)+
-  '</p><p>'+esc([row.beneficiary,row.iban,row.reference].filter(Boolean).join(' · '))+'</p>'+
+  '</p><p>'+esc([row.beneficiary,row.iban,row.bic,row.reference].filter(Boolean).join(' · '))+'</p>'+
   '<p>'+t('등록 계정','Compte de saisie')+' · '+esc(row.createdBy)+'</p>'+
   (orderChange?'<p>'+t('주문금액 변경','Modification de la commande')+' · '+money(orderChange.before.totalCents/100)+' → '+money(orderChange.after.totalCents/100)+'</p>':'')+
   (edits.length?'<details><summary>'+t('정정 이력','Historique des corrections')+'</summary><ul>'+edits.map(edit=>'<li>'+
@@ -1062,6 +1084,7 @@ function correctionModal(id){
  if(!order||!canManageOrder()||order.status==='canceled')return;
  modal('관리자 주문 정정',order.ref,
   banner('불가피한 정정에만 사용하세요. 기존 품목의 수량을 바꾸면 사유와 변경 전후 내역이 남습니다.','warning')+
+  ((order.status==='reported'||order.bankConfirmedAt)?banner(language('상품 수량과 금액이 감소하면 부분 취소 안내 및 RIB 링크가 준비됩니다. 실제 입금 확인 후 환불 대기로 등록됩니다.','Si le montant diminue, un avis et un lien RIB sont préparés. Le remboursement est enregistré après confirmation du virement.'),'info'):'')+
   order.items.map(([name,qty,price,itemId])=>'<label class="modal-row"><span>'+esc(name)+' · '+money(price)+'</span><input class="cell" style="max-width:100px" type="number" min="0" max="100" step="1" value="'+qty+'" data-order-quantity="'+esc(itemId)+'"></label>').join('')+
   store.products.filter(p=>p.active&&Number(p.sale)>0&&!order.items.some(item=>item[3]===p.id)).map(p=>
     '<label class="modal-row"><span>'+esc(fr?p.fr:p.ko)+' · '+money(p.sale)+'</span><input class="cell" type="number" min="0" max="100" value="0" data-order-quantity="'+esc(p.id)+'"></label>'
@@ -1896,6 +1919,7 @@ function handleModalAction(action,button){
  if(action==='refund-detail'){run(button,()=>refundDetail(id,button.dataset.refund));return true;}
  if(action==='refund-edit-form'){run(button,()=>refundEdit(id,button.dataset.refund));return true;}
  if(action==='refund-select'){run(button,()=>refundModal($('#refund-select').value));return true;}
+ if(action==='partial-refund-requests'){run(button,()=>openPartialRefundRequests(id));return true;}
  if(action==='refund-save'){run(button,()=>saveRefund(id));return true;}
  if(action==='refund-complete-form'){completeRefundForm(id,button.dataset.refund);return true;}
  if(action==='refund-finish'){

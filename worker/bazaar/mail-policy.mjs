@@ -1,4 +1,4 @@
-export const mailKinds = {receipt:'auto',confirmed:'auto',buyerCancel:'auto',adminCancel:'auto',reminderFinal:'manual',bulkCancel:'manual',pickup:'manual',other:'manual',orderChanged:'auto',additionalPayment:'auto',refundCompleted:'auto'};
+export const mailKinds = {receipt:'auto',confirmed:'auto',buyerCancel:'auto',adminCancel:'auto',reminderFinal:'manual',bulkCancel:'manual',pickup:'manual',other:'manual',orderChanged:'auto',additionalPayment:'auto',refundCompleted:'auto',partialRefund:'auto'};
 export const mailKind = (type,order) => type==='cancel' ? (order.cancelReason==='buyer'?'buyerCancel':'adminCancel') : type;
 export const policyMode = (policy,kind) => policy?.modes?.[kind] ?? mailKinds[kind];
 export function autoMailAllowed(policy,job,order){

@@ -24,13 +24,14 @@ export const eligibleReminder = (order, event, policy, time) => order?.email && 
 function mailMatchesOrder(job,order){
   if(job.type==='confirmed')return !!order.bankConfirmedAt&&!order.canceledAt&&orderPaymentSummary(order).additionalDue===0;
   if(job.type==='additionalPayment')return !order.canceledAt&&job.change?.amountCents>0&&orderPaymentSummary(order).additionalDue===job.change.amountCents;
+  if(job.type==='partialRefund')return !order.canceledAt&&!!job.change?.requestId&&order.partialRefundIds?.includes(job.change.requestId);
   if(job.type==='orderChanged')return !order.canceledAt;
   return true;
 }
 function manualStillEligible(job,order,event,time){
   if(job.type==='cancel')return !!order.canceledAt&&['buyer','admin'].includes(order.cancelReason);
   if(job.type==='refundCompleted')return job.change?.amountCents>0&&!!job.change.at;
-  if(job.type==='confirmed')return mailMatchesOrder(job,order);
+  if(job.type==='confirmed'||job.type==='partialRefund')return mailMatchesOrder(job,order);
   if(job.type==='bulkCancel')return order.cancelReason==='unpaidFinalization';
   if(job.type==='reminderFinal')return manualReminderWindow(order,event,time)&&!order.canceledAt&&!order.bankConfirmedAt&&!order.transferReportedAt&&(job.explicitDirect||!order.reminderFinalAt);
   return job.type==='other'||!order.canceledAt;

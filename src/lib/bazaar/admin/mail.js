@@ -6,7 +6,7 @@ import {mailKinds,policyMode} from '../../../../worker/bazaar/mail-policy.mjs';
 
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const types={receipt:'주문 접수',confirmed:'입금 확인',cancel:'주문 취소',bulkCancel:'미입금 취소',
-  buyerCancel:'고객 주문 취소',adminCancel:'운영진 주문 취소',orderChanged:'주문 변경',additionalPayment:'추가 송금',refundCompleted:'환불 완료',
+  buyerCancel:'고객 주문 취소',adminCancel:'운영진 주문 취소',orderChanged:'주문 변경',additionalPayment:'추가 송금',refundCompleted:'환불 완료',partialRefund:'부분 취소·환불 안내',
   reminderFinal:'마감 안내',pickup:'수령 안내',other:'기타 안내',reminder3:'이전 3시간 알림',reported:'이전 송금 신고'};
 const states={queued:'대기',delayed:'지연',sending:'발송 중',sent:'발송 접수',failed:'실패',skipped:'발송 제외',
   canceled:'대기 취소',manualReserved:'OVH 발송 준비',manualSent:'OVH 발송 기록'};
@@ -119,7 +119,7 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
     bulkCancel:t('최종 미입금 주문 취소 안내','Annulation pour non-paiement'),
     pickup:t('상품 수령 안내','Retrait des produits'),
     other:t('기타 공지','Autre annonce'),
-    orderChanged:t('주문 변경 안내','Commande modifiée'),additionalPayment:t('추가 송금 안내','Virement complémentaire'),refundCompleted:t('환불 완료 안내','Remboursement effectué'),
+    orderChanged:t('주문 변경 안내','Commande modifiée'),additionalPayment:t('추가 송금 안내','Virement complémentaire'),refundCompleted:t('환불 완료 안내','Remboursement effectué'),partialRefund:t('관리자 부분 취소 및 환불 안내','Annulation partielle et remboursement'),
   };
   let ready=false, pending=false, cursor=null, messages=[], prepared=[], preparedOptions;
   const recipients=()=>[...new Set(prepared.map(row=>row.email.trim().toLowerCase()))].sort();
@@ -174,7 +174,7 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
     return Object.fromEntries(Object.entries(defaults).map(([key,value])=>[key,templates[kind]?.[key]?.trim()||value]));
   }
   function sampleMail(kind,lang,override={}){
-    return renderOrderEmail({type:renderKind(kind),order:{lang,id:'preview',buyerToken:'preview-only',orderRef:'ASICC-PREVIEW',name:lang==='fr'?'Client exemple':'예시 주문자',totalCents:2350,items:[{titleKo:'예시 상품 A',titleFr:'Produit exemple A',qty:2,priceCents:900},{titleKo:'예시 상품 B',titleFr:'Produit exemple B',qty:1,priceCents:550}],paymentDeadline:event.raw?.transferCutoff},event:event.raw||{},site:location.origin,template:{...templates[kind],...override},change:kind==='refundCompleted'?{amountCents:550}:kind==='additionalPayment'?{amountCents:550}:{}});
+    return renderOrderEmail({type:renderKind(kind),order:{lang,id:'preview',buyerToken:'preview-only',orderRef:'ASICC-PREVIEW',name:lang==='fr'?'Client exemple':'예시 주문자',totalCents:2350,items:[{titleKo:'예시 상품 A',titleFr:'Produit exemple A',qty:2,priceCents:900},{titleKo:'예시 상품 B',titleFr:'Produit exemple B',qty:1,priceCents:550}],paymentDeadline:event.raw?.transferCutoff},event:event.raw||{},site:location.origin,template:{...templates[kind],...override},change:kind==='refundCompleted'?{amountCents:550}:kind==='additionalPayment'?{amountCents:550}:kind==='partialRefund'?{requestId:'preview-only',previousTotalCents:4350,estimatedCents:2000,canceledItems:[{titleKo:'예시 취소 상품',titleFr:'Article annulé exemple',qty:2,priceCents:1000}]}:{}});
   }
   function samplePreview(kind,override={}){
     return ['ko','fr'].map(lang=>{
@@ -285,15 +285,24 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
   }
   panel.addEventListener('input',event=>{if(event.target.matches('[data-history-search],[data-history-from],[data-history-to],[data-history-type],[data-history-state]'))drawHistory();});
   function renderTransactionManual(policy){
-    const options=messages.filter(row=>['orderChanged','additionalPayment','refundCompleted'].includes(row.type)&&
+    const options=messages.filter(row=>['orderChanged','additionalPayment','refundCompleted','partialRefund'].includes(row.type)&&
      ['queued','skipped'].includes(row.status)&&row.email&&policyMode(policy,row.type)==='manual'&&!(row.mode==='manual'&&row.status==='queued'));
     const target=body.querySelector('[data-transaction-manual]');
     if(!options.length){target.replaceChildren();return;}
     target.innerHTML='<h3>'+t('주문 변경·추가 송금·환불 메일','Messages de modification, complément et remboursement')+'</h3>'+
      '<label class="field">'+t('거래별 이메일','Message par opération')+'<select data-transaction-job>'+options.map(row=>
      '<option value="'+esc(row.id)+'">'+esc((row.orderRef||'—')+' · '+kinds[row.type]+' · '+(row.createdAt?timestamp.format(new Date(row.createdAt)):''))+'</option>').join('')+
-     '</select></label><div class="actions">'+button('transaction-send',t('이메일 보내기 (1통)','Envoyer un e-mail (1)'))+
+     '</select></label><div data-transaction-copy></div><div class="actions">'+button('transaction-send',t('이메일 보내기 (1통)','Envoyer un e-mail (1)'))+
      button('transaction-preview',t('미리보기','Aperçu'))+'</div><pre data-transaction-preview hidden></pre>';
+    const choice=target.querySelector('[data-transaction-job]');
+    const copyArea=target.querySelector('[data-transaction-copy]');
+    const drawCopy=()=>{
+      const row=options.find(item=>item.id===choice.value);
+      copyArea.replaceChildren();if(row?.type!=='partialRefund')return;
+      copyArea.innerHTML='<fieldset class="field"><legend>'+t('발송 문구 선택','Choix du texte')+'</legend><label><input type="radio" name="transaction-copy-mode" value="default" checked> '+t('기본 발송 문구','Texte par défaut')+'</label><label><input type="radio" name="transaction-copy-mode" value="custom"> '+t('개별 발송 문구','Texte personnalisé')+'</label></fieldset><div data-transaction-fields hidden>'+Object.entries(effectiveCopy(row.type)).map(([key,value])=>'<label class="field">'+esc(({subjectKo:'한국어 제목',introKo:'한국어 안내',subjectFr:'Objet français',introFr:'Texte français'})[key])+'<textarea maxlength="'+(key.startsWith('subject')?150:2500)+'" data-transaction-field="'+key+'">'+esc(value)+'</textarea></label>').join('')+'</div>';
+      copyArea.onchange=e=>{if(e.target.name==='transaction-copy-mode')copyArea.querySelector('[data-transaction-fields]').hidden=e.target.value!=='custom';};
+    };
+    choice.addEventListener('change',drawCopy);drawCopy();
   }
   function initManual() {
     body.querySelector('[data-mail-manual]').innerHTML=`<h3>${t('수동 발송 · Brevo 또는 OVH','Envoi manuel · Brevo ou OVH')}</h3><form data-manual-form class="form-grid">
@@ -386,11 +395,14 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
       if(click==='transaction-send'||click==='transaction-preview'){
         const row=messages.find(item=>item.id===body.querySelector('[data-transaction-job]').value);
         if(!row)return;
+        const copyMode=body.querySelector('[name="transaction-copy-mode"]:checked')?.value;
+        const override=copyMode==='custom'?Object.fromEntries([...body.querySelectorAll('[data-transaction-field]')].map(el=>[el.dataset.transactionField,el.value.trim()])):{};
+        if(Object.values(override).some(v=>!v))throw new Error(t('제목과 안내 문구를 모두 입력해 주세요.','Renseignez tous les champs.'));
         if(click==='transaction-preview'){
-          const preview=await action('mailPreview',{type:row.type,id:row.orderId,jobId:row.id,lang:orders.find(order=>order.id===row.orderId)?.lang||'ko'});
+          const preview=await action('mailPreview',{type:row.type,id:row.orderId,jobId:row.id,lang:orders.find(order=>order.id===row.orderId)?.lang||'ko',template:override});
           const target=body.querySelector('[data-transaction-preview]');target.textContent=preview.subject+'\n\n'+preview.text;target.hidden=false;
         }else if(confirm((row.orderRef||'—')+' · '+kinds[row.type]+' · '+row.email+' · '+t('1통을 즉시 발송할까요?','Envoyer 1 message maintenant ?'))){
-          await action('mailTransactionQueue',{jobId:row.id,confirm:true});
+          await action('mailTransactionQueue',{jobId:row.id,confirm:true,override});
           const result=await action('mailJobAction',{id:row.id,action:'sendNow',confirm:true});await load();feedback.textContent=dispatchFeedback(result,fr);
         }
       }

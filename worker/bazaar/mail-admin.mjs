@@ -6,7 +6,7 @@ import {orderPaymentSummary} from '../../firebase-functions-bazaar/bazaar/order-
 import {latestTransferCutoff} from '../../firebase-functions-bazaar/bazaar/order-intake.mjs';
 
 const choices = ['manual','auto'];
-const manualTypes=Object.keys(mailKinds).filter(kind=>!['orderChanged','additionalPayment','refundCompleted'].includes(kind));
+const manualTypes=Object.keys(mailKinds).filter(kind=>!['orderChanged','additionalPayment','refundCompleted','partialRefund'].includes(kind));
 const audiences = ['unpaid','confirmed','canceled','valid'];
 const idPattern = /^[a-z0-9-]{12,60}$/;
 const orderPattern = /^[a-zA-Z0-9]{15,40}$/;
@@ -44,7 +44,7 @@ function matchesManual(order,eventId,type,audience,excludeReported) {
   return !order.canceledAt;
 }
 
-const transactionKinds=['orderChanged','additionalPayment','refundCompleted'];
+const transactionKinds=['orderChanged','additionalPayment','refundCompleted','partialRefund'];
 const storedType=kind=>['buyerCancel','adminCancel'].includes(kind)?'cancel':kind;
 function directEligible(kind,order,event,policy,record){
   if(!order?.email||!Object.hasOwn(mailKinds,kind)||policyMode(policy,kind)==='off')return false;
@@ -55,6 +55,7 @@ function directEligible(kind,order,event,policy,record){
     &&manualReminderWindow(order,event,Date.now());
   if(kind==='refundCompleted')return record?.change?.amountCents>0&&!!record.change.at;
   if(kind==='additionalPayment')return !order.canceledAt&&record?.change?.amountCents>0&&orderPaymentSummary(order).additionalDue===record.change.amountCents;
+  if(kind==='partialRefund')return !order.canceledAt&&!!record?.change?.requestId&&order.partialRefundIds?.includes(record.change.requestId);
   if(kind==='orderChanged')return !!record?.change&&!order.canceledAt;
   return !order.canceledAt;
 }
@@ -216,7 +217,7 @@ export function createMailAdmin(db,mail) {
       return db.runTransaction(async tx=>{
         const [snapshot,policy]=await Promise.all([tx.get(ref),tx.get(policyRef)]);
         const job=snapshot.data();
-        if(!job||job.eventId!==eventId||!['orderChanged','additionalPayment','refundCompleted'].includes(job.type)||
+        if(!job||job.eventId!==eventId||!['orderChanged','additionalPayment','refundCompleted','partialRefund'].includes(job.type)||
           !job.change||!orderPattern.test(job.orderId)||!['queued','skipped'].includes(job.status)||job.sentAt||job.deliveryUncertain)
           throw conflict('아직 발송하지 않은 거래 이메일만 선택할 수 있습니다.');
         const order=(await tx.get(orders.doc(job.orderId))).data();
@@ -224,7 +225,8 @@ export function createMailAdmin(db,mail) {
           throw conflict('해당 종류의 수동 발송 설정 및 수신 이메일을 확인해 주세요.');
         if(job.mode==='manual'&&job.status==='queued')return {queued:true};
         const requestedAt=now();
-        tx.update(ref,{...mailFields(job.type,requestedAt),status:'queued',mode:'manual',requestedAt,manualBy:uid});
+        const override=job.type==='partialRefund'&&data.override?Object.fromEntries(['subjectKo','subjectFr','introKo','introFr'].map(key=>[key,String(data.override[key]??'').trim().slice(0,key.startsWith('subject')?150:2500)]).filter(([,value])=>value)):null;
+        tx.update(ref,{...mailFields(job.type,requestedAt),status:'queued',mode:'manual',requestedAt,manualBy:uid,...(override?{template:override}:{})});
         return {queued:true};
       });
     }
