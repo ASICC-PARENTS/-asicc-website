@@ -2,7 +2,7 @@
 title: Recensement des membres de l’ASICC
 date: 2026-11-27
 category: notice
-summary: Dans le cadre de notre demande de soutien auprès de l’Agence des Coréens de l’étranger, nous vous invitons à participer au recensement des membres de notre association.
+summary: Formulaire en ligne pour les membres de l’ASICC, avec signature individuelle.
 draft: false
 ---
 

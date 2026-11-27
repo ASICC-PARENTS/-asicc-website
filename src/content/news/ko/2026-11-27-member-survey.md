@@ -2,7 +2,7 @@
 title: 재외동포청 단체현황 조사 참여 안내
 date: 2026-11-27
 category: notice
-summary: 재외동포청 지원사업 신청에 필요한 협회 회원명부 작성을 위해 회원 여러분께 단체현황 조사 참여를 부탁드립니다.
+summary: ASICC 회원 대상 · 온라인 작성 및 개인별 서명
 draft: false
 ---
 
