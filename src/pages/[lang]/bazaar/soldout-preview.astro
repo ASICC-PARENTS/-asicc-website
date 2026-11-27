@@ -1,0 +1,17 @@
+---
+import Base from '../../../layouts/Base.astro';
+import '../../../lib/bazaar/buyer.css';
+import '../../../lib/bazaar/shop-view.css';
+import { L, href, type Lang } from '../../../i18n/ui';
+import { previewPaths, renderSoldoutPreview } from '../../../lib/bazaar/soldout-preview.js';
+export const getStaticPaths = previewPaths;
+const lang = Astro.params.lang as Lang;
+const markup = renderSoldoutPreview(lang);
+---
+<Base lang={lang} rest="bazaar/soldout-preview/" title={L(lang,{ko:'품절 디자인 검수',fr:'Aperçu des produits épuisés'})} noindex>
+ <div class="bz-wrap buyer-wrap">
+  <p class="buyer-hint">{L(lang,{ko:'디자인 검수 전용 · 예시 재고입니다. 실제 품절 상태나 주문에는 영향을 주지 않습니다.',fr:'Aperçu uniquement · Stock fictif. Aucune incidence sur les stocks ou commandes réels.'})}</p>
+  <section class="buyer-section"><h2>{L(lang,{ko:'상품 목록',fr:'Nos produits'})}</h2><div set:html={markup}/></section>
+  <a href={href(lang,'bazaar/')}>{L(lang,{ko:'실제 테스트 바자회로 돌아가기',fr:'Retour au bazar de test'})}</a>
+ </div>
+</Base>
