@@ -3,6 +3,7 @@ import {mailKinds,policyMode} from '../../../../worker/bazaar/mail-policy.mjs';
 
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const types={receipt:'주문 접수',confirmed:'입금 확인',cancel:'주문 취소',bulkCancel:'미입금 취소',
+  buyerCancel:'고객 주문 취소',adminCancel:'운영진 주문 취소',orderChanged:'주문 변경',additionalPayment:'추가 송금',refundCompleted:'환불 완료',
   reminderFinal:'마감 안내',pickup:'수령 안내',other:'기타 안내',reminder3:'이전 3시간 알림',reported:'이전 송금 신고'};
 const states={queued:'대기',delayed:'지연',sending:'발송 중',sent:'발송 접수',failed:'실패',skipped:'발송 제외',
   canceled:'대기 취소',manualReserved:'OVH 발송 준비',manualSent:'OVH 발송 기록'};
@@ -11,14 +12,21 @@ const errors={'free-plan-limit':'무료 발송 한도', 'provider-limit':'Brevo 
   'verify-provider-before-resending':'Brevo 발송 이력 확인','provider-rejected':'Brevo 요청 거절'};
 const jobLabels={retry:'재발송',cancel:'대기 취소',completeManual:'OVH 완료 기록',releaseManual:'OVH 준비 해제'};
 
+const deliveryLabel=(delivery,fr=false)=>{
+  const labels={unknown:['전달 상태 미확인','Remise non vérifiée'],accepted:['발송 서버 접수 · 전달 미확인','Accepté · remise non vérifiée'],
+    delivered:['수신 서버 전달 완료','Remis au serveur destinataire'],delayed:['수신 서버 전달 지연','Remise différée'],failed:['수신 서버 전달 실패','Échec de remise']};
+  return (labels[delivery?.state]||labels.unknown)[fr?1:0]+(delivery?.checkedAt?' · '+parisDeadline(delivery.checkedAt,'ko'):'');
+};
 function mailRows(messages,fr=false) {
   return messages.map(m=>{
     const timestamp=m.manualSentAt||m.sentAt||m.dueAt;
     const actions={failed:['sendNow'],queued:['sendNow','cancel'],delayed:['sendNow','cancel'],manualReserved:['completeManual','releaseManual']}[m.status]||[];
     if(['sent','manualSent'].includes(m.status)&&['receipt','confirmed'].includes(m.type)&&!m.resendJobId)actions.push('resend');
-    const label=action=>action==='sendNow'?(m.status==='failed'?(fr?'Renvoyer maintenant':'즉시 재발송'):(fr?'Envoyer maintenant':'즉시 발송')):action==='resend'?(fr?'Renvoyer une copie':'재발송'):jobLabels[action];
+    if(m.canCheckDelivery)actions.push('checkDelivery');
+    const label=action=>action==='checkDelivery'?(fr?'Vérifier la remise':'전달 상태 확인'):action==='sendNow'?(m.status==='failed'?(fr?'Renvoyer maintenant':'즉시 재발송'):(fr?'Envoyer maintenant':'즉시 발송')):action==='resend'?(fr?'Renvoyer une copie':'재발송'):jobLabels[action];
     return `<div class="modal-row"><span>${esc(types[m.type]||m.type)} · ${esc(states[m.status]||m.status)}
       ${timestamp?` · ${esc(parisDeadline(timestamp,'ko'))}`:''}${m.lastError?` · ${esc(errors[m.lastError]||m.lastError)}`:''}</span>
+      ${['sent','manualSent'].includes(m.status)?'<p>'+esc(deliveryLabel(m.delivery,fr))+'</p>':''}
       ${m.sentSnapshot?'<details><summary>Message</summary><p>'+esc(m.sentSnapshot.to)+'</p><strong>'+esc(m.sentSnapshot.subject)+'</strong><pre>'+esc(m.sentSnapshot.text)+'</pre></details>':''}
       ${m.resendOf?` · ${fr?'Renvoi':'재발송 건'}`:''}${m.resendJobId?` · ${fr?'Renvoi créé':'재발송 기록 있음'}`:''}
       ${actions.map(action=>`<button type="button" class="linkbtn" data-mail-job="${action}" data-id="${esc(m.id)}" data-uncertain="${m.deliveryUncertain===true}">${label(action)}</button>`).join('')}</div>`;
@@ -27,6 +35,7 @@ function mailRows(messages,fr=false) {
 
 async function jobAction(button,request,eventId,fr=false) {
   const action=button.dataset.mailJob;
+  if(action==='checkDelivery')return request('mailCheckDelivery',{eventId,id:button.dataset.id});
   const verified=button.dataset.uncertain==='true';
   const t=(ko,french)=>fr?french:ko;
   const prompt=verified?t('Brevo 이력에서 이 이메일이 접수 또는 발송되지 않았음을 확인했습니까?','Avez-vous vérifié dans Brevo que cet e-mail n’a pas été accepté ou envoyé ?'):{
@@ -41,6 +50,7 @@ async function jobAction(button,request,eventId,fr=false) {
 
 function dispatchFeedback(result,fr=false){
   if(!result?.jobId)return '';
+  if(result.checkedDelivery)return deliveryLabel(result.delivery,fr);
   const t=(ko,french)=>fr?french:ko;
   if(result.status==='sent')return result.method==='capture'?t('테스트 발송 기록 완료 (실제 메일 미전송)','Envoi de test enregistré (aucun e-mail réel)'):t('발송 서버 접수 완료 · 수신함 도착 여부는 미확인','Accepté par le serveur · remise non vérifiée');
   const message={delayed:t('발송 제한으로 지연되었습니다. 제한을 우회하지 않습니다.','Envoi différé en raison du quota.'),
@@ -53,15 +63,34 @@ function dispatchFeedback(result,fr=false){
 export async function showOrderMail(id,target,eventId,request) {
   const fr=target.closest('[data-lang]')?.dataset.lang==='fr';
   try {
-    const {messages,latePayment}=await request('mailStatus',{id});
-    target.innerHTML=`${latePayment==='posted'?'<p>늦은 입금 장부 반영 완료</p>':latePayment==='pending'?'<p>최종 대조 후 입금 검토 대상</p>':''}${mailRows(messages,fr)||'<p>발송 내역 없음</p>'}<p data-mail-result role="status"></p>`;
+    const {messages,latePayment,manual}=await request('mailStatus',{id,eventId,includeManual:true});
+    const t=(ko,french)=>fr?french:ko;
+    const options=manual?.options||[];
+    let requestId=null,selection=null,busy=false;
+    const single=options.length?'<div class="modal-row"><strong>'+t('개별 이메일 즉시 발송 / 재발송','Envoi ou renvoi individuel immédiat')+'</strong>'+
+      '<p>'+esc(manual.orderRef||'')+' · '+esc(manual.email)+'</p><label>'+t('메일 종류','Type de message')+' <select data-mail-kind>'+
+      options.map((option,index)=>'<option value="'+index+'">'+esc(types[option.kind]||option.kind)+(option.at?' · '+esc(parisDeadline(option.at,'ko')):'')+'</option>').join('')+
+      '</select></label><button type="button" class="btn neutral" data-single-mail>'+t('즉시 발송','Envoyer maintenant')+'</button></div>':'';
+    target.innerHTML=`${latePayment==='posted'?'<p>늦은 입금 장부 반영 완료</p>':latePayment==='pending'?'<p>최종 대조 후 입금 검토 대상</p>':''}${single}${mailRows(messages,fr)||'<p>발송 내역 없음</p>'}<p data-mail-result role="status"></p>`;
     target.onclick=async event=>{
-      const button=event.target.closest('[data-mail-job]');
-      if(!button||button.disabled)return;
-      button.disabled=true;
-      try{const result=await jobAction(button,request,eventId,fr);if(result){await showOrderMail(id,target,eventId,request);const notice=target.querySelector('[data-mail-result]');if(notice)notice.textContent=dispatchFeedback(result,fr);}}
-      catch(error){alert(error.message);}
-      finally{button.disabled=false;}
+      const button=event.target.closest('[data-mail-job],[data-single-mail]');
+      if(!button||button.disabled||busy)return;
+      busy=true;button.disabled=true;
+      try{
+        let result;
+        if(button.hasAttribute('data-single-mail')){
+          const index=Number(target.querySelector('[data-mail-kind]').value),option=options[index];
+          if(!option)return;
+          const label=types[option.kind]||option.kind;
+          if(!confirm(t('이 수신자에게 해당 종류의 메일 1통을 발송합니다. 기존 발송 이력이 있으면 새 메일로 재발송합니다.','Envoyer un message de ce type à ce destinataire ? Un nouvel envoi sera créé si le message a déjà été envoyé.')+'\n'+manual.orderRef+' · '+manual.email+'\n'+label))return;
+          if(selection!==index||!requestId){selection=index;requestId=crypto.randomUUID();}
+          result=await request('mailSingleSend',{eventId,orderId:id,kind:option.kind,jobId:option.jobId||null,
+            expectedEmail:manual.email,requestId,confirm:true});
+          requestId=null;
+        }else result=await jobAction(button,request,eventId,fr);
+        if(result){await showOrderMail(id,target,eventId,request);const notice=target.querySelector('[data-mail-result]');if(notice)notice.textContent=dispatchFeedback(result,fr);}
+      }catch(error){alert(error.message);}
+      finally{busy=false;button.disabled=false;}
     };
   }catch{target.textContent='발송 상태를 조회하지 못했습니다.';}
 }
@@ -201,7 +230,7 @@ export function mountMailManager(parent,event,orders,request,editable,expanded=f
   function drawHistory(){
    const target=body.querySelector('[data-history-list]');if(!target)return;
    target.innerHTML=historyResults().map(row=>'<section class="panel pad">'+historyValues(row).map(esc).join(' · ')+
-    '<p>'+t('전달 상태 미확인','Remise non vérifiée')+'</p>'+mailRows([row],fr)+
+    mailRows([row],fr)+
     (row.retries?.length?'<p>'+row.retries.map(retry=>esc(retry.at)+' · '+esc(retry.by)+' · '+esc(retry.reason)).join('<br>')+'</p>':'')+
     '</section>').join('')||t('발송 이력이 없습니다.','Aucun envoi.');
   }
